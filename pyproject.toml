@@ -1,6 +1,6 @@
 [project]
 name = "byop"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = ["typing_extensions"]
 requires-python=">=3.8"
 authors = [
@@ -50,12 +50,12 @@ exclude_lines = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "v0.0.1"
+version = "0.0.2"
 tag_format = "v$major.$minor.$patch$prerelease"
 update_changelog_on_bump = true
 version_files = [
     "pyproject.toml:version",
-    "__version__.py"
+    "byop/__version__.py"
 ]
 
 [tool.black]
