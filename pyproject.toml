@@ -1,6 +1,6 @@
 [project]
 name = "byop"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = ["typing_extensions"]
 requires-python=">=3.8"
 authors = [
@@ -23,7 +23,7 @@ classifiers=[
 license= { file = "LICENSE" }
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-coverage", "scikit-learn", "pandas", "numpy", "pylint", "pre-commit", "pydocstyle"]
+dev = ["pytest", "pytest-coverage", "scikit-learn", "pandas", "numpy", "pylint", "pre-commit", "pydocstyle", "commitizen"]
 smac = ["smac==2.0.0a1", "configspace"]
 
 [project.urls]
@@ -46,6 +46,14 @@ exclude_lines = [
     '\.\.\.',
     "raise NotImplementedError",
     "if TYPE_CHECKING"
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+version_files = [
+    "pyproject.toml:version",
+    "__version__.py"
 ]
 
 [tool.black]

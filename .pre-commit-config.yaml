@@ -67,3 +67,8 @@ repos:
     hooks:
       - id: check-github-workflows
       - id: check-dependabot
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v2.35.0
+    hooks:
+      - id: commitizen
