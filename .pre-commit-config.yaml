@@ -32,11 +32,11 @@ repos:
       - id: black
         args: ["--config=pyproject.toml"]
 
-# - repo: https://github.com/PyCQA/pydocstyle
-#   rev: 6.1.1
-#   hooks:
-#     - id: pydocstyle
-#       args: ["--config=pyproject.toml"]
+  - repo: https://github.com/PyCQA/pydocstyle
+    rev: 6.1.1
+    hooks:
+      - id: pydocstyle
+        args: ["--config=pyproject.toml"]
 
   - repo: local
     hooks:
