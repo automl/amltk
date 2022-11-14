@@ -1,7 +1,7 @@
 [project]
 name = "byop"
 version = "0.0.3"
-dependencies = ["typing_extensions"]
+dependencies = ["typing_extensions", "more_itertools"]
 requires-python=">=3.8"
 authors = [
     {name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com"}
@@ -23,7 +23,18 @@ classifiers=[
 license= { file = "LICENSE" }
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-coverage", "scikit-learn", "pandas", "numpy", "pylint", "pre-commit", "pydocstyle", "commitizen"]
+dev = [
+    "pytest",
+    "pytest-coverage",
+    "scikit-learn",
+    "pandas",
+    "numpy",
+    "pylint",
+    "pre-commit",
+    "pydocstyle",
+    "commitizen",
+    "pycln",
+]
 smac = ["smac==2.0.0a1", "configspace"]
 
 [project.urls]
@@ -102,6 +113,7 @@ add-ignore = [ # http://www.pydocstyle.org/en/stable/error_codes.html
     "D415"  # First line should end with a period, question mark, or exclamation point
 ]
 
+
 [tool.mypy]
 python_version = "3.8"
 
@@ -116,8 +128,7 @@ disallow_untyped_defs = true # All functions must have types
 disallow_untyped_decorators = true # ... even decorators
 disallow_incomplete_defs = true # ...all types
 
-enable_recursive_aliases = true
-
+# enable_recursive_aliases = true
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
@@ -126,9 +137,152 @@ disallow_untyped_decorators = false # Test decorators are not properly typed
 disallow_incomplete_defs = false  # Sometimes we just want to ignore verbose types
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "ConfigSpace.*"]
+module = ["sklearn.*", "ConfigSpace.*", "networkx.*", "matplotlib.*", "pygraphviz.*", "pandas.*"]
 ignore_missing_imports = true
 
 
+[tool.pylint.main]
+# Generated form pylint --generate-toml-config
+fail-under = 10  # Specify a score threshold under which the program will exit with error.
+# ignore = []
+jobs = 1  # Single core
+limit-inference-results = 100
+persistent = true
+py-version = "3.8"
+suggestion-mode = false
+extension-pkg-whitelist = ["numpy"]
+load-plugins = ["pylint.extensions.docparams"]
+
+[tool.pylint.basic]
+argument-naming-style = "snake_case"
+attr-naming-style = "snake_case"
+class-attribute-naming-style = "any"
+class-const-naming-style = "UPPER_CASE"
+class-naming-style = "PascalCase"
+const-naming-style = "UPPER_CASE"
+docstring-min-length = -1
+function-naming-style = "snake_case"
+good-names = ["i", "f", "j", "k", "ex", "Run", "_"]
+inlinevar-naming-style = "any"
+method-naming-style = "snake_case"
+module-naming-style = "snake_case"
+no-docstring-rgx = "^_"
+property-classes = ["abc.abstractproperty"]
+variable-naming-style = "snake_case"
+
+[tool.pylint.classes]
+defining-attr-methods = ["__init__", "__new__", "__post_init__"]
+valid-classmethod-first-arg = ["cls"]
+valid-metaclass-classmethod-first-arg = ["cls"]
+
+[tool.pylint.design]
+#max-args = -1
+#max-attributes = -1
+max-bool-expr = 5
+max-branches = 12
+max-locals = 15
+max-parents = 7
+#max-public-methods = -1
+max-returns = 6
+#max-statements = -1
+#min-public-methods = -1
+
+[tool.pylint.exceptions]
+overgeneral-exceptions = ["BaseException", "Exception"]
+
+[tool.pylint.logging]
+logging-format-style = "new"
+logging-modules = ["logging"]
+
+
+[tool.pylint.miscellaneous]
+# List of note tags to take in consideration, separated by a comma.
+notes = ["FIXME", "XXX", "TODO"]
+
+
+[tool.pylint.refactoring]
+max-nested-blocks = 5
+never-returning-functions = ["sys.exit", "argparse.parse_error"]
+
+[tool.pylint.reports]
+# Python expression which should return a score less than or equal to 10. You
+# have access to the variables 'fatal', 'error', 'warning', 'refactor',
+# 'convention', and 'info' which contain the number of messages in each category,
+# as well as 'statement' which is the total number of statements analyzed. This
+# score is used by the global evaluation report (RP0004).
+evaluation = "max(0, 0 if fatal else 10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10))"
+score = true
+
+[tool.pylint.similarities]
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+ignore-signatures = true
+min-similarity-lines = 4
+
+[tool.pylint.spelling]
+max-spelling-suggestions = 4
+spelling-ignore-comment-directives = "fmt: on,fmt: off,noqa:,noqa,nosec,isort:skip,mypy:"
+
+[tool.pylint.typecheck]
+contextmanager-decorators = ["contextlib.contextmanager"]
+
+ignore-none = true
+
+# This flag controls whether pylint should warn about no-member and similar
+# checks whenever an opaque object is returned when inferring. The inference can
+# return multiple potential results while evaluating a Python object, but some
+# branches might not be evaluated, which results in partial inference. In that
+# case, it might be useful to still emit no-member and other checks for the rest
+# of the inferred objects.
+ignore-on-opaque-inference = true
+ignored-checks-for-mixins = ["no-member", "not-async-context-manager", "not-context-manager", "attribute-defined-outside-init"]
+ignored-classes = ["optparse.Values", "thread._local", "_thread._local", "argparse.Namespace"]
+
+# Show a hint with possible names when a member name was not found. The aspect of
+# finding the hint is based on edit distance.
+missing-member-hint = true
+
+# The minimum edit distance a name should have in order to be considered a
+# similar match for a missing member name.
+missing-member-hint-distance = 1
+
+# The total number of similar names that should be taken in consideration when
+# showing a hint for a missing member.
+missing-member-max-choices = 1
+
+# Regex pattern to define which classes are considered mixins.
+mixin-class-rgx = ".*[Mm]ixin"
+
+
+[tool.pylint.variables]
+# Tells whether unused global variables should be treated as a violation.
+allow-global-unused-variables = true
+
+# List of strings which can identify a callback function by name. A callback name
+# must start or end with one of those strings.
+callbacks = ["cb_", "_cb"]
+dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
+ignored-argument-names = "_.*|^ignored_|^unused_"
+redefining-builtins-modules = ["six.moves", "past.builtins", "future.builtins", "builtins", "io"]
+
+
 [tool.pylint.messages_control]
-disable = ["missing-module-docstring", "too-few-public-methods", "missing-class-docstring", "unnecessary-ellipsis", "invalid-name", "no-else-return", "wrong-import-order", "undefined-variable", "wrong-import-position", "unnecessary-lambda-assignment", "missing-function-docstring"]
+disable = [
+    "missing-module-docstring",
+    "too-few-public-methods",
+    "missing-class-docstring",
+    "unnecessary-ellipsis",
+    "invalid-name",
+    "no-else-return",
+    "wrong-import-order",
+    "undefined-variable",
+    "wrong-import-position",
+    "unnecessary-lambda-assignment",
+    "missing-function-docstring",
+    "protected-access"
+]
+
+
+[tool.refurb]
+python-version = "3.8"

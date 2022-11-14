@@ -1,5 +1,5 @@
 default_language_version:
-  python: python3.8
+  python: python3
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -46,7 +46,7 @@ repos:
         language: system
         types: [python]
         require_serial: true
-        args: ["--rcfile=pyproject.toml"]
+        args: ["-rn", "-sn", "--rcfile=pyproject.toml"]
         exclude: "^tests"
 
   - repo: https://github.com/PyCQA/isort
@@ -72,3 +72,9 @@ repos:
     rev: v2.35.0
     hooks:
       - id: commitizen
+
+  - repo: https://github.com/dosisod/refurb
+    rev: v1.7.0
+    hooks:
+      - id: refurb
+        language_version: python3.10
