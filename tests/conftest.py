@@ -1,8 +1,7 @@
 # pylint: disable=unused-argument
-from typing import Iterator, List, Optional
-
 import re
 from pathlib import Path
+from typing import Iterator, List, Optional
 
 import pytest
 from pytest import Item
@@ -15,6 +14,7 @@ HERE = Path(__file__)
 
 def walk(path: Path, include: Optional[str] = None) -> Iterator[Path]:
     """Yeilds all files, iterating over directory
+
     Parameters
     ----------
     path: Path
@@ -49,9 +49,14 @@ def as_module(path: Path) -> str:
 def fixture_modules() -> List[str]:
     """Get all fixture modules"""
     fixtures_folder = HERE.parent / "fixtures"
-    return [
-        as_module(path) for path in walk(fixtures_folder) if path.name.endswith(".py")
-    ]
+    if fixtures_folder.exists():
+        return [
+            as_module(path)
+            for path in walk(fixtures_folder)
+            if path.name.endswith(".py")
+        ]
+
+    return []
 
 
 def pytest_runtest_setup(item: Item) -> None:

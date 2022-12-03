@@ -1,181 +1,216 @@
+"""The pipeline class used to represent a pipeline of steps
+
+This module exposes a Pipelne class that wraps a chain of `Step`, `Component`,
+`Searchable` and `Choice` components, created through the `step`, `choice` and `split`
+api functions from `byop.pipeline`.
+"""
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Iterable,
-    Iterator,
-    Literal,
-    Mapping,
-    Sequence,
-    TypeVar,
-    Union,
-    cast,
-    overload,
-)
+from itertools import chain
+from typing import Callable, Generic, Iterable, Iterator, Sequence, TypeVar, overload
 
-from collections import deque
-from dataclasses import dataclass
+from attrs import frozen
+from more_itertools import duplicates_everseen, first_true
 
-from more_itertools import all_unique, first_true
-from typing_extensions import TypeAlias
+from byop.pipeline.components import Split
+from byop.pipeline.step import Key, Step
 
-Self = TypeVar("Self", bound="Pipeline")
-Config = TypeVar("Config")
-Space = TypeVar("Space")
-Item = TypeVar("Item")
+StepConfig = TypeVar("StepConfig")  # Config for an individual step in a pipeline
+T = TypeVar("T")  # Dummy typevar
 
 
-@dataclass
-class Component(Generic[Item]):
-    name: str
-    item: Callable[..., Item] | Item
-    kwargs: Mapping[str, Any]
-    inject: Sequence[str] | None
+@frozen(kw_only=True)
+class Pipeline(Generic[Key], Sequence[Step[Key]]):
+    """Base class implementing search routines over steps."""
 
+    steps: list[Step[Key]]
 
-@dataclass
-class Configurable(Component[Item], Generic[Item, Space]):
-    name: str
-    space: Space
+    @property
+    def head(self) -> Step[Key]:
+        """The first step in the pipeline"""
+        return self.steps[0]
 
-
-@dataclass
-class Choice:
-    name: str
-    choices: Sequence[Node]
-    weights: Sequence[float] | None
-
-    def __post_init__(self) -> None:
-        if len(self.choices) <= 1:
-            raise ValueError("Must provide at least two choices")
-
-        if self.weights is not None and len(self.weights) != len(self.choices):
-            raise ValueError(
-                "Must provide one weight for each choices if providing weights"
-            )
-
-
-Node: TypeAlias = Union[Component, Configurable, Choice]
-
-
-class Pipeline(Generic[Space, Config]):
-    def __init__(self, *steps: Node):
-        self.steps = steps
-
-        if not all_unique(self.iter(mode="pre"), key=lambda s: s.name):
-            raise ValueError(f"Duplicate step names in the pipeline, {self.steps}")
-
-    def __contains__(self, key: str) -> bool:
-        return self.find(key) is not None
+    @property
+    def tail(self) -> Step[Key]:
+        """The last step in the pipeline"""
+        return self.steps[-1]
 
     @overload
-    def __getitem__(self, key: str | int) -> Node:
+    def __getitem__(self, index: int) -> Step[Key]:
         ...
 
     @overload
-    def __getitem__(self: Self, key: slice | Sequence[int]) -> Self:
+    def __getitem__(self, index: slice) -> Sequence[Step[Key]]:
         ...
 
-    # Note: Overload str vs Sequence[Str]
-    #
-    #  We would like to include Sequence[str] into the overload above but according to
-    #  mypy this doesn't work because techinically str and Sequence[str] are the same
-    #  https://github.com/python/typing/issues/256
-    #
-    def __getitem__(
-        self: Self,
-        key: str | int | slice | Sequence[str] | Sequence[int],
-    ) -> Node | Self:
-        if isinstance(key, str):
-            if step := self.find(key):
-                return step
-            raise KeyError(key)
-
-        if isinstance(key, int):
-            return self.steps[key]
-
-        if isinstance(key, slice):
-            return self.steps[key]  # type: ignore
-
-        if isinstance(key, Sequence):
-            cls = self.__class__
-            if len(key) == 0:
-                raise KeyError(f"List of keys must not be empty, got {key}")
-            if isinstance(key[0], int):
-                key = cast(Sequence[int], key)
-                return cls(*[self.steps[i] for i in key])
-            if isinstance(key[0], str):
-                key = cast(Sequence[str], key)
-                return cls(*[step for k in key if (step := self.find(k)) is not None])
-
-        raise KeyError(f"Unknown key type {key}")
-
-    def subpipe(self: Self, keys: Iterable[str]) -> Self:
-        steps = [self[k] for k in keys]
-        return self.__class__(*steps)
-
-    def find(self, name: str) -> Node | None:
-        return first_true(
-            self.iter("pre"),
-            pred=lambda node: node is not None and node.name == name,
-            default=None,
-        )
-
-    def iter(
-        self,
-        mode: Literal["pre", "post", "top"] = "top",
-        only_leaves: bool = False,
-    ) -> Iterator[Node]:
-        if mode == "pre":
-            queue = deque(self.steps)
-            while len(queue) > 0:
-                step = queue.popleft()
-                if isinstance(step, Choice):
-                    queue.extendleft(step.choices)
-
-                    if not only_leaves:
-                        yield step
-                else:
-                    yield step
-
-        elif mode == "top":
-            yield from iter(self.steps)
-
-        else:
-            raise NotImplementedError(mode)
+    def __getitem__(self, index: int | slice) -> Step[Key] | Sequence[Step[Key]]:
+        return self.steps.__getitem__(index)
 
     def __len__(self) -> int:
         return len(self.steps)
 
-    def __iter__(self) -> Iterator[Node]:
-        return self.iter(mode="top")
+    def __iter__(self) -> Iterator[Step[Key]]:
+        return self.steps.__iter__()
 
-    def build(
+    def iter(self) -> Iterator[Step[Key]]:
+        """Iterate over the top layer of the pipeline.
+
+        Yields
+        ------
+            Step[Key]
+        """
+        yield from iter(self.steps)
+
+    def traverse(self) -> Iterator[Step[Key]]:
+        """Traverse the pipeline in a depth-first manner
+
+        Yields
+        ------
+            Step[Key]
+        """
+        yield from chain.from_iterable(step.traverse() for step in self.steps)
+
+    def walk(
         self,
-        config: Config,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        selection = self.select(config)
-        components: dict = {}
-        for (node, node_config), step in zip(selection, self):
-            conf = {**node_config, **node.kwargs}
-            if kwargs is not None and node.inject:
-                conf.update(
-                    {item for k in node.inject if (item := kwargs.get(k)) if not None}
-                )
-            components[step.name] = node.item(**conf)
+    ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
+        """Walk the pipeline in a depth-first manner
 
-        return components
+        This is similar to traverse, but yields the splits that lead to the step along
+        with any parents in a chain with that step (which does not include the splits)
 
-    @abstractmethod
-    def select(
-        self, config: Config
-    ) -> list[tuple[Component | Configurable, dict[str, Any]]]:
+        Yields
+        ------
+            (choices, parents, step)
+        """
+        yield from self.head.walk()
+
+    @overload
+    def find(
+        self, key: Key | Callable[[Step[Key]], bool], default: T, *, deep: bool = ...
+    ) -> Step[Key] | T:
         ...
 
-    @abstractmethod
-    def space(self) -> Config:
+    @overload
+    def find(
+        self, key: Key | Callable[[Step[Key]], bool], *, deep: bool = ...
+    ) -> Step[Key] | None:
         ...
+
+    def find(
+        self,
+        key: Key | Callable[[Step[Key]], bool],
+        default: T | None = None,
+        *,
+        deep: bool = True,
+    ) -> Step[Key] | T | None:
+        """Find a step in the pipeline
+
+        Args:
+            key: The key to search for or a function that returns True if the step
+                is the desired step
+            default (optional):
+                The value to return if the step is not found. Defaults to None
+            deep:
+                Whether to search the entire pipeline or just the top layer.
+
+        Returns
+        -------
+            The step if found, otherwise the default value. Defaults to None
+        """
+        return first_true(
+            iterable=self.traverse() if deep else self.iter(),
+            pred=key if callable(key) else (lambda step: step.name == key),
+            default=default,
+        )
+
+    def __or__(self, other: Step[Key] | Pipeline[Key]) -> Pipeline[Key]:
+        """Append a step or pipeline to this one and return a new one"""
+        return self.append(other)
+
+    def append(self, nxt: Pipeline[Key] | Step[Key]) -> Pipeline[Key]:
+        """Append a step or pipeline to this one and return a new one"""
+        if isinstance(nxt, Pipeline):
+            nxt = nxt.head
+
+        return Pipeline.create(Step.chain(self.steps, nxt.iter()))
+
+    def remove(self, name: Key, *, deep: bool = False) -> Pipeline[Key]:
+        """Remove a step from the pipeline
+
+        Args:
+            name: The name of the step to remove
+            deep: Whether to search the entire pipeline or just the top layer. Defaults
+                to False
+
+        Returns
+        -------
+            A new pipeline with the step removed
+        """
+        # TODO
+        if deep:
+            raise NotImplementedError()
+
+        # Mypy seems totally okay with is
+        # noinspection PyNoneFunctionAssignment
+        old_step = self.find(key=name, deep=deep)
+        if old_step is None:
+            raise KeyError(f"No step with {name=} in pipeline\n{self}")
+
+        assert isinstance(old_step, Step), "Pycharm was right?"
+        return Pipeline.create(old_step.preceeding(), old_step.proceeding())
+
+    def replace(
+        self,
+        name: Key,
+        new_step: Step[Key],
+        *,
+        deep: bool = False,
+    ) -> Pipeline[Key]:
+        """Replace a step in the pipeline
+
+        Args:
+            name: The name of the step to replace
+            new_step: The new step to replace the old one with
+            deep: Whether to search the entire pipeline or just the top layer. Defaults
+                to False
+
+        Returns
+        -------
+            A new pipeline with the step replaced
+        """
+        # TODO
+        if deep:
+            raise NotImplementedError()
+
+        # Mypy seems totally okay with is
+        # noinspection PyNoneFunctionAssignment
+        old_step = self.find(key=name, deep=deep)
+        if old_step is None:
+            raise KeyError(f"No step with key {name} in pipeline\n{self}")
+
+        assert isinstance(old_step, Step), "Pycharm was right?"
+        return Pipeline.create(old_step.preceeding(), [new_step], old_step.proceeding())
+
+    def validate(self) -> None:
+        """Validate the pipeline for any invariants
+
+        Intended for use as an opt-in during development
+
+        Raises
+        ------
+            AssertionError
+                * If there is a duplicate name of any step in the pipeline
+        """
+        # Check that we do not have any keys with the same Hash
+        dupe_steps = list(duplicates_everseen(self.traverse()))
+        assert not any(dupe_steps), f"Duplicates in pipeline {dupe_steps}"
+
+    @classmethod
+    def create(
+        cls, *steps: Step[Key] | Pipeline[Key] | Iterable[Step[Key]]
+    ) -> Pipeline[Key]:
+        """Create a pipeline from a sequence of steps"""
+        # Expand out any pipelines in the init
+        expanded = [s.steps if isinstance(s, Pipeline) else s for s in steps]
+        step_sequence = list(Step.chain(*expanded))
+        return Pipeline(steps=step_sequence)  # type: ignore

@@ -1,4 +1,4 @@
-from byop.pipeline.api import choice, step
-from byop.pipeline.pipeline import Choice, Component, Configurable, Node, Pipeline
+from byop.pipeline.api import choice, split, step
+from byop.pipeline.pipeline import Pipeline
 
-__all__ = ["choice", "step", "Choice", "Component", "Configurable", "Pipeline", "Node"]
+__all__ = ["Pipeline", "split", "step", "choice"]
