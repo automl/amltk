@@ -37,6 +37,7 @@ dev = [
     "mkdocs",
     "mkdocstrings[python]",
     "mkdocs-material",
+    "mkdocs-autorefs",
 ]
 smac = ["smac==2.0.0a1", "configspace"]
 
@@ -91,6 +92,8 @@ select = ["E", "F", "Q", "W", "I", "D", "U", "N", "S", "C", "B", "A", "T", "YTT"
 ignore = [
     "D105",  # Missing docstring in magic mthod
     "D400",  # Fist line should end with a period
+    "D406", # Section name should end with a newline
+    "D407", # Missing dashed underline after section
     # Documentation - Numpy style
     "D107",
     "D203",

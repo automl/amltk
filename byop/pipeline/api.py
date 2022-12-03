@@ -98,9 +98,8 @@ def choice(
         *choices: The choices that can be taken
         weights: Weights to assign to each choice, defaults to None
 
-    Returns
-    -------
-        Choice
+    Returns:
+        Choice: Choice component with your choices as possibilities
     """
     weights = list(weights) if weights is not None else None
     if weights and len(weights) != len(choices):
@@ -119,9 +118,8 @@ def split(
         name (Key): The unique name of this step
         *paths (Step): The different paths
 
-    Returns
-    -------
-        Split
+    Returns:
+        Split: Split component with your choices as possibilities
     """
     return Split(name=name, paths=list(paths))  # type: ignore
 

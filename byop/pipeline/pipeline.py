@@ -21,7 +21,11 @@ T = TypeVar("T")  # Dummy typevar
 
 @frozen(kw_only=True)
 class Pipeline(Generic[Key], Sequence[Step[Key]]):
-    """Base class implementing search routines over steps."""
+    """Base class implementing search routines over steps.
+
+    Attributes:
+        steps: The steps in the pipeline
+    """
 
     steps: list[Step[Key]]
 

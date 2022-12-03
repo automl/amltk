@@ -1,0 +1,31 @@
+site_name: byop docs
+repo_url: https://github.com/automl/byop/
+
+theme:
+  name: "material"
+
+markdown_extensions:
+  - admonition
+
+plugins:
+  - search
+  - autorefs
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 2
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [ byop ]
+          options:
+            show_source: false
+            filters:
+              - "!^_"
+              - "^__init__$"
+              - "!^can_replace$"
+
+nav:
+  - index.md
+  - API: api.md
