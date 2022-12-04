@@ -1,4 +1,4 @@
-"""These tests are specifically traversal of steps and pipelines"""
+"""These tests are specifically traversal of steps and pipelines."""
 from pytest_cases import parametrize
 
 from byop.pipeline import Pipeline, step

@@ -18,14 +18,15 @@ Space = TypeVar("Space")
 
 @frozen(kw_only=True)
 class Component(Step[Key], Generic[Key, T]):
-    """A Fixed component with an item attached
+    """A Fixed component with an item attached.
 
-    Attributes
-    ----------
+    Attributes:
+        name: The name of the component
         item: The item attached to this component
         config (optional): Any additional items to associate with this config
     """
 
+    name: Key
     item: T = field(hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
 
@@ -34,7 +35,7 @@ class Component(Step[Key], Generic[Key, T]):
         splits: list[Split[Key]] | None = None,
         parents: list[Step[Key]] | None = None,
     ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
-        """See `Step.walk`"""
+        """See `Step.walk`."""
         yield splits, parents, self
         parents = parents + [self] if parents is not None else [self]
 
@@ -42,7 +43,7 @@ class Component(Step[Key], Generic[Key, T]):
             yield from self.nxt.walk(splits, parents)
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
-        """See `Step.traverse`"""
+        """See `Step.traverse`."""
         yield self
         if self.nxt is not None:
             yield from self.nxt.traverse()
@@ -50,29 +51,35 @@ class Component(Step[Key], Generic[Key, T]):
 
 @frozen(kw_only=True)
 class Searchable(Component[Key, T], Generic[Key, T, Space]):
-    """A Fixed component with an item attached
+    """A Fixed component with an item attached.
 
-    Attributes
-    ----------
+    Attributes:
+        name: Key
+        item: T = field(hash=False)
+        config: Mapping[str, Any] | None = field(default=None, hash=False)
         space: The space to search over
     """
 
+    name: Key
+    item: T = field(hash=False)
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space = field(hash=False)
 
 
 @frozen(kw_only=True)
 class Split(Step[Key], Generic[Key]):
-    """A split in the pipeline
+    """A split in the pipeline.
 
-    Attributes
-    ----------
+    Attributes:
+        name: The name of this split
         paths: The paths to take
     """
 
+    name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
-        """See `Step.traverse`"""
+        """See `Step.traverse`."""
         yield self
         yield from chain.from_iterable(path.traverse() for path in self.paths)
         if self.nxt is not None:
@@ -83,7 +90,7 @@ class Split(Step[Key], Generic[Key]):
         splits: list[Split[Key]] | None = None,
         parents: list[Step[Key]] | None = None,
     ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
-        """See `Step.walk`"""
+        """See `Step.walk`."""
         yield splits, parents, self
         splits = splits + [self] if splits is not None else None
         parents = parents + [self] if parents is not None else [self]
@@ -97,12 +104,14 @@ class Split(Step[Key], Generic[Key]):
 
 @frozen(kw_only=True)
 class Choice(Split[Key]):
-    """A Choice between different subcomponents
+    """A Choice between different subcomponents.
 
-    Attributes
-    ----------
+    Attributes:
+        name: The name of this split
         paths: The choices to choose from
         weights (optional): Any weights to attach to each choice
     """
 
+    name: Key
+    paths: Sequence[Step[Key]] = field(hash=False)
     weights: Sequence[float] | None = field(hash=False)

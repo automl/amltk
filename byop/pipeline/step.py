@@ -12,20 +12,16 @@ from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     Generic,
     Hashable,
     Iterable,
     Iterator,
-    List,
     TypeVar,
-    Union,
     cast,
 )
 
 from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
-from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
     from byop.pipeline.components import Split
@@ -35,15 +31,12 @@ T = TypeVar("T")
 Key = TypeVar("Key", bound=Hashable)  # Unique identifier for a step
 Self = TypeVar("Self")
 
-StepDict: TypeAlias = Union[List["StepDict"], Dict[Key, Union["Step[Key]", "StepDict"]]]
-
 
 @frozen(kw_only=True)
 class Step(Generic[Key], ABC):
     """The core step class for the pipeline.
 
-    Attributes
-    ----------
+    Attributes:
         name: Name of the step
         prv: The previous step in the chain
         nxt: The next step in the chain
@@ -54,13 +47,12 @@ class Step(Generic[Key], ABC):
     nxt: Step[Key] | None = field(default=None, eq=False, repr=False)
 
     def __or__(self, nxt: Step[Key]) -> Step[Key]:
-        """Append a step on this one, return the head of a new chain of steps
+        """Append a step on this one, return the head of a new chain of steps.
 
         Args:
             nxt: The next step in the chain
 
-        Returns
-        -------
+        Returns:
             Step: The head of the new chain of steps
         """
         if not isinstance(nxt, Step):
@@ -69,25 +61,23 @@ class Step(Generic[Key], ABC):
         return self.append(nxt)
 
     def append(self, nxt: Step[Key]) -> Step[Key]:
-        """Append a step on this one, return the head of a new chain of steps
+        """Append a step on this one, return the head of a new chain of steps.
 
         Args:
             nxt: The next step in the chain
 
-        Returns
-        -------
+        Returns:
             Step: The head of the new chain of steps
         """
         return Step.join(self, nxt)
 
     def extend(self, nxt: Iterable[Step[Key]]) -> Step[Key]:
-        """Extend many steps on to this one, return the head of a new chain of steps
+        """Extend many steps on to this one, return the head of a new chain of steps.
 
         Args:
             nxt: The next steps in the chain
 
-        Returns
-        -------
+        Returns:
             Step: The head of the new chain of steps
         """
         return Step.join(self, nxt)
@@ -106,8 +96,7 @@ class Step(Generic[Key], ABC):
             include_self (optional): Whether to include self in iterator. Default True
             to (optional): Stop iteration at this step. Defaults to None
 
-        Yields
-        ------
+        Yields:
             Step[Key]: The steps in the chain
         """
         # Break out if current step is `to
@@ -127,29 +116,28 @@ class Step(Generic[Key], ABC):
             yield from self.nxt.iter(backwards=False, to=to)
 
     def head(self) -> Step[Key]:
-        """Get the first step of this chain"""
+        """Get the first step of this chain."""
         return last(self.iter(backwards=True))
 
     def tail(self) -> Step[Key]:
-        """Get the last step of this chain"""
+        """Get the last step of this chain."""
         return last(self.iter())
 
     def proceeding(self) -> Iterator[Step[Key]]:
-        """Iterate the steps that follow this one"""
+        """Iterate the steps that follow this one."""
         return self.iter(include_self=False)
 
     def preceeding(self) -> Iterator[Step[Key]]:
-        """Iterate the steps that preceed this one"""
+        """Iterate the steps that preceed this one."""
         return self.iter(backwards=True, include_self=False)
 
     def mutate(self: Self, **kwargs: Any) -> Self:
-        """Mutate this step with the given kwargs, will remove any existing nxt or prv
+        """Mutate this step with the given kwargs, will remove any existing nxt or prv.
 
         Args:
             **kwargs: The attributes to mutate
 
-        Returns
-        -------
+        Returns:
             Self: The mutated step
         """
         # ! To prevent the confusion that this step would link to `prv` and `nxt` while
@@ -165,14 +153,13 @@ class Step(Generic[Key], ABC):
         splits: list[Split[Key]] | None = None,
         parents: list[Step[Key]] | None = None,
     ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
-        """Walk along the joined steps, yielding any splits and the parents
+        """Walk along the joined steps, yielding any splits and the parents.
 
         Args:
             splits (optional): The splits of this step. Defaults to None
             parents (optional): The parents of this step. Defaults to None
 
-        Yields
-        ------
+        Yields:
             (splits, parents, step):
                 Splits to get to this node, direct parents and the current step
         """
@@ -187,15 +174,14 @@ class Step(Generic[Key], ABC):
         Args:
             include_self (optional): Whether to include this step. Defaults to True
 
-        Returns
-        -------
+        Returns:
             Iterator[Step[Key, O]]: The iterator over steps
         """
         ...
 
     @classmethod
     def join(cls, *steps: Step[Key] | Iterable[Step[Key]]) -> Step[Key]:
-        """Join together a collection of steps, returning the head
+        """Join together a collection of steps, returning the head.
 
         This is essentially a shortform of Step.chain(*steps) that returns
         the head of the chain. See `Step.chain` for more description.
@@ -203,8 +189,7 @@ class Step(Generic[Key], ABC):
         Args:
             *steps : Any amount of steps or iterables of steps
 
-        Returns
-        -------
+        Returns:
             Step[Key]
                 The head of the chain of steps
         """
@@ -225,12 +210,10 @@ class Step(Generic[Key], ABC):
         Args:
             *steps : Any amount of steps or iterable of steps.
             expand: Individual steps will be expanded with `step.iter()` while
-                Iterables will remain as is
+                Iterables will remain as is, defaults to True
 
-        Returns
-        -------
-            Iterator[Step[Key]]
-                An iterator over the steps joined together
+        Returns:
+            An iterator over the steps joined together
         """
         expanded = chain.from_iterable(
             (s.iter() if expand else [s]) if isinstance(s, Step) else s for s in steps

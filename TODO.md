@@ -1,6 +1,6 @@
 # Pipeline
+* ~~`as_dict` for dictionary representation of pipeline~~
 * `remove` and `replace` with `deep=True`
-* `as_dict` for dictionary representation of pipeline
-  * Relies on hashing of steps to not include configs or items
 * Spaces
+  * Simplest one is probably a Grid based one first, then ConfigSpace
 * Extracting subpipelines

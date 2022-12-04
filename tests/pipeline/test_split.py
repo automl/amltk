@@ -3,7 +3,6 @@ from byop.pipeline.step import Step
 
 
 def test_split() -> None:
-    """Test splitting a pipeline into two"""
     split_step = split(
         "split",
         step("1", 1) | step("2", 2),

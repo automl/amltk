@@ -131,19 +131,13 @@ def test_or_operator() -> None:
     assert pnew == p1 | p2 | s
 
 
-@pytest.mark.skip("TODO")
-@parametrize_with_cases("pipeline", cases=".", has_tag="deep")
-def test_asdict_deep(pipeline: Pipeline) -> None:
-    # TODO
-    raise NotImplementedError()
-
-
 def test_append() -> None:
     p1 = Pipeline.create(step("1", 1) | step("2", 2))
     p2 = Pipeline.create(step("3", 3) | step("4", 4))
     s = step("hello", "world")
     pnew = p1.append(p2).append(s)
-    assert pnew == Pipeline.create(p1, p2, s)
+    # Need to make sure they have the same name for pipeline equality
+    assert pnew == Pipeline.create(p1, p2, s, name=pnew.name)
 
 
 @parametrize_with_cases("pipeline", cases=".", has_tag="shallow")

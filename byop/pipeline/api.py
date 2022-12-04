@@ -1,4 +1,4 @@
-"""The public api for pipeline, steps and components
+"""The public api for pipeline, steps and components.
 
 Anything changing here is considering a major change
 """
@@ -70,8 +70,7 @@ def step(
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
 
-    Returns
-    -------
+    Returns:
         The component describing this step, a Searchable if it has a space,
         otherwise a Component.
     """
@@ -91,7 +90,7 @@ def choice(
     *choices: Step,
     weights: Iterable[float] | None = None,
 ) -> Choice:
-    """Define a choice in a pipeline
+    """Define a choice in a pipeline.
 
     Args:
         name: The unique name of this step

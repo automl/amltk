@@ -24,10 +24,8 @@ def mapping_assemble(pipeline: Step, config: Mapping[str, Any]) -> Step:
     config : Mapping[str, Any]
         The config to assemble based upon
 
-    Returns
-    -------
-    Step
-        The assembled pipeline steps
+    Returns:
+        Step: The assembled pipeline steps
     """
     config = _trim(config)
     node = pipeline

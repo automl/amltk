@@ -48,21 +48,13 @@ def remove_hyperparameter(name: str, space: ConfigurationSpace) -> Configuration
 def replace_hp(name: str, value: Any, space: ConfigurationSpace) -> ConfigurationSpace:
     """Replace a hyperparameter with a set value in a ConfigurationSpace
 
-    Parameters
-    ----------
-    name : str
-        Name of the hyperparameter
+    Args:
+        name: Name of the hyperparameter
+        value: Value to use
+        space: The space in which to replace it
 
-    value : Any
-        Value to use
-
-    space : ConfigurationSpace
-        The space in which to replace it
-
-    Returns
-    -------
-    ConfigurationSpace
-        Returns a copy of the configuration space with the hyperparameter removed
+    Returns:
+        ConfigurationSpace: Copy of the space with the hyperparameter removed
     """
     space = remove_hyperparameter(name, space)
     space.add_hyperparameter(Constant(name, value))
@@ -75,16 +67,12 @@ def generate_configspace(
 ) -> ConfigurationSpace:
     """The space for this given pipeline
 
-    Parameters
-    ----------
-    head: Step
-        The head of the pipeline
+    Args:
+        head: The head of the pipeline
+        seed:
 
-    seed: int | np.random.RandomState | np.random.BitGenerator | None = None
-
-    Returns
-    -------
-    ConfigurationSpace
+    Returns:
+        ConfigurationSpace
     """
     cs = ConfigurationSpace(seed=seed)
     add_subspace = cs.add_configuration_space
