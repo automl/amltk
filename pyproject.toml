@@ -1,43 +1,47 @@
 [project]
 name = "byop"
 version = "0.0.3"
-dependencies = ["typing_extensions", "more_itertools", "matplotlib", "networkx", "pygraphviz"]
-requires-python=">=3.8"
-authors = [
-    {name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com"}
+dependencies = [
+  "typing_extensions",
+  "more_itertools",
+  "matplotlib",
+  "networkx",
+  "pygraphviz",
 ]
+requires-python = ">=3.8"
+authors = [{ name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com" }]
 readme = "README.md"
 description = "Build Your Own Pipeline: a toolkit for building automl system"
-classifiers=[
-    'Intended Audience :: Science/Research',
-    'Intended Audience :: Developers',
-    'License :: OSI Approved',
-    'Programming Language :: Python',
-    'Topic :: Software Development',
-    'Topic :: Scientific/Engineering',
-    'Operating System :: POSIX',
-    'Operating System :: Unix',
-    'Operating System :: MacOS',
-    'Programming Language :: Python :: 3',
+classifiers = [
+  'Intended Audience :: Science/Research',
+  'Intended Audience :: Developers',
+  'License :: OSI Approved',
+  'Programming Language :: Python',
+  'Topic :: Software Development',
+  'Topic :: Scientific/Engineering',
+  'Operating System :: POSIX',
+  'Operating System :: Unix',
+  'Operating System :: MacOS',
+  'Programming Language :: Python :: 3',
 ]
-license= { file = "LICENSE" }
+license = { file = "LICENSE" }
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "pytest-coverage",
-    "pytest-cases",
-    "scikit-learn",
-    "pandas",
-    "numpy",
-    "pre-commit",
-    "commitizen",
-    "pycln",
-    "ruff",
-    "mkdocs",
-    "mkdocstrings[python]",
-    "mkdocs-material",
-    "mkdocs-autorefs",
+  "pytest",
+  "pytest-coverage",
+  "pytest-cases",
+  "scikit-learn",
+  "pandas",
+  "numpy",
+  "pre-commit",
+  "commitizen",
+  "pycln",
+  "ruff",
+  "mkdocs",
+  "mkdocstrings[python]",
+  "mkdocs-material",
+  "mkdocs-autorefs",
 ]
 smac = ["smac==2.0.0a1", "configspace"]
 
@@ -60,10 +64,10 @@ context = "byop"
 show_missing = true
 skip_covered = true
 exclude_lines = [
-    "pragma: no cover",
-    '\.\.\.',
-    "raise NotImplementedError",
-    "if TYPE_CHECKING"
+  "pragma: no cover",
+  '\.\.\.',
+  "raise NotImplementedError",
+  "if TYPE_CHECKING",
 ]
 
 [tool.commitizen]
@@ -71,10 +75,7 @@ name = "cz_conventional_commits"
 version = "0.0.3"
 tag_format = "v$major.$minor.$patch$prerelease"
 update_changelog_on_bump = true
-version_files = [
-    "pyproject.toml:version",
-    "byop/__version__.py"
-]
+version_files = ["pyproject.toml:version", "byop/__version__.py"]
 
 [tool.black]
 target-version = ['py38']
@@ -88,51 +89,74 @@ src = ["byop", "tests"]
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-select = ["E", "F", "Q", "W", "I", "D", "U", "N", "S", "C", "B", "A", "T", "YTT", "RUF", "M"]
+select = [
+  "E",
+  "F",
+  "Q",
+  "W",
+  "I",
+  "D",
+  "U",
+  "N",
+  "S",
+  "C",
+  "B",
+  "A",
+  "T",
+  "YTT",
+  "RUF",
+  "M",
+]
 ignore = [
-    # Documentation - Google style
-    "D204",
-    "D213",
-    "D215",
-    "D400",
-    "D404",
-    "D406",
-    "D407",
-    "D408",
-    "D409",
-    "D413",
-    #
-    "D105",  # Missing docstring in magic mthod
-    "D203", # 1 blank line required before class docstring
-    "N806", # Variable X in function should be lowercase
-    "E731", # Do not assign a lambda expression, use a def
-    "A003", # Shadowing a builtin
-    "S101", # Use of assert detected.
+  # Documentation - Google style
+  "D204",
+  "D213",
+  "D215",
+  "D400",
+  "D404",
+  "D406",
+  "D407",
+  "D408",
+  "D409",
+  "D413",
+  #
+  "D105", # Missing docstring in magic mthod
+  "D203", # 1 blank line required before class docstring
+  "N806", # Variable X in function should be lowercase
+  "E731", # Do not assign a lambda expression, use a def
+  "A003", # Shadowing a builtin
+  "S101", # Use of assert detected.
 ]
 
 # Exclude a variety of commonly ignored directories.
 exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
 ]
-per-file-ignores = {"tests/*.py" = ["S101", "D103", "ANN001", "ANN201", "D100"]}
+per-file-ignores = { "tests/*.py" = [
+  "S101",
+  "D103",
+  "ANN001",
+  "ANN201",
+  "D100",
+] }
 
 [tool.ruff.isort]
 known-first-party = ["byop"] # Say that byop is FIRSTPARTY
@@ -143,31 +167,31 @@ python_version = "3.8"
 
 show_error_codes = true
 
-warn_unused_configs = true  # warn about unused [tool.mypy] lines
+warn_unused_configs = true # warn about unused [tool.mypy] lines
 
-follow_imports = "normal" # Type check top level api code we use from imports
+follow_imports = "normal"      # Type check top level api code we use from imports
 ignore_missing_imports = false # prefer explicit ignores
 
-disallow_untyped_defs = true # All functions must have types
+disallow_untyped_defs = true       # All functions must have types
 disallow_untyped_decorators = true # ... even decorators
-disallow_incomplete_defs = true # ...all types
+disallow_incomplete_defs = true    # ...all types
 
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
-disallow_untyped_defs = false  # Sometimes we just want to ignore verbose types
+disallow_untyped_defs = false       # Sometimes we just want to ignore verbose types
 disallow_untyped_decorators = false # Test decorators are not properly typed
-disallow_incomplete_defs = false  # Sometimes we just want to ignore verbose types
+disallow_incomplete_defs = false    # Sometimes we just want to ignore verbose types
 
 [[tool.mypy.overrides]]
 module = [
-    "sklearn.*",
-    "ConfigSpace.*",
-    "networkx.*",
-    "matplotlib.*",
-    "pygraphviz.*",
-    "pandas.*",
-    "more_itertools.*"
+  "sklearn.*",
+  "ConfigSpace.*",
+  "networkx.*",
+  "matplotlib.*",
+  "pygraphviz.*",
+  "pandas.*",
+  "more_itertools.*",
 ]
 ignore_missing_imports = true
 
