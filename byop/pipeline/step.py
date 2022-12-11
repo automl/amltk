@@ -161,6 +161,19 @@ class Step(Generic[Key], ABC):
         return copy(self)
 
     @abstractmethod
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+        """Replace the current step with the chosen step if it's a choice.
+
+        Args:
+            choices: Mapping of choice names to the path to pick
+
+        Yields:
+            Step[Key]: The unmodified step if not a choice, else the chosen choice
+                if applicable
+        """
+        ...
+
+    @abstractmethod
     def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
         """Remove the given steps from this chain.
 

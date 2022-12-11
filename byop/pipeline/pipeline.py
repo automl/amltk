@@ -7,7 +7,16 @@ api functions from `byop.pipeline`.
 from __future__ import annotations
 
 from itertools import chain
-from typing import Callable, Generic, Hashable, Iterable, Iterator, TypeVar, overload
+from typing import (
+    Callable,
+    Generic,
+    Hashable,
+    Iterable,
+    Iterator,
+    Mapping,
+    TypeVar,
+    overload,
+)
 from uuid import uuid4
 
 from attrs import frozen
@@ -130,6 +139,25 @@ class Pipeline(Generic[Key, Name]):
     def __or__(self, other: Step[Key] | Pipeline[Key, Name]) -> Pipeline[Key, Name]:
         """Append a step or pipeline to this one and return a new one."""
         return self.append(other)
+
+    def select(
+        self,
+        choices: Mapping[Key, Key],
+        *,
+        name: Name | None = None,
+    ) -> Pipeline[Key, Name]:
+        """Select particular choices from the pipeline.
+
+        Args:
+            choices: A mapping of the choice name to the choice to select
+
+        Returns:
+            A new pipeline with the selected choices
+        """
+        return Pipeline.create(
+            self.head.select(choices),
+            name=self.name if name is None else name,
+        )
 
     def remove(
         self,

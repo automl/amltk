@@ -10,6 +10,7 @@ from itertools import chain
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 
 from attrs import field, frozen
+from more_itertools import first_true
 
 from byop.pipeline.step import Key, Step
 
@@ -66,6 +67,13 @@ class Component(Step[Key], Generic[Key, T]):
 
         if self.nxt is not None:
             yield from self.nxt.remove(keys)  # type: ignore
+
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+        """See `Step.select`."""
+        yield self
+
+        if self.nxt is not None:
+            yield from self.nxt.select(choices)  # type: ignore
 
 
 @frozen(kw_only=True)
@@ -157,6 +165,13 @@ class Split(Step[Key], Generic[Key]):
         if self.nxt is not None:
             yield from self.nxt.remove(keys)  # type: ignore
 
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+        """See `Step.select`."""
+        yield self
+
+        if self.nxt is not None:
+            yield from self.nxt.select(choices)  # type: ignore
+
 
 @frozen(kw_only=True)
 class Choice(Split[Key]):
@@ -171,3 +186,19 @@ class Choice(Split[Key]):
     name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
     weights: Sequence[float] | None = field(hash=False)
+
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+        """See `Step.select`."""
+        if self.name in choices:
+            choice = choices[self.name]
+            chosen = first_true(self.paths, pred=lambda path: path.name == choice)
+            if chosen is None:
+                raise ValueError(f"Choice {self.name} has no path '{choice}'\n{self}")
+            yield chosen
+        else:
+            # Otherwise, we need to call select over the paths
+            paths = [Step.join(path.select(choices)) for path in self.paths]
+            yield self.mutate(paths=paths)
+
+        if self.nxt is not None:
+            yield from self.nxt.select(choices)  # type: ignore
