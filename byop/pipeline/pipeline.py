@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from itertools import chain
 from typing import (
+    Any,
     Callable,
     Generic,
     Hashable,
@@ -25,7 +26,6 @@ from more_itertools import duplicates_everseen, first_true
 from byop.pipeline.components import Split
 from byop.pipeline.step import Key, Step
 
-StepConfig = TypeVar("StepConfig")  # Config for an individual step in a pipeline
 T = TypeVar("T")  # Dummy typevar
 Name = TypeVar("Name", bound=Hashable)  # Name of the pipeline
 
@@ -71,6 +71,10 @@ class Pipeline(Generic[Key, Name]):
     def __iter__(self) -> Iterator[Step[Key]]:
         return self.steps.__iter__()
 
+    def __or__(self, other: Step[Key] | Pipeline[Key, Name]) -> Pipeline[Key, Name]:
+        """Append a step or pipeline to this one and return a new one."""
+        return self.append(other)
+
     def iter(self) -> Iterator[Step[Key]]:
         """Iterate over the top layer of the pipeline.
 
@@ -97,6 +101,27 @@ class Pipeline(Generic[Key, Name]):
             (splits, parents, step)
         """
         yield from self.head.walk(splits=[], parents=[])
+
+    def configure(
+        self,
+        config: Mapping[Key, Mapping[str, Any]],
+        *,
+        name: Name | None = None,
+    ) -> Pipeline[Key, Name]:
+        """Configure the steps in the pipeline.
+
+        Args:
+            config: A mapping of the step name to the config to use
+            name (optional): A name to give to the new pipeline returned. Defaults to
+                the current pipelines name
+
+        Returns:
+            A new pipeline with the steps configured
+        """
+        return Pipeline.create(
+            self.head.configure(config),
+            name=name if name is not None else self.name,
+        )
 
     @overload
     def find(
@@ -135,10 +160,6 @@ class Pipeline(Generic[Key, Name]):
             pred=key if callable(key) else (lambda step: step.name == key),
         )
         return result if result is not None else default
-
-    def __or__(self, other: Step[Key] | Pipeline[Key, Name]) -> Pipeline[Key, Name]:
-        """Append a step or pipeline to this one and return a new one."""
-        return self.append(other)
 
     def select(
         self,

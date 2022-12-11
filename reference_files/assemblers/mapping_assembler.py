@@ -31,7 +31,7 @@ def mapping_assemble(pipeline: Step, config: Mapping[str, Any]) -> Step:
     node = pipeline
     new_node: Step
 
-    if isinstance(node, Searchable):
+    if isinstance(node, (Component, Split)):
         updates = _trim(
             {
                 _remove_prefix(k, node.name): v
