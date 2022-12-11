@@ -186,6 +186,18 @@ class Step(Generic[Key], ABC):
         ...
 
     @abstractmethod
+    def configure(self, configurations: Mapping[Key, Any]) -> Iterator[Step[Key]]:
+        """Configure the given steps in this chain.
+
+        Args:
+            configurations: The configurations to apply
+
+        Yields:
+            Step[Key]: The steps in the chain
+        """
+        ...
+
+    @abstractmethod
     def walk(
         self,
         splits: Sequence[Split],

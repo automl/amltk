@@ -1,5 +1,5 @@
 from byop.pipeline.api import step
-from byop.pipeline.components import Component, Searchable, Step
+from byop.pipeline.components import Component, Step
 
 
 def test_step_component() -> None:
@@ -16,7 +16,7 @@ def test_step_searchable() -> None:
     assert s.name == "name"
     assert s.space == {"a": [1, 2]}
     assert s.config == {"b": 2}
-    assert isinstance(s, Searchable)
+    assert isinstance(s, Component)
 
 
 def test_step_joinable() -> None:

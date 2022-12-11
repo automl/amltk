@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from byop.pipeline.step import Choice, Component, Searchable, Split, Step
+from byop.pipeline.components import Choice, Component, Split, Step
 
 
 def _trim(d: Mapping[str, Any]) -> dict[str, Any]:

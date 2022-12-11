@@ -1,7 +1,7 @@
 """The pipeline class used to represent a pipeline of steps.
 
-This module exposes a Pipelne class that wraps a chain of `Step`, `Component`,
-`Searchable` and `Choice` components, created through the `step`, `choice` and `split`
+This module exposes a Pipelne class that wraps a chain of `Component`, `Split`
+and `Choice` components, created through the `step`, `choice` and `split`
 api functions from `byop.pipeline`.
 """
 from __future__ import annotations
@@ -87,7 +87,7 @@ class Pipeline(Generic[Key, Name]):
         """
         yield from chain.from_iterable(step.traverse() for step in self.steps)
 
-    def walk(self) -> Iterator[tuple[list[Split[Key]], list[Step[Key]], Step[Key]]]:
+    def walk(self) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """Walk the pipeline in a depth-first manner.
 
         This is similar to traverse, but yields the splits that lead to the step along

@@ -29,9 +29,10 @@ repos:
     rev: v0.991
     hooks:
       - id: mypy
-        args: ["--config-file=pyproject.toml", "--ignore-missing-imports"]
+        additional_dependencies:
+          - "attrs"
   - repo: https://github.com/psf/black
-    rev: 22.10.0
+    rev: 22.12.0
     hooks:
       - id: black
         args: ["--config=pyproject.toml"]
@@ -54,6 +55,6 @@ repos:
     hooks:
       - id: commitizen
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.152
+    rev: v0.0.174
     hooks:
       - id: ruff

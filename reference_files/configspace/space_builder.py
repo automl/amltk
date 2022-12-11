@@ -7,12 +7,12 @@ from typing import Any
 import numpy as np
 from ConfigSpace import Categorical, ConfigurationSpace, Constant
 
-from byop.pipeline import Choice, Searchable, Split
+from byop.pipeline import Choice, Split
 from byop.pipeline.step import Step
 
 
 def remove_hyperparameter(name: str, space: ConfigurationSpace) -> ConfigurationSpace:
-    """A new configuration space with the hyperparameter removed
+    """A new configuration space with the hyperparameter removed.
 
     Essentially copies hp over and fails if there is conditionals or forbiddens
     """

@@ -196,3 +196,4 @@ def test_renaming_function(pipeline: Pipeline) -> None:
     assert pipeline.replace(x.name, x, name=new_name).name == new_name
     assert pipeline.remove(x.name, name=new_name).name == new_name
     assert pipeline.append(x, name=new_name).name == new_name
+    assert pipeline.select({x.name: x.name}, name=new_name).name == new_name

@@ -83,3 +83,13 @@ def test_remove_many(head: Component) -> None:
         removed_chain = list(head.remove(list(removals)))
         expected = [s for s in head.iter() if s.name not in to_remove]
         assert expected == removed_chain
+
+
+@parametrize_with_cases("head", cases=".")
+def test_configure(head: Component) -> None:
+    configurations = {s.name: {"alpha": i} for i, s in enumerate(head.iter())}
+    configured = Step.join(head.configure(configurations))
+
+    for s in configured.iter():
+        assert isinstance(s, Component)
+        assert s.config == configurations[s.name]

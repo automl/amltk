@@ -18,7 +18,7 @@ from ConfigSpace import Categorical, ConfigurationSpace, Constant
 from more_itertools import first, last
 
 from byop.pipeline import Pipeline
-from byop.pipeline.components import Choice, Searchable, Split, Step
+from byop.pipeline.components import Choice, Component, Split, Step
 
 
 def remove_hyperparameter(name: str, space: ConfigurationSpace) -> ConfigurationSpace:
@@ -102,7 +102,7 @@ def _process_step(
     else:
         condition = None
 
-    if isinstance(step, Searchable):
+    if isinstance(step, (Component, Split)) and step.space is not None:
         subspace = step.space
         if step.config is not None:
             subspace = replace_constants(step.config, subspace)

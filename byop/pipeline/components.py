@@ -19,24 +19,27 @@ Space = TypeVar("Space")
 
 
 @frozen(kw_only=True)
-class Component(Step[Key], Generic[Key, T]):
+class Component(Step[Key], Generic[Key, T, Space]):
     """A Fixed component with an item attached.
 
     Attributes:
         name: The name of the component
         item: The item attached to this component
         config (optional): Any additional items to associate with this config
+        space (optional): A search space associated with this component
     """
 
     name: Key
     item: T = field(hash=False)
+
     config: Mapping[str, Any] | None = field(default=None, hash=False)
+    space: Space | None = field(default=None, hash=False, repr=False)
 
     def walk(
         self,
-        splits: Sequence[Split[Key]],
-        parents: Sequence[Step[Key]],
-    ) -> Iterator[tuple[list[Split[Key]], list[Step[Key]], Step[Key]]]:
+        splits: Sequence[Split],
+        parents: Sequence[Step],
+    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """See `Step.walk`."""
         splits = list(splits)
         parents = list(parents)
@@ -45,7 +48,7 @@ class Component(Step[Key], Generic[Key, T]):
         if self.nxt is not None:
             yield from self.nxt.walk(splits, parents + [self])
 
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
+    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """See `Step.traverse`."""
         if include_self:
             yield self
@@ -53,14 +56,24 @@ class Component(Step[Key], Generic[Key, T]):
         if self.nxt is not None:
             yield from self.nxt.traverse()  # type: ignore
 
-    def replace(self, replacements: Mapping[Key, Step[Key]]) -> Iterator[Step[Key]]:
+    def replace(self, replacements: Mapping[Key, Step]) -> Iterator[Step]:
         """See `Step.replace`."""
         yield replacements.get(self.name, self)
 
         if self.nxt is not None:
             yield from self.nxt.replace(replacements=replacements)  # type: ignore
 
-    def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
+    def configure(self, configurations: Mapping[Key, Any]) -> Iterator[Step]:
+        """See `Step.configure`."""
+        if self.name in configurations:
+            yield self.mutate(config=configurations[self.name])
+        else:
+            yield self
+
+        if self.nxt is not None:
+            yield from self.nxt.configure(configurations)  # type: ignore
+
+    def remove(self, keys: Sequence[Key]) -> Iterator[Step]:
         """See `Step.remove`."""
         if self.name not in keys:
             yield self
@@ -68,7 +81,7 @@ class Component(Step[Key], Generic[Key, T]):
         if self.nxt is not None:
             yield from self.nxt.remove(keys)  # type: ignore
 
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
         """See `Step.select`."""
         yield self
 
@@ -77,35 +90,25 @@ class Component(Step[Key], Generic[Key, T]):
 
 
 @frozen(kw_only=True)
-class Searchable(Component[Key, T], Generic[Key, T, Space]):
-    """A Fixed component with an item attached.
-
-    Attributes:
-        name: Key
-        item: T = field(hash=False)
-        config: Mapping[str, Any] | None = field(default=None, hash=False)
-        space: The space to search over
-    """
-
-    name: Key
-    item: T = field(hash=False)
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-    space: Space = field(hash=False)
-
-
-@frozen(kw_only=True)
-class Split(Step[Key], Generic[Key]):
+class Split(Step[Key], Generic[Key, T, Space]):
     """A split in the pipeline.
 
     Attributes:
-        name: The name of this split
-        paths: The paths to take
+        name: The name of the component
+        paths: The paths that can be taken from this split
+        item (optional): The item attached to this component
+        config (optional): Any additional items to associate with this config
+        space (optional): A search space associated with this component
     """
 
     name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
 
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
+    item: T | None = field(default=None, hash=False)
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+    space: Space | None = field(default=None, hash=False, repr=False)
+
+    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """See `Step.traverse`."""
         if include_self:
             yield self
@@ -115,9 +118,9 @@ class Split(Step[Key], Generic[Key]):
 
     def walk(
         self,
-        splits: Sequence[Split[Key]],
+        splits: Sequence[Split],
         parents: Sequence[Step[Key]],
-    ) -> Iterator[tuple[list[Split[Key]], list[Step[Key]], Step[Key]]]:
+    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """See `Step.walk`."""
         splits = list(splits)
         parents = list(parents)
@@ -132,7 +135,7 @@ class Split(Step[Key], Generic[Key]):
                 parents=parents + [self],
             )
 
-    def replace(self, replacements: Mapping[Key, Step[Key]]) -> Iterator[Step[Key]]:
+    def replace(self, replacements: Mapping[Key, Step]) -> Iterator[Step]:
         """See `Step.replace`."""
         if self.name in replacements:
             yield replacements[self.name]
@@ -148,7 +151,7 @@ class Split(Step[Key], Generic[Key]):
         if self.nxt is not None:
             yield from self.nxt.replace(replacements=replacements)  # type: ignore
 
-    def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
+    def remove(self, keys: Sequence[Key]) -> Iterator[Step]:
         """See `Step.remove`."""
         if self.name not in keys:
             # We need to call remove on all the paths. If this removes a
@@ -165,29 +168,49 @@ class Split(Step[Key], Generic[Key]):
         if self.nxt is not None:
             yield from self.nxt.remove(keys)  # type: ignore
 
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
         """See `Step.select`."""
         yield self
 
         if self.nxt is not None:
             yield from self.nxt.select(choices)  # type: ignore
 
+    def configure(self, configurations: Mapping[Key, Any]) -> Iterator[Step]:
+        """See `Step.configure`."""
+        updated_paths = [
+            Step.join(path.configure(configurations)) for path in self.paths
+        ]
+        if self.name in configurations:
+            yield self.mutate(config=configurations[self.name], paths=updated_paths)
+        else:
+            yield self.mutate(paths=updated_paths)
+
+        if self.nxt is not None:
+            yield from self.nxt.configure(configurations)  # type: ignore
+
 
 @frozen(kw_only=True)
-class Choice(Split[Key]):
+class Choice(Split[Key, T, Space]):
     """A Choice between different subcomponents.
 
     Attributes:
-        name: The name of this split
-        paths: The choices to choose from
-        weights (optional): Any weights to attach to each choice
+        name: The name of the component
+        paths: The paths that can be taken from this split
+        weights (optional): The weights associated with each path
+        item (optional): The item attached to this component
+        config (optional): Any additional items to associate with this config
+        space (optional): A search space associated with this component
     """
 
     name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
     weights: Sequence[float] | None = field(hash=False)
 
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+    item: T | None = field(default=None, hash=False)
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+    space: Space | None = field(default=None, hash=False, repr=False)
+
+    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
         """See `Step.select`."""
         if self.name in choices:
             choice = choices[self.name]
