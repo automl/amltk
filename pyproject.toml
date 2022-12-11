@@ -152,7 +152,6 @@ disallow_untyped_defs = true # All functions must have types
 disallow_untyped_decorators = true # ... even decorators
 disallow_incomplete_defs = true # ...all types
 
-enable_recursive_aliases = true # Check types of nested structures
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]

@@ -7,16 +7,7 @@ api functions from `byop.pipeline`.
 from __future__ import annotations
 
 from itertools import chain
-from typing import (
-    Callable,
-    Generic,
-    Hashable,
-    Iterable,
-    Iterator,
-    Sequence,
-    TypeVar,
-    overload,
-)
+from typing import Callable, Generic, Hashable, Iterable, Iterator, TypeVar, overload
 from uuid import uuid4
 
 from attrs import frozen
@@ -31,7 +22,7 @@ Name = TypeVar("Name", bound=Hashable)  # Name of the pipeline
 
 
 @frozen(kw_only=True)
-class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
+class Pipeline(Generic[Key, Name]):
     """Base class implementing search routines over steps.
 
     Attributes:
@@ -52,16 +43,18 @@ class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
         """The last step in the pipeline."""
         return self.steps[-1]
 
-    @overload
-    def __getitem__(self, index: int) -> Step[Key]:
-        ...
+    def __contains__(self, key: Key | Step[Key]) -> bool:
+        """Check if a step is in the pipeline.
 
-    @overload
-    def __getitem__(self, index: slice) -> Sequence[Step[Key]]:
-        ...
+        Args:
+            index: The name of the step or the step itself
 
-    def __getitem__(self, index: int | slice) -> Step[Key] | Sequence[Step[Key]]:
-        return self.steps.__getitem__(index)
+
+        Returns:
+            bool: True if the step is in the pipeline, False otherwise
+        """
+        key = key.name if isinstance(key, Step) else key
+        return self.find(key, deep=True) is not None
 
     def __len__(self) -> int:
         return len(self.steps)
@@ -85,9 +78,7 @@ class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
         """
         yield from chain.from_iterable(step.traverse() for step in self.steps)
 
-    def walk(
-        self,
-    ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
+    def walk(self) -> Iterator[tuple[list[Split[Key]], list[Step[Key]], Step[Key]]]:
         """Walk the pipeline in a depth-first manner.
 
         This is similar to traverse, but yields the splits that lead to the step along
@@ -96,7 +87,7 @@ class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
         Yields:
             (splits, parents, step)
         """
-        yield from self.head.walk()
+        yield from self.head.walk(splits=[], parents=[])
 
     @overload
     def find(
@@ -130,11 +121,11 @@ class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
         Returns:
             The step if found, otherwise the default value. Defaults to None
         """
-        return first_true(
+        result = first_true(
             iterable=self.traverse() if deep else self.iter(),
             pred=key if callable(key) else (lambda step: step.name == key),
-            default=default,
         )
+        return result if result is not None else default
 
     def __or__(self, other: Step[Key] | Pipeline[Key, Name]) -> Pipeline[Key, Name]:
         """Append a step or pipeline to this one and return a new one."""
@@ -142,42 +133,34 @@ class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
 
     def remove(
         self,
-        step: Key,
+        step: Key | list[Key],
         *,
-        deep: bool = False,
         name: Name | None = None,
     ) -> Pipeline[Key, Name]:
         """Remove a step from the pipeline.
 
         Args:
-            step: The name of the step to remove
-            deep: Whether to search the entire pipeline or just the top layer. Defaults
-                to False
+            step: The name of the step(s) to remove
             name (optional): A name to give to the new pipeline returned. Defaults to
                 the current pipelines name
 
         Returns:
             A new pipeline with the step removed
         """
-        # TODO
-        if deep:
-            raise NotImplementedError()
-
-        # Mypy seems totally okay with is
-        # noinspection PyNoneFunctionAssignment
-        old_step = self.find(key=step, deep=deep)
-        if old_step is None:
-            raise KeyError(f"No step with {name=} in pipeline\n{self}")
-
-        assert isinstance(old_step, Step), "Pycharm was right?"
+        # NOTE: We explicitly use a list for multiple steps because technically you
+        # could have a single Key = tuple(X, Y, Z) which is a Sequence. This problem
+        # also arises more simply in the case where Key = str. Hence, by explicitly
+        # checking for the concrete type, `list`, we can avoid this problem.
         return Pipeline.create(
-            old_step.preceeding(),
-            old_step.proceeding(),
+            self.head.remove(step if isinstance(step, list) else [step]),
             name=name if name is not None else self.name,
         )
 
     def append(
-        self, nxt: Pipeline[Key, Name] | Step[Key], *, name: Name | None = None
+        self,
+        nxt: Pipeline[Key, Name] | Step[Key],
+        *,
+        name: Name | None = None,
     ) -> Pipeline[Key, Name]:
         """Append a step or pipeline to this one and return a new one.
 
@@ -200,41 +183,34 @@ class Pipeline(Sequence[Step[Key]], Generic[Key, Name]):
 
     def replace(
         self,
-        step: Key,
-        new_step: Step[Key],
+        key: Key | dict[Key, Step[Key]],
+        step: Step[Key] | None = None,
         *,
-        deep: bool = False,
         name: Name | None = None,
     ) -> Pipeline[Key, Name]:
         """Replace a step in the pipeline.
 
         Args:
-            step: The name of the step to replace
-            new_step: The new step to replace the old one with
-            deep: Whether to search the entire pipeline or just the top layer. Defaults
-                to False
-            name (optional): A name to give to the new pipeline returned. Defaults to
-                the current pipelines name
+            key: The key of the step to replace or a dictionary of steps to replace
+            step (optional): The step to replace the old step with. Only used if key is
+                a single key
 
         Returns:
             A new pipeline with the step replaced
         """
-        # TODO
-        if deep:
-            raise NotImplementedError()
+        if isinstance(key, dict) and step is not None:
+            raise ValueError("Cannot specify both dictionary of keys and step")
 
-        # Mypy seems totally okay with is
-        # noinspection PyNoneFunctionAssignment
-        old_step = self.find(key=step, deep=deep)
-        if old_step is None:
-            raise KeyError(f"No step with key {name} in pipeline\n{self}")
+        if not isinstance(key, dict):
+            if step is None:
+                raise ValueError("Must specify step to replace with")
+            replacements = {key: step}
+        else:
+            replacements = key
 
-        assert isinstance(old_step, Step), "Pycharm was right?"
-        return self.create(
-            old_step.preceeding(),
-            [new_step],
-            old_step.proceeding(),
-            name=name if name is not None else self.name,
+        return Pipeline.create(
+            self.head.replace(replacements),
+            name=self.name if name is None else name,
         )
 
     def validate(self) -> None:

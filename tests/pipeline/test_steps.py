@@ -73,7 +73,7 @@ def test_step_iter() -> None:
 
     assert list(start.preceeding()) == []
     assert list(middle.preceeding()) == [s1]
-    assert list(end.preceeding()) == [s2, s1]
+    assert list(end.preceeding()) == [s1, s2]
 
 
 def test_join() -> None:

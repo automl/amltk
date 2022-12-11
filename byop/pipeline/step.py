@@ -16,6 +16,8 @@ from typing import (
     Hashable,
     Iterable,
     Iterator,
+    Mapping,
+    Sequence,
     TypeVar,
     cast,
 )
@@ -27,6 +29,7 @@ if TYPE_CHECKING:
     from byop.pipeline.components import Split
 
 T = TypeVar("T")
+SENTINAL = object()
 
 Key = TypeVar("Key", bound=Hashable)  # Unique identifier for a step
 Self = TypeVar("Self")
@@ -129,7 +132,9 @@ class Step(Generic[Key], ABC):
 
     def preceeding(self) -> Iterator[Step[Key]]:
         """Iterate the steps that preceed this one."""
-        return self.iter(backwards=True, include_self=False)
+        head = self.head()
+        if self != head:
+            yield from head.iter(to=self)
 
     def mutate(self: Self, **kwargs: Any) -> Self:
         """Mutate this step with the given kwargs, will remove any existing nxt or prv.
@@ -140,28 +145,60 @@ class Step(Generic[Key], ABC):
         Returns:
             Self: The mutated step
         """
-        # ! To prevent the confusion that this step would link to `prv` and `nxt` while
-        # ! `prv` and `nxt` would not link to this mutated step, we remove `nxt` and
-        # ! `prv` from the mutated step.
-        # ! This is unlikely to be very useful for the base Step class other than
-        # ! to rename it.
+        # NOTE: To prevent the confusion that this instance of `step` would link to
+        #  `prv` and `nxt` while the steps `prv` and `nxt` would not link to this
+        #   mutated step `prv` from the mutated step.
+        #   This is unlikely to be very useful for the base Step class other than
+        #   to rename it.
         return evolve(self, **{**kwargs, "prv": None, "nxt": None})
+
+    def copy(self: Self) -> Self:
+        """Copy this step.
+
+        Returns:
+            Self: The copied step
+        """
+        return copy(self)
+
+    @abstractmethod
+    def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
+        """Remove the given steps from this chain.
+
+        Args:
+            keys: The name of the steps to remove
+
+        Yields:
+            Step[Key]: The steps in the chain unless it was one to remove
+        """
+        ...
 
     @abstractmethod
     def walk(
         self,
-        splits: list[Split[Key]] | None = None,
-        parents: list[Step[Key]] | None = None,
-    ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
+        splits: Sequence[Split],
+        parents: Sequence[Step],
+    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """Walk along the joined steps, yielding any splits and the parents.
 
         Args:
-            splits (optional): The splits of this step. Defaults to None
-            parents (optional): The parents of this step. Defaults to None
+            splits: The splits of this step.
+            parents: The parents of this step.
 
         Yields:
             (splits, parents, step):
                 Splits to get to this node, direct parents and the current step
+        """
+        ...
+
+    @abstractmethod
+    def replace(self, replacements: Mapping[Key, Step[Key]]) -> Iterator[Step[Key]]:
+        """Replace the given step with a new one.
+
+        Args:
+            replacements: The steps to replace
+
+        Yields:
+            step: The steps in the chain, replaced if in replacements
         """
         ...
 

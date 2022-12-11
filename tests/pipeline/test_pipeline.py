@@ -72,15 +72,6 @@ def test_tail(pipeline: Pipeline) -> None:
 
 
 @parametrize_with_cases("pipeline", cases=".")
-def test_indexing(pipeline: Pipeline) -> None:
-    for i, s in enumerate(pipeline.steps):
-        assert pipeline[i] == s
-
-    assert pipeline[0:3] == pipeline.steps[0:3]
-    assert pipeline[::-1] == pipeline.steps[::-1]
-
-
-@parametrize_with_cases("pipeline", cases=".")
 def test_len(pipeline: Pipeline) -> None:
     assert len(pipeline) == len(pipeline.steps)
 
@@ -140,20 +131,22 @@ def test_append() -> None:
     assert pnew == Pipeline.create(p1, p2, s, name=pnew.name)
 
 
-@parametrize_with_cases("pipeline", cases=".", has_tag="shallow")
-def test_replace_shallow(pipeline: Pipeline) -> None:
-    for s in pipeline.steps:
-        new_step = s.mutate(name="new_step")
-        new_pipeline = pipeline.replace(s.name, new_step)
-        expected_steps = [*s.preceeding(), new_step, *s.proceeding()]
-        assert new_pipeline.steps == expected_steps
+@parametrize_with_cases("pipeline", cases=".")
+def test_replace(pipeline: Pipeline) -> None:
+    new_step = step("replacement", "replacement")
+    for selected_step in pipeline.traverse():
+        assert selected_step in pipeline
+        assert new_step not in pipeline
 
+        new_pipeline = pipeline.replace(selected_step.name, new_step)
+        assert selected_step not in new_pipeline
+        assert new_step in new_pipeline
 
-@pytest.mark.skip("TODO")
-@parametrize_with_cases("pipeline", cases=".", has_tag="deep")
-def test_replace_deep(pipeline: Pipeline) -> None:
-    # TODO
-    raise NotImplementedError()
+        replacement_step = new_pipeline.find(new_step.name)
+        assert replacement_step is not None
+        assert replacement_step == new_step
+        assert replacement_step.nxt == selected_step.nxt
+        assert replacement_step.prv == selected_step.prv
 
 
 @parametrize_with_cases("pipeline", cases=".", has_tag="shallow")
@@ -164,16 +157,42 @@ def test_remove_shallow(pipeline: Pipeline) -> None:
         assert new_pipeline.steps == expected_steps
 
 
-@pytest.mark.skip("TODO")
 @parametrize_with_cases("pipeline", cases=".", has_tag="deep")
 def test_remove_deep(pipeline: Pipeline) -> None:
-    # TODO
-    raise NotImplementedError()
+    for selected_step in pipeline.traverse():
+        selected_prv = selected_step.prv
+        selected_nxt = selected_step.nxt
+
+        assert selected_step in pipeline
+        new_pipeline = pipeline.remove(selected_step.name)
+
+        assert selected_step not in new_pipeline
+
+        # Ensure that the previous and next steps are still connected
+        if selected_prv is not None:
+            new_prv = new_pipeline.find(selected_prv.name)
+            assert new_prv is not None
+            assert new_prv.nxt == selected_nxt
+
+        if selected_nxt is not None:
+            new_nxt = new_pipeline.find(selected_nxt.name)
+            assert new_nxt is not None
+            assert new_nxt.prv == selected_prv
 
 
 @parametrize_with_cases("pipeline", cases=".")
 def test_validate(pipeline: Pipeline) -> None:
-    first_step = pipeline[0]
+    first_step = pipeline.head
     new_pipeline = pipeline | step(first_step.name, object())
     with pytest.raises(AssertionError):
         new_pipeline.validate()
+
+
+@parametrize_with_cases("pipeline", cases=".")
+def test_renaming_function(pipeline: Pipeline) -> None:
+    new_name = "replaced_name"
+    x = step("nothing", "nothing")
+
+    assert pipeline.replace(x.name, x, name=new_name).name == new_name
+    assert pipeline.remove(x.name, name=new_name).name == new_name
+    assert pipeline.append(x, name=new_name).name == new_name

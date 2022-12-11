@@ -64,3 +64,74 @@ def test_traverse_deep() -> None:
         s8,
     ]
     assert list(split_step.traverse()) == expected
+
+
+def test_remove_split() -> None:
+    s1, s2, s3, s4, s5 = (
+        step("1", 1),
+        step("2", 2),
+        step("3", 3),
+        step("4", 4),
+        step("5", 5),
+    )
+    split_step = split(
+        "split",
+        s1,
+        s2 | split("subsplit", s3 | s4) | s5,
+    )
+
+    new = Step.join(split_step.remove(["subsplit"]))
+    assert new == split(
+        "split",
+        s1,
+        s2 | s5,
+    )
+
+    new = Step.join(split_step.remove(["3"]))
+    assert new == split(
+        "split",
+        s1,
+        s2 | split("subsplit", s4) | s5,
+    )
+
+
+def test_replace_split() -> None:
+    s1, s2, s3, s4, s5 = (
+        step("1", 1),
+        step("2", 2),
+        step("3", 3),
+        step("4", 4),
+        step("5", 5),
+    )
+    split_step = split(
+        "split",
+        s1,
+        s2 | split("subsplit", s3 | s4) | s5,
+    )
+
+    replacement = step("replacement", 0)
+    new = Step.join(split_step.replace({"subsplit": replacement}))
+    assert new == split(
+        "split",
+        s1,
+        s2 | replacement | s5,
+    )
+
+    new = Step.join(split_step.replace({"3": replacement}))
+    assert new == split(
+        "split",
+        s1,
+        s2 | split("subsplit", replacement | s4) | s5,
+    )
+
+
+def test_split_on_path_with_one_entry_removes_properly() -> None:
+    s = split("split", step("1", 1), step("2", 2))
+    result = next(s.remove(["1"]))
+    assert result == split("split", step("2", 2))
+
+
+def test_split_on_head_of_path_does_not_remove_rest_of_path() -> None:
+    s = split("split", step("1", 1) | step("2", 2))
+    result = next(s.remove(["1"]))
+    assert result == split("split", step("2", 2))

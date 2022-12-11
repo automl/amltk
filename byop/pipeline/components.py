@@ -5,6 +5,7 @@ exposed through the `byop.pipeline` module and this is the preffered way to do s
 """
 from __future__ import annotations
 
+from contextlib import suppress
 from itertools import chain
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 
@@ -32,21 +33,39 @@ class Component(Step[Key], Generic[Key, T]):
 
     def walk(
         self,
-        splits: list[Split[Key]] | None = None,
-        parents: list[Step[Key]] | None = None,
-    ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
+        splits: Sequence[Split[Key]],
+        parents: Sequence[Step[Key]],
+    ) -> Iterator[tuple[list[Split[Key]], list[Step[Key]], Step[Key]]]:
         """See `Step.walk`."""
+        splits = list(splits)
+        parents = list(parents)
         yield splits, parents, self
-        parents = parents + [self] if parents is not None else [self]
 
         if self.nxt is not None:
-            yield from self.nxt.walk(splits, parents)
+            yield from self.nxt.walk(splits, parents + [self])
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
         """See `Step.traverse`."""
-        yield self
+        if include_self:
+            yield self
+
         if self.nxt is not None:
-            yield from self.nxt.traverse()
+            yield from self.nxt.traverse()  # type: ignore
+
+    def replace(self, replacements: Mapping[Key, Step[Key]]) -> Iterator[Step[Key]]:
+        """See `Step.replace`."""
+        yield replacements.get(self.name, self)
+
+        if self.nxt is not None:
+            yield from self.nxt.replace(replacements=replacements)  # type: ignore
+
+    def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
+        """See `Step.remove`."""
+        if self.name not in keys:
+            yield self
+
+        if self.nxt is not None:
+            yield from self.nxt.remove(keys)  # type: ignore
 
 
 @frozen(kw_only=True)
@@ -80,26 +99,63 @@ class Split(Step[Key], Generic[Key]):
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
         """See `Step.traverse`."""
-        yield self
+        if include_self:
+            yield self
+
         yield from chain.from_iterable(path.traverse() for path in self.paths)
-        if self.nxt is not None:
-            yield from self.nxt.traverse()
+        yield from self.nxt.traverse() if self.nxt else []  # type: ignore
 
     def walk(
         self,
-        splits: list[Split[Key]] | None = None,
-        parents: list[Step[Key]] | None = None,
-    ) -> Iterator[tuple[list[Split[Key]] | None, list[Step[Key]] | None, Step[Key]]]:
+        splits: Sequence[Split[Key]],
+        parents: Sequence[Step[Key]],
+    ) -> Iterator[tuple[list[Split[Key]], list[Step[Key]], Step[Key]]]:
         """See `Step.walk`."""
+        splits = list(splits)
+        parents = list(parents)
         yield splits, parents, self
-        splits = splits + [self] if splits is not None else None
-        parents = parents + [self] if parents is not None else [self]
 
         for path in self.paths:
-            yield from path.walk(splits=splits, parents=None)
+            yield from path.walk(splits=splits + [self], parents=[])
 
         if self.nxt:
-            yield from self.nxt.walk(splits=splits, parents=parents)
+            yield from self.nxt.walk(
+                splits=splits,
+                parents=parents + [self],
+            )
+
+    def replace(self, replacements: Mapping[Key, Step[Key]]) -> Iterator[Step[Key]]:
+        """See `Step.replace`."""
+        if self.name in replacements:
+            yield replacements[self.name]
+        else:
+            # Otherwise, we need to call replace over any paths and create a new
+            # split with those replacements
+            paths = [
+                Step.join(path.replace(replacements=replacements))
+                for path in self.paths
+            ]
+            yield self.mutate(paths=paths)
+
+        if self.nxt is not None:
+            yield from self.nxt.replace(replacements=replacements)  # type: ignore
+
+    def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
+        """See `Step.remove`."""
+        if self.name not in keys:
+            # We need to call remove on all the paths. If this removes a
+            # path that only has one entry, leading to an empty path, then
+            # we ignore any errors from joining and remove the path
+            paths = []
+            for path in self.paths:
+                with suppress(ValueError):
+                    new_path = Step.join(path.remove(keys))
+                    paths.append(new_path)
+
+            yield self.mutate(paths=paths)
+
+        if self.nxt is not None:
+            yield from self.nxt.remove(keys)  # type: ignore
 
 
 @frozen(kw_only=True)
