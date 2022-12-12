@@ -1,3 +1,5 @@
+.PHONY: install fix check docs
+
 install:
 	pip install -e ".[dev, smac]"
 	pre-commit install
@@ -12,4 +14,5 @@ check:
 	pre-commit run --all-files
 
 docs:
-	mkdocs serve
+	mkdocs serve --watch-theme
+
