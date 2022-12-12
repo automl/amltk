@@ -38,6 +38,7 @@ dev = [
   "commitizen",
   "pycln",
   "ruff",
+  "mypy",
   "mkdocs",
   "mkdocstrings[python]",
   "mkdocs-material",
