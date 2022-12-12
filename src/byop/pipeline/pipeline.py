@@ -268,8 +268,7 @@ class Pipeline(Generic[Key, Name]):
         Intended for use as an opt-in during development
 
         Raises:
-            AssertionError
-                * If there is a duplicate name of any step in the pipeline
+            AssertionError: If a duplicate name is found for a step in the pipeline
         """
         # Check that we do not have any keys with the same Hash
         dupe_steps = list(duplicates_everseen(self.traverse()))
