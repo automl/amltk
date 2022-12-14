@@ -13,7 +13,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
     Mapping,
@@ -25,13 +24,14 @@ from typing import (
 from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
 
+from byop.typing import Key
+
 if TYPE_CHECKING:
     from byop.pipeline.components import Split
 
 T = TypeVar("T")
 SENTINAL = object()
 
-Key = TypeVar("Key", bound=Hashable)  # Unique identifier for a step
 Self = TypeVar("Self")
 
 

@@ -6,16 +6,18 @@ parents and and splits
 - [x] ~~`as_dict` for dictionary representation of pipeline~~
   * See NOTES.md
 - [x] `remove` and `replace` deeply
-- [ ] Extracting subpipelines
-  * Implemented `select` for it
-  * Need to implement `configure` then
-  - [ ] With a mapping object
-- [ ] Typing with the individual steps is hard as we erase types to base class `Step` to accomodate
-    all types for the flow, but we lose information on absolute types. This is relatively impossible
-    anyways for all the complex operations. The question is the "same as what is the type of `["a", 1, None]`"?
-    To solve this type erasure, the Pipeline methods will return Union types over all possible step types.
-    This doesnt solve the issue but at least narrows it down for the user.. i.e. `list[str | int | None]`
-    
+- [x] Extracting subpipelines
+  - [x] `select` - Select a subpipeline
+  - [x] `configure` - Configure a pipeline
+    - [ ] Requires a test
+
+# Assembler
+- [x] Process example and generate todos
+- [] 
+
+# ConfigSpace
+- [ ] Allow for just a hyperparameter in the space of a `component` rather than requireing
+  a configspace in the pipeline parser
 
 # Spaces
 - [ ] Grid

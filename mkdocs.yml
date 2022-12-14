@@ -1,31 +1,45 @@
 site_name: byop docs
 repo_url: https://github.com/automl/byop/
-
 theme:
-  name: "material"
+  name: material
+  font:
+    text: Roboto
+    code: Roboto Mono
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      media: "(prefers-color-scheme: light)"
+      toggle:
+        icon: material/eye
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - scheme: slate
+      media: "(prefers-color-scheme: dark)"
+      toggle:
+        icon: material/eye-outline
+        name: Switch to light mode
 
 markdown_extensions:
   - admonition
-
-plugins:
-  - search
-  - autorefs
   - tables
   - toc:
       permalink: true
       toc_depth: 2
+plugins:
+  - search
+  - autorefs
   - mkdocstrings:
       default_handler: python
       handlers:
         python:
-          paths: [ byop ]
+          paths: [byop]
           options:
             show_source: false
             filters:
               - "!^_"
               - "^__init__$"
               - "!^can_replace$"
-
 nav:
   - index.md
   - API: api.md

@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from itertools import chain
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
     Mapping,
@@ -23,11 +23,13 @@ from uuid import uuid4
 from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
-from byop.pipeline.components import Split
-from byop.pipeline.step import Key, Step
+from byop.pipeline.step import Step
+from byop.typing import Key, Name
 
 T = TypeVar("T")  # Dummy typevar
-Name = TypeVar("Name", bound=Hashable)  # Name of the pipeline
+
+if TYPE_CHECKING:
+    from byop.pipeline.components import Split
 
 
 @frozen(kw_only=True)
@@ -196,10 +198,12 @@ class Pipeline(Generic[Key, Name]):
         Returns:
             A new pipeline with the step removed
         """
-        # NOTE: We explicitly use a list for multiple steps because technically you
-        # could have a single Key = tuple(X, Y, Z) which is a Sequence. This problem
-        # also arises more simply in the case where Key = str. Hence, by explicitly
-        # checking for the concrete type, `list`, we can avoid this problem.
+        # NOTE: We explicitly use a list instead of a Sequence for multiple steps.
+        # This is because technically you could have a single Key = tuple(X, Y, Z),
+        # which is a Sequence.
+        # This problem also arises more simply in the case where Key = str.
+        # Hence, by explicitly checking for the concrete type, `list`, we can
+        # avoid this problem.
         return Pipeline.create(
             self.head.remove(step if isinstance(step, list) else [step]),
             name=name if name is not None else self.name,

@@ -3,7 +3,7 @@
 * 2022-13-03
 
 Unfortunatly Attrs, being the metaclass generating beast it is has some slight
-issues with Mypy and keywords, not allowing`kw_only=True`.
+issues with Mypy and keywords, not allowing `kw_only=True`.
 ```python
 from attrs import frozen
 
@@ -38,7 +38,7 @@ class B(A):
     name: str
 ```
 
-### Pipeline / Step `asdict`
+# Pipeline / Step `asdict`
 I thought it made sense to add an `asdict` method to the pipeline but from trying to 
 implement it, it does not seem like it makes parsing the pipeline any easier. 
 
@@ -77,3 +77,38 @@ pipeline.asdict()
 
 We could add a more complex structure such that each value is a tuple but this ends
 up making the structure more complicated.
+
+# Reasoning for using a class other than Pipeline for consturcting
+Mainly the type signatures within the Pipeline would become bloated as we have to
+account for quite a few different object types that would be part of it. However,
+if we were to forgo types then it would make a lot of sense to put it in there,
+I guess we need to see how it feels and to have it external is easier to refactor
+in the long run.
+
+# Use of `frozen` and `kw_only` in attrs for defining most classes
+* The `frozen` decorates the class as a dataclass that is also immutable (at least not without
+some hackery). Immutable structures are good for code where complex objects hold references
+to other complex objects, as we will not accidentally change an objects state without explicitly
+calling a `copy` or `mutate` to create a new object from the old one. I should probably
+leave a reference somewhere on thre benefits of immutability but hopefully this is a known thing.
+* The use of `kw_only` is to help prevent API breaking changes. Yes it leads to more verbose code
+but things are unlikely to break, simply becuase the order or paramters changed or inhertance
+is used and the order of parameters is suddenly different.
+
+# Possibly user `.pyi` files
+This would definitely help with the `@overload` spam within the main code but this introduces
+a point of duplicated effort. The type stub `.pyi` files would have to be kept up to date
+with any changes within the actual python code. While this may be fine if we could have automated
+checks, I'm not sure they really provide this kind of possiblity. It would have to be checked
+explicitly within my neovim setup but also pycharm for Aron. Even perhaps VSCode. I somehow
+doubt consistency across these different IDE's.
+
+# Use of `Ok, Err, Result`
+I very much like this paradigm popularized in functional languages, it's a much better form
+of error propogation as calling classes don't need to wrap everthing in try/except and can
+forward and explictly check for errors and act accordingly, even chaning based on results.
+
+However, basic users of the library should not be exposed to this. As a result, all public facing
+API that is automated for the user should raise explicit errors. If a user is hooking into the
+framework, for example to implement their own Space, then it is okay to require them to use
+the `Ok, Err, Result` types.

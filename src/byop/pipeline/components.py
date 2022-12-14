@@ -12,10 +12,10 @@ from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 from attrs import field, frozen
 from more_itertools import first_true
 
-from byop.pipeline.step import Key, Step
+from byop.pipeline.step import Step
+from byop.typing import Key, Space
 
 T = TypeVar("T")
-Space = TypeVar("Space")
 
 
 @frozen(kw_only=True)
