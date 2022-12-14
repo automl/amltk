@@ -12,8 +12,14 @@ parents and and splits
     - [ ] Requires a test
 
 # Assembler
-- [x] Process example and generate todos
-- [] 
+- [] Write tests to check that `auto` works as intended.
+
+### Space Parsers
+- [ ] Test configspace parser
+- [ ] Test None parser
+
+### Builders
+- [ ] Sklearn Pipeline
 
 # ConfigSpace
 - [ ] Allow for just a hyperparameter in the space of a `component` rather than requireing
@@ -27,8 +33,6 @@ parents and and splits
   - [x] Impl
   - [ ] Tests
 
-# Builders
-- [ ] Sklearn Pipeline
 
 # Evalauations
 - [ ] Results
