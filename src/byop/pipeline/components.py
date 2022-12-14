@@ -6,7 +6,7 @@ exposed through the `byop.pipeline` module and this is the preffered way to do s
 from __future__ import annotations
 
 from contextlib import suppress
-from itertools import chain
+from itertools import chain, repeat
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 
 from attrs import field, frozen
@@ -90,7 +90,7 @@ class Component(Step[Key], Generic[Key, T, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Step[Key], Generic[Key, T, Space]):
+class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
     """A split in the pipeline.
 
     Attributes:
@@ -188,6 +188,21 @@ class Split(Step[Key], Generic[Key, T, Space]):
         if self.nxt is not None:
             yield from self.nxt.configure(configurations)  # type: ignore
 
+    # OPTIMIZE: Unlikely to be an issue but I figure `.items()` on
+    # a split of size `n` will cause `n` iterations of `paths`
+    # Fixable by implementing more of the `Mapping` functions
+
+    def __getitem__(self, key: Key) -> Step[Key]:
+        if val := first_true(self.paths, pred=lambda p: p.name == key):
+            return val
+        raise KeyError(key)
+
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __iter__(self) -> Iterator[Key]:
+        return iter(p.name for p in self.paths)
+
 
 @frozen(kw_only=True)
 class Choice(Split[Key, T, Space]):
@@ -204,11 +219,16 @@ class Choice(Split[Key, T, Space]):
 
     name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
+
     weights: Sequence[float] | None = field(hash=False)
 
     item: T | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
+
+    def iter_weights(self) -> Iterator[tuple[Step[Key], float]]:
+        """Iter over the paths with their weights."""
+        return zip(self.paths, (repeat(1) if self.weights is None else self.weights))
 
     def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
         """See `Step.select`."""
