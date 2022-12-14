@@ -47,7 +47,7 @@ class SpaceParser(Protocol[Space]):
         ...
 
 
-class ConfigSpaceParser(SpaceParser[ConfigurationSpace]):
+class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
     """Attempts to parse a pipeline into a ConfigSpace."""
 
     @classmethod
