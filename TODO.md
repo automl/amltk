@@ -11,12 +11,19 @@ parents and and splits
   - [x] `configure` - Configure a pipeline
     - [ ] Requires a test
 
+### Components
+- [ ] Technically you can create a choice that also has an associated space with it at the moment.
+  This is not exposed through the `choice` api function but it's possible. Nothing inherintely wrong
+  with this and we shouldn't prevent it honestly, but the ConfigSpace parser currently raises an
+  error when this happens. _(We could deal with this technically but for simplicity we don't)_
+
 # Assembler
 - [] Write tests to check that `auto` works as intended.
 
 ### Space Parsers
 - [ ] Test configspace parser
 - [ ] Test None parser
+- [ ] Test configspace parser deals with parents being the choice well
 
 ### Builders
 - [ ] Sklearn Pipeline

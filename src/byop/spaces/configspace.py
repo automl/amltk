@@ -11,10 +11,11 @@ configspace = generate_configspace(pipeline)
 from __future__ import annotations
 
 from copy import copy
+from itertools import takewhile
 from typing import Any, Mapping
 
 import numpy as np
-from ConfigSpace import Categorical, ConfigurationSpace, Constant
+from ConfigSpace import Categorical, ConfigurationSpace, Constant, EqualsCondition
 from more_itertools import first, last
 
 from byop.pipeline import Pipeline
@@ -78,51 +79,6 @@ def replace_constants(
     return space
 
 
-def _process_step(
-    splits: list[Split],
-    parents: list[Step],
-    step: Step,
-    space: ConfigurationSpace,
-    *,
-    delimiter: str = ":",
-) -> None:
-    prefix = delimiter.join([s.name for s in splits])
-
-    choices = (s for s in splits if isinstance(s, Choice))
-    last_choice = last(choices, None)
-
-    # If there is a choice, we create the condition under which the subspace is active
-    # in config space
-    condition: dict | None
-    if last_choice:
-        last_choice_name = delimiter.join([prefix, last_choice.name])
-        choice_hp = space[last_choice_name]  # ! This relies on traversal order to exist
-        first_parent = first(parents, step)
-        condition = {"parent": choice_hp, "value": first_parent.name}
-    else:
-        condition = None
-
-    if isinstance(step, (Component, Split)) and step.space is not None:
-        subspace = step.space
-        if step.config is not None:
-            subspace = replace_constants(step.config, subspace)
-
-        space.add_configuration_space(
-            prefix=prefix,
-            configuration_space=subspace,
-            delimiter=delimiter,
-            parent_hyperparameter=condition,
-        )
-
-    elif isinstance(step, Choice):
-        names = [choice.name for choice in step.paths]
-        choice_hp = Categorical(step.name, names, weights=step.weights)
-        space.add_hyperparameter(choice_hp)
-
-    else:
-        pass
-
-
 def generate_configspace(
     pipeline: Pipeline,
     seed: int | np.random.RandomState | np.random.BitGenerator | None = None,
@@ -142,3 +98,67 @@ def generate_configspace(
         splits = splits if splits is not None else []
         _process_step(splits, parents, step, cs)
     return cs
+
+
+def _process_step(
+    splits: list[Split],
+    parents: list[Step],
+    step: Step,
+    space: ConfigurationSpace,
+    *,
+    delimiter: str = ":",
+) -> None:
+    prefix = delimiter.join([s.name for s in splits])
+
+    choices = (s for s in splits if isinstance(s, Choice))
+
+    # If there is a choice leading up to this step,
+    # we create a condition that this step is only active while the
+    # last encounter choice is active
+    last_choice = last(choices, None)
+    condition: dict | None
+    if last_choice:
+        # Get all steps leading up to the last choice found
+        pre_choice = takewhile(lambda step: step != last_choice, splits)
+        last_choice_name = delimiter.join(
+            [step.name for step in pre_choice] + [last_choice.name]
+        )
+        choice_hp = space[last_choice_name]  # ! This relies on traversal order to exist
+
+        # Conditioned on it's first parent in the chain being active
+        # by the choice
+        first_parent = first(parents, step)
+        condition = {"parent": choice_hp, "value": first_parent.name}
+    else:
+        condition = None
+
+    if isinstance(step, (Component, Split)) and step.space is not None:
+        subspace = step.space
+        if step.config is not None:
+            subspace = replace_constants(step.config, subspace)
+
+        space.add_configuration_space(
+            prefix=prefix,
+            configuration_space=subspace,
+            delimiter=delimiter if prefix != "" else "",
+            parent_hyperparameter=condition,
+        )
+
+    elif isinstance(step, Choice):
+        if step.space is not None:
+            raise ValueError(
+                f"Not currently supported to have a choice with a search space, {step=}"
+            )
+        name = delimiter.join([prefix, step.name]) if prefix != "" else step.name
+        choice_hp = Categorical(
+            name=name,
+            items=[choice.name for choice in step.paths],
+            weights=step.weights,
+        )
+        space.add_hyperparameter(choice_hp)
+        if condition:
+            cond = EqualsCondition(choice_hp, condition["parent"], condition["value"])
+            space.add_condition(cond)
+
+    else:
+        pass
