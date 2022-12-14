@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, overload
 
 from attrs import frozen
-from more_itertools import first, partition
+from more_itertools import first_true, seekable
 from result import as_result
 
 from byop.pipeline import Pipeline
@@ -105,11 +105,12 @@ class Assembler(Generic[Key, Name, Space]):
         else:
             raise NotImplementedError(f"Unknown what to do with {space=}")
 
-        parse_attmptes = (parse(pipeline, seed) for parse in parsers)
-        valid_parses, errs = partition(lambda r: r.is_ok(), parse_attmptes)
-        selected_space = first(valid_parses, default=None)
+        results = seekable(parse(pipeline, seed) for parse in parsers)
+        selected_space = first_true(results, default=None, pred=lambda r: r.is_ok())
 
         if selected_space is None:
+            results.seek(0)
+            errs = [r.unwrap_err() for r in results]
             raise ValueError(
                 "Could not create a space from your pipeline with the parsers",
                 f" {parsers=}\nParser errors\n{errs=}",
