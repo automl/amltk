@@ -1,7 +1,7 @@
 from ConfigSpace import ConfigurationSpace, EqualsCondition
 
+from byop.assembly.space_parsers import ConfigSpaceParser
 from byop.pipeline import Pipeline, choice, split, step
-from byop.spaces.parsers import ConfigSpaceParser
 
 
 def test_configspace_parser_configspace_empty_steps() -> None:

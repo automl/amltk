@@ -16,6 +16,8 @@ parents and and splits
   This is not exposed through the `choice` api function but it's possible. Nothing inherintely wrong
   with this and we shouldn't prevent it honestly, but the ConfigSpace parser currently raises an
   error when this happens. _(We could deal with this technically but for simplicity we don't)_
+- [] Bring in autosklearn components.
+- [] Bring in autopytorch components.
 
 # Assembler
 - [] Write tests to check that `auto` works as intended.
@@ -40,7 +42,10 @@ parents and and splits
   - [x] Impl
   - [ ] Tests
 
-
 # Evalauations
 - [ ] Results
 - [ ] Evaluators
+
+# Ensembling
+- [] Consider how to do things such as stacking and ensembling
+  - [] Could consider an outer loop which is timed and an inner loop.

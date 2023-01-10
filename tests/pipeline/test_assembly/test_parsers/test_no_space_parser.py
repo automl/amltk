@@ -1,6 +1,6 @@
+from byop.assembly.space_parsers import NoSpaceParser
 from byop.pipeline import Pipeline, step
 from byop.pipeline.api import split
-from byop.spaces.parsers import NoSpaceParser
 
 
 def test_none_parser_on_blank_pipeline() -> None:

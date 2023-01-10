@@ -11,21 +11,26 @@ does you step use sklearn style `fit` and `predict` or Pytorch `forward`?
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, Optional, overload
 
 from attrs import frozen
 from more_itertools import first_true, seekable
-from result import as_result
+from result import Result, as_result
+from typing_extensions import TypeAlias
 
+from byop.assembly.space_parsers import DEFAULT_PARSERS
 from byop.pipeline import Pipeline
-from byop.spaces.parsers import DEFAULT_PARSERS, ParserFunction
 from byop.typing import Key, Name, Seed, Space
 
-# NOTE: See in `NOTES.md` about the `@overload` spam and `.pyi` files
 # NOTE: It's important to keep this in the `TYPE_CHECKING` block because
 # we can't assume it's installed.
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
+
+ParserFunction: TypeAlias = Callable[
+    [Pipeline, Optional[Seed]],
+    Result[Space, Exception],
+]
 
 
 @frozen(kw_only=True)
@@ -40,6 +45,7 @@ class Assembler(Generic[Key, Name, Space]):
     pipeline: Pipeline[Key, Name]
     space: Space
 
+    # NOTE: See in `NOTES.md` about the `@overload` spam and `.pyi` files
     @classmethod
     @overload
     def create(
