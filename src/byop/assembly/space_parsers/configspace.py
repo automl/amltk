@@ -34,6 +34,7 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
         """
         try:
             from ConfigSpace import ConfigurationSpace
+            from ConfigSpace.hyperparameters import Hyperparameter
 
             from byop.spaces.configspace import generate_configspace
 
@@ -45,8 +46,9 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
                 if isinstance(s, (Component, Split)) and s.space is not None
             )
             # TODO: Enable individual hyperparametres, not requiing a space for step
+            eligble_types = (ConfigurationSpace, dict, Hyperparameter)
             ineligibile = [
-                s for s in searchables if not isinstance(s.space, ConfigurationSpace)
+                s for s in searchables if not isinstance(s.space, eligble_types)
             ]
 
             if any(ineligibile):

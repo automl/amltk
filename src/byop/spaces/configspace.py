@@ -16,6 +16,7 @@ from typing import Any, Mapping
 
 import numpy as np
 from ConfigSpace import Categorical, ConfigurationSpace, Constant, EqualsCondition
+from ConfigSpace.hyperparameters import Hyperparameter
 from more_itertools import first, last
 
 from byop.pipeline import Pipeline
@@ -134,13 +135,18 @@ def _process_step(
 
     if isinstance(step, (Component, Split)) and step.space is not None:
         subspace = step.space
+        if isinstance(subspace, dict):
+            subspace = ConfigurationSpace(subspace)
+        elif isinstance(subspace, Hyperparameter):
+            subspace = ConfigurationSpace({"hp": subspace})
+
         if step.config is not None:
             subspace = replace_constants(step.config, subspace)
 
         space.add_configuration_space(
-            prefix=prefix,
+            prefix=f"{prefix}{delimiter if prefix else ''}{step.name}",
             configuration_space=subspace,
-            delimiter=delimiter if prefix != "" else "",
+            delimiter=delimiter,
             parent_hyperparameter=condition,
         )
 
