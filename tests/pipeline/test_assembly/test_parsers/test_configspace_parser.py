@@ -7,7 +7,7 @@ from ConfigSpace import (
     Normal,
 )
 
-from byop.assembly.space_parsers import ConfigSpaceParser
+from byop.parsing.space_parsers import ConfigSpaceParser
 from byop.pipeline import Pipeline, choice, split, step
 
 

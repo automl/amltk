@@ -1,4 +1,4 @@
-from byop.assembly.space_parsers import NoSpaceParser
+from byop.parsing.space_parsers import NoSpaceParser
 from byop.pipeline import Pipeline, step
 from byop.pipeline.api import split
 

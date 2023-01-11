@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from result import Err, Ok, Result
 
-from byop.assembly.space_parsers.parser import SpaceParser
+from byop.parsing.space_parsers.space_parser import SpaceParser
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split
 from byop.typing import Seed
