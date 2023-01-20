@@ -86,7 +86,7 @@ def parse(
     ) = "auto",
     *,
     seed: Seed | None = None,
-) -> Space | ConfigurationSpace:
+) -> Space | ConfigurationSpace | Any:
     """Create an assembler for a pipeline.
 
     Args:
