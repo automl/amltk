@@ -2,10 +2,7 @@
 
 The `Parser` is the main workhorse for understanding your pipeline and
 getting something useful out of it's abstract representation. By default,
-the `Parser` will try to `"auto"` what space and even how to put your
-pipeline together, but these are just best efforts and there is no real
-way to automatically know data should be passed from step to step, i.e.
-does you step use sklearn style `fit` and `predict` or Pytorch `forward`?
+the `Parser` will try to `"auto"` what space to extract.
 
 # DOC: Should document how this process actually works
 """
@@ -41,37 +38,33 @@ def parse(pipeline: Pipeline) -> Any:
 
 # Auto parsing, with or without seed
 @overload
-def parse(pipeline: Pipeline, space: Literal["auto"] = "auto") -> Any:
-    ...
-
-
-@overload
 def parse(
-    pipeline: Pipeline, space: Literal["auto"] = "auto", *, seed: Seed | None = ...
+    pipeline: Pipeline,
+    space: Literal["auto"] = "auto",
+    *,
+    seed: Seed | None = ...,
 ) -> Any:
     ...
 
 
 # Call with callable to parse, accepting or not accepting a seed
 @overload
-def parse(pipeline: Pipeline, space: Callable[[Pipeline], Space]) -> Space:
+def parse(
+    pipeline: Pipeline,
+    space: Callable[[Pipeline], Space] | Callable[[Pipeline, Seed | None], Space],
+    *,
+    seed: Seed | None = ...,
+) -> Space:
     ...
 
 
-@overload
-def parse(pipeline: Pipeline, space: Callable[[Pipeline, Seed | None], Space]) -> Space:
-    ...
-
-
-# Call with type ConfigSpace, with and without seed
-@overload
-def parse(pipeline: Pipeline, space: type[ConfigurationSpace]) -> ConfigurationSpace:
-    ...
-
-
+# Call with ConfigurationSpace type as argument
 @overload
 def parse(
-    pipeline: Pipeline, space: type[ConfigurationSpace], *, seed: Seed | None
+    pipeline: Pipeline,
+    space: type[ConfigurationSpace],
+    *,
+    seed: Seed | None = ...,
 ) -> ConfigurationSpace:
     ...
 
