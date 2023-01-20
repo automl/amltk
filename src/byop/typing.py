@@ -16,3 +16,6 @@ Key = TypeVar("Key", bound=Hashable)
 
 # A name of a pipeline
 Name = TypeVar("Name", bound=Hashable)
+
+# A built pipeline object
+BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)

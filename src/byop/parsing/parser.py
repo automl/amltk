@@ -99,7 +99,8 @@ def parse(
         seed: The seed to seed the space with if applicable. Defaults to `None`
 
     Returns:
-        Parser
+        Space | ConfigurationSpace | Any
+            The built space
     """
     # Order is relevant here
     results: seekable[Result[Space, Exception]]
@@ -136,4 +137,5 @@ def parse(
             f" {parsers=}\nParser errors\n{errs=}",
         )
 
-    return selected_space
+    assert selected_space.is_ok()
+    return selected_space.unwrap()
