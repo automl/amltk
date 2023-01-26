@@ -147,7 +147,7 @@ class Step(Generic[Key], ABC):
         """
         # NOTE: To prevent the confusion that this instance of `step` would link to
         #  `prv` and `nxt` while the steps `prv` and `nxt` would not link to this
-        #   mutated step `prv` from the mutated step.
+        #   *new* mutated step, we explicitly remove the "prv" and "nxt" attributes
         #   This is unlikely to be very useful for the base Step class other than
         #   to rename it.
         return evolve(self, **{**kwargs, "prv": None, "nxt": None})
@@ -182,18 +182,6 @@ class Step(Generic[Key], ABC):
 
         Yields:
             Step[Key]: The steps in the chain unless it was one to remove
-        """
-        ...
-
-    @abstractmethod
-    def configure(self, configurations: Mapping[Key, Any]) -> Iterator[Step[Key]]:
-        """Configure the given steps in this chain.
-
-        Args:
-            configurations: The configurations to apply
-
-        Yields:
-            Step[Key]: The steps in the chain
         """
         ...
 

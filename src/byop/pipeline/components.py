@@ -46,7 +46,7 @@ class Component(Step[Key], Generic[Key, T, Space]):
         yield splits, parents, self
 
         if self.nxt is not None:
-            yield from self.nxt.walk(splits, parents + [self])
+            yield from self.nxt.walk(splits, [*parents, self])
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """See `Step.traverse`."""
@@ -62,16 +62,6 @@ class Component(Step[Key], Generic[Key, T, Space]):
 
         if self.nxt is not None:
             yield from self.nxt.replace(replacements=replacements)  # type: ignore
-
-    def configure(self, configurations: Mapping[Key, Any]) -> Iterator[Step]:
-        """See `Step.configure`."""
-        if self.name in configurations:
-            yield self.mutate(config=configurations[self.name])
-        else:
-            yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.configure(configurations)  # type: ignore
 
     def remove(self, keys: Sequence[Key]) -> Iterator[Step]:
         """See `Step.remove`."""
@@ -127,12 +117,12 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
         yield splits, parents, self
 
         for path in self.paths:
-            yield from path.walk(splits=splits + [self], parents=[])
+            yield from path.walk(splits=[*splits, self], parents=[])
 
         if self.nxt:
             yield from self.nxt.walk(
                 splits=splits,
-                parents=parents + [self],
+                parents=[*parents, self],
             )
 
     def replace(self, replacements: Mapping[Key, Step]) -> Iterator[Step]:
@@ -174,19 +164,6 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
 
         if self.nxt is not None:
             yield from self.nxt.select(choices)  # type: ignore
-
-    def configure(self, configurations: Mapping[Key, Any]) -> Iterator[Step]:
-        """See `Step.configure`."""
-        updated_paths = [
-            Step.join(path.configure(configurations)) for path in self.paths
-        ]
-        if self.name in configurations:
-            yield self.mutate(config=configurations[self.name], paths=updated_paths)
-        else:
-            yield self.mutate(paths=updated_paths)
-
-        if self.nxt is not None:
-            yield from self.nxt.configure(configurations)  # type: ignore
 
     # OPTIMIZE: Unlikely to be an issue but I figure `.items()` on
     # a split of size `n` will cause `n` iterations of `paths`

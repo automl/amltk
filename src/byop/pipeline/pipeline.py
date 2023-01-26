@@ -9,7 +9,6 @@ from __future__ import annotations
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
-    Any,
     Callable,
     Generic,
     Iterable,
@@ -58,8 +57,7 @@ class Pipeline(Generic[Key, Name]):
         """Check if a step is in the pipeline.
 
         Args:
-            index: The name of the step or the step itself
-
+            key: The name of the step or the step itself
 
         Returns:
             bool: True if the step is in the pipeline, False otherwise
@@ -103,27 +101,6 @@ class Pipeline(Generic[Key, Name]):
             (splits, parents, step)
         """
         yield from self.head.walk(splits=[], parents=[])
-
-    def configure(
-        self,
-        config: Mapping[Key, Mapping[str, Any]],
-        *,
-        name: Name | None = None,
-    ) -> Pipeline[Key, Name]:
-        """Configure the steps in the pipeline.
-
-        Args:
-            config: A mapping of the step name to the config to use
-            name (optional): A name to give to the new pipeline returned. Defaults to
-                the current pipelines name
-
-        Returns:
-            A new pipeline with the steps configured
-        """
-        return Pipeline.create(
-            self.head.configure(config),
-            name=name if name is not None else self.name,
-        )
 
     @overload
     def find(
@@ -173,6 +150,7 @@ class Pipeline(Generic[Key, Name]):
 
         Args:
             choices: A mapping of the choice name to the choice to select
+            name: A name to give to the new pipeline returned. Defaults to the current
 
         Returns:
             A new pipeline with the selected choices
@@ -247,6 +225,7 @@ class Pipeline(Generic[Key, Name]):
             key: The key of the step to replace or a dictionary of steps to replace
             step (optional): The step to replace the old step with. Only used if key is
                 a single key
+            name: A name to give to the new pipeline returned. Defaults to the current
 
         Returns:
             A new pipeline with the step replaced

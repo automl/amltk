@@ -36,14 +36,8 @@ repos:
     hooks:
       - id: black
         args: ["--config=pyproject.toml"]
-  - repo: https://github.com/hadialqattan/pycln
-    rev: v2.1.2
-    hooks:
-      - id: pycln
-        name: Remove unused imports
-        args: ["--config=pyproject.toml"]
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.19.2
+    rev: 0.21.0
     hooks:
       - id: check-github-workflows
         files: '^github/workflows/.*\.ya?ml$'
@@ -51,11 +45,11 @@ repos:
       - id: check-dependabot
         files: '^\.github/dependabot\.ya?ml$'
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v2.37.1
+    rev: v2.40.0
     hooks:
       - id: commitizen
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.174
+    rev: v0.0.235
     hooks:
       - id: ruff
         args: ["--fix"]

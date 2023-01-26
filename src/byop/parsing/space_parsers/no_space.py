@@ -21,7 +21,7 @@ class NoSpaceParser(SpaceParser[None]):
     def parse(
         cls,
         pipeline: Pipeline,
-        seed: Seed | None = None,  # pyright: ignore
+        seed: Seed | None = None,  # noqa: ARG003 # pyright: ignore
     ) -> Result[None, Exception]:
         """Parsers the pipeline to see if it has no Space asscoaited with it."""
         if any(
@@ -38,7 +38,7 @@ class NoSpaceParser(SpaceParser[None]):
     @classmethod
     def supports(
         cls,
-        t: type | Any,  # pyright: ignore
+        t: type | Any,  # noqa: ARG003 # pyright: ignore
     ) -> Literal[True]:
         """Whether this parser can parse a given space type.
 

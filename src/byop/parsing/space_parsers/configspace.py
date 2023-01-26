@@ -36,7 +36,7 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
             from ConfigSpace import ConfigurationSpace
             from ConfigSpace.hyperparameters import Hyperparameter
 
-            from byop.spaces.configspace import generate_configspace
+            from byop.configspace.space_parsing import generate_configspace
 
             # 1. First we do a quick traversal to see if everything is configspace
             # eligble
@@ -45,7 +45,6 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
                 for s in pipeline.traverse()
                 if isinstance(s, (Component, Split)) and s.space is not None
             )
-            # TODO: Enable individual hyperparametres, not requiing a space for step
             eligble_types = (ConfigurationSpace, dict, Hyperparameter)
             ineligibile = [
                 s for s in searchables if not isinstance(s.space, eligble_types)
@@ -54,7 +53,7 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
             if any(ineligibile):
                 return Err(ValueError(f"Requires ConfigSpace space {ineligibile=}"))
 
-            # 2. Then we generate the configspace
+            # 2. Then we try generate the configspace
             return Ok(generate_configspace(pipeline, seed))
         except ModuleNotFoundError as e:
             return Err(e)

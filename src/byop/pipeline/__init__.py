@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from byop.pipeline.api import choice, split, step
 from byop.pipeline.pipeline import Pipeline
 

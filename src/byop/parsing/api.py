@@ -117,7 +117,7 @@ def parse(
     elif callable(space) and seed is not None:
         parsers = [space]
         safe_space = as_result(Exception)(space)  # type: ignore
-        results = seekable([safe_space(pipeline, seed)])  # type: ignore
+        results = seekable([safe_space(pipeline, seed)])
 
     elif callable(space) and seed is None:
         parsers = [space]
@@ -134,7 +134,7 @@ def parse(
         errs = [r.unwrap_err() for r in results]
         raise ValueError(
             "Could not create a space from your pipeline with the parsers",
-            f" {parsers=}\nParser errors\n{errs=}",
+            f" {parsers=}\nParser errors:\n{errs=}",
         )
 
     assert selected_space.is_ok()

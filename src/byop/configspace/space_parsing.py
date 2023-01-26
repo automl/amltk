@@ -1,6 +1,6 @@
 """A module to help construct a configuration space for a pipeline.
 
-```python
+``python
 from byop.pipeline import Pipeline
 from byop.spaces.configspace import generate_configspace
 
@@ -14,10 +14,10 @@ from copy import copy
 from itertools import takewhile
 from typing import Any, Mapping
 
-import numpy as np
 from ConfigSpace import Categorical, ConfigurationSpace, Constant, EqualsCondition
 from ConfigSpace.hyperparameters import Hyperparameter
 from more_itertools import first, last
+import numpy as np
 
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split, Step
