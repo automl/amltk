@@ -42,7 +42,6 @@ class NoSpaceParser(SpaceParser[None]):
         seed: Seed | None = None,  # noqa: ARG003 # pyright: ignore
     ) -> Result[None, ParseError]:
         """Parsers the pipeline to see if it has no Space asscoaited with it."""
-        pipeline.traverse()
         if any(space_required(step) for step in pipeline.traverse()):
             msg = (
                 "Pipeline contains a step(s) which has either:"

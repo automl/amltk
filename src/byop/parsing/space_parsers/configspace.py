@@ -23,7 +23,7 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
         cls,
         pipeline: Pipeline,
         seed: Seed | None = None,
-    ) -> Result[ConfigurationSpace, ParseError]:
+    ) -> Result[ConfigurationSpace, ParseError | Exception]:
         """Parse a pipeline into a space.
 
         Args:
@@ -63,6 +63,8 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
         except ModuleNotFoundError:
             errmsg = "Could not succesfully import ConfigSpace. Is it installed?"
             return Err(ParseError(errmsg))
+        except Exception as e:  # noqa: BLE001
+            return Err(e)
 
     @classmethod
     def supports(cls, t: type | Any) -> bool:

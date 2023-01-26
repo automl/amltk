@@ -34,7 +34,7 @@ class SpaceParser(Protocol[Space]):
         cls,
         pipeline: Pipeline,
         seed: Seed | None = None,
-    ) -> Result[Space, ParseError]:
+    ) -> Result[Space, ParseError | Exception]:
         """Parse a pipeline into a space.
 
         Args:

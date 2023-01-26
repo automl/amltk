@@ -42,23 +42,23 @@ from typing import Any, Iterator, Mapping
 from more_itertools import first, first_true
 from result import Err, Ok, Result
 
-from byop.configuring.configurers.configurer import Configurer
+from byop.configuring.configurers.configurer import ConfigurationError, Configurer
 from byop.pipeline.components import Choice, Component, Split, Step
 from byop.pipeline.pipeline import Pipeline
 from byop.typing import Config, Name
 
 
-class HeirarchicalStrConfigurer(Configurer):
+class HeirarchicalStrConfigurer(Configurer[str]):
     """A configurer that uses a mapping of strings to values."""
 
     @classmethod
-    def configure(
+    def _configure(
         cls,
         pipeline: Pipeline[str, Name],
         config: Mapping[str, Any],
         *,
         delimiter: str = ":",  # TODO: This could be a list of things to try
-    ) -> Result[Pipeline[str, Name], Exception]:
+    ) -> Result[Pipeline[str, Name], ConfigurationError | Exception]:
         """Takes a pipeline and a config to produce a configured pipeline.
 
         Relies on there being a flat map structure in the config where the
@@ -79,21 +79,19 @@ class HeirarchicalStrConfigurer(Configurer):
         # Make sure we don't have the delimiter in a name of a step.
         for _, _, step in pipeline.walk():
             if delimiter in step.name:
-                err = ValueError(f"Delimiter {delimiter} is in step name {step.name}")
-                return Err(err)
+                msg = f"Delimiter {delimiter} is in step name: `{step.name}`"
+                return Err(ConfigurationError(msg))
 
         try:
             configured_steps = _process(pipeline.head, config, delimiter=delimiter)
             result = Pipeline.create(configured_steps, name=pipeline.name)
             return Ok(result)
-        except Exception as e:  # noqa: BLE001
+        except (ConfigurationError, Exception) as e:
             return Err(e)
 
     @classmethod
     def supports(cls, pipeline: Pipeline, config: Config) -> bool:
         """Whether this configurer can use a given config on this pipeline."""
-        # TODO: Technically this could fail if the keys of config
-        # are not the same type
         if isinstance(config, Mapping):
             # We of course support an empty configuration, I think ...
             if len(config) == 0:
@@ -138,7 +136,8 @@ def _process(
         if chosen_name is not None:
             chosen = first_true(step.paths, None, lambda s: (s.name == chosen_name))
             if chosen is None:
-                raise KeyError(f"Choice {chosen_name} not found in {step.paths}")
+                msg = f"Choice {chosen_name} not found in {step.paths}"
+                raise ConfigurationError(msg)
 
             new_splits: list[Split] = [*splits, step] if splits else [step]
             yield from _process(chosen, config, splits=new_splits, delimiter=delimiter)

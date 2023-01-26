@@ -112,3 +112,104 @@ However, basic users of the library should not be exposed to this. As a result, 
 API that is automated for the user should raise explicit errors. If a user is hooking into the
 framework, for example to implement their own Space, then it is okay to require them to use
 the `Ok, Err, Result` types.
+
+# `Self` type
+It's often quite good practice to use the `Self` type in a class like this:
+```python
+from typing import Self
+
+class A:
+
+    def __init__(self, x: int):
+        self.x = x
+
+    def copy(self) -> Self:
+        return self.__class__(x=x)
+
+class B:
+    pass
+
+a = A()
+copy_a = a.copy()  # Is an A type
+
+b = B()
+copy_b = b.copy()  # Is a B type
+```
+
+If you instead used the definiteion `copy(self) -> A`, then when `B` inheritis it and you call
+`b.copy`, then the type returned would be `A`.
+
+```python
+from typing import Self
+
+class A:
+
+    def __init__(self, x: int):
+        self.x = x
+
+    def copy(self) -> A:  # Notice here
+        return self.__class__(x=x)
+
+class B:
+    pass
+
+a = A()
+copy_a = a.copy()  # Is an A type
+
+b = B()
+copy_b = b.copy()  # Is a A type
+```
+
+However trying to do so in the `Pipeline` class raised two issues. One is simply `mypy` complained
+that the variable `Self` can not be used as a type. This could be due to the fact `typing_extensions`
+are used for now but this should be check back on.
+
+The second issue is in `create` where we allow a default `name` argument to be `None`.
+If we use `Self` here, it infers that the `name` argument should always be the same as whatever `Self` binds
+to. However sometimes we would like a different Name and this would break `Self`'ness. This is fine
+and overloaded without issue at the moment but anyone inheriting from this class would face issues.
+
+```python
+    @classmethod
+    @overload
+    def create(
+        cls,
+        *steps: Step[Key] | Pipeline[Key, Name] | Iterable[Step[Key]],
+    ) -> Pipeline[Key, str]:  # We can't make this `Self[Key, str]` as the types `Key, Name` are already bound to `Self`
+        ...
+
+    @classmethod
+    @overload
+    def create(
+        cls,
+        *steps: Step[Key] | Pipeline[Key, Name] | Iterable[Step[Key]],
+        name: Name,
+    ) -> Self:
+        ...
+
+    @classmethod
+    def create(
+        cls,
+        *steps: Step[Key] | Pipeline[Key, Name] | Iterable[Step[Key]],
+        name: Name | None = None,
+    ) -> Self | Pipeline[Key, str]:
+        """Create a pipeline from a sequence of steps.
+
+        Args:
+            *steps: The steps to create the pipeline from
+            name (optional): The name of the pipeline. Defaults to a uuid
+
+        Returns:
+            Pipeline
+        """
+        # Expand out any pipelines in the init
+        expanded = [s.steps if isinstance(s, Pipeline) else s for s in steps]
+        step_sequence = list(Step.chain(*expanded))
+
+        # Cleanest seperation we can do for now, in which things are only correct if the subclass
+        # if explicitly using the `name` argument. It's
+        if name is not None:
+            return cls(name=name, steps=step_sequence)
+
+        return Pipeline(name=str(uuid4()), steps=step_sequence)
+```

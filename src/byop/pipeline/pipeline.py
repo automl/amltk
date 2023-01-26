@@ -25,14 +25,15 @@ from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.step import Step
-from byop.typing import Key, Name, Seed, Space
+from byop.typing import Config, Key, Name, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
-    from byop.parsing.space_parsers.space_parser import SpaceParser
+    from byop.configuring import Configurer
+    from byop.parsing import SpaceParser
     from byop.pipeline.components import Split
 
 
@@ -187,7 +188,7 @@ class Pipeline(Generic[Key, Name]):
         # This problem also arises more simply in the case where Key = str.
         # Hence, by explicitly checking for the concrete type, `list`, we can
         # avoid this problem.
-        return Pipeline.create(
+        return self.create(
             self.head.remove(step if isinstance(step, list) else [step]),
             name=name if name is not None else self.name,
         )
@@ -211,7 +212,7 @@ class Pipeline(Generic[Key, Name]):
         if isinstance(nxt, Pipeline):
             nxt = nxt.head
 
-        return Pipeline.create(
+        return self.create(
             self.steps,
             nxt.iter(),
             name=name if name is not None else self.name,
@@ -245,7 +246,7 @@ class Pipeline(Generic[Key, Name]):
         else:
             replacements = key
 
-        return Pipeline.create(
+        return self.create(
             self.head.replace(replacements),
             name=self.name if name is None else name,
         )
@@ -330,6 +331,39 @@ class Pipeline(Generic[Key, Name]):
 
         return parse(self, parser=parser, seed=seed)
 
+    def configure(
+        self,
+        config: Config,
+        *,
+        configurer: (
+            Literal["auto"]
+            | Configurer
+            | Callable[[Pipeline[Key, Name], Config], Pipeline[Key, Name]]
+        ) = "auto",
+    ) -> Pipeline[Key, Name]:
+        """Configure the pipeline with the given configuration.
+
+        This takes a pipeline with spaces and choices and trims it down based on the
+        configuration. For example, choosing selected steps and setting the `config`
+        of steps with those present in the `config` object given to this function.
+
+        Args:
+            config: The configuration to use
+            configurer: The configurer to use. Default is `"auto"`.
+                * If `"auto"` is provided, the assembler will attempt to automatically
+                    figure out the kind of Configurer to use from the config.
+                * If `configurer` is a configurer type, we will attempt to use that.
+                * If `configurer` is a callable, we will attempt to use that.
+                If there are other intuitive ways to indicate the type, please open an
+                issue on GitHub and we will consider it!
+
+        Returns:
+            A new pipeline with the configuration applied
+        """
+        from byop.configuring import configure  # Prevent circular imports
+
+        return configure(self, config, configurer=configurer)
+
     @classmethod
     @overload
     def create(
@@ -366,8 +400,7 @@ class Pipeline(Generic[Key, Name]):
         expanded = [s.steps if isinstance(s, Pipeline) else s for s in steps]
         step_sequence = list(Step.chain(*expanded))
 
-        # Mypy doesn't like `attrs`
-        return Pipeline(
-            name=name if name is not None else str(uuid4()),
-            steps=step_sequence,
-        )  # type: ignore
+        if name is not None:
+            return cls(name=name, steps=step_sequence)
+
+        return Pipeline(name=str(uuid4()), steps=step_sequence)

@@ -138,10 +138,16 @@ def parse(
     if selected_space is None:
         results.seek(0)  # Reset to start of the iterator
         errs = [r.unwrap_err() for r in results]
-        raise ParseError(
-            "Could not create a space from your pipeline with the parsers",
-            f" {parsers=}\nParser errors:\n{errs=}",
+        parser_errs = [e for e in errs if isinstance(e, ParseError)]
+        others = [e for e in errs if not isinstance(e, ParseError)]
+        msg = (
+            "Could not create a space from your pipeline with the parsers"
+            f"\n{parsers=}"
+            "\n"
+            f" Parser errors:\n{parser_errs=}"
+            f" Other errors:\n{others=}"
         )
+        raise ParseError(msg)
 
     assert selected_space.is_ok()
     return selected_space.unwrap()
