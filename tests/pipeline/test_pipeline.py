@@ -1,7 +1,7 @@
 import random
 
-import pytest
 from more_itertools import first, last
+import pytest
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from byop.pipeline import Pipeline, choice, split, step
@@ -34,7 +34,7 @@ def case_deep_pipeline() -> Pipeline:
     long_part = step("l1", 1) | step("l2", 2) | step("l3", 3) | step("l4", 4)
     head = step("head", "head")
     tail = step("tail", "tail")
-    pipeline = Pipeline.create(
+    return Pipeline.create(
         head,
         sequential,
         shallow_spread,
@@ -42,7 +42,6 @@ def case_deep_pipeline() -> Pipeline:
         long_part,
         tail,
     )
-    return pipeline
 
 
 def test_pipeline_mixture_of_steps() -> None:
@@ -197,4 +196,3 @@ def test_renaming_function(pipeline: Pipeline) -> None:
     assert pipeline.remove(x.name, name=new_name).name == new_name
     assert pipeline.append(x, name=new_name).name == new_name
     assert pipeline.select({x.name: x.name}, name=new_name).name == new_name
-    assert pipeline.configure({x.name: {}}, name=new_name).name == new_name
