@@ -9,10 +9,12 @@ from __future__ import annotations
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     TypeVar,
     overload,
@@ -23,11 +25,14 @@ from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.step import Step
-from byop.typing import Key, Name
+from byop.typing import Key, Name, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 
 if TYPE_CHECKING:
+    from ConfigSpace import ConfigurationSpace
+
+    from byop.parsing.space_parsers.space_parser import SpaceParser
     from byop.pipeline.components import Split
 
 
@@ -256,6 +261,74 @@ class Pipeline(Generic[Key, Name]):
         # Check that we do not have any keys with the same Hash
         dupe_steps = list(duplicates_everseen(self.traverse()))
         assert not any(dupe_steps), f"Duplicates in pipeline {dupe_steps}"
+
+    @overload
+    def space(
+        self, parser: Literal["auto"] = "auto", *, seed: Seed | None = ...
+    ) -> Any:
+        ...
+
+    @overload
+    def space(
+        self,
+        parser: Literal["configspace"] | type[ConfigurationSpace],
+        *,
+        seed: Seed | None = ...,
+    ) -> ConfigurationSpace:
+        ...
+
+    @overload
+    def space(
+        self,
+        parser: Callable[[Pipeline], Space] | Callable[[Pipeline, Seed | None], Space],
+        *,
+        seed: Seed | None = ...,
+    ) -> Space:
+        ...
+
+    @overload
+    def space(
+        self,
+        parser: SpaceParser[Space],
+        *,
+        seed: Seed | None = ...,
+    ) -> Space:
+        ...
+
+    def space(
+        self,
+        parser: (
+            Literal["auto"]
+            | Literal["configspace"]
+            | type[ConfigurationSpace]
+            | Callable[[Pipeline], Space]
+            | Callable[[Pipeline, Seed | None], Space]
+            | SpaceParser[Space]
+        ) = "auto",
+        *,
+        seed: Seed | None = None,
+    ) -> Space | ConfigurationSpace | Any:
+        """Get the space for the pipeline.
+
+        Args:
+            parser: The parser to use for assembling the space. Default is `"auto"`.
+                * If `"auto"` is provided, the assembler will attempt to
+                automatically figure out the kind of Space to extract from the pipeline.
+                * If `"configspace"` is provided, a ConfigurationSpace will be attempted
+                to be extracted.
+                * If a `type` is provided, it will attempt to infer which parser to use.
+                * If `parser` is a parser type, we will attempt to use that.
+                * If `parser` is a callable, we will attempt to use that.
+                If there are other intuitive ways to indicate the type, please open
+                an issue on GitHub and we will consider it!
+            seed (optional): The seed to seed the space with if applicable.
+
+        Returns:
+            The space for the pipeline
+        """
+        from byop.parsing import parse  # Prevent circular imports
+
+        return parse(self, parser=parser, seed=seed)
 
     @classmethod
     @overload

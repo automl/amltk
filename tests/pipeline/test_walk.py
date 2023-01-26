@@ -1,12 +1,12 @@
 """These tests are specifically traversal of steps and pipelines."""
 from pytest_cases import parametrize
 
-from byop.pipeline import Pipeline, step
+from byop import Pipeline, step
 
 
 @parametrize("size", [1, 3, 10])
 def test_walk_shallow_pipeline(size: int) -> None:
-    pipeline = Pipeline.create(step(str(i), i) for i in range(10))
+    pipeline = Pipeline.create(step(str(i), i) for i in range(size))
 
     walk = pipeline.walk()
 

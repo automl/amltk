@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
+import re
 from typing import Iterator
 
 import pytest
-from pytest import Item
 
 DEFAULT_SEED = 0
 
@@ -56,7 +55,7 @@ def fixture_modules() -> list[str]:
     return []
 
 
-def pytest_runtest_setup(item: Item) -> None:
+def pytest_runtest_setup(item: pytest.Item) -> None:
     """Run before each test."""
     todos = list(item.iter_markers(name="todo"))
     if todos:

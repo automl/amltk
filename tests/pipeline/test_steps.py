@@ -1,5 +1,5 @@
-from byop.pipeline.api import step
-from byop.pipeline.components import Component, Step
+from byop import step
+from byop.pipeline import Component, Step
 
 
 def test_step_component() -> None:

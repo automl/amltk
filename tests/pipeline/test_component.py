@@ -2,8 +2,8 @@ from itertools import chain, combinations
 
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.pipeline import step
-from byop.pipeline.components import Component, Step
+from byop import step
+from byop.pipeline import Component, Step
 
 
 @case

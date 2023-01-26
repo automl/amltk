@@ -5,32 +5,33 @@ from typing import TYPE_CHECKING, Any
 
 from result import Err, Ok, Result
 
-from byop.parsing.space_parsers.space_parser import SpaceParser
-from byop.pipeline import Pipeline
+from byop.parsing.space_parsers.space_parser import ParseError, SpaceParser
 from byop.pipeline.components import Component, Split
-from byop.typing import Seed
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
+
+    from byop.pipeline import Pipeline
+    from byop.typing import Seed
 
 
 class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
     """Attempts to parse a pipeline into a ConfigSpace."""
 
     @classmethod
-    def parse(
+    def _parse(
         cls,
         pipeline: Pipeline,
         seed: Seed | None = None,
-    ) -> Result[ConfigurationSpace, ModuleNotFoundError | ValueError]:
+    ) -> Result[ConfigurationSpace, ParseError]:
         """Parse a pipeline into a space.
 
         Args:
             pipeline: The pipeline to parse
-            seed: The seed to use for the space generated
+            seed (optional): The seed to use for the space generated
 
         Returns:
-            Result[Space, Exception]
+            Result[Space, ParseError]
         """
         try:
             from ConfigSpace import ConfigurationSpace
@@ -51,12 +52,17 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
             ]
 
             if any(ineligibile):
-                return Err(ValueError(f"Requires ConfigSpace space {ineligibile=}"))
+                errmsg = (
+                    "Pipeline contains a step(s) which has a space which is not a "
+                    f" ConfigSpace, dict or Hyperparameter. {ineligibile=}"
+                )
+                return Err(ParseError(errmsg))
 
             # 2. Then we try generate the configspace
             return Ok(generate_configspace(pipeline, seed))
-        except ModuleNotFoundError as e:
-            return Err(e)
+        except ModuleNotFoundError:
+            errmsg = "Could not succesfully import ConfigSpace. Is it installed?"
+            return Err(ParseError(errmsg))
 
     @classmethod
     def supports(cls, t: type | Any) -> bool:

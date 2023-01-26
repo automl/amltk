@@ -4,7 +4,7 @@ from more_itertools import first, last
 import pytest
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.pipeline import Pipeline, choice, split, step
+from byop import Pipeline, choice, split, step
 
 
 @case(tags="shallow")
