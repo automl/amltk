@@ -44,4 +44,3 @@ def test_split_with_choice():
 
     sklearn_pipeline = sklearn_pipeline.fit(X, y)
     sklearn_pipeline.predict(X)
-    raise NotImplementedError
