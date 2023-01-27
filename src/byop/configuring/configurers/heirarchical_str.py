@@ -129,10 +129,10 @@ def _process(
 
     if isinstance(step, Component):
         conf = {k[prefix_len:]: v for k, v in config.items() if k.startswith(prefix)}
-        yield step.mutate(**conf, space=None)
+        yield step.mutate(config=conf, space=None)
 
     elif isinstance(step, Choice):
-        chosen_name = config.get(prefix, None)
+        chosen_name = config.get(prefix[:-1], None)
         if chosen_name is not None:
             chosen = first_true(step.paths, None, lambda s: (s.name == chosen_name))
             if chosen is None:
@@ -164,7 +164,15 @@ def _process(
                 )
             )
         }
-        yield step.mutate(paths=configured_paths, config=split_config, space=None)
+
+        if step.config is not None:
+            split_config.update(step.config)
+
+        yield step.mutate(
+            paths=configured_paths,
+            config=split_config if len(split_config) > 0 else None,
+            space=None,
+        )
 
     if step.nxt is not None:
         yield from _process(step.nxt, config, splits=splits, delimiter=delimiter)

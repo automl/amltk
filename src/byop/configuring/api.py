@@ -8,18 +8,22 @@ the spaces from the pipeline steps.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
+from uuid import uuid4
 
-from more_itertools import first_true, seekable
+from more_itertools import first, first_true, seekable
 from result import Result, as_result
 
 from byop.configuring.configurers import (
     DEFAULT_CONFIGURERS,
+    ConfigSpaceConfigurer,
     ConfigurationError,
     Configurer,
+    HeirarchicalStrConfigurer,
 )
+from byop.functional import reposition
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import Config, Key, Name
+from byop.typing import Config, Key, Name, safe_isinstance
 
 if TYPE_CHECKING:
     import ConfigSpace
@@ -34,6 +38,7 @@ def configure(
         | Configurer
         | Callable[[Pipeline[Key, Name], Config], Pipeline[Key, Name]]
     ) = "auto",
+    rename: bool | Name = False,
 ) -> Pipeline[Key, Name]:
     """Configure a pipeline with a given config.
 
@@ -42,6 +47,9 @@ def configure(
         config: The configuration to use.
         configurer: The configurer to use. If "auto", will use the first
             configurer that can handle the config.
+        rename: Whether to rename the pipeline. Defaults to `False`.
+            * If `True`, the pipeline will be renamed using a random uuid
+            * If a Name is provided, the pipeline will be renamed to that name
 
     Returns:
         The configured pipeline.
@@ -49,8 +57,18 @@ def configure(
     results: seekable[Result[Pipeline[Key, Name], ConfigurationError | Exception]]
     configurers: list[Any]
 
-    if configurer is None:
+    if configurer == "auto":
         configurers = DEFAULT_CONFIGURERS
+
+        # If we can infer something about the config, prioritize that.
+        if safe_isinstance(config, "Configuration"):
+            configurers = reposition(configurers, [ConfigSpaceConfigurer, ...])
+
+        elif isinstance(config, Mapping) and isinstance(
+            first(config.keys(), default=None), str
+        ):
+            configurers = reposition(configurers, [HeirarchicalStrConfigurer, ...])
+
         results = seekable(
             configurer._configure(pipeline, config)
             for configurer in configurers
@@ -76,20 +94,24 @@ def configure(
 
     if selected_configuration is None:
         results.seek(0)
-        errors = [r.unwrap_err() for r in results]
-        configuration_errors = [
-            error for error in errors if isinstance(error, ConfigurationError)
-        ]
-        others = [
-            error for error in errors if not isinstance(error, ConfigurationError)
-        ]
+        errors = [(c, r.unwrap_err()) for c, r in zip(configurers, results)]
+        okay_errors = [(c, e) for c, e in errors if isinstance(e, ConfigurationError)]
+        others = [(c, e) for c, e in errors if not isinstance(e, ConfigurationError)]
         raise ValueError(
             f"Could not configure pipeline with the configurers, "
             f"\n{configurers=}"
             "\n"
-            f" Parser errors:\n{configuration_errors=}"
+            f" Configuration errors:\n{okay_errors=}"
             f" Other errors:\n{others=}"
         )
 
     assert selected_configuration.is_ok()
-    return selected_configuration.unwrap()
+    pipeline = selected_configuration.unwrap()
+
+    # HACK: This is a hack to get around the fact that the pipeline
+    # is frozen but we need to rename it.
+    if rename is not False:
+        new_name = str(uuid4()) if rename is True else rename
+        object.__setattr__(pipeline, "name", new_name)
+
+    return pipeline

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from itertools import chain, repeat
-from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
+from typing import Any, Callable, Generic, Iterator, Mapping, Sequence, TypeVar
 
 from attrs import field, frozen
 from more_itertools import first_true
@@ -30,7 +30,7 @@ class Component(Step[Key], Generic[Key, T, Space]):
     """
 
     name: Key
-    item: T = field(hash=False)
+    item: Callable[..., T] | T = field(hash=False)
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
@@ -78,6 +78,25 @@ class Component(Step[Key], Generic[Key, T, Space]):
         if self.nxt is not None:
             yield from self.nxt.select(choices)  # type: ignore
 
+    def build(self, **kwargs: Any) -> T:
+        """Build the item attached to this component.
+
+        Args:
+            **kwargs: Any additional arguments to pass to the item
+
+        Returns:
+            T
+                The built item
+        """
+        if callable(self.item):
+            config = self.config or {}
+            return self.item(**{**config, **kwargs})
+
+        if self.config is not None:
+            raise ValueError(f"Can't pass config to a non-callable item in step {self}")
+
+        return self.item
+
 
 @frozen(kw_only=True)
 class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
@@ -94,7 +113,7 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
     name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
 
-    item: T | None = field(default=None, hash=False)
+    item: T | Callable[..., T] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
 
@@ -180,6 +199,28 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
     def __iter__(self) -> Iterator[Key]:
         return iter(p.name for p in self.paths)
 
+    def build(self, **kwargs: Any) -> T:
+        """Build the item attached to this component.
+
+        Args:
+            **kwargs: Any additional arguments to pass to the item
+
+        Returns:
+            T
+                The built item
+        """
+        if self.item is None:
+            raise ValueError(f"Can't build a split without an item in step {self}")
+
+        if callable(self.item):
+            config = self.config or {}
+            return self.item(**{**config, **kwargs})
+
+        if self.config is not None:
+            raise ValueError(f"Can't pass config to a non-callable item in step {self}")
+
+        return self.item
+
 
 @frozen(kw_only=True)
 class Choice(Split[Key, T, Space]):
@@ -199,7 +240,7 @@ class Choice(Split[Key, T, Space]):
 
     weights: Sequence[float] | None = field(hash=False)
 
-    item: T | None = field(default=None, hash=False)
+    item: T | Callable[..., T] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
 

@@ -340,6 +340,7 @@ class Pipeline(Generic[Key, Name]):
             | Configurer
             | Callable[[Pipeline[Key, Name], Config], Pipeline[Key, Name]]
         ) = "auto",
+        rename: bool | Name = False,
     ) -> Pipeline[Key, Name]:
         """Configure the pipeline with the given configuration.
 
@@ -356,13 +357,16 @@ class Pipeline(Generic[Key, Name]):
                 * If `configurer` is a callable, we will attempt to use that.
                 If there are other intuitive ways to indicate the type, please open an
                 issue on GitHub and we will consider it!
+            rename: Whether to rename the pipeline. Defaults to `False`.
+                * If `True`, the pipeline will be renamed using a random uuid
+                * If a Name is provided, the pipeline will be renamed to that name
 
         Returns:
             A new pipeline with the configuration applied
         """
         from byop.configuring import configure  # Prevent circular imports
 
-        return configure(self, config, configurer=configurer)
+        return configure(self, config, configurer=configurer, rename=rename)
 
     @classmethod
     @overload

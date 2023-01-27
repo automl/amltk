@@ -4,7 +4,7 @@ Anything changing here is considering a major change
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, TypeVar, overload
+from typing import Any, Callable, Iterable, Mapping, TypeVar, overload
 
 from byop.pipeline.components import Choice, Component, Split
 from byop.pipeline.pipeline import Pipeline
@@ -17,7 +17,7 @@ T = TypeVar("T")
 @overload
 def step(
     name: Key,
-    item: T,
+    item: T | Callable[..., T],
     *,
     config: Mapping[str, Any] | None = ...,
 ) -> Component[Key, T, None]:
@@ -27,7 +27,7 @@ def step(
 @overload
 def step(
     name: Key,
-    item: T,
+    item: T | Callable[..., T],
     *,
     space: Space,
     config: Mapping[str, Any] | None = ...,
@@ -37,7 +37,7 @@ def step(
 
 def step(
     name: Key,
-    item: T,
+    item: T | Callable[..., T],
     *,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
@@ -154,7 +154,7 @@ def split(
 def split(
     name: Key,
     *paths: Step,
-    item: T,
+    item: T | Callable[..., T],
     config: Mapping[str, Any] | None = ...,
 ) -> Split[Key, T, None]:
     ...
@@ -164,7 +164,7 @@ def split(
 def split(
     name: Key,
     *paths: Step,
-    item: T,
+    item: T | Callable[..., T],
     space: Space,
     config: Mapping[str, Any] | None = ...,
 ) -> Split[Key, T, Space]:
@@ -174,7 +174,7 @@ def split(
 def split(
     name: Key,
     *paths: Step,
-    item: T | None = None,
+    item: T | Callable[..., T] | None = None,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
 ) -> Split[Key, T, Space] | Split[Key, T, None] | Split[Key, None, None]:
