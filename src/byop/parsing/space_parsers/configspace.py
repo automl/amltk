@@ -39,8 +39,6 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
 
             from byop.configspace.space_parsing import generate_configspace
 
-            # 1. First we do a quick traversal to see if everything is configspace
-            # eligble
             searchables = (
                 s
                 for s in pipeline.traverse()
@@ -56,13 +54,15 @@ class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):
                     "Pipeline contains a step(s) which has a space which is not a "
                     f" ConfigSpace, dict or Hyperparameter. {ineligibile=}"
                 )
-                return Err(ParseError(errmsg))
+                e = SpaceParser.Error(errmsg)
+                return Err(e)
 
             # 2. Then we try generate the configspace
             return Ok(generate_configspace(pipeline, seed))
         except ModuleNotFoundError:
             errmsg = "Could not succesfully import ConfigSpace. Is it installed?"
-            return Err(ParseError(errmsg))
+            e = SpaceParser.Error(errmsg)
+            return Err(e)
         except Exception as e:  # noqa: BLE001
             return Err(e)
 

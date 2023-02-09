@@ -17,22 +17,17 @@ from typing import (
     Iterator,
     Mapping,
     Sequence,
-    TypeVar,
     cast,
 )
 
 from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
+from typing_extensions import Self
 
 from byop.typing import Key
 
 if TYPE_CHECKING:
     from byop.pipeline.components import Split
-
-T = TypeVar("T")
-SENTINAL = object()
-
-Self = TypeVar("Self")
 
 
 @frozen(kw_only=True)
@@ -136,7 +131,7 @@ class Step(Generic[Key], ABC):
         if self != head:
             yield from head.iter(to=self)
 
-    def mutate(self: Self, **kwargs: Any) -> Self:
+    def mutate(self, **kwargs: Any) -> Self:
         """Mutate this step with the given kwargs, will remove any existing nxt or prv.
 
         Args:
@@ -152,7 +147,7 @@ class Step(Generic[Key], ABC):
         #   to rename it.
         return evolve(self, **{**kwargs, "prv": None, "nxt": None})
 
-    def copy(self: Self) -> Self:
+    def copy(self) -> Self:
         """Copy this step.
 
         Returns:

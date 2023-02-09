@@ -1,7 +1,7 @@
 """A parser for a pipeline to convert hyperparameters to a Space."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
 from byop.typing import Seed, Space
 
@@ -11,13 +11,15 @@ if TYPE_CHECKING:
     from byop.pipeline import Pipeline
 
 
-class ParseError(Exception):
+class ParseError(RuntimeError):
     """Error raised when parsing fails."""
 
 
 @runtime_checkable
 class SpaceParser(Protocol[Space]):
     """Attempts to parse a pipeline into a space."""
+
+    Error: ClassVar[type[ParseError]] = ParseError
 
     @classmethod
     def parse(cls, pipeline: Pipeline, seed: Seed | None = None) -> Space:

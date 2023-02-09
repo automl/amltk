@@ -37,7 +37,7 @@ or hyperparameter names.
 """
 from __future__ import annotations
 
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 
 from more_itertools import first, first_true
 from result import Err, Ok, Result
@@ -80,7 +80,8 @@ class HeirarchicalStrConfigurer(Configurer[str]):
         for _, _, step in pipeline.walk():
             if delimiter in step.name:
                 msg = f"Delimiter {delimiter} is in step name: `{step.name}`"
-                return Err(ConfigurationError(msg))
+                e = Configurer.Error(msg)
+                return Err(e)
 
         try:
             configured_steps = _process(pipeline.head, config, delimiter=delimiter)
@@ -122,55 +123,63 @@ def _process(
     Returns:
         Step[str]: The new step with the config applied
     """
-    segments = [step.name] if splits is None else [s.name for s in splits] + [step.name]
+    segments = [s.name for s in (*splits, step)] if splits is not None else [step.name]
+    step_key = delimiter.join(segments)
 
-    prefix = delimiter.join(segments) + ":"
-    prefix_len = len(prefix)
+    def is_for_step(_key: str) -> bool:
+        return _key.startswith(f"{step_key}{delimiter}")
+
+    def is_for_path(_key: str, _paths: Iterable[Step[str]]) -> bool:
+        return any(
+            _key.startswith(f"{step_key}{delimiter}{_path.name}") for _path in _paths
+        )
+
+    def remove_prefix(_key: str) -> str:
+        prefix_len = len(step_key) + len(delimiter)
+        return _key[prefix_len:]
+
+    # Select the config for this step
 
     if isinstance(step, Component):
-        conf = {k[prefix_len:]: v for k, v in config.items() if k.startswith(prefix)}
-        yield step.mutate(config=conf, space=None)
+        selected_config = {
+            remove_prefix(k): v for k, v in config.items() if is_for_step(k)
+        }
+        predefined_config = step.config if step.config is not None else {}
+        new_config = {**predefined_config, **selected_config}
+        yield step.mutate(
+            config=new_config if len(new_config) > 0 else None,
+            space=None,
+        )
 
     elif isinstance(step, Choice):
-        chosen_name = config.get(prefix[:-1], None)
-        if chosen_name is not None:
-            chosen = first_true(step.paths, None, lambda s: (s.name == chosen_name))
-            if chosen is None:
-                msg = f"Choice {chosen_name} not found in {step.paths}"
-                raise ConfigurationError(msg)
+        chosen_name = config.get(step_key, None)
+        if chosen_name is None:
+            raise ConfigurationError(f"Choice {step_key=} not found in {config=}")
 
-            new_splits: list[Split] = [*splits, step] if splits else [step]
-            yield from _process(chosen, config, splits=new_splits, delimiter=delimiter)
+        chosen_path = first_true(step.paths, None, lambda p: (p.name == chosen_name))
+        if chosen_path is None:
+            raise ConfigurationError(f"Choice {chosen_name=} not found in {step.paths}")
+
+        new_splits: list[Split] = [*splits, step] if splits else [step]
+        yield from _process(chosen_path, config, splits=new_splits, delimiter=delimiter)
 
     elif isinstance(step, Split):
-        new_splits = [*splits, step] if splits else [step]
-        configured_paths = [
-            Step.join(_process(st, config, splits=new_splits, delimiter=delimiter))
-            for st in step.paths
-        ]
-
-        # The configuration for this split step is anything that:
-        # * starts with the expected `prefix`, which includes this steps name
-        # * Does not have a f"{prefix}{delimiter}{path}" in it,
-        #   indicating that it is a config for a path in this split and not
-        #   for this split itself.
-        split_config = {
-            k[prefix_len:]: v
+        selected_config = {
+            remove_prefix(k): v
             for k, v in config.items()
-            if (
-                k.startswith(prefix)
-                and not any(
-                    k.replace(prefix, "").startswith(path.name) for path in step.paths
-                )
-            )
+            if is_for_step(k) and not is_for_path(k, step.paths)
         }
+        predefined_config = step.config if step.config is not None else {}
+        new_config = {**predefined_config, **selected_config}
 
-        if step.config is not None:
-            split_config.update(step.config)
-
+        new_splits = [*splits, step] if splits else [step]
+        paths = [
+            Step.join(_process(path, config, splits=new_splits, delimiter=delimiter))
+            for path in step.paths
+        ]
         yield step.mutate(
-            paths=configured_paths,
-            config=split_config if len(split_config) > 0 else None,
+            paths=paths,
+            config=new_config if len(new_config) > 0 else None,
             space=None,
         )
 

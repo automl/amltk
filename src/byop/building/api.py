@@ -62,11 +62,11 @@ def build(
 
     if builder == "auto":
         builders = DEFAULT_BUILDERS
-        results = seekable(builder.build(pipeline) for builder in builders)
+        results = seekable(builder._build(pipeline) for builder in builders)
 
     elif isinstance(builder, Builder):
         builders = [builder]
-        results = seekable(builder.build(pipeline) for builder in builders)
+        results = seekable(builder._build(pipeline) for builder in builders)
 
     elif callable(builder):
         builders = [builder]
@@ -86,8 +86,8 @@ def build(
         results.seek(0)  # Reset to start of the iterator
         errs = [r.unwrap_err() for r in results]
         raise ValueError(
-            "Could not create a space from your pipeline with the parsers",
-            f" {builders=}\nParser errors\n{errs=}",
+            "Could not build a pipeline with any of the builders:"
+            f" {builders=}\nBuilder errors\n{errs=}",
         )
 
     assert selected_built_pipeline.is_ok()

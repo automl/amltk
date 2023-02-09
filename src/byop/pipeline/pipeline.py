@@ -25,13 +25,14 @@ from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.step import Step
-from byop.typing import Config, Key, Name, Seed, Space
+from byop.typing import BuiltPipeline, Config, Key, Name, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
+    from byop.building import Builder
     from byop.configuring import Configurer
     from byop.parsing import SpaceParser
     from byop.pipeline.components import Split
@@ -367,6 +368,41 @@ class Pipeline(Generic[Key, Name]):
         from byop.configuring import configure  # Prevent circular imports
 
         return configure(self, config, configurer=configurer, rename=rename)
+
+    @overload
+    def build(self, builder: Literal["auto"] = "auto") -> Any:
+        ...
+
+    @overload
+    def build(
+        self,
+        builder: Builder[BuiltPipeline] | Callable[[Pipeline], BuiltPipeline],
+    ) -> BuiltPipeline:
+        ...
+
+    def build(
+        self,
+        builder: (
+            Literal["auto"]
+            | Builder[BuiltPipeline]
+            | Callable[[Pipeline], BuiltPipeline]
+        ) = "auto",
+    ) -> BuiltPipeline | Any:
+        """Build the pipeline.
+
+        Args:
+            builder: The builder to use. Default is `"auto"`.
+                * If `"auto"` is provided, the assembler will attempt to automatically
+                    figure out the kind of Builder to use from the pipeline.
+                * If `builder` is a builder type, we will attempt to use that.
+                * If `builder` is a callable, we will attempt to use that.
+
+        Returns:
+            The built pipeline
+        """
+        from byop.building import build  # Prevent circular imports
+
+        return build(self, builder=builder)
 
     @classmethod
     @overload

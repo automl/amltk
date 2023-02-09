@@ -9,7 +9,10 @@ from byop.parsing.space_parsers.space_parser import ParseError, SpaceParser
 # We defalt to the `NoSpace` parser, in which the space is None first because
 # this is highly unlikely and escapes a issue of dealing with empty space objects
 # on a pipeline.
-DEFAULT_PARSERS: list[type[SpaceParser]] = [NoSpaceParser, ConfigSpaceParser]
+DEFAULT_PARSERS: list[type[SpaceParser]] = [
+    NoSpaceParser,
+    ConfigSpaceParser,
+]
 
 __all__ = [
     "ConfigSpaceParser",

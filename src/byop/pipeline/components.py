@@ -7,19 +7,17 @@ from __future__ import annotations
 
 from contextlib import suppress
 from itertools import chain, repeat
-from typing import Any, Callable, Generic, Iterator, Mapping, Sequence, TypeVar
+from typing import Any, Callable, Generic, Iterator, Mapping, Sequence
 
 from attrs import field, frozen
 from more_itertools import first_true
 
 from byop.pipeline.step import Step
-from byop.typing import Key, Space
-
-T = TypeVar("T")
+from byop.typing import Item, Key, Space
 
 
 @frozen(kw_only=True)
-class Component(Step[Key], Generic[Key, T, Space]):
+class Component(Step[Key], Generic[Key, Item, Space]):
     """A Fixed component with an item attached.
 
     Attributes:
@@ -30,7 +28,7 @@ class Component(Step[Key], Generic[Key, T, Space]):
     """
 
     name: Key
-    item: Callable[..., T] | T = field(hash=False)
+    item: Callable[..., Item] | Item = field(hash=False)
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
@@ -78,14 +76,14 @@ class Component(Step[Key], Generic[Key, T, Space]):
         if self.nxt is not None:
             yield from self.nxt.select(choices)  # type: ignore
 
-    def build(self, **kwargs: Any) -> T:
+    def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
         Args:
             **kwargs: Any additional arguments to pass to the item
 
         Returns:
-            T
+            Item
                 The built item
         """
         if callable(self.item):
@@ -99,7 +97,7 @@ class Component(Step[Key], Generic[Key, T, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
+class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
     """A split in the pipeline.
 
     Attributes:
@@ -113,7 +111,7 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
     name: Key
     paths: Sequence[Step[Key]] = field(hash=False)
 
-    item: T | Callable[..., T] | None = field(default=None, hash=False)
+    item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
 
@@ -199,14 +197,14 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
     def __iter__(self) -> Iterator[Key]:
         return iter(p.name for p in self.paths)
 
-    def build(self, **kwargs: Any) -> T:
+    def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
         Args:
             **kwargs: Any additional arguments to pass to the item
 
         Returns:
-            T
+            Item
                 The built item
         """
         if self.item is None:
@@ -223,7 +221,7 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, T, Space]):
 
 
 @frozen(kw_only=True)
-class Choice(Split[Key, T, Space]):
+class Choice(Split[Key, Item, Space]):
     """A Choice between different subcomponents.
 
     Attributes:
@@ -240,7 +238,7 @@ class Choice(Split[Key, T, Space]):
 
     weights: Sequence[float] | None = field(hash=False)
 
-    item: T | Callable[..., T] | None = field(default=None, hash=False)
+    item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
 

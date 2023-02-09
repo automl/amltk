@@ -5,6 +5,9 @@ from typing import Any, Hashable, Iterator, Mapping, TypeVar
 
 from typing_extensions import TypeAlias
 
+# The type associated with components, splits and choices
+Item = TypeVar("Item")
+
 # Generic for objects that are aware of a space but not the specific kind
 Space = TypeVar("Space", covariant=True)
 

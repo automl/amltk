@@ -9,7 +9,7 @@ from typing_extensions import TypeAlias
 
 from byop.pipeline.components import Component, Split
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import Any, Name, Space
+from byop.typing import Any, Name
 
 # split(
 #   "name",
@@ -48,8 +48,69 @@ COLUMN_TRANSFORMER_ARGS = [
 SklearnComponent: TypeAlias = Any | ColumnTransformer
 
 
-def process_from(  # noqa: C901
-    step: Component[str, SklearnComponent, Space] | Split[str, SklearnComponent, Space]
+def process_component(
+    step: Component[str, SklearnComponent, Any]
+) -> tuple[str, SklearnComponent]:
+    """Process a single step into a tuple of (name, component) for sklearn.
+
+    Args:
+        step: The step to process
+
+    Returns:
+        tuple[str, SklearnComponent]: The name and component for sklearn
+    """
+    return (step.name, step.build())
+
+
+def process_split(
+    step: Split[str, SklearnComponent, Any]
+) -> tuple[str, SklearnComponent]:
+    """Process a single split into a tuple of (name, component) for sklearn.
+
+    Args:
+        step: The step to process
+
+    Returns:
+        tuple[str, SklearnComponent]: The name and component for sklearn
+    """
+    if step.item is None:
+        raise NotImplementedError(
+            f"Can't handle split as it has no item attached: {step}"
+        )
+
+    if any(path.name in COLUMN_TRANSFORMER_ARGS for path in step.paths):
+        raise ValueError(
+            f"Can't handle step as it has a path with a name that matches"
+            f" a known ColumnTransformer argument: {step}"
+        )
+
+    # We passthrough if there's no config associated with the split as we
+    # don't know what to pass to each possible path when the config is missing
+    if step.config is None:
+        return (step.name, ColumnTransformer([], remainder="passthrough"))
+
+    ct_config = {k: v for k, v in step.config.items() if k in COLUMN_TRANSFORMER_ARGS}
+
+    transformers: list = []
+    for path in step.paths:
+        if path.name not in step.config:
+            transformers.append((path.name, "passthrough", None))
+        else:
+            assert isinstance(path, (Component, Split))
+            steps = list(process_from(path))
+
+            sklearn_step: SklearnComponent
+            sklearn_step = steps[0][1] if len(steps) == 1 else SklearnPipeline(steps)
+
+            config = step.config[path.name]
+            transformers.append((path.name, sklearn_step, config))
+
+    column_transformer = ColumnTransformer(transformers, **ct_config)
+    return (step.name, column_transformer)
+
+
+def process_from(
+    step: Component[str, SklearnComponent, Any] | Split[str, SklearnComponent, Any]
 ) -> Iterable[tuple[str, SklearnComponent]]:
     """Process a chain of steps into tuples of (name, component) for sklearn.
 
@@ -60,52 +121,11 @@ def process_from(  # noqa: C901
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
     if isinstance(step, Component):
-        yield (step.name, step.build())
-
+        yield process_component(step)
     elif isinstance(step, Split):
-        if step.item is None:
-            raise ValueError(f"Can't handle split as it has no item attached: {step}")
-
-        if step.item is ColumnTransformer:
-            if any(path.name in COLUMN_TRANSFORMER_ARGS for path in step.paths):
-                raise ValueError(
-                    f"Can't handle step as it has a path with a name that matches"
-                    f" a known ColumnTransformer argument: {step}"
-                )
-
-            # We passthrough if there's no config associated with the split as we
-            # don't know what to pass to each possible path when the config is missing
-            if step.config is None:
-                yield (step.name, ColumnTransformer([], remainder="passthrough"))
-            else:
-                ct_config = {
-                    k: v for k, v in step.config.items() if k in COLUMN_TRANSFORMER_ARGS
-                }
-
-                transformers: list = []
-                for path in step.paths:
-                    if path.name not in step.config:
-                        transformers.append((path.name, "passthrough", None))
-                    else:
-                        assert isinstance(path, (Component, Split))
-                        config = step.config[path.name]
-                        steps = list(process_from(path))
-
-                        sklearn_step: SklearnComponent
-                        if len(steps) == 1:
-                            sklearn_step = steps[0][1]
-                        else:
-                            sklearn_step = SklearnPipeline(steps)
-
-                        transformers.append((path.name, sklearn_step, config))
-
-                column_transformer = ColumnTransformer(transformers, **ct_config)
-                yield (step.name, column_transformer)
-        else:
-            raise ValueError(
-                f"Can't handle split as it has an unknown item: {step.item}"
-                f" on step {step}."
-            )
+        yield process_split(step)
+    else:
+        raise NotImplementedError(f"Can't handle step: {step}")
 
     if step.nxt is not None:
         assert isinstance(step.nxt, (Component, Split))

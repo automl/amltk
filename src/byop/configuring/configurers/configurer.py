@@ -1,7 +1,7 @@
 """A configurer from some Configuration object to a Pipeline."""
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import ClassVar, Protocol, runtime_checkable
 
 from result import Result
 
@@ -16,6 +16,8 @@ class ConfigurationError(Exception):
 @runtime_checkable
 class Configurer(Protocol[Key]):
     """Attempts to parse a pipeline into a space."""
+
+    Error: ClassVar[type[ConfigurationError]] = ConfigurationError
 
     @classmethod
     def configure(

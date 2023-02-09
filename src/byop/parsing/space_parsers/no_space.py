@@ -49,7 +49,8 @@ class NoSpaceParser(SpaceParser[None]):
                 "\n * A `Choice` which requires a space to be formed."
                 "\nThese are not supported by the NoSpaceParser."
             )
-            return Err(ParseError(msg))
+            e = SpaceParser.Error(msg)
+            return Err(e)
 
         return Ok(value=None)
 
