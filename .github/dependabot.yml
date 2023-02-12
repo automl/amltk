@@ -1,0 +1,26 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "eddiebergman"
+    reviewers:
+      - "eddiebergman"
+    commit-message:
+      prefix: "chore: "
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "eddiebergman"
+    reviewers:
+      - "eddiebergman"
+    commit-message:
+      prefix: "chore: "
