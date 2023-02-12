@@ -8,13 +8,6 @@ theme:
     text: Roboto
     code: Roboto Mono
   palette:
-    # Palette toggle for light mode
-    - scheme: default
-      media: "(prefers-color-scheme: light)"
-      toggle:
-        icon: material/eye
-        name: Switch to dark mode
-
     # Palette toggle for dark mode
     - scheme: slate
       media: "(prefers-color-scheme: dark)"
@@ -22,12 +15,34 @@ theme:
         icon: material/eye-outline
         name: Switch to light mode
 
+    # Palette toggle for light mode
+    - scheme: default
+      media: "(prefers-color-scheme: light)"
+      toggle:
+        icon: material/eye
+        name: Switch to dark mode
+
+watch:
+  - src/byop
+  - docs
+
 markdown_extensions:
   - admonition
   - tables
   - toc:
       permalink: true
       toc_depth: 2
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+      - name: mermaid
+        class: mermaid
+        format: !!python/name:pymdownx.superfences.fence_code_format
+
+
 plugins:
   - search
   - autorefs
@@ -35,13 +50,11 @@ plugins:
       default_handler: python
       handlers:
         python:
-          paths: [byop]
+          paths: [src]
           options:
-            show_source: false
+            show_source: true
+            show_signature: true
+            seperate_signature: true
             filters:
               - "!^_"
-              - "^__init__$"
-              - "!^can_replace$"
-nav:
-  - index.md
-  - API: api.md
+            docstring_section_style: table

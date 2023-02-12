@@ -11,7 +11,6 @@ from concurrent.futures import Executor
 from itertools import chain
 import logging
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Final,
@@ -25,10 +24,8 @@ from typing import (
 from typing_extensions import Self
 
 from byop.event_manager import EventManager
+from byop.fluid import DelayedOp
 from byop.scheduler.events import ExitCode, SchedulerStatus, Signal, TaskStatus
-
-if TYPE_CHECKING:
-    from byop.scheduler.conditions import SchedulerCountCondition
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -247,8 +244,8 @@ class Scheduler:
 
         Args:
             timeout: The maximum time to run the scheduler for.
-               Defaults to `None` which means no timeout and it
-               will end once the queue becomes empty.
+                Defaults to `None` which means no timeout and it
+                will end once the queue becomes empty.
             end_on_empty: Whether to end the scheduler when the
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
@@ -374,9 +371,18 @@ class Scheduler:
         # included in any callback.
         self._stop_event.set()
 
-    @property
-    def count(self) -> SchedulerCountCondition:
-        """Return a `SchedulerWhen` object for conditional events."""
-        from .conditions import SchedulerCountCondition
+    def count(self, event: TaskStatus | SchedulerStatus) -> DelayedOp[int, ...]:
+        """The number of times an event has been emitted for callback predicates.
 
-        return SchedulerCountCondition(self)
+        Args:
+            event: The event to count.
+
+        Returns:
+            A delayed operation that will return the number of times
+            the event has been emitted once called.
+        """
+
+        def count(*args: Any, **kwargs: Any) -> int:  # noqa: ARG001
+            return self.events.count[event]
+
+        return DelayedOp(count)

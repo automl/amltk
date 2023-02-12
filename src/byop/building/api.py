@@ -2,8 +2,8 @@
 
 The `Builder` is responsble for taking a configured pipeline and
 assembling it into a runnable pipeline. By default, this will try
-"auto" which uses some rough heuristics to determine the pipeline
-to use.
+"auto" which uses some rough heuristics to determine what to build
+from your configured [`Pipeline`][byop.pipeline.Pipeline].
 """
 from __future__ import annotations
 
@@ -54,8 +54,7 @@ def build(
             try to determine the best builder to use.
 
     Returns:
-        BuiltPipeline | Any
-            The built pipeline
+        The built pipeline
     """
     results: seekable[Result[BuiltPipeline, Exception]]
     builders: list[Any]

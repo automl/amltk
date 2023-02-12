@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import Any, Callable, Iterable, Mapping, TypeVar, overload
 
 from byop.pipeline.components import Choice, Component, Split
-from byop.pipeline.pipeline import Pipeline
 from byop.pipeline.step import Key, Step
 
 Space = TypeVar("Space")
@@ -193,6 +192,3 @@ def split(
         Split: Split component with your choices as possibilities
     """
     return Split(name=name, paths=list(paths), item=item, space=space, config=config)
-
-
-__all__ = ["step", "choice", "split", "Pipeline"]

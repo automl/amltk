@@ -1,4 +1,4 @@
-.PHONY: install fix check docs
+.PHONY: install fix check docs bump
 
 install:
 	pip install -e ".[dev, smac]"
@@ -16,3 +16,7 @@ check:
 docs:
 	mkdocs serve --watch-theme
 
+bump:
+	cz bump --dry-run || echo ""
+	@echo ""
+	@echo "Use 'cz bump' to activate these changes"
