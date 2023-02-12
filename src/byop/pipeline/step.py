@@ -24,7 +24,7 @@ from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
 from typing_extensions import Self
 
-from byop.typing import Key
+from byop.types import Key
 
 if TYPE_CHECKING:
     from byop.pipeline.components import Split

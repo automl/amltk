@@ -45,11 +45,11 @@ repos:
       - id: check-dependabot
         files: '^\.github/dependabot\.ya?ml$'
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v2.41.0
+    rev: v2.42.0
     hooks:
       - id: commitizen
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.244
+    rev: v0.0.245
     hooks:
       - id: ruff
         args: ["--fix"]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 import re
 from typing import Iterator
@@ -65,6 +66,14 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 def pytest_configure(config) -> None:
     """Used to register marks."""
     config.addinivalue_line("markers", "todo: Mark test as todo")
+
+
+@pytest.fixture(scope="session")
+def event_loop(_):
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop()
+    yield loop
+    loop.close()
 
 
 pytest_plugins = fixture_modules()

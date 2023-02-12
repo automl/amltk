@@ -13,7 +13,7 @@ from attrs import field, frozen
 from more_itertools import first_true
 
 from byop.pipeline.step import Step
-from byop.typing import Item, Key, Space
+from byop.types import Item, Key, Space
 
 
 @frozen(kw_only=True)

@@ -15,7 +15,7 @@ from result import Result, as_result
 
 from byop.parsing.space_parsers import DEFAULT_PARSERS, ParseError, SpaceParser
 from byop.parsing.space_parsers.configspace import ConfigSpaceParser
-from byop.typing import Seed, Space, safe_issubclass
+from byop.types import Seed, Space, safe_issubclass
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace

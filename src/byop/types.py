@@ -1,7 +1,8 @@
 """Stores low-level types used through the library."""
 from __future__ import annotations
 
-from typing import Any, Hashable, Iterator, Mapping, TypeVar
+from abc import abstractmethod
+from typing import Any, Hashable, Iterator, Mapping, Protocol, TypeVar
 
 from typing_extensions import TypeAlias
 
@@ -20,6 +21,9 @@ Key = TypeVar("Key", bound=Hashable)
 # A name of a pipeline
 Name = TypeVar("Name", bound=Hashable)
 
+# The key for a result
+ResultKey = TypeVar("ResultKey", bound=Hashable)
+
 # A built pipeline object
 BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)
 
@@ -29,6 +33,21 @@ BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)
 # TODO: For now we only support Mapping[str, Any] but this serves
 # as an abstraction point if we need it.
 Config: TypeAlias = Mapping[Key, Any]
+
+
+class Comparable(Protocol):
+    """Protocol for annotating comparable types."""
+
+    @abstractmethod
+    def __lt__(self: CT, other: CT, /) -> bool:
+        pass
+
+    @abstractmethod
+    def __gt__(self: CT, other: CT, /) -> bool:
+        pass
+
+
+CT = TypeVar("CT", bound=Comparable)
 
 
 def safe_issubclass(cls: type, classes: str | tuple[str, ...]) -> bool:

@@ -14,7 +14,7 @@ from result import Result, as_result
 
 from byop.building.builders import DEFAULT_BUILDERS, Builder
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import BuiltPipeline
+from byop.types import BuiltPipeline
 
 
 @overload

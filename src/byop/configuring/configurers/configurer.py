@@ -6,7 +6,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 from result import Result
 
 from byop.pipeline import Pipeline
-from byop.typing import Config, Key, Name
+from byop.types import Config, Key, Name
 
 
 class ConfigurationError(Exception):

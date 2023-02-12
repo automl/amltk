@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
     from byop.pipeline import Pipeline
-    from byop.typing import Seed
+    from byop.types import Seed
 
 
 class ConfigSpaceParser(SpaceParser["ConfigurationSpace"]):

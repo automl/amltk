@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
-from byop.typing import Seed, Space
+from byop.types import Seed, Space
 
 if TYPE_CHECKING:
     from result import Result

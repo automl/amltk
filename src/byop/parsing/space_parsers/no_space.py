@@ -10,7 +10,7 @@ from byop.pipeline.components import Choice, Component, Split, Step
 
 if TYPE_CHECKING:
     from byop.pipeline import Pipeline
-    from byop.typing import Seed
+    from byop.types import Seed
 
 
 EMPTY_SPACE_INDICATORS: tuple[Any, ...] = (None, {}, [], ())

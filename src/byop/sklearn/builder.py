@@ -9,7 +9,7 @@ from typing_extensions import TypeAlias
 
 from byop.pipeline.components import Component, Split
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import Any, Name
+from byop.types import Any, Name
 
 # split(
 #   "name",

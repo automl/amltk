@@ -9,7 +9,7 @@ from result import Result
 from byop.configuring.configurers.configurer import ConfigurationError, Configurer
 from byop.configuring.configurers.heirarchical_str import HeirarchicalStrConfigurer
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import Config, Name
+from byop.types import Config, Name
 
 if TYPE_CHECKING:
     from ConfigSpace import Configuration

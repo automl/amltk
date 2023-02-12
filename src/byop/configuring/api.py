@@ -23,7 +23,7 @@ from byop.configuring.configurers import (
 )
 from byop.functional import reposition
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import Config, Key, Name, safe_isinstance
+from byop.types import Config, Key, Name, safe_isinstance
 
 if TYPE_CHECKING:
     import ConfigSpace

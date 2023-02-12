@@ -45,7 +45,7 @@ from result import Err, Ok, Result
 from byop.configuring.configurers.configurer import ConfigurationError, Configurer
 from byop.pipeline.components import Choice, Component, Split, Step
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import Config, Name
+from byop.types import Config, Name
 
 
 class HeirarchicalStrConfigurer(Configurer[str]):

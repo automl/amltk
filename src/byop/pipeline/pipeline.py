@@ -25,7 +25,7 @@ from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.step import Step
-from byop.typing import BuiltPipeline, Config, Key, Name, Seed, Space
+from byop.types import BuiltPipeline, Config, Key, Name, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 

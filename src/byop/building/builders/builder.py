@@ -7,7 +7,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 from result import Result
 
 from byop.pipeline.pipeline import Pipeline
-from byop.typing import BuiltPipeline
+from byop.types import BuiltPipeline
 
 
 class BuilderError(RuntimeError):
