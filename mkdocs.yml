@@ -1,5 +1,7 @@
 site_name: byop docs
+
 repo_url: https://github.com/automl/byop/
+
 theme:
   name: material
   font:
