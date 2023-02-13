@@ -41,7 +41,7 @@ dev = [
   "mkdocs-material",
   "mkdocs-autorefs",
 ]
-smac = ["smac==2.0.0a1", "configspace"]
+smac = ["smac==2.0.0b1", "configspace"]
 
 [project.urls]
 documentation = "https://github.com/automl/byop/"
