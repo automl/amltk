@@ -7,7 +7,6 @@ install:
 
 fix:
 	black --quiet src tests
-	pycln --quiet src tests
 	ruff --silent --exit-zero --no-cache --fix src tests
 
 check:

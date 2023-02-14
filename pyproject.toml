@@ -32,7 +32,6 @@ dev = [
   "numpy",
   "pre-commit",
   "commitizen",
-  "pycln",
   "black",
   "ruff",
   "mypy",
