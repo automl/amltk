@@ -2,12 +2,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Generic, ParamSpec, TypeVar
+from typing import Callable, Generic, ParamSpec, Protocol, TypeVar
 
 from byop.types import Comparable
 
 V = TypeVar("V", bound=Comparable)
 P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
+
+
+class Partial(Protocol[P, R]):
+    """A protocol for partial functions."""
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        """Call the function."""
+        ...
 
 
 @dataclass
@@ -53,6 +62,38 @@ class ChainablePredicate(Generic[P]):
             return self(*args, **kwargs) or other(*args, **kwargs)
 
         return ChainablePredicate(_pred)
+
+    @classmethod
+    def all(cls, *preds: Callable[P, bool]) -> ChainablePredicate[P]:
+        """Create an all predicate from multiple predicates.
+
+        Args:
+            preds: The predicates to combine.
+
+        Returns:
+            The combined predicate.
+        """
+
+        def _pred(*args: P.args, **kwargs: P.kwargs) -> bool:
+            return all(pred(*args, **kwargs) for pred in preds)
+
+        return ChainablePredicate[P](_pred)
+
+    @classmethod
+    def any(cls, *preds: Callable[P, bool]) -> ChainablePredicate[P]:
+        """Create an any predicate from multiple predicates.
+
+        Args:
+            preds: The predicates to combine.
+
+        Returns:
+            The combined predicate.
+        """
+
+        def _pred(*args: P.args, **kwargs: P.kwargs) -> bool:
+            return any(pred(*args, **kwargs) for pred in preds)
+
+        return ChainablePredicate[P](_pred)
 
 
 @dataclass

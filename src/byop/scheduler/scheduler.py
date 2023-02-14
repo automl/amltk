@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 from asyncio import Future, Task
 from concurrent.futures import Executor
+from contextlib import contextmanager
+from functools import partial
 from itertools import chain
 import logging
 from typing import (
@@ -15,6 +17,7 @@ from typing import (
     Callable,
     Final,
     Iterable,
+    Iterator,
     Literal,
     ParamSpec,
     TypeVar,
@@ -24,7 +27,7 @@ from typing import (
 from typing_extensions import Self
 
 from byop.event_manager import EventManager
-from byop.fluid import DelayedOp
+from byop.fluid import ChainablePredicate, DelayedOp, Partial
 from byop.scheduler.events import ExitCode, SchedulerStatus, Signal, TaskStatus
 
 P = ParamSpec("P")
@@ -386,3 +389,38 @@ class Scheduler:
             return self.events.count[event]
 
         return DelayedOp(count)
+
+    @contextmanager
+    def when(
+        self,
+        event: TaskStatus | SchedulerStatus,
+        *preds: Callable[P, bool],
+    ) -> Iterator[Partial]:
+        """A context manager to register a callback for an event.
+
+        Args:
+            event: The event to register the callback for.
+            *preds: The predicates to use which determine if
+                the callback should be called.
+
+        Returns:
+            A partial function that can be called with the callback
+        """
+        if len(preds) == 0:
+            yield partial(self.events.on, event)
+        else:
+            yield partial(self.on, event=event, when=ChainablePredicate.all(*preds))
+
+    def on_task_finish(
+        self, *handler: Callable[[Any, Exception], None], name: str | None = None
+    ) -> Self:
+        """Register handler(s) for a task finishing.
+
+        Args:
+            handler: The handler(s) to register.
+            name: The name of the handler(s). Defaults to `None`.
+
+        Returns:
+            The scheduler instance.
+        """
+        return self.on(TaskStatus.FINISHED, *handler, name=name)
