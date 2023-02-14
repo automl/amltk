@@ -16,6 +16,5 @@ docs:
 	mkdocs serve --watch-theme
 
 bump:
-	cz bump --dry-run || echo ""
-	@echo ""
-	@echo "Use 'cz bump' to activate these changes"
+	cz bump
+	git push origin "v$(cz version --project)"
