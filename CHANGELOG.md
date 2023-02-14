@@ -1,3 +1,13 @@
+## v0.2.0 (2023-02-14)
+
+### Feat
+
+- **scheduler**: context `when` for callbacks
+
+### Fix
+
+- Change `Config` to be generic TypeVar
+
 ## v0.1.1 (2023-02-12)
 
 ## v0.1.0 (2023-02-12)
