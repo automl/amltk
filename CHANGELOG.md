@@ -1,3 +1,10 @@
+## v0.2.1 (2023-02-14)
+
+### Fix
+
+- **dev**: Swtich to justfile
+- **dev**: `make bump` now pushes generated tag
+
 ## v0.2.0 (2023-02-14)
 
 ### Feat
