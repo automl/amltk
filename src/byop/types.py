@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Hashable, Iterator, Mapping, Protocol, TypeVar
+from typing import Any, Hashable, Iterator, Protocol, TypeVar
 
 from typing_extensions import TypeAlias
 
@@ -10,7 +10,7 @@ from typing_extensions import TypeAlias
 Item = TypeVar("Item")
 
 # Generic for objects that are aware of a space but not the specific kind
-Space = TypeVar("Space", covariant=True)
+Space = TypeVar("Space")
 
 # Type alias for kinds of Seeded objects
 Seed: TypeAlias = int
@@ -27,12 +27,13 @@ ResultKey = TypeVar("ResultKey", bound=Hashable)
 # A built pipeline object
 BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)
 
+# Something you tell the optimizer about
+TrialResult = TypeVar("TrialResult")
+
 # An object representing a configuration of a pipeline.
 # Notable examples include a Configuration object from ConfigSpace
 # of which Mapping[Key, Any] is a supertype
-# TODO: For now we only support Mapping[str, Any] but this serves
-# as an abstraction point if we need it.
-Config: TypeAlias = Mapping[Key, Any]
+Config = TypeVar("Config")
 
 
 class Comparable(Protocol):

@@ -48,7 +48,7 @@ from byop.pipeline.pipeline import Pipeline
 from byop.types import Config, Name
 
 
-class HeirarchicalStrConfigurer(Configurer[str]):
+class HeirarchicalStrConfigurer(Configurer[Mapping[str, Any], str]):
     """A configurer that uses a mapping of strings to values."""
 
     @classmethod

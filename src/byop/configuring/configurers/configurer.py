@@ -1,7 +1,8 @@
 """A configurer from some Configuration object to a Pipeline."""
 from __future__ import annotations
 
-from typing import ClassVar, Protocol, runtime_checkable
+from abc import abstractmethod
+from typing import ClassVar, Generic
 
 from result import Result
 
@@ -13,8 +14,7 @@ class ConfigurationError(Exception):
     """An error that occurred during configuration."""
 
 
-@runtime_checkable
-class Configurer(Protocol[Key]):
+class Configurer(Generic[Config, Key]):
     """Attempts to parse a pipeline into a space."""
 
     Error: ClassVar[type[ConfigurationError]] = ConfigurationError
@@ -42,6 +42,7 @@ class Configurer(Protocol[Key]):
         return result.unwrap()
 
     @classmethod
+    @abstractmethod
     def _configure(
         cls,
         pipeline: Pipeline[Key, Name],
@@ -59,6 +60,7 @@ class Configurer(Protocol[Key]):
         ...
 
     @classmethod
+    @abstractmethod
     def supports(cls, pipeline: Pipeline, config: Config) -> bool:
         """Whether this configurer can use a given config on this pipeline."""
         ...

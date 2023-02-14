@@ -1,7 +1,8 @@
 """A parser for a pipeline to convert hyperparameters to a Space."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, ClassVar, Generic
 
 from byop.types import Seed, Space
 
@@ -15,8 +16,7 @@ class ParseError(RuntimeError):
     """Error raised when parsing fails."""
 
 
-@runtime_checkable
-class SpaceParser(Protocol[Space]):
+class SpaceParser(ABC, Generic[Space]):
     """Attempts to parse a pipeline into a space."""
 
     Error: ClassVar[type[ParseError]] = ParseError
@@ -32,6 +32,7 @@ class SpaceParser(Protocol[Space]):
         return result.unwrap()
 
     @classmethod
+    @abstractmethod
     def _parse(
         cls,
         pipeline: Pipeline,
@@ -49,6 +50,7 @@ class SpaceParser(Protocol[Space]):
         ...
 
     @classmethod
+    @abstractmethod
     def supports(cls, t: type | Any) -> bool:
         """Whether this parser can parse a given Space."""
         ...
