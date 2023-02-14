@@ -113,11 +113,9 @@ pytest
 ```
 
 ## Versioning
-Uses [conventional-commits](https://www.conventionalcommits.org/en/v1.0.0/#summary).
+Uses [conventional-commits](https://www.conventionalcommits.org/en/v1.0.0/#summary). Will create
+a new version based on commit messages, updating the changelog, creating a tag
+and finally **pushing** the current branch to github.
 ```bash
-make bump
-# If happy with changelog and bump
-# cz bump 
-
-# Check out `cz bump --help` for more
+just bump
 ```
