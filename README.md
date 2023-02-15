@@ -87,7 +87,7 @@ pip install -e ".[dev]"
 ## Docs
 This library uses [`mkdocs`](https://squidfunk.github.io/mkdocs-material/getting-started/) for markdown style documentation.
 ```bash
-make docs
+just docs
 # Click link given
 ```
 
@@ -97,11 +97,11 @@ the navigation in `mkdocs-nav.yml`.
 ## Code Quality
 This library uses [`ruff`](https://github.com/charliermarsh/ruff) and [`black`](https://github.com/psf/black)
 for code quality checks. You can run these manually or use the following
-`make` commands.
+`just` commands.
 
 ```python
-make fix  # Some automated fixes
-make check
+just fix  # Some automated fixes
+just check
 ```
 
 Their configuration is `pyproject.toml`
@@ -115,7 +115,7 @@ pytest
 ## Versioning
 Uses [conventional-commits](https://www.conventionalcommits.org/en/v1.0.0/#summary). Will create
 a new version based on commit messages, updating the changelog, creating a tag
-and finally **pushing** the current branch to github.
+and finally **pushing** the current branch and version tag to github.
 ```bash
 just bump
 ```

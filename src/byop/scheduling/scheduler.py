@@ -6,29 +6,29 @@ for when they complete.
 from __future__ import annotations
 
 import asyncio
-from asyncio import Future, Task
+from asyncio import Future
 from concurrent.futures import Executor
-from contextlib import contextmanager
-from functools import partial
-from itertools import chain
 import logging
 from typing import (
     Any,
     Callable,
+    Concatenate,
     Final,
-    Iterable,
-    Iterator,
     Literal,
     ParamSpec,
     TypeVar,
     overload,
 )
+from uuid import uuid4
 
 from typing_extensions import Self
 
 from byop.event_manager import EventManager
-from byop.fluid import ChainablePredicate, DelayedOp, Partial
-from byop.scheduler.events import ExitCode, SchedulerStatus, Signal, TaskStatus
+from byop.fluid import DelayedOp
+from byop.scheduling.comm import Comm
+from byop.scheduling.events import ExitCode, SchedulerStatus, TaskStatus
+from byop.scheduling.task import CommTask, Task
+from byop.types import CallbackName, Msg, TaskName
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -36,21 +36,11 @@ R = TypeVar("R")
 logger = logging.getLogger(__name__)
 
 
-def _signal_raised(
-    check_for: Signal,
-    *signal_sources: Iterable[Signal] | None,
-) -> bool:
-    """Check if any callback raised a a given signal."""
-    sources = [source for source in signal_sources if source is not None]
-    return any(s is check_for for s in chain.from_iterable(sources))
-
-
 class Scheduler:
     """A scheduler for submitting tasks to an Executor."""
 
     task: Final[type[TaskStatus]] = TaskStatus
     status: Final[type[SchedulerStatus]] = SchedulerStatus
-    signal: Final[type[Signal]] = Signal
     exitcode: Final[type[ExitCode]] = ExitCode
 
     def __init__(self, executor: Executor) -> None:
@@ -62,22 +52,23 @@ class Scheduler:
         """
         self.executor = executor
 
-        # An event managers which handles task status and scheduler status
-        # events with any callback that can return either a `SchedulerSignal`
-        # or `None`.
-        self.events: EventManager[TaskStatus | SchedulerStatus, Signal]
-        self.events = EventManager(name="Scheduler")
+        # An event managers which handles task status and calls callbacks
+        # NOTE: Typing the event manager is a little complicated, so we
+        # forego it for now. However it is possible
+        self.events: EventManager = EventManager(name="Scheduler")
 
         # Just quick access to the count of events that have occured
         self.counts = self.events.count
 
         # Not entirely needed but it's important to keep a reference
         # to what has been queued
-        self.queue: list[asyncio.Future] = []
+        self.queue: dict[asyncio.Future, Task] = {}
 
-        # This can be triggered either by a timeout or with a call to stop
-        # or with a callback that returns a `SchedulerSignal.STOP`
+        # This can be triggered either by `scheduler.stop` in a callback
         self._stop_event: asyncio.Event = asyncio.Event()
+
+        # The currently open communcation with `dispatch_with_comm` workers
+        self.communcations: dict[TaskName, asyncio.Task[None]] = {}
 
     def empty(self) -> bool:
         """Check if the scheduler is empty."""
@@ -85,11 +76,12 @@ class Scheduler:
 
     def dispatch(
         self,
-        f: Callable[P, R],
+        name: TaskName | Callable[P, R],
+        f: Callable[P, R] | None = None,
         /,
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> Future[R]:
+    ) -> Task[R]:
         """Submit a task to the executor.
 
         Note:
@@ -101,6 +93,10 @@ class Scheduler:
             registered callbacks.
 
         Args:
+            name: The name of the worker to run the task on.
+                If no name is given, the first argument is assumed to be
+                the function to call and a random uuid4 will be assigned as
+                the name.
             f: The function to call.
             *args: The positional arguments to pass to the function.
             **kwargs: The keyword arguments to pass to the function.
@@ -117,39 +113,86 @@ class Scheduler:
             )
             raise e
 
-        future = loop.run_in_executor(self.executor, f, *args, **kwargs)
-        logger.debug(f"Submitted task ({f}) {future}")
-
-        future.add_done_callback(self._process_future)
-        self.queue.append(future)
-        self.events.emit(TaskStatus.SUBMITTED, future)
-        return future
-
-    def _process_future(self, future: Future) -> None:
-        logger.debug(f"Processing future {future}")
-        if future in self.queue:
-            self.queue.remove(future)
-
-        if future.cancelled():
-            logger.debug(f"Future {future} was cancelled")
-            signals = self.events.emit(TaskStatus.CANCELLED, future)
+        if f is None:
+            assert callable(name)
+            f = name
+            name = str(uuid4())
         else:
-            exception = future.exception()
-            result = future.result() if exception is None else None
+            name = name
 
-            logger.debug(f"Future {future} finished")
-            self.events.emit(TaskStatus.FINISHED, result, exception)
+        sync_future = self.executor.submit(f, *args, **kwargs)
+        future = asyncio.wrap_future(sync_future, loop=loop)
+        future.add_done_callback(self._on_task_complete)
 
-            if exception is None:
-                logger.debug(f"Future {future} completed successfully")
-                signals = self.events.emit(TaskStatus.COMPLETE, result)
+        task = Task(name=name, future=future, events=self.events)
+        self.queue[future] = task
+
+        # Emit the general submitted event and the task specific submitted event
+        logger.debug(f"Submitted task {task}")
+        self.events.emit(TaskStatus.SUBMITTED, future)
+        self.events.emit((task.name, TaskStatus.SUBMITTED), future)
+
+        return task
+
+    def dispatch_with_comm(
+        self,
+        name: TaskName,
+        f: Callable[Concatenate[Comm, P], R],
+        /,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> CommTask[R]:
+        """Submit a task to the executor.
+
+        Note:
+            Dispatch is intended to only be called by callbacks and
+            once started with `start()`.
+
+            If called directly it will just submit the task to the
+            executor and return the future, calling no further
+            registered callbacks.
+
+        Args:
+            name: The name of the worker to run the task on.
+                If no name is given, the first argument is assumed to be
+                the function to call and a random uuid4 will be assigned as
+                the name.
+            f: The function to call. Must accept a `Comm` as its first
+                argument.
+            *args: The positional arguments to pass to the function.
+            **kwargs: The keyword arguments to pass to the function.
+
+        Returns:
+            The future representing the task.
+        """
+        scheduler_end, worker_end = Comm.create(duplex=True)
+        task = self.dispatch(name, f, *(worker_end, *args), **kwargs)  # type: ignore
+        comm_task: CommTask[R] = CommTask.from_task(task, comm=scheduler_end)
+        self.communcations[name] = asyncio.create_task(comm_task._communicate())
+        return comm_task
+
+    def _on_task_complete(self, future: asyncio.Future) -> None:
+        # Remove it fom the
+        task = self.queue.pop(future, None)
+        if task is None:
+            logger.warning(f"Task for {future} was not found in scheduler queue!")
+            return
+
+        if isinstance(task, CommTask):
+            # Get the async task that was in charge of monitoring the pipes
+            # and cancel it
+            async_communicate_task = self.communcations.pop(task.name, None)
+            if async_communicate_task is None:
+                msg = f"Task to communicate with {task} was not found in scheduler!"
+                logger.warning(msg)
             else:
-                logger.debug(f"Future {future} failed with {exception}")
-                signals = self.events.emit(TaskStatus.ERROR, exception)
+                async_communicate_task.cancel()
 
-        if _signal_raised(Signal.STOP, signals):
-            logger.debug("Received stop signal")
-            self.stop()
+            # Close the pipe if it hasn't been closed
+            task.comm.close()
+
+        # Finally let the task handle any callbacks registered
+        task._finish_up()
 
     async def _stop_when_queue_empty(self) -> None:
         """Stop the scheduler when the queue is empty."""
@@ -177,7 +220,7 @@ class Scheduler:
             self.events.emit(SchedulerStatus.STARTED, self)
 
             # Our stopping criterion of the scheduler
-            stop_criterion: list[Task] = []
+            stop_criterion: list[asyncio.Task] = []
 
             # Monitor for `stop` being triggered
             stop_triggered = asyncio.create_task(self._stop_when_triggered())
@@ -295,72 +338,71 @@ class Scheduler:
             wait=wait,
         )
 
+    # On any scheduler status update
     @overload
     def on(
         self,
         event: SchedulerStatus,
         *handler: Callable[[Self], None],
         when: Callable[[Self], bool] | None = None,
-        name: str | None = ...,
+        name: CallbackName | None = ...,
     ) -> Self:
         ...
 
+    # On any task submitted, finished or cancelled
     @overload
     def on(
         self,
-        event: Literal[TaskStatus.SUBMITTED],
-        *handler: Callable[[Future], None],
+        event: Literal[TaskStatus.SUBMITTED, TaskStatus.FINISHED, TaskStatus.CANCELLED]
+        | tuple[
+            TaskName,
+            Literal[TaskStatus.SUBMITTED, TaskStatus.FINISHED, TaskStatus.CANCELLED],
+        ],
+        *handler: Callable[[Future], Any],
         when: Callable[[Future], bool] | None = None,
-        name: str | None = ...,
+        name: CallbackName | None = ...,
     ) -> Self:
         ...
 
+    # On task success
     @overload
     def on(
         self,
-        event: Literal[TaskStatus.CANCELLED],
-        *handler: Callable[[Future], Signal | None],
-        when: Callable[[Future], bool] | None = None,
-        name: str | None = ...,
+        event: Literal[TaskStatus.SUCCESS],
+        *handler: Callable[[R], Any],
+        when: Callable[[R], bool] | None = None,
+        name: CallbackName | None = ...,
     ) -> Self:
         ...
 
-    @overload
-    def on(
-        self,
-        event: Literal[TaskStatus.FINISHED],
-        *handler: Callable[[Any, Exception], Signal | None],
-        when: Callable[[Any, Exception], bool] | None = None,
-        name: str | None = ...,
-    ) -> Self:
-        ...
-
-    @overload
-    def on(
-        self,
-        event: Literal[TaskStatus.COMPLETE],
-        *handler: Callable[[Any], Signal | None],
-        when: Callable[[Any], bool] | None = None,
-        name: str | None = ...,
-    ) -> Self:
-        ...
-
+    # On task error
     @overload
     def on(
         self,
         event: Literal[TaskStatus.ERROR],
-        *handler: Callable[[Exception], Signal | None],
-        when: Callable[[Exception], bool] | None = None,
-        name: str | None = ...,
+        *handler: Callable[[BaseException], Any],
+        when: Callable[[BaseException], bool] | None = None,
+        name: CallbackName | None = ...,
+    ) -> Self:
+        ...
+
+    # On a task update
+    @overload
+    def on(
+        self,
+        event: Literal[TaskStatus.UPDATE] | tuple[TaskName, Literal[TaskStatus.UPDATE]],
+        *handler: Callable[[CommTask, Msg], Any],
+        when: Callable[[CommTask, Msg], bool] | None = None,
+        name: CallbackName | None = ...,
     ) -> Self:
         ...
 
     def on(
         self,
-        event: TaskStatus | SchedulerStatus,
-        *handler: Callable[P, Signal | None],
-        when: Callable[P, bool] | None = None,
-        name: str | None = None,
+        event: TaskStatus | SchedulerStatus | tuple[TaskName, TaskStatus],
+        *handler: Callable[..., Any],
+        when: Callable[..., bool] | None = None,
+        name: CallbackName | None = None,
     ) -> Self:
         """Register a handler for an event."""
         for h in handler:
@@ -389,38 +431,3 @@ class Scheduler:
             return self.events.count[event]
 
         return DelayedOp(count)
-
-    @contextmanager
-    def when(
-        self,
-        event: TaskStatus | SchedulerStatus,
-        *preds: Callable[P, bool],
-    ) -> Iterator[Partial]:
-        """A context manager to register a callback for an event.
-
-        Args:
-            event: The event to register the callback for.
-            *preds: The predicates to use which determine if
-                the callback should be called.
-
-        Returns:
-            A partial function that can be called with the callback
-        """
-        if len(preds) == 0:
-            yield partial(self.events.on, event)
-        else:
-            yield partial(self.on, event=event, when=ChainablePredicate.all(*preds))
-
-    def on_task_finish(
-        self, *handler: Callable[[Any, Exception], None], name: str | None = None
-    ) -> Self:
-        """Register handler(s) for a task finishing.
-
-        Args:
-            handler: The handler(s) to register.
-            name: The name of the handler(s). Defaults to `None`.
-
-        Returns:
-            The scheduler instance.
-        """
-        return self.on(TaskStatus.FINISHED, *handler, name=name)

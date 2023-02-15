@@ -1,3 +1,4 @@
+"""TODO: Rework these tests once scheduler complete."""
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 import logging
@@ -7,7 +8,7 @@ from typing import Callable, Iterator
 from dask.distributed import Client, LocalCluster
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from byop.scheduler import Scheduler, SchedulerStatus, TaskStatus
+from byop.scheduling import Scheduler, SchedulerStatus, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ def test_scheduler_timeout_stop_wait(scheduler: Scheduler) -> None:
     dispatcher = Dispatcher(scheduler)
 
     scheduler.on(scheduler.status.STARTED, dispatcher(sleep_and_return, 0.1))
-    scheduler.on(scheduler.task.COMPLETE, results.append)
+    scheduler.on(scheduler.task.SUCCESS, results.append)
 
     end_status = scheduler.run(timeout=0.1, wait=True)
 
@@ -90,7 +91,7 @@ def test_scheduler_timeout_stop_no_wait(scheduler: Scheduler) -> None:
     results: list[float] = []
     dispatcher = Dispatcher(scheduler)
 
-    scheduler.on(scheduler.task.COMPLETE, results.append)
+    scheduler.on(scheduler.task.SUCCESS, results.append)
     scheduler.on(scheduler.status.STARTED, dispatcher(sleep_and_return, 0.1))
     end_status = scheduler.run(timeout=0.01, wait=False)
 
@@ -103,12 +104,12 @@ def test_dispatch_within_callback(scheduler: Scheduler) -> None:
     results: list[float] = []
     dispatcher = Dispatcher(scheduler)
 
-    scheduler.on(scheduler.task.COMPLETE, results.append)
+    scheduler.on(scheduler.task.SUCCESS, results.append)
     scheduler.on(scheduler.status.STARTED, dispatcher(sleep_and_return, 0.1))
     scheduler.on(
-        scheduler.task.COMPLETE,
+        scheduler.task.SUCCESS,
         dispatcher(sleep_and_return, 0.1),
-        when=scheduler.count(scheduler.task.COMPLETE) < 2,
+        when=scheduler.count(scheduler.task.SUCCESS) < 2,
     )
 
     # Should run twice
@@ -122,7 +123,7 @@ def test_dispatch_within_callback(scheduler: Scheduler) -> None:
 def test_queue_empty_stop_criterion(scheduler: Scheduler) -> None:
     results: list[float] = []
     dispatcher = Dispatcher(scheduler)
-    scheduler.on(scheduler.task.COMPLETE, results.append)
+    scheduler.on(scheduler.task.SUCCESS, results.append)
 
     scheduler.on(
         scheduler.status.STARTED,
@@ -142,12 +143,12 @@ def test_stop_criterion(scheduler: Scheduler) -> None:
     dispatcher = Dispatcher(scheduler)
 
     scheduler.on(scheduler.status.STARTED, dispatcher(sleep_and_return, 0.1))
-    scheduler.on(scheduler.task.COMPLETE, results.append)
-    scheduler.on(scheduler.task.COMPLETE, dispatcher(sleep_and_return, 0.1))
+    scheduler.on(scheduler.task.SUCCESS, results.append)
+    scheduler.on(scheduler.task.SUCCESS, dispatcher(sleep_and_return, 0.1))
     scheduler.on(
-        scheduler.task.COMPLETE,
+        scheduler.task.SUCCESS,
         scheduler.stop,
-        when=scheduler.count(scheduler.task.COMPLETE) == 2,
+        when=scheduler.count(scheduler.task.SUCCESS) == 2,
     )
     end_status = scheduler.run(wait=True)
 
@@ -158,7 +159,7 @@ def test_stop_criterion(scheduler: Scheduler) -> None:
 
 def test_error_handling(scheduler: Scheduler) -> None:
     results: list[float] = []
-    errors: list[Exception] = []
+    errors: list[BaseException] = []
     dispatcher = Dispatcher(scheduler)
 
     def raise_error() -> None:
@@ -166,20 +167,20 @@ def test_error_handling(scheduler: Scheduler) -> None:
 
     scheduler.on(scheduler.status.STARTED, dispatcher(sleep_and_return, 0.1))
 
-    scheduler.on(scheduler.task.COMPLETE, results.append)
+    scheduler.on(scheduler.task.SUCCESS, results.append)
     scheduler.on(scheduler.task.ERROR, errors.append)
 
     scheduler.on(scheduler.task.ERROR, scheduler.stop)
 
     scheduler.on(
-        scheduler.task.COMPLETE,
+        scheduler.task.SUCCESS,
         dispatcher(sleep_and_return, 0.1),
-        when=scheduler.count(scheduler.task.COMPLETE) < 2,
+        when=scheduler.count(scheduler.task.SUCCESS) < 2,
     )
     scheduler.on(
-        scheduler.task.COMPLETE,
+        scheduler.task.SUCCESS,
         dispatcher(raise_error),
-        when=scheduler.count(scheduler.task.COMPLETE) == 2,
+        when=scheduler.count(scheduler.task.SUCCESS) == 2,
     )
 
     end_status = scheduler.run()

@@ -11,8 +11,10 @@ class TaskStatus(Enum):
     PENDING = auto()  # Pending execution
     RUNNING = auto()  # Running
     ERROR = auto()  # Failure
+    UPDATE = auto()  # Updated
     FINISHED = auto()  # Has ended
-    COMPLETE = auto()  # Success
+    WAITING = auto()  # Waiting a response in comms
+    SUCCESS = auto()  # Success
     CANCELLED = auto()  # Cancelled
 
 
@@ -24,12 +26,6 @@ class SchedulerStatus(Enum):
     STOPPING = auto()
     FINISHING = auto()
     FINISHED = auto()
-
-
-class Signal(Enum):
-    """The signals that can be sent to a scheduler."""
-
-    STOP = 1_000
 
 
 class ExitCode(Enum):

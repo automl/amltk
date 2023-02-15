@@ -30,6 +30,15 @@ BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)
 # Something you tell the optimizer about
 TrialResult = TypeVar("TrialResult")
 
+# A name for a task
+TaskName: TypeAlias = Hashable
+
+# A name for a callback
+CallbackName: TypeAlias = Hashable
+
+# A response from a comm task
+Msg: TypeAlias = Any
+
 # An object representing a configuration of a pipeline.
 # Notable examples include a Configuration object from ConfigSpace
 # of which Mapping[Key, Any] is a supertype

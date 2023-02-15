@@ -24,13 +24,15 @@ from typing import (
     Iterator,
     Mapping,
     MutableMapping,
-    Optional,
     ParamSpec,
     TypeVar,
+    overload,
 )
 from uuid import uuid4
 
 from attrs import field, frozen
+
+from byop.types import CallbackName
 
 EventKey = TypeVar("EventKey", bound=Hashable)
 
@@ -48,7 +50,7 @@ class Handler(Generic[P, R]):
     that must be satisfied for it to be triggered.
     """
 
-    callback: Callable[P, R | None]
+    callback: Callable[P, R]
     pred: Callable[P, bool] | None = None
 
     def __call__(self, *args: P.args, **kwds: P.kwargs) -> R | None:
@@ -63,15 +65,15 @@ class Handler(Generic[P, R]):
 
 
 @frozen
-class EventHandler(MutableMapping[str, Callable[P, Optional[R]]]):
+class EventHandler(MutableMapping[CallbackName, Callable[P, R]]):
     """An event."""
 
-    callbacks: dict[str, Handler[P, R]] = field(factory=dict)
+    callbacks: dict[CallbackName, Handler[P, R]] = field(factory=dict)
 
     def add(
         self: EventHandler[P, R],
-        name: str,
-        callback: Callable[P, R | None],
+        name: CallbackName,
+        callback: Callable[P, R],
         *,
         pred: Callable[P, bool] | None = None,
     ) -> None:
@@ -87,25 +89,25 @@ class EventHandler(MutableMapping[str, Callable[P, Optional[R]]]):
         ]
         return results if results else None
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[CallbackName]:
         return self.callbacks.__iter__()
 
     def __len__(self) -> int:
         return self.callbacks.__len__()
 
-    def __getitem__(self, key: str) -> Callable[P, R | None]:
+    def __getitem__(self, key: CallbackName) -> Callable[P, R]:
         handler = self.callbacks.__getitem__(key)
         return handler.callback
 
     def __setitem__(
         self: EventHandler[P, R],
-        key: str,
-        value: Callable[P, R | None],
+        key: CallbackName,
+        value: Callable[P, R],
     ) -> None:
         handler = Handler(value)
         self.callbacks.__setitem__(key, handler)
 
-    def __delitem__(self, key: str) -> None:
+    def __delitem__(self, key: CallbackName) -> None:
         self.callbacks.__delitem__(key)
 
 
@@ -124,18 +126,40 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         """Return a list of the events."""
         return list(self.handlers)
 
-    def __call__(self, event: EventKey, handler: Callable[..., R | None]) -> None:
+    def __call__(self, event: EventKey, handler: Callable[..., R]) -> None:
         """Register a handler for an event."""
         self.on(event, handler)
+
+    @overload
+    def on(
+        self,
+        event: EventKey,
+        callback: Callable[P, R],
+        pred: Callable[P, bool] | None = None,
+        *,
+        name: None = None,
+    ) -> str:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: EventKey,
+        callback: Callable[P, R],
+        pred: Callable[P, bool] | None = None,
+        *,
+        name: CallbackName,
+    ) -> CallbackName:
+        ...
 
     def on(
         self,
         event: EventKey,
-        callback: Callable[P, R | None],
+        callback: Callable[P, R],
         pred: Callable[P, bool] | None = None,
         *,
-        name: str | None = None,
-    ) -> str:
+        name: CallbackName | None = None,
+    ) -> CallbackName | str:
         """Register a callback for an event."""
         if name is None:
             name = str(uuid4())
@@ -185,7 +209,7 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
     def __len__(self) -> int:
         return len(self.handlers)
 
-    def has(self, name: str, *, event: EventKey | None = None) -> bool:
+    def has(self, name: CallbackName, *, event: EventKey | None = None) -> bool:
         """Check if the named function exists in the event handlers.
 
         Args:
@@ -201,7 +225,7 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
 
         return any(self.has(name, event=event) for event in self.handlers)
 
-    def remove(self, name: str, *, event: EventKey | None = None) -> bool:
+    def remove(self, name: CallbackName, *, event: EventKey | None = None) -> bool:
         """Remove a callback from the event handlers.
 
         Args:
