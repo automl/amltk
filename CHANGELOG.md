@@ -1,3 +1,9 @@
+## v0.3.0 (2023-02-15)
+
+### Feat
+
+- **Task**: Communcation with workers, simpler api
+
 ## v0.2.1 (2023-02-14)
 
 ### Fix
