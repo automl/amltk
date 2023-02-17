@@ -32,6 +32,7 @@ from uuid import uuid4
 
 from attrs import field, frozen
 
+from byop.fluid import ChainPredicate
 from byop.types import CallbackName
 
 EventKey = TypeVar("EventKey", bound=Hashable)
@@ -51,17 +52,17 @@ class Handler(Generic[P, R]):
     """
 
     callback: Callable[P, R]
-    pred: Callable[P, bool] | None = None
+    when: Callable[P, bool] | None = None
 
     def __call__(self, *args: P.args, **kwds: P.kwargs) -> R | None:
         """Call the callback if the predicate is satisfied.
 
         If the predicate is not satisfied, then `None` is returned.
         """
-        if self.pred and not self.pred(*args, **kwds):
-            return None
+        if self.when is None:
+            return self.callback(*args, **kwds)
 
-        return self.callback(*args, **kwds)
+        return self.callback(*args, **kwds) if self.when(*args, **kwds) else None
 
 
 @frozen
@@ -75,16 +76,17 @@ class EventHandler(MutableMapping[CallbackName, Callable[P, R]]):
         name: CallbackName,
         callback: Callable[P, R],
         *,
-        pred: Callable[P, bool] | None = None,
+        when: Callable[P, bool] | None = None,
     ) -> None:
         """Add a callback to the event."""
-        self.callbacks[name] = Handler(callback, pred)
+        self.callbacks[name] = Handler(callback, when)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> list[R] | None:
         """Emit an event."""
+        callbacks = list(self.callbacks.values())
         results = [
             result
-            for func in self.callbacks.values()
+            for func in callbacks
             if (result := func(*args, **kwargs)) is not None
         ]
         return results if results else None
@@ -126,17 +128,15 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         """Return a list of the events."""
         return list(self.handlers)
 
-    def __call__(self, event: EventKey, handler: Callable[..., R]) -> None:
-        """Register a handler for an event."""
-        self.on(event, handler)
-
     @overload
     def on(
         self,
         event: EventKey,
         callback: Callable[P, R],
-        pred: Callable[P, bool] | None = None,
         *,
+        every: int | None = ...,
+        count: Callable[[int], bool] | None = ...,
+        when: Callable[P, bool] | None = ...,
         name: None = None,
     ) -> str:
         ...
@@ -146,8 +146,10 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         self,
         event: EventKey,
         callback: Callable[P, R],
-        pred: Callable[P, bool] | None = None,
         *,
+        every: int | None = ...,
+        count: Callable[[int], bool] | None = ...,
+        when: Callable[P, bool] | None = ...,
         name: CallbackName,
     ) -> CallbackName:
         ...
@@ -156,19 +158,38 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         self,
         event: EventKey,
         callback: Callable[P, R],
-        pred: Callable[P, bool] | None = None,
         *,
+        every: int | None = None,
+        count: Callable[[int], bool] | None = None,
+        when: Callable[P, bool] | None = None,
         name: CallbackName | None = None,
     ) -> CallbackName | str:
         """Register a callback for an event."""
         if name is None:
             name = str(uuid4())
 
-        self.handlers[event].add(name, callback, pred=pred)
+        every_pred = None
+        if every is not None:
+            if every <= 0:
+                raise ValueError(f"{every=} must be a positive integer.")
+            every_pred = lambda *a, **k: self.count[event] % every == 0  # noqa: ARG005
 
-        msg = f"{self.name}: Registered {name} ({callback}) for event {event}"
-        if pred:
-            msg += f" with predicate ({pred})"
+        count_pred = None
+        if count:
+            count_pred = lambda *a, **k: count(self.count[event])  # noqa: ARG005
+
+        combined_predicate = (
+            ChainPredicate() & every_pred & count_pred & when  # type: ignore
+        )
+        self.handlers[event].add(name, callback, when=combined_predicate)
+
+        msg = f"{self.name}: Registered callback '{name}' for event {event}"
+        if every:
+            msg += f" every {every} times"
+        if count:
+            msg += f" whenever {count} is True"
+        if when:
+            msg += f" with predicate ({when})"
         logger.debug(msg)
 
         return name

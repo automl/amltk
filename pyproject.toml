@@ -1,7 +1,12 @@
 [project]
 name = "byop"
 version = "0.3.0"
-dependencies = ["typing_extensions", "more_itertools", "matplotlib", "result"]
+dependencies = [
+  "typing_extensions",  # Better typing
+  "more_itertools",  # Better iteration
+  "result",  # Could be removed, used for parsing, building, configuring
+  "psutil"  # Used for process termination of executors
+]
 requires-python = ">=3.8"
 authors = [{ name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com" }]
 readme = "README.md"
@@ -35,6 +40,7 @@ dev = [
   "black",
   "ruff",
   "mypy",
+  "types-psutil",
   "mkdocs",
   "mkdocstrings[python]",
   "mkdocs-material",

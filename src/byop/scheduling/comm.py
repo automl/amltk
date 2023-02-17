@@ -10,7 +10,7 @@ from typing import Any, Literal, TypeVar, overload
 from typing_extensions import Self
 
 from byop.asyncm import AsyncConnection
-from byop.scheduling.events import TaskStatus
+from byop.scheduling.events import TaskEvent
 
 T = TypeVar("T")
 
@@ -69,7 +69,7 @@ class Comm:
 
         # None indicates blocking poll
         poll_timeout = None if block is True else block
-        self.send(TaskStatus.WAITING)
+        self.send(TaskEvent.WAITING)
         response = self.connection.poll(timeout=poll_timeout)
         return default if not response else self.connection.recv()
 

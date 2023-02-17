@@ -20,13 +20,13 @@ class Partial(Protocol[P, R]):
 
 
 @dataclass
-class ChainablePredicate(Generic[P]):
+class ChainPredicate(Generic[P]):
     """A predicate that can be chained with other predicates.
 
     Can be chained with other callables using `&` and `|` operators.
 
     ```python
-    from byop.fluid import ChainablePredicate
+    from byop.fluid import ChainPredicate
 
     def is_even(x: int) -> bool:
         return x % 2 == 0
@@ -34,37 +34,52 @@ class ChainablePredicate(Generic[P]):
     def is_odd(x: int) -> bool:
         return x % 2 == 1
 
-    and_combined = ChainablePredicate(is_even) & is_odd
+    and_combined = ChainPredicate() & is_even & is_odd
     assert and_combined_pred(1) is False
 
-    or_combined = ChainablePredicate(is_even) | is_odd
+    or_combined = ChainPredicate() & is_even | is_odd
     assert or_combined_pred(1) is True
     ```
 
     Attributes:
         pred: The predicate to be evaluated.
+            Defaults to `None` which defaults to returning `True`
+            when called.
     """
 
-    pred: Callable[P, bool]
+    pred: Callable[P, bool] | None = None
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> bool:
         """Evaluate the predicate chain."""
+        if self.pred is None:
+            return True
+
         return self.pred(*args, **kwargs)
 
-    def __and__(self, other: Callable[P, bool]) -> ChainablePredicate[P]:
+    def __and__(self, other: Callable[P, bool] | None) -> ChainPredicate[P]:
+        if other is None:
+            return self
+
+        call = other
+
         def _pred(*args: P.args, **kwargs: P.kwargs) -> bool:
-            return self(*args, **kwargs) and other(*args, **kwargs)
+            return self(*args, **kwargs) and call(*args, **kwargs)
 
-        return ChainablePredicate(_pred)
+        return ChainPredicate(_pred)
 
-    def __or__(self, other: Callable[P, bool]) -> ChainablePredicate[P]:
+    def __or__(self, other: Callable[P, bool] | None) -> ChainPredicate[P]:
+        if other is None:
+            return self
+
+        call = other
+
         def _pred(*args: P.args, **kwargs: P.kwargs) -> bool:
-            return self(*args, **kwargs) or other(*args, **kwargs)
+            return self(*args, **kwargs) or call(*args, **kwargs)
 
-        return ChainablePredicate(_pred)
+        return ChainPredicate(_pred)
 
     @classmethod
-    def all(cls, *preds: Callable[P, bool]) -> ChainablePredicate[P]:
+    def all(cls, *preds: Callable[P, bool]) -> ChainPredicate[P]:
         """Create an all predicate from multiple predicates.
 
         Args:
@@ -77,10 +92,10 @@ class ChainablePredicate(Generic[P]):
         def _pred(*args: P.args, **kwargs: P.kwargs) -> bool:
             return all(pred(*args, **kwargs) for pred in preds)
 
-        return ChainablePredicate[P](_pred)
+        return ChainPredicate[P](_pred)
 
     @classmethod
-    def any(cls, *preds: Callable[P, bool]) -> ChainablePredicate[P]:
+    def any(cls, *preds: Callable[P, bool]) -> ChainPredicate[P]:
         """Create an any predicate from multiple predicates.
 
         Args:
@@ -93,7 +108,7 @@ class ChainablePredicate(Generic[P]):
         def _pred(*args: P.args, **kwargs: P.kwargs) -> bool:
             return any(pred(*args, **kwargs) for pred in preds)
 
-        return ChainablePredicate[P](_pred)
+        return ChainPredicate[P](_pred)
 
 
 @dataclass
@@ -130,32 +145,32 @@ class DelayedOp(Generic[V, P]):
 
     left: Callable[P, V]
 
-    def __lt__(self, right: V) -> ChainablePredicate[P]:
+    def __lt__(self, right: V) -> ChainPredicate[P]:
         def op(*args: P.args, **kwargs: P.kwargs) -> bool:
             return self.left(*args, **kwargs) < right
 
-        return ChainablePredicate(op)
+        return ChainPredicate(op)
 
-    def __le__(self, right: V) -> ChainablePredicate[P]:
+    def __le__(self, right: V) -> ChainPredicate[P]:
         def op(*args: P.args, **kwargs: P.kwargs) -> bool:
             return self.left(*args, **kwargs) <= right  # type: ignore
 
-        return ChainablePredicate(op)
+        return ChainPredicate(op)
 
-    def __gt__(self, right: V) -> ChainablePredicate[P]:
+    def __gt__(self, right: V) -> ChainPredicate[P]:
         def op(*args: P.args, **kwargs: P.kwargs) -> bool:
             return self.left(*args, **kwargs) > right
 
-        return ChainablePredicate(op)
+        return ChainPredicate(op)
 
-    def __ge__(self, right: V) -> ChainablePredicate[P]:
+    def __ge__(self, right: V) -> ChainPredicate[P]:
         def op(*args: P.args, **kwargs: P.kwargs) -> bool:
             return self.left(*args, **kwargs) >= right  # type: ignore
 
-        return ChainablePredicate(op)
+        return ChainPredicate(op)
 
-    def __eq__(self, right: V) -> ChainablePredicate[P]:  # type: ignore
+    def __eq__(self, right: V) -> ChainPredicate[P]:  # type: ignore
         def op(*args: P.args, **kwargs: P.kwargs) -> bool:
             return self.left(*args, **kwargs) == right
 
-        return ChainablePredicate(op)
+        return ChainPredicate(op)

@@ -1,11 +1,16 @@
 from byop.scheduling.comm import Comm
-from byop.scheduling.events import ExitCode, SchedulerStatus, TaskStatus
+from byop.scheduling.events import ExitCode, SchedulerEvent, TaskEvent
 from byop.scheduling.scheduler import Scheduler
+from byop.scheduling.task import CommTask, CommTaskDescription, Task, TaskDescription
 
 __all__ = [
     "Scheduler",
-    "TaskStatus",
-    "SchedulerStatus",
+    "TaskEvent",
+    "SchedulerEvent",
     "ExitCode",
     "Comm",
+    "TaskDescription",
+    "CommTaskDescription",
+    "Task",
+    "CommTask",
 ]
