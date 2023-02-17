@@ -1,3 +1,9 @@
+## v0.4.0 (2023-02-17)
+
+### Feat
+
+- **scheduler**: Two way coms, nicer API
+
 ## v0.3.0 (2023-02-15)
 
 ### Feat
