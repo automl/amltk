@@ -42,4 +42,4 @@ sequenceDiagram
   deactivate S
 ```
 
-::: byop.scheduler.scheduler
+::: byop.scheduling.scheduler

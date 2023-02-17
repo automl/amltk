@@ -45,6 +45,7 @@ dev = [
   "mkdocstrings[python]",
   "mkdocs-material",
   "mkdocs-autorefs",
+  "mike",
 ]
 smac = ["smac==2.0.0b1", "configspace"]
 

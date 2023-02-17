@@ -46,6 +46,11 @@ markdown_extensions:
 plugins:
   - search
   - autorefs
+  - mike:
+      version_selector: true
+      css_dir: css
+      javascript_dir: js
+      canonical_version: main
   - mkdocstrings:
       default_handler: python
       handlers:
