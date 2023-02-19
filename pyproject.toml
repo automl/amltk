@@ -41,11 +41,15 @@ dev = [
   "ruff",
   "mypy",
   "types-psutil",
+]
+doc = [
   "mkdocs",
-  "mkdocstrings[python]",
   "mkdocs-material",
   "mkdocs-autorefs",
+  "mkdocstrings[python]",
   "mike",
+  "pillow",
+  "cairosvg",
 ]
 smac = ["smac==2.0.0b1", "configspace"]
 
@@ -164,6 +168,7 @@ exclude = [
   "dist",
   "node_modules",
   "venv",
+  "docs",
 ]
 
 # Exclude a variety of commonly ignored directories.
@@ -179,6 +184,7 @@ exclude = [
 ]
 "src/byop/__version__.py" = ["D100"]
 "__init__.py" = ["I002"]
+"examples/*" = ["INP001"]
 
 
 [tool.ruff.isort]

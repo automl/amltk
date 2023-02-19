@@ -1,2 +1,0 @@
-# Building
-::: byop.building.api

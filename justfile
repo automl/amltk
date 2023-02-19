@@ -11,7 +11,8 @@ check:
   pre-commit run --all-files
 
 docs:
-  mkdocs serve --watch-theme
+  python -m webbrowser -t "http://127.0.0.1:8000/"
+  while true; do mkdocs serve --watch-theme; done
 
 bump:
   cz bump || exit

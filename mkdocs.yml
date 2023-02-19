@@ -1,16 +1,30 @@
-site_name: byop docs
-
+site_name: "<code>Build Your Own Pipeline</code>"
 repo_url: https://github.com/automl/byop/
+repo_name: automl/byop
 
 theme:
   name: material
+  logo: assets/automl_org.png
+  favicon: assets/automl_org.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.annotate
+    - navigation.instant
+    - navigation.tracking
+    - navigation.footer
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - toc.follow
+    - header.autohide
   font:
     text: Roboto
     code: Roboto Mono
   palette:
-    # Palette toggle for dark mode
     - scheme: slate
       media: "(prefers-color-scheme: dark)"
+      primary: indigo
+      accent: deep purple
       toggle:
         icon: material/eye-outline
         name: Switch to light mode
@@ -18,9 +32,24 @@ theme:
     # Palette toggle for light mode
     - scheme: default
       media: "(prefers-color-scheme: light)"
+      primary: indigo
+      accent: deep purple
       toggle:
         icon: material/eye
         name: Switch to dark mode
+
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/automl
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/automl_org
+
+extra_css:
+  - stylesheets/custom.css
 
 watch:
   - src/byop
@@ -30,18 +59,24 @@ markdown_extensions:
   - admonition
   - tables
   - toc:
-      permalink: true
-      toc_depth: 2
+      permalink: "#"
   - pymdownx.highlight:
       anchor_linenums: true
+  - pymdownx.magiclink:
+      hide_protocol: true
+      repo_url_shortener: true
+      repo_url_shorthand: true
+      user: automl
+      repo: byop
+  - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.snippets
+  - pymdownx.details
   - pymdownx.superfences:
       custom_fences:
       - name: mermaid
         class: mermaid
         format: !!python/name:pymdownx.superfences.fence_code_format
-
 
 plugins:
   - search
@@ -51,15 +86,31 @@ plugins:
       css_dir: css
       javascript_dir: js
       canonical_version: main
+  - gen-files:
+      scripts:
+        - docs/api_generator.py
+  - literate-nav:
+        nav_file: SUMMARY.md
   - mkdocstrings:
       default_handler: python
+      enable_inventory: true
       handlers:
         python:
           paths: [src]
+          import:
+            - 'https://docs.python.org/3/objects.inv'
           options:
+            show_root_heading: false
+            show_root_toc_entry: false
+            show_object_full_path: false
+            merge_init_into_class: true
+            docstring_style: google
+            show_if_no_docstring: false
+            show_bases: true
             show_source: true
+            members_order: "source"
+            group_by_category: false
+            show_category_heading: false
             show_signature: true
-            seperate_signature: true
-            filters:
-              - "!^_"
-            docstring_section_style: table
+            show_signature_annotations: false
+            docstring_section_style: spacy

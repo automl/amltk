@@ -1,11 +1,3 @@
 nav:
   - index.md
-  - API:
-    - "api/building.md"
-    - "api/configuring.md"
-    - "api/events.md"
-    - "api/fluid.md"
-    - "api/functional.md"
-    - "api/parsing.md"
-    - "api/pipeline.md"
-    - "api/scheduler.md"
+  - API: api/

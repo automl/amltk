@@ -213,3 +213,7 @@ and overloaded without issue at the moment but anyone inheriting from this class
 
         return Pipeline(name=str(uuid4()), steps=step_sequence)
 ```
+
+
+### Versioning
+[MKdocs with mike](https://squidfunk.github.io/mkdocs-material/setup/setting-up-versioning/#version-warning)
