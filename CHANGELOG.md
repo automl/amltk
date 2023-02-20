@@ -1,3 +1,9 @@
+## v0.5.0 (2023-02-20)
+
+### Feat
+
+- **scheduler**: Clean concept of task
+
 ## v0.4.0 (2023-02-17)
 
 ### Feat
