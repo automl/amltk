@@ -11,27 +11,6 @@ from byop.pipeline.components import Component, Split
 from byop.pipeline.pipeline import Pipeline
 from byop.types import Any, Name
 
-# split(
-#   "name",
-#   step("1", 1),
-#   step("2", 1),
-#   item=SklearnColumnTransformer,
-#   config={
-#     # These are associated with each path
-#     "1": make_column_selector(dtype_include="int"),
-#     "2": make_column_selector(dtype_include=object),
-#
-#     # These are known config options
-#     # https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html
-#     "remainder": "passthrough",
-#     "sparse_threshold": 0.3,
-#     "n_jobs": None,
-#     "transformer_weights": None,
-#     "verbose": False,
-#     "verbose_feature_names_out": False,
-#   }
-# )
-
 COLUMN_TRANSFORMER_ARGS = [
     "remainder",
     "sparse_threshold",

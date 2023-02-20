@@ -7,32 +7,35 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import Future
-from concurrent.futures import Executor
+from collections import Counter
+from concurrent.futures import Executor, ProcessPoolExecutor
 import logging
+from multiprocessing.context import BaseContext
 from typing import (
     Any,
     Callable,
+    ClassVar,
     Concatenate,
-    Final,
     Literal,
     ParamSpec,
     TypeVar,
     cast,
     overload,
 )
+from uuid import uuid4
 
 from typing_extensions import Self
 
 from byop.event_manager import EventManager
-from byop.scheduling.comm import Comm
-from byop.scheduling.events import ExitCode, SchedulerEvent, TaskEvent
-from byop.scheduling.task import CommTask, CommTaskDescription, Task, TaskDescription
+from byop.functional import funcname
+from byop.scheduling.comm_task import Comm, CommTask, CommTaskFuture
+from byop.scheduling.events import EventTypes, ExitCode, SchedulerEvent, TaskEvent
+from byop.scheduling.task import Task, TaskFuture
 from byop.scheduling.termination_strategies import termination_strategy
-from byop.types import CallbackName, Msg, TaskName
+from byop.types import CallbackName, Msg, TaskName, TaskParams, TaskReturn
 
 P = ParamSpec("P")
 R = TypeVar("R")
-_Executor = TypeVar("_Executor", bound=Executor)
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +43,11 @@ logger = logging.getLogger(__name__)
 class Scheduler:
     """A scheduler for submitting tasks to an Executor."""
 
-    status: Final[type[SchedulerEvent]] = SchedulerEvent
-    event: Final[type[TaskEvent]] = TaskEvent
-    exitcode: Final[type[ExitCode]] = ExitCode
-
     def __init__(
         self,
-        executor: _Executor,
+        executor: Executor,
         *,
-        terminate: Callable[[_Executor], None] | bool = True,
+        terminate: Callable[[Executor], None] | bool = True,
     ) -> None:
         """Initialize the scheduler.
 
@@ -77,7 +76,7 @@ class Scheduler:
         """
         self.executor = executor
 
-        self.terminate: Callable[[_Executor], None] | None
+        self.terminate: Callable[[Executor], None] | None
         if terminate is True:
             self.terminate = termination_strategy(executor)
         else:
@@ -88,11 +87,8 @@ class Scheduler:
         # forego it for now. However it is possible
         self.event_manager: EventManager = EventManager(name="Scheduler")
 
-        # Just quick access to the count of events that have occured
-        self.counts = self.event_manager.count
-
         # The current state of things and references to them
-        self.queue: dict[Future, Task] = {}
+        self.queue: dict[Future, TaskFuture] = {}
 
         # This can be triggered either by `scheduler.stop` in a callback
         self._stop_event: asyncio.Event = asyncio.Event()
@@ -107,105 +103,123 @@ class Scheduler:
         # The currently open communcation with `dispatch_with_comm` workers
         self.communcations: dict[TaskName, asyncio.Task[None]] = {}
 
+    @classmethod
+    def with_processes(
+        cls,
+        max_workers: int | None = None,
+        mp_context: BaseContext | None = None,
+        initializer: Callable[..., Any] | None = None,
+        initargs: tuple[Any, ...] = (),
+    ) -> Self:
+        """Create a scheduler with a `ProcessPoolExecutor`.
+
+        See [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor]
+        for more details.
+        """
+        executor = ProcessPoolExecutor(
+            max_workers=max_workers,
+            mp_context=mp_context,
+            initializer=initializer,
+            initargs=initargs,
+        )
+        return cls(executor=executor)
+
     def empty(self) -> bool:
-        """Check if the scheduler is empty."""
+        """Check if the scheduler is empty.
+
+        Returns:
+            True if there are no tasks in the queue.
+        """
         return len(self.queue) == 0
 
     def running(self) -> bool:
-        """Whether the scheduler is running and accepting tasks to dispatch."""
+        """Whether the scheduler is running and accepting tasks to dispatch.
+
+        Returns:
+            True if the scheduler is running and accepting tasks.
+        """
         return self._running.is_set()
+
+    @property
+    def counts(self) -> dict[TaskEvent, int]:
+        """The event counter.
+
+        Useful for predicates, for example
+        ```python
+        from byop.scheduling import TaskEvent
+
+        my_scheduler.on_task_finished(
+            do_something,
+            when=lambda sched: sched.counts[TaskEvent.FINISHED] > 10
+        )
+        ```
+        """
+        return self.event_manager.counts
+
+    @overload
+    def task(
+        self,
+        function: Callable[Concatenate[Comm, P], R],
+        *,
+        name: TaskName | None | Literal[True] = ...,
+        limit: int | None = ...,
+        comms: Literal[False] = False,
+    ) -> Task[P, R] | CommTask[P, R]:
+        ...
+
+    @overload
+    def task(
+        self,
+        function: Callable[P, R],
+        *,
+        name: TaskName | None | Literal[True] = ...,
+        limit: int | None = ...,
+        comms: Literal[True] = True,
+    ) -> Task[P, R]:
+        ...
 
     def task(
         self,
-        name: TaskName,
-        f: Callable[P, R],
-        /,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> TaskDescription[R]:
-        """Submit a task to the executor.
-
-        Note:
-            Dispatched tasks will only be sent to the executor upon
-            `run` being called. What is recieved back is a TaskDescription
-            which allows further events to be set up based on this task.
-
-            Once `run` is called, submitted events will be fired off and
-            callbacks called.
+        function: Callable[P, R] | Callable[Concatenate[Comm, P], R],
+        *,
+        name: TaskName | None | Literal[True] = None,
+        limit: int | None = None,
+        comms: bool = False,
+    ) -> Task[P, R] | CommTask[P, R]:
+        """Define a scheduler task.
 
         Args:
-            name: The name of the worker to run the task on.
-                If no name is given, the first argument is assumed to be
-                the function to call and a random uuid4 will be assigned as
-                the name.
-            f: The function to call.
-            *args: The positional arguments to pass to the function.
-            **kwargs: The keyword arguments to pass to the function.
+            function: The function to wrap up as a task.
+            name: The name of the task, if None, the name of the function
+                will be used. If True, a unique name will be generated.
+            limit: The maximum number of times this task can be run.
+            comms: Whether the function requires a `Comm` to `send`
+                and `recv`.
 
         Returns:
-            A TaskDescription which can be used to set up callbacks.
+            A Task which can be used to set up callbacks.
         """
-        return TaskDescription(
+        if name is None:
+            name = funcname(function)
+        elif name is True:
+            name = str(uuid4())
+
+        task_type = CommTask if comms else Task
+
+        return task_type(
+            function=function,  # type: ignore
             name=name,
-            event_manager=self.event_manager,
-            dispatch_f=self._dispatch,
-            f=f,
-            args=args,
-            kwargs=kwargs,
+            limit=limit,
+            _event_manager=self.event_manager,
+            _dispatch=self._dispatch,
         )
-
-    def task_with_comm(
-        self,
-        name: TaskName,
-        f: Callable[Concatenate[Comm, P], R],
-        /,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> CommTaskDescription[R]:
-        """Submit a task to the executor.
-
-        Note:
-            Dispatch is intended to only be called by callbacks and
-            once started with `start()`.
-
-            If called directly it will just submit the task to the
-            executor and return the future, calling no further
-            registered callbacks.
-
-        Args:
-            name: The name of the worker to run the task on.
-                If no name is given, the first argument is assumed to be
-                the function to call and a random uuid4 will be assigned as
-                the name.
-            f: The function to call. Must accept a `Comm` as its first
-                argument.
-            *args: The positional arguments to pass to the function.
-            **kwargs: The keyword arguments to pass to the function.
-
-        Returns:
-            The future representing the task.
-        """
-        return CommTaskDescription(
-            name=name,
-            event_manager=self.event_manager,
-            dispatch_f=self._dispatch,
-            f=f,
-            args=args,
-            kwargs=kwargs,
-        )
-
-    @overload
-    def _dispatch(self, task_desc: CommTaskDescription[R]) -> CommTask[R]:
-        ...
-
-    @overload
-    def _dispatch(self, task_desc: TaskDescription[R]) -> Task[R]:
-        ...
 
     def _dispatch(
         self,
-        task_desc: CommTaskDescription[R] | TaskDescription[R],
-    ) -> Task[R] | CommTask[R]:
+        task: Task[P, R] | CommTask[Concatenate[Comm, P], R],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> None:
         if not self._running:
             raise RuntimeError("Scheduler is not currently running")
 
@@ -218,38 +232,37 @@ class Scheduler:
             )
             raise e
 
-        f = task_desc.f
-        args = task_desc.args
-        kwargs = task_desc.kwargs
-
-        if isinstance(task_desc, CommTaskDescription):
-            scheduler_comm, worker_comm = Comm.create(duplex=True)
-            sync_future = self.executor.submit(f, *(worker_comm, *args), **kwargs)
-        else:
+        if not isinstance(task, CommTask):
             scheduler_comm = None
-            sync_future = self.executor.submit(f, *args, **kwargs)  # type: ignore
+            sync_future = self.executor.submit(task.function, *args, **kwargs)
+            future = asyncio.wrap_future(sync_future, loop=loop)
+            task_future = TaskFuture(future=future, desc=task)
+        else:
+            task = cast(CommTask[Concatenate[Comm, P], R], task)
+            scheduler_comm, worker_comm = Comm.create(duplex=True)
+            sync_future = self.executor.submit(
+                task.function,
+                *(worker_comm, *args),  # type: ignore
+                **kwargs,
+            )
+            future = asyncio.wrap_future(sync_future, loop=loop)
+            task_future = CommTaskFuture(future=future, desc=task, comm=scheduler_comm)
 
-        future = asyncio.wrap_future(sync_future, loop=loop)
         future.add_done_callback(self._on_task_complete)
 
-        task = Task(future=future, desc=task_desc)
-
-        if isinstance(task_desc, CommTaskDescription):
+        if isinstance(task_future, CommTaskFuture):
             assert scheduler_comm is not None
-            comm_task = CommTask.from_task(task, comm=scheduler_comm)
-            self.communcations[comm_task.name] = asyncio.create_task(
-                self._communicate(comm_task)
-            )
+            asyncio_task = asyncio.create_task(self._communicate(task_future))
+            self.communcations[task_future.name] = asyncio_task
 
         # Place our future and task in the queue
-        self.queue[future] = task
+        self.queue[future] = task_future
         self._queue_has_items.set()
 
         # Emit the general submitted event and the task specific submitted event
         logger.debug(f"Submitted task {task}")
         self.event_manager.emit(TaskEvent.SUBMITTED, task)
         self.event_manager.emit((task.name, TaskEvent.SUBMITTED), task)
-        return task
 
     def _on_task_complete(self, future: asyncio.Future) -> None:
         # Remove it fom the
@@ -273,22 +286,22 @@ class Scheduler:
         result = future.result() if exception is None else None
 
         logger.debug(f"Task {task} finished")
-        self.event_manager.emit(TaskEvent.FINISHED, task)
-        self.event_manager.emit((task.name, TaskEvent.FINISHED), task)
+        self.event_manager.emit(TaskEvent.DONE, task)
+        self.event_manager.emit((task.name, TaskEvent.DONE), task)
 
         if exception is None:
-            logger.debug(f"Task {task} completed successfully")
+            logger.debug(f"{task} completed successfully")
             self.event_manager.emit(TaskEvent.SUCCESS, result)
             self.event_manager.emit((task.name, TaskEvent.SUCCESS), result)
         else:
-            logger.debug(f"Task {task} failed with {exception}")
+            logger.debug(f"{task} failed with Exception:`{exception}`")
             self.event_manager.emit(TaskEvent.ERROR, exception)
             self.event_manager.emit((task.name, TaskEvent.ERROR), exception)
 
         # If dealing with a comm task, get the async task that was in
         # charge of monitoring the pipes and cancel it, as well as close
         # remaining comms
-        if isinstance(task, CommTask):
+        if isinstance(task, CommTaskFuture):
             async_communicate_task = self.communcations.pop(task.name, None)
             if async_communicate_task is None:
                 msg = f"Task to communicate with {task} was not found in scheduler!"
@@ -297,9 +310,10 @@ class Scheduler:
                 async_communicate_task.cancel()
 
             # Close the pipe if it hasn't been closed
+            assert isinstance(task, CommTaskFuture)
             task.comm.close()
 
-    async def _communicate(self, task: CommTask) -> None:
+    async def _communicate(self, task: CommTaskFuture) -> None:
         """Communicate with the task.
 
         This is a coroutine that will run until the scheduler is stopped or
@@ -340,7 +354,7 @@ class Scheduler:
 
             # Signal that the queue is now empty
             self._queue_has_items.clear()
-            self.event_manager.emit(SchedulerEvent.EMPTY, self)
+            self.event_manager.emit(SchedulerEvent.EMPTY)
 
             # Wait for an item to be in the queue
             await self._queue_has_items.wait()
@@ -365,7 +379,7 @@ class Scheduler:
         # Declare we are running
         self._running.set()
 
-        self.event_manager.emit(SchedulerEvent.STARTED, self)
+        self.event_manager.emit(SchedulerEvent.STARTED)
 
         # Our stopping criterion of the scheduler
         stop_criterion: list[asyncio.Task] = []
@@ -393,13 +407,13 @@ class Scheduler:
         # Determine the reason for stopping
         if stop_triggered.done():
             stop_reason = ExitCode.STOPPED
-            self.event_manager.emit(SchedulerEvent.STOPPED, self)
+            self.event_manager.emit(SchedulerEvent.STOP)
         elif queue_empty and queue_empty.done():
             stop_reason = ExitCode.EMPTY
         elif timeout is not None:
             logger.debug(f"Timeout of {timeout} reached for scheduler")
             stop_reason = ExitCode.TIMEOUT
-            self.event_manager.emit(SchedulerEvent.TIMEOUT, self)
+            self.event_manager.emit(SchedulerEvent.TIMEOUT)
         else:
             logger.warning("Scheduler stopped for unknown reason!")
             stop_reason = ExitCode.UNKNOWN
@@ -412,7 +426,7 @@ class Scheduler:
         for stopping_criteria in stop_criterion:
             stopping_criteria.cancel()
 
-        self.event_manager.emit(SchedulerEvent.STOPPING, self)
+        self.event_manager.emit(SchedulerEvent.STOPPING)
 
         if self.terminate:
             logger.debug(f"Shutting down scheduler executor with {wait=}")
@@ -440,13 +454,12 @@ class Scheduler:
         if self.terminate:
             self.terminate(self.executor)
 
-        self.event_manager.emit(SchedulerEvent.FINISHED, self)
+        self.event_manager.emit(SchedulerEvent.FINISHED)
         logger.info(f"Scheduler finished with status {stop_reason}")
         return stop_reason
 
     def run(
         self,
-        initial: TaskDescription | list[TaskDescription] | None = None,
         *,
         timeout: float | None = None,
         end_on_empty: bool = True,
@@ -455,7 +468,6 @@ class Scheduler:
         """Run the scheduler.
 
         Args:
-            initial: The initial tasks to run. Defaults to `None`
             timeout: The maximum time to run the scheduler for.
                 Defaults to `None` which means no timeout and it
                 will end once the queue becomes empty.
@@ -479,20 +491,13 @@ class Scheduler:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        if initial:
-            if isinstance(initial, TaskDescription):
-                initial = [initial]
-
-            for task in initial:
-                self.on(SchedulerEvent.STARTED, task, name=task.name)
-
         return loop.run_until_complete(
             self._run_scheduler(timeout=timeout, end_on_empty=end_on_empty, wait=wait)
         )
 
     async def async_run(
         self,
-        initial: TaskDescription | list[TaskDescription] | None = None,
+        initial: Task | list[Task] | None = None,
         *,
         timeout: float | None = None,
         end_on_empty: bool = True,
@@ -512,7 +517,7 @@ class Scheduler:
             The reason for the scheduler ending.
         """
         if initial:
-            if isinstance(initial, TaskDescription):
+            if isinstance(initial, Task):
                 initial = [initial]
 
             for task in initial:
@@ -524,109 +529,280 @@ class Scheduler:
             wait=wait,
         )
 
-    # On any scheduler status update
     @overload
     def on(
         self,
         event: SchedulerEvent,
-        handler: Callable[[Self], Any],
+        callback: Callable[[], Any],
         *,
         name: CallbackName | None = ...,
-        when: Callable[[Self], bool] | None = ...,
-        every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
+        when: Callable[[Counter[EventTypes]], bool] | None = ...,
     ) -> Self:
         ...
 
-    # On any task submitted, finished or cancelled
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.SUBMITTED, TaskEvent.FINISHED, TaskEvent.CANCELLED]
-        | tuple[
-            TaskName,
-            Literal[TaskEvent.SUBMITTED, TaskEvent.FINISHED, TaskEvent.CANCELLED],
-        ],
-        handler: Callable[[Task[R]], Any],
+        event: (
+            Literal[TaskEvent.SUBMITTED, TaskEvent.DONE, TaskEvent.CANCELLED]
+            | tuple[
+                TaskName,
+                Literal[TaskEvent.SUBMITTED, TaskEvent.DONE, TaskEvent.CANCELLED],
+            ]
+        ),
+        callback: (
+            Callable[[TaskFuture[TaskParams, TaskReturn]], Any]
+            | Task[[TaskFuture[TaskParams, TaskReturn]], Any]
+        ),
         *,
         name: CallbackName | None = ...,
-        when: Callable[[Task[R]], bool] | None = ...,
-        every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
+        when: Callable[[Counter[EventTypes]], bool] | None = ...,
     ) -> Self:
         ...
 
-    # On task success
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.SUCCESS],
-        handler: Callable[[R], Any],
+        event: Literal[TaskEvent.SUCCESS] | tuple[TaskName, Literal[TaskEvent.SUCCESS]],
+        callback: Callable[[TaskReturn], Any] | Task[[TaskReturn], Any],
         *,
         name: CallbackName | None = ...,
-        when: Callable[[R], bool] | None = ...,
-        every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
+        when: Callable[[Counter[EventTypes]], bool] | None = ...,
     ) -> Self:
         ...
 
-    # On task error
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.ERROR],
-        handler: Callable[[BaseException], Any],
+        event: Literal[TaskEvent.ERROR] | tuple[TaskName, Literal[TaskEvent.ERROR]],
+        callback: Callable[[BaseException], Any] | Task[[BaseException], Any],
         *,
         name: CallbackName | None = ...,
-        when: Callable[[BaseException], bool] | None = ...,
-        every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
+        when: Callable[[Counter[EventTypes]], bool] | None = ...,
     ) -> Self:
         ...
 
-    # On a task update
     @overload
     def on(
         self,
         event: Literal[TaskEvent.UPDATE] | tuple[TaskName, Literal[TaskEvent.UPDATE]],
-        handler: Callable[[CommTask, Msg], Any],
+        callback: (
+            Callable[[CommTaskFuture[TaskParams, TaskReturn], Msg], Any]
+            | Task[[CommTaskFuture[TaskParams, TaskReturn], Msg], Any]
+        ),
         *,
         name: CallbackName | None = ...,
-        when: Callable[[CommTask, Msg], bool] | None = ...,
-        every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
+        when: Callable[[Counter[EventTypes]], bool] | None = ...,
     ) -> Self:
         ...
 
-    # On a task waiting
     @overload
     def on(
         self,
         event: Literal[TaskEvent.WAITING] | tuple[TaskName, Literal[TaskEvent.WAITING]],
-        handler: Callable[[CommTask], Any],
+        callback: (
+            Callable[[CommTaskFuture[TaskParams, TaskReturn]], Any]
+            | Task[[CommTaskFuture[TaskParams, TaskReturn]], Any]
+        ),
         *,
         name: CallbackName | None = ...,
-        when: Callable[[CommTask], bool] | None = ...,
-        every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
+        when: Callable[[Counter[EventTypes]], bool] | None = ...,
     ) -> Self:
         ...
 
     def on(
         self,
         event: TaskEvent | SchedulerEvent | tuple[TaskName, TaskEvent],
-        handler: Callable[P, Any],
+        callback: Callable[P, Any],
         *,
-        when: Callable[P, bool] | None = None,
         name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
     ) -> Self:
-        """Register a handler for an event."""
-        self.event_manager.on(
-            event, handler, when=when, name=name, every=every, count=count
-        )
+        """Register a callback for an event.
+
+        Args:
+            event: The event to register the callback for.
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler instance.
+        """
+        pred = None if when is None else (lambda counts=self.counts: when(counts))
+        self.event_manager.on(event, callback, when=pred, name=name)
         return self
+
+    def on_start(
+        self,
+        callback: Callable[[], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
+    ) -> Self:
+        """Register a callback for the `SchedulerEvent.STARTED` event.
+
+        See [`SchedulerEvent.STARTED`](byop.scheduling.events.STARTED) for more details.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler itself
+        """
+        return self.on(SchedulerEvent.STARTED, callback, name=name, when=when)
+
+    def on_stopping(
+        self,
+        callback: Callable[[], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
+    ) -> Self:
+        """Register a callback for the `SchedulerEvent.STOPPING` event.
+
+        See [`SchedulerEvent.STOPPING`](byop.scheduling.events.STOPPING) for
+        more details.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler itself
+        """
+        return self.on(SchedulerEvent.STOPPING, callback, name=name, when=when)
+
+    def on_finished(
+        self,
+        callback: Callable[[], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
+    ) -> Self:
+        """Register a callback for the `SchedulerEvent.FINISHED` event.
+
+        See [`SchedulerEvent.FINISHED`](byop.scheduling.events.FINISHED) for
+        more details.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler itself
+        """
+        return self.on(SchedulerEvent.FINISHED, callback, name=name, when=when)
+
+    def on_stop(
+        self,
+        callback: Callable[[], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
+    ) -> Self:
+        """Register a callback for the `SchedulerEvent.STOPPING` event.
+
+        See [`SchedulerEvent.STOPPING`](byop.scheduling.events.STOPPING) for
+        more details.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler itself
+        """
+        return self.on(SchedulerEvent.STOPPING, callback, name=name, when=when)
+
+    def on_timeout(
+        self,
+        callback: Callable[[], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
+    ) -> Self:
+        """Register a callback for the `SchedulerEvent.TIMEOUT` event.
+
+        See [`SchedulerEvent.TIMEOUT`](byop.scheduling.events.TIMEOUT) for more details.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler itself
+        """
+        return self.on(SchedulerEvent.TIMEOUT, callback, name=name, when=when)
+
+    def on_empty(
+        self,
+        callback: Callable[[], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[EventTypes]], bool] | None = None,
+    ) -> Self:
+        """Register a callback for the `SchedulerEvent.EMPTY` event.
+
+        See [`SchedulerEvent.EMPTY`](byop.scheduling.events.EMPTY) for more details.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. Defaults to `None`
+                which means the name will be generated using the
+                callback name.
+            when: A function that takes the current event counter
+                and returns a boolean. If the function returns
+                `True` the callback will be called. Defaults to
+                `None` which means the callback will always be
+                called.
+
+        Returns:
+            The scheduler itself
+        """
+        return self.on(SchedulerEvent.EMPTY, callback, name=name, when=when)
 
     def stop(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         """Stop the scheduler."""
@@ -634,472 +810,72 @@ class Scheduler:
         # included in any callback.
         self._stop_event.set()
 
-    def on_start(
-        self,
-        handler: Callable[[Self], Any],
-        *,
-        when: Callable[[Self], bool] | None = None,
-        name: CallbackName | None = None,
-    ) -> Self:
-        """Register a handler for when the scheduler.
+    exitcodes: ClassVar = ExitCode
+    """The possible exitcodes of the scheduler.
+    See [`ExitCode`][byop.scheduling.events.ExitCode]
+    """
 
-        See SchedulerStatus.STARTED.
+    SUBMITTED: ClassVar = TaskEvent.SUBMITTED
+    """Event triggered when the task has been submitted.
+    See [`TaskEvent.SUBMITTED`][byop.scheduling.events.TaskEvent.SUBMITTED]
+    """
 
-        Args:
-            handler: The handler to call.
-            when: A predicate to check before calling the handler. Defaults to `None`
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
+    DONE: ClassVar = TaskEvent.DONE
+    """Event triggered when the task is done.
+    See [`TaskEvent.DONE`][byop.scheduling.events.TaskEvent.DONE]
+    """
 
-        Returns:
-            The scheduler.
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-        return self.on(SchedulerEvent.STARTED, handler, when=when, name=name)
+    SUCCESS: ClassVar = TaskEvent.SUCCESS
+    """Event triggered when the task has successfully returned a value.
+    See [`TaskEvent.SUCCESS`][byop.scheduling.events.TaskEvent.SUCCESS]
+    """
 
-    def on_timeout(
-        self,
-        handler: Callable[[Self], Any],
-        *,
-        when: Callable[[Self], bool] | None = None,
-        name: CallbackName | None = None,
-    ) -> Self:
-        """Register a handler for when the scheduler times out.
+    ERROR: ClassVar = TaskEvent.ERROR
+    """Event triggered when the task has errored.
+    See [`TaskEvent.ERROR`][byop.scheduling.events.TaskEvent.ERROR]
+    """
 
-        See SchedulerStatus.TIMEOUT.
+    CANCELLED: ClassVar = TaskEvent.CANCELLED
+    """Event triggered when the task has been cancelled.
+    See [`TaskEvent.CANCELLED`][byop.scheduling.events.TaskEvent.CANCELLED]
+    """
 
-        Args:
-            handler: The handler to call.
-            when: A predicate to check before calling the handler. Defaults to `None`
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
+    UPDATE: ClassVar = TaskEvent.UPDATE
+    """An event triggered when a task has sent something with `send`.
+    See [`TaskEvent.UPDATE`][byop.scheduling.events.TaskEvent.UPDATE]
+    """
 
-        Returns:
-            The scheduler.
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-        return self.on(SchedulerEvent.TIMEOUT, handler, when=when, name=name)
+    WAITING: ClassVar = TaskEvent.WAITING
+    """An event triggered when a task is waiting for a response.
+    See [`TaskEvent.WAITING`][byop.scheduling.events.TaskEvent.WAITING]
+    """
 
-    def on_stopping(
-        self,
-        handler: Callable[[Self], Any],
-        *,
-        when: Callable[[Self], bool] | None = None,
-        name: CallbackName | None = None,
-    ) -> Self:
-        """Register a handler for when the scheduler is stopping.
+    STARTED: ClassVar = SchedulerEvent.STARTED
+    """The scheduler has started.
+    See [`SchedulerEvent.STARTED`][byop.scheduling.events.SchedulerEvent.STARTED]
+    """
 
-        See SchedulerStatus.STOPPING.
+    STOPPING: ClassVar = SchedulerEvent.STOPPING
+    """The scheduler is stopping.
+    See [`SchedulerEvent.STOPPING`][byop.scheduling.events.SchedulerEvent.STOPPING]
+    """
 
-        Args:
-            handler: The handler to call.
-            when: A predicate to check before calling the handler. Defaults to `None`
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
+    FINISHED: ClassVar = SchedulerEvent.FINISHED
+    """The scheduler has finished.
+    See [`SchedulerEvent.FINISHED`][byop.scheduling.events.SchedulerEvent.FINISHED]
+    """
 
-        Returns:
-            The scheduler.
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-        return self.on(SchedulerEvent.STOPPING, handler, when=when, name=name)
+    STOP: ClassVar = SchedulerEvent.STOP
+    """The scheduler was stopped forcefully with `Scheduler.stop`.
+    See [`SchedulerEvent.STOPPED`][byop.scheduling.events.SchedulerEvent.STOPPED]
+    """
 
-    def on_stopped(
-        self,
-        handler: Callable[[Self], Any],
-        *,
-        when: Callable[[Self], bool] | None = None,
-        name: CallbackName | None = None,
-    ) -> Self:
-        """Register a handler for when the scheduler has STOPPED.
+    TIMEOUT: ClassVar = SchedulerEvent.TIMEOUT
+    """The scheduler has reached the timeout.
+    See [`SchedulerEvent.TIMEOUT`][byop.scheduling.events.SchedulerEvent.TIMEOUT]
+    """
 
-        Seed SchedulerStatus.STOPPED
-
-        Args:
-            handler: The handler to call.
-            when: A predicate to check before calling the handler. Defaults to `None`
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-
-        Returns:
-            The scheduler.
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-        return self.on(SchedulerEvent.STOPPED, handler, when=when, name=name)
-
-    def on_finished(
-        self,
-        handler: Callable[[Self], Any],
-        *,
-        when: Callable[[Self], bool] | None = None,
-        name: CallbackName | None = None,
-    ) -> Self:
-        """Register a handler for when the scheduler has FINISHED.
-
-        See SchedulerStatus.FINISHED
-
-        Args:
-            handler: The handler to call.
-            when: A predicate to check before calling the handler. Defaults to `None`
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-
-        Returns:
-            The scheduler.
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-        return self.on(SchedulerEvent.FINISHED, handler, when=when, name=name)
-
-    def on_empty(
-        self,
-        handler: Callable[[Self], Any],
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Self], bool] | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-    ) -> Self:
-        """Register a handler for when the scheduler has an EMPTY queue.
-
-        See SchedulerStatus.EMPTY.
-
-        Args:
-            handler: The handler to call.
-            when: A predicate to check before calling the handler. Defaults to `None`
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            The scheduler.
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-        event = SchedulerEvent.EMPTY
-        return self.on(event, handler, when=when, every=every, count=count, name=name)
-
-    def on_task_submit(
-        self,
-        handler: Callable[[Task[R]], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[Task[R]], bool] | None = None,
-    ) -> Self:
-        """Called when a task is submitted to the scheduler.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[Task[R]], Any], handler)
-
-        event = TaskEvent.SUBMITTED
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    def on_task_finish(
-        self,
-        handler: Callable[[Task[R]], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[Task[R]], bool] | None = None,
-    ) -> Self:
-        """Called when a task is finished.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[Task[R]], Any], handler)
-
-        event = TaskEvent.FINISHED
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    def on_task_success(
-        self,
-        handler: Callable[[R], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[R], bool] | None = None,
-    ) -> Self:
-        """Called when a task is finished successfuly and has a result.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[R], Any], handler)
-
-        event = TaskEvent.SUCCESS
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    def on_task_error(
-        self,
-        handler: Callable[[BaseException], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[BaseException], bool] | None = None,
-    ) -> Self:
-        """Called when a task is finished but raised an unacught error during execution.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[BaseException], Any], handler)
-
-        event = TaskEvent.ERROR
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    def on_task_cancelled(
-        self,
-        handler: Callable[[Task[R]], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[Task[R]], bool] | None = None,
-    ) -> Self:
-        """Called when a task cancelled and will not finish.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[Task[R]], Any], handler)
-
-        event = TaskEvent.CANCELLED
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    def on_task_update(
-        self,
-        handler: Callable[[CommTask[R], Msg], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[CommTask[R], Msg], bool] | None = None,
-    ) -> Self:
-        """Called when a task sends an update with `Comm.send`.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[CommTask[R], Msg], Any], handler)
-
-        event = TaskEvent.UPDATE
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    def on_task_waiting(
-        self,
-        handler: Callable[[CommTask[R]], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[CommTask[R]], bool] | None = None,
-    ) -> Self:
-        """Called when a task sends is waiting for `Comm.recv`.
-
-        Args:
-            handler: The function to call
-            name: The name of the handler. Defaults to `None`
-                If a `Task` is provided, it will use the `task.name` if no `name` is
-                provided.
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(handler, TaskDescription):
-            name = name if name else handler.name
-            handler = cast(Callable[[CommTask[R]], Any], handler)
-
-        event = TaskEvent.WAITING
-        self.event_manager.on(
-            event,
-            handler,
-            name=name,
-            every=every,
-            count=count,
-            when=when,  # type: ignore
-        )
-        return self
-
-    @property
-    def event_counts(self) -> dict[TaskEvent, int]:
-        """The event counter.
-
-        Useful for predicates, for example
-        ```python
-        from byop.scheduling import TaskEvent
-
-        my_scheduler.on_task_finished(
-            do_something,
-            when=lambda sched: sched.event_counts[TaskEvent.FINISHED] > 10
-        )
-        ```
-        """
-        return {event: self.event_manager.count[event] for event in TaskEvent}
-
-    @property
-    def status_counts(self) -> dict[SchedulerEvent, int]:
-        """The event counter.
-
-        Useful for predicates, for example
-        ```python
-        from byop.scheduling import SchedulerEvent
-
-        my_scheduler.on_task_finished(
-            do_something,
-            when=lambda sched: sched.event_counts[TaskEvent.FINISHED] > 10
-        )
-        ```
-        """
-        return {event: self.event_manager.count[event] for event in SchedulerEvent}
+    EMPTY: ClassVar = SchedulerEvent.EMPTY
+    """The scheduler has an empty queue.
+    See [`SchedulerEvent.EMPTY`][byop.scheduling.events.SchedulerEvent.EMPTY]
+    """

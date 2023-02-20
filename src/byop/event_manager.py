@@ -15,7 +15,9 @@ It's primary use if currently for the `Scheduler`.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 import logging
+import math
 from typing import (
     Any,
     Callable,
@@ -28,22 +30,21 @@ from typing import (
     TypeVar,
     overload,
 )
-from uuid import uuid4
-
-from attrs import field, frozen
 
 from byop.fluid import ChainPredicate
+from byop.functional import funcname
 from byop.types import CallbackName
 
 EventKey = TypeVar("EventKey", bound=Hashable)
 
+T = TypeVar("T")
 P = ParamSpec("P")
 R = TypeVar("R")
 
 logger = logging.getLogger(__name__)
 
 
-@frozen
+@dataclass
 class Handler(Generic[P, R]):
     """A handler for an event.
 
@@ -52,34 +53,41 @@ class Handler(Generic[P, R]):
     """
 
     callback: Callable[P, R]
-    when: Callable[P, bool] | None = None
+    when: Callable[[], bool] | None = None
+    n_called: int = 0
+    limit: int | None = None
 
     def __call__(self, *args: P.args, **kwds: P.kwargs) -> R | None:
         """Call the callback if the predicate is satisfied.
 
         If the predicate is not satisfied, then `None` is returned.
         """
-        if self.when is None:
-            return self.callback(*args, **kwds)
+        limit = self.limit if self.limit is not None else math.inf
+        if self.n_called >= limit:
+            return None
 
-        return self.callback(*args, **kwds) if self.when(*args, **kwds) else None
+        if self.when is not None and not self.when():
+            return None
+
+        self.n_called += 1
+        return self.callback(*args, **kwds)
 
 
-@frozen
+@dataclass
 class EventHandler(MutableMapping[CallbackName, Callable[P, R]]):
     """An event."""
 
-    callbacks: dict[CallbackName, Handler[P, R]] = field(factory=dict)
+    callbacks: dict[CallbackName, Handler[P, R]] = field(default_factory=dict)
 
     def add(
         self: EventHandler[P, R],
         name: CallbackName,
         callback: Callable[P, R],
         *,
-        when: Callable[P, bool] | None = None,
+        when: Callable[[], bool] | None = None,
     ) -> None:
         """Add a callback to the event."""
-        self.callbacks[name] = Handler(callback, when)
+        self.callbacks[name] = Handler(callback, when=when)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> list[R] | None:
         """Emit an event."""
@@ -113,15 +121,15 @@ class EventHandler(MutableMapping[CallbackName, Callable[P, R]]):
         self.callbacks.__delitem__(key)
 
 
-@frozen
+@dataclass
 class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
     """A fairly primitive event handler capable of using an Scheduler."""
 
     name: str
     handlers: dict[EventKey, EventHandler[Any, R]] = field(
-        factory=lambda: defaultdict(EventHandler)
+        default_factory=lambda: defaultdict(EventHandler)
     )
-    count: Counter[EventKey] = field(factory=lambda: Counter())
+    counts: Counter[EventKey] = field(default_factory=Counter)
 
     @property
     def events(self) -> list[EventKey]:
@@ -135,8 +143,7 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         callback: Callable[P, R],
         *,
         every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
-        when: Callable[P, bool] | None = ...,
+        when: Callable[[], bool] | None = None,
         name: None = None,
     ) -> str:
         ...
@@ -148,8 +155,7 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         callback: Callable[P, R],
         *,
         every: int | None = ...,
-        count: Callable[[int], bool] | None = ...,
-        when: Callable[P, bool] | None = ...,
+        when: Callable[[], bool] | None = None,
         name: CallbackName,
     ) -> CallbackName:
         ...
@@ -159,37 +165,28 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
         event: EventKey,
         callback: Callable[P, R],
         *,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[P, bool] | None = None,
         name: CallbackName | None = None,
+        when: Callable[[], bool] | None = None,
+        every: int | None = None,
     ) -> CallbackName | str:
         """Register a callback for an event."""
         if name is None:
-            name = str(uuid4())
+            name = funcname(callback)
 
         every_pred = None
         if every is not None:
             if every <= 0:
                 raise ValueError(f"{every=} must be a positive integer.")
-            every_pred = lambda *a, **k: self.count[event] % every == 0  # noqa: ARG005
+            every_pred = lambda *a, **k: self.counts[event] % every == 0  # noqa: ARG005
 
-        count_pred = None
-        if count:
-            count_pred = lambda *a, **k: count(self.count[event])  # noqa: ARG005
-
-        combined_predicate = (
-            ChainPredicate() & every_pred & count_pred & when  # type: ignore
-        )
+        combined_predicate = ChainPredicate() & every_pred & when  # type: ignore
         self.handlers[event].add(name, callback, when=combined_predicate)
 
         msg = f"{self.name}: Registered callback '{name}' for event {event}"
         if every:
             msg += f" every {every} times"
-        if count:
-            msg += f" whenever {count} is True"
         if when:
-            msg += f" with predicate ({when})"
+            msg += f" with predicate ({funcname(when)})"
         logger.debug(msg)
 
         return name
@@ -213,7 +210,7 @@ class EventManager(Mapping[EventKey, EventHandler[Any, R]]):
             A list of the results from the handlers.
         """
         logger.debug(f"{self.name}: Emitting event {event}")
-        self.count[event] += 1
+        self.counts[event] += 1
 
         handler = self.handlers.get(event)
         if handler is None:

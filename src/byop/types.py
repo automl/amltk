@@ -2,47 +2,51 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Hashable, Iterator, Protocol, TypeVar
+from typing import Any, Hashable, Iterator, ParamSpec, Protocol, TypeVar
 
 from typing_extensions import TypeAlias
 
-# The type associated with components, splits and choices
 Item = TypeVar("Item")
+"""The type associated with components, splits and choices"""
 
-# Generic for objects that are aware of a space but not the specific kind
 Space = TypeVar("Space")
+"""Generic for objects that are aware of a space but not the specific kind"""
 
-# Type alias for kinds of Seeded objects
 Seed: TypeAlias = int
+"""Type alias for kinds of Seeded objects"""
 
-# The name of an individual step, requires being Hashable
 Key = TypeVar("Key", bound=Hashable)
+"""The name of an individual step, requires being Hashable"""
 
-# A name of a pipeline
 Name = TypeVar("Name", bound=Hashable)
+"""A name of a pipeline"""
 
-# The key for a result
 ResultKey = TypeVar("ResultKey", bound=Hashable)
+"""The key for a result"""
 
-# A built pipeline object
 BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)
+"""A built pipeline object"""
 
-# Something you tell the optimizer about
+TaskParams = ParamSpec("TaskParams")
+"""The paramspec of a task"""
+
+TaskReturn = TypeVar("TaskReturn")
+"""The return type of a task"""
+
 TrialResult = TypeVar("TrialResult")
+"""Something you tell the optimizer about"""
 
-# A name for a task
 TaskName: TypeAlias = Hashable
+"""A name for a task"""
 
-# A name for a callback
 CallbackName: TypeAlias = Hashable
+"""A name for a callback"""
 
-# A response from a comm task
 Msg: TypeAlias = Any
+"""A message or response to/from a comm task"""
 
-# An object representing a configuration of a pipeline.
-# Notable examples include a Configuration object from ConfigSpace
-# of which Mapping[Key, Any] is a supertype
 Config = TypeVar("Config")
+"""An object representing a configuration of a pipeline."""
 
 
 class Comparable(Protocol):

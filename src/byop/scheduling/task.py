@@ -4,404 +4,364 @@ A Task is a unit of work that can be scheduled by the scheduler. It is
 defined by its name, its function, and it's `Future` representing the
 final outcome of the task.
 
-There is also the `CommTask` which follows the same interface but
-additionally holds a `Comm` object that is used to communicate back
-and forth with the remote worker.
-
-TODO: More docs, here and on the classes
+There is also the [`CommTask`][byop.scheduling.comm_task.CommTask] which can
+be used for communication between the task and the main process.
 """
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any, Callable, ClassVar, Generic, TypeVar, cast
-from uuid import uuid4
+from asyncio import Future
+from collections import Counter
+from dataclasses import dataclass, field
+import logging
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Generic,
+    Literal,
+    ParamSpec,
+    TypeVar,
+    overload,
+)
 
-from attrs import evolve, field, frozen
 from typing_extensions import Self
 
 from byop.event_manager import EventManager
-from byop.scheduling.comm import Comm
+from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
-from byop.types import CallbackName, Msg, TaskName
+from byop.types import CallbackName, TaskName, TaskParams, TaskReturn
 
+logger = logging.getLogger(__name__)
+
+
+P = ParamSpec("P")
 R = TypeVar("R")
 
 
-@frozen(kw_only=True)
-class TaskDescription(Generic[R]):
+@dataclass
+class Task(Generic[TaskParams, TaskReturn]):
     """A task is a unit of work that can be scheduled by the scheduler.
 
-    Note:
-        The `on_<event>` methods can take three forms of predicates,
-        `every`, `count`, and `when`. An `all()` is used to combine
-        them such that the handler will only be called if all of them
-        evaluate to `True`.
-    """
+    It is defined by its `name` and a `function` to call. Whenever a task
+    has its `__call__` method called, the function will be dispatched to run
+    by a [`Scheduler`][byop.scheduling.scheduler.Scheduler].
 
-    event: ClassVar[type[TaskEvent]] = TaskEvent
-    """The possible events a task can emit"""
+    The scheduler will emit specific [events][byop.scheduling.events.TaskEvent]
+    to this task which look like `(task.name, TaskEvent)`.
+
+    To interact with the results of these tasks, you must subscribe to to these
+    events and provide callbacks.
+
+    ```python hl_lines="9"
+    # Define some function to run
+    def f(x: int) -> int:
+        return x * 2
+
+    # And a scheduler to run it on
+    scheduler = Scheduler.with_processes(2)
+
+    # Create the task object, the type anotation Task[[int], int] isn't required
+    my_task: Task[[int], int] = scheduler.task("call_f", f)
+
+    # Subscribe to events
+    my_task.on_success(lambda result: print(result)) # (1)!
+    my_task.on_error(lambda error: print(error)) # (2)!
+    ```
+
+    1. You could also write: `#!python my_task.on(task.SUCCESS, lambda res: print(res))`
+    2. You could also write: `#!python my_task.on(task.ERROR, lambda err: print(err))`
+
+    Attributes:
+        name: The name of the task.
+        function: The function of this task
+        n_called: How many times this task has been called.
+        limit: How many times this task can be run. Defaults to `None`
+    """
 
     name: TaskName
-    """The name of the task"""
+    function: Callable[TaskParams, TaskReturn] = field(repr=False)
+    _event_manager: EventManager = field(repr=False)
+    _dispatch: Callable[[Self], None] = field(repr=False)
+    limit: int | None = None
+    n_called: int = 0
 
-    event_manager: EventManager = field(repr=False)
-    """The eventmanager it will emit to."""
-
-    f: Callable[..., R]
-    args: tuple[Any, ...] = field(default=())
-    kwargs: dict[str, Any] = field(default={})
-
-    dispatch_f: Callable[[Self], Task[R]] = field(repr=False)
-    """This function will be defined by the scheduler.
-
-    It allows for delayed dispatch of task descriptions, for example if the user
-    wants to recieve a task description, subscribe some events, and then dispatch
-    it.
-    """
-
-    def on_submit(
-        self,
-        f: Callable[[Task[R]], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[Task[R]], bool] | None = None,
-    ) -> Self:
-        """Called when the task is submitted to the scheduler.
-
-        Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-submitted-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
+    @property
+    def counts(self) -> Counter[TaskEvent]:
+        """Get the number of event counts for this task.
 
         Returns:
-            Self
+            Counter[TaskEvent]: A counter of the number of times each event
+                has been emitted.
         """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[Task[R]], Any], f)
+        counts = {
+            event: self._event_manager.counts[(self.name, event)]
+            for event in iter(TaskEvent)
+        }
+        return Counter(counts)
 
-        name = name if name else f"{self.name}-submitted-{str(uuid4())}"
-        event = (self.name, TaskEvent.SUBMITTED)
-        self.event_manager.on(event, f, name=name, every=every, count=count, when=when)
-        return self
-
-    def on_finish(
+    @overload
+    def on(
         self,
-        f: Callable[[Task[R]], Any],
+        event: Literal[TaskEvent.SUBMITTED, TaskEvent.DONE, TaskEvent.CANCELLED],
+        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
+        *,
+        name: CallbackName | None = ...,
+        when: Callable[[Counter[TaskEvent]], bool] | None = ...,
+    ) -> Self:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: Literal[TaskEvent.ERROR],
+        callback: Callable[[BaseException], Any],
+        *,
+        name: CallbackName | None = ...,
+        when: Callable[[Counter[TaskEvent]], bool] | None = ...,
+    ) -> Self:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: Literal[TaskEvent.SUCCESS],
+        callback: Callable[[TaskReturn], Any],
+        *,
+        name: CallbackName | None = ...,
+        when: Callable[[Counter[TaskEvent]], bool] | None = ...,
+    ) -> Self:
+        ...
+
+    def on(
+        self,
+        event: TaskEvent,
+        callback: Callable,
         *,
         name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[Task[R]], bool] | None = None,
+        when: Callable[[Counter[TaskEvent]], bool] | None = None,
     ) -> Self:
-        """Called when the task is finished.
+        """Register a callback to be called when the task emits an event.
+
+        ???+ note "See the more specific versions of this method for more"
+            * [`on_submitted`][byop.scheduling.task.Task.on_submitted]
+            * [`on_done`][byop.scheduling.task.Task.on_done]
+            * [`on_cancelled`][byop.scheduling.task.Task.on_cancelled]
+            * [`on_success`][byop.scheduling.task.Task.on_success]
+            * [`on_error`][byop.scheduling.task.Task.on_error]
 
         Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-submitted-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
+            event: The event to listen to.
+            callback: The callback to call.
+            name: A specific name to give this callback.
+            when: A function that takes the current state of the task and
+                returns a boolean. If the boolean is True, the callback will
+                be called.
         """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[Task[R]], Any], f)
+        if name is None:
+            if isinstance(callback, Task):  # noqa: SIM108
+                name = callback.name
+            else:
+                name = funcname(callback)
+            name = f"on-{self.name}-{event}-{name}"
 
-        name = name if name else f"{self.name}-finish-{str(uuid4())}"
-        event = (self.name, TaskEvent.FINISHED)
-        self.event_manager.on(event, f, name=name, every=every, count=count, when=when)
+        pred = None if when is None else (lambda counts=self.counts: when(counts))
+        _event = (self.name, event)
+        self._event_manager.on(_event, callback, name=name, when=pred)
         return self
 
-    def on_success(
+    def on_submitted(
         self,
-        f: Callable[[R], Any],
+        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
         *,
         name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[R], bool] | None = None,
+        when: Callable[[Counter[TaskEvent]], bool] | None = None,
     ) -> Self:
-        """Called when the task is successfully completed.
+        """Register a callback to be called when the task is submitted.
 
         Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-success-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
+            callback: The callback to call, which must accept this tasks
+                TaskFuture as its only argument.
+            name: A specific name to give this callback.
+            when: A function that takes the current state of the task and
+                returns a boolean. If the boolean is True, the callback will
+                be called.
 
         Returns:
-            Self
+            The task itself.
         """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[R], Any], f)
+        return self.on(TaskEvent.SUBMITTED, callback, name=name, when=when)
 
-        name = name if name else f"{self.name}-success-{str(uuid4())}"
-        event = (self.name, TaskEvent.SUCCESS)
-        self.event_manager.on(event, f, name=name, every=every, count=count, when=when)
-        return self
-
-    def on_error(
+    def on_done(
         self,
-        f: Callable[[BaseException], Any],
+        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
         *,
         name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[BaseException], bool] | None = None,
+        when: Callable[[Counter[TaskEvent]], bool] | None = None,
     ) -> Self:
-        """Called when the task is finished but errored.
+        """Register a callback to be called when the task is done.
 
         Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-error-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
+            callback: The callback to call, which must accept this tasks
+                TaskFuture as its only argument.
+            name: A specific name to give this callback.
+            when: A function that takes the current state of the task and
+                returns a boolean. If the boolean is True, the callback will
+                be called.
 
         Returns:
-            Self
+            The task itself.
         """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[BaseException], Any], f)
-
-        name = name if name else f"{self.name}-error-{str(uuid4())}"
-        event = (self.name, TaskEvent.ERROR)
-        self.event_manager.on(event, f, name=name, every=every, count=count, when=when)
-        return self
+        return self.on(TaskEvent.DONE, callback, name=name, when=when)
 
     def on_cancelled(
         self,
-        f: Callable[[Task[R]], Any],
+        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
         *,
         name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[Task[R]], bool] | None = None,
+        when: Callable[[Counter[TaskEvent]], bool] | None = None,
     ) -> Self:
-        """Called when the task is cancelled before finishng.
+        """Register a callback to be called when the task is cancelled.
 
         Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-cancelled-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
+            callback: The callback to call, which must accept this tasks
+                TaskFuture as its only argument.
+            name: A specific name to give this callback.
+            when: A function that takes the current state of the task and
+                returns a boolean. If the boolean is True, the callback will
+                be called.
 
         Returns:
-            Self
+            The task itself.
         """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[Task[R]], Any], f)
+        return self.on(TaskEvent.CANCELLED, callback, name=name, when=when)
 
-        name = name if name else f"{self.name}-cancelled-{str(uuid4())}"
-        event = (self.name, TaskEvent.CANCELLED)
-        self.event_manager.on(event, f, name=name, every=every, count=count, when=when)
-        return self
-
-    @property
-    def event_counts(self) -> dict[TaskEvent, int]:
-        """Get the number of event counts for this task."""
-        return {
-            event: self.event_manager.count[(self.name, event)]
-            for event in list(TaskEvent)
-        }
-
-    def __call__(self: Self, *args: Any, **kwargs: Any) -> Task[R]:  # noqa: ARG002
-        """Dispatch this task.
-
-        Note:
-            This is mainly for convenience within the scheduler. Where possible,
-            prefer to use the explicit `dispatch` method.
-
-        Returns:
-            A Task with the actual future attached
-        """
-        return self.dispatch_f(self)
-
-    def dispatch(self: Self) -> Task[R]:
-        """Dispatch this task.
-
-        Returns:
-            A Task with the actual future attached
-        """
-        return self.dispatch_f(self)
-
-    def modified(self: Self, *args: Any, **kwargs: Any) -> Self:
-        """Modify this task.
+    def on_success(
+        self,
+        callback: Callable[[TaskReturn], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[TaskEvent]], bool] | None = None,
+    ) -> Self:
+        """Register a callback to be called when the task emits a success event.
 
         Args:
-            *args: The args to use
-            **kwargs: The kwargs to use
+            callback: The callback to call, which must accept the return value
+                of the task as its only argument.
+            name: A specific name to give the callback
+            when: A function that takes the current state of the task and
+                returns a boolean. If the boolean is True, the callback will
+                be called.
+        """
+        return self.on(TaskEvent.SUCCESS, callback, name=name, when=when)
+
+    def on_error(
+        self,
+        callback: Callable[[BaseException], Any],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter[TaskEvent]], bool] | None = None,
+    ) -> Self:
+        """Register a callback to be called when the task emits a success event.
+
+        Args:
+            callback: The callback to call, which must accept the return value
+                of the task as its only argument.
+            name: A specific name to give this callback.
+            when: A function that takes the current state of the task and
+                returns a boolean. If the boolean is True, the callback will
+                be called.
+        """
+        return self.on(TaskEvent.ERROR, callback, name=name, when=when)
+
+    def __call__(
+        self: Self,
+        *args: TaskParams.args,
+        **kwargs: TaskParams.kwargs,
+    ) -> TaskFuture[TaskParams, TaskReturn] | None:
+        """Dispatch this task.
+
+        !!! note
+            If `task.limit` was set and this limit was reached, the call
+            will have no effect and nothing well be dispatched. Only a
+            debug message will be logged. You can use `task.n_called`
+            and `task.limit` to check if the limit was reached.
+
+        Args:
+            *args: The positional arguments to pass to the task.
+            **kwargs: The keyword arguments to call the task with.
 
         Returns:
-            A new task with the modified attributes
+            The future of the task, or `None` if the limit was reached.
         """
-        return evolve(self, args=args, kwargs=kwargs)
+        if self.limit and self.n_called >= self.limit:
+            msg = (
+                f"Task {self.name} has been called {self.n_called} times,"
+                f" reaching its limit {self.limit}."
+            )
+            logger.debug(msg)
+            return None
 
+        self.n_called += 1
+        return self._dispatch(self, *args, **kwargs)
 
-class CommTaskDescription(TaskDescription[R]):
-    """A task that can communicate with a remote worker.
-
-    Note:
-        The `on_<event>` methods can take three forms of predicates,
-        `every`, `count`, and `when`. An `all()` is used to combine
-        them such that the handler will only be called if all of them
-        evaluate to `True`.
+    event: ClassVar = TaskEvent
+    """The possible events a task can emit
+    See [`TaskEvent`][byop.scheduling.events.TaskEvent] for more details.
     """
 
-    event: ClassVar[type[TaskEvent]] = TaskEvent
-    """The possible events a task can emit"""
-
-    name: TaskName
-    """The name of the task"""
-
-    event_manager: EventManager = field(repr=False)
-    """The eventmanager it will emit to."""
-
-    f: Callable[..., R]
-    args: tuple[Any, ...] = field(default=())
-    kwargs: dict[str, Any] = field(default={})
-
-    dispatch_f: Callable[[Self], CommTask[R]] = field(repr=False)
-    """This function will be defined by the scheduler.
-
-    It allows for delayed dispatch of task descriptions, for example if the user
-    wants to recieve a task description, subscribe some events, and then dispatch
-    it.
+    SUBMITTED: ClassVar = TaskEvent.SUBMITTED
+    """Event triggered when the task has been submitted.
+    See [`TaskEvent.SUBMITTED`][byop.scheduling.events.TaskEvent.SUBMITTED].
     """
 
-    def on_update(
-        self,
-        f: Callable[[CommTask[R], Msg], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[CommTask[R], Msg], bool] | None = None,
-    ) -> Self:
-        """Called when the task sends an update with `Comm.send`.
+    DONE: ClassVar = TaskEvent.DONE
+    """Event triggered when the task is done.
+    See [`TaskEvent.DONE`][byop.scheduling.events.TaskEvent.DONE]
+    """
 
-        Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-update-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
+    SUCCESS: ClassVar = TaskEvent.SUCCESS
+    """Event triggered when the task has successfully returned a value.
+    See [`TaskEvent.SUCCESS`][byop.scheduling.events.TaskEvent.SUCCESS]
+    """
 
-        Returns:
-            Self
-        """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[CommTask[R], Msg], Any], f)
+    ERROR: ClassVar = TaskEvent.ERROR
+    """Event triggered when the task has errored.
+    See [`TaskEvent.ERROR`][byop.scheduling.events.TaskEvent.ERROR]
+    """
 
-        name = name if name else f"{self.name}-update-{str(uuid4())}"
-        event = (self.name, TaskEvent.UPDATE)
-        self.event_manager.on(event, f, name=name, when=when, count=count, every=every)
-        return self
-
-    def on_waiting(
-        self,
-        f: Callable[[CommTask[R]], Any],
-        *,
-        name: CallbackName | None = None,
-        every: int | None = None,
-        count: Callable[[int], bool] | None = None,
-        when: Callable[[CommTask[R]], bool] | None = None,
-    ) -> Self:
-        """Called when the task is waiting to recieve something with `Comm.recv`.
-
-        Args:
-            f: The function to call
-            name: The name of the callback. If not provided, a random one will be
-                generated with "{task-name}-waiting-{uuid4}".
-            every: Call the handler when the event count is a multiple of `every` times.
-            count: A callback the recieves the count of how many times this event has
-                been emitted. If it returns `True`, the handler will be called.
-            when: A callback that recieves the task. If it returns `True`, the
-                handler will be called.
-
-        Returns:
-            Self
-        """
-        if isinstance(f, TaskDescription):
-            name = name if name else f.name
-            f = cast(Callable[[CommTask[R]], Any], f)
-
-        name = name if name else f"{self.name}-waiting-{str(uuid4())}"
-        event = (self.name, TaskEvent.WAITING)
-        self.event_manager.on(event, f, name=name, when=when, count=count, every=every)
-        return self
-
-    def __call__(self: Self, *args: Any, **kwargs: Any) -> CommTask[R]:  # noqa: ARG002
-        """Dispatch this task.
-
-        Note:
-            This is mainly for convenience within the scheduler. Where possible,
-            prefer to use the explicit `dispatch` method.
-
-        Returns:
-            A Task with the actual future attached
-        """
-        return self.dispatch_f(self)
-
-    def dispatch(self: Self) -> CommTask[R]:
-        """Dispatch this task.
-
-        Returns:
-            A Task with the actual future attached
-        """
-        return self.dispatch_f(self)
+    CANCELLED: ClassVar = TaskEvent.CANCELLED
+    """Event triggered when the task has been cancelled.
+    See [`TaskEvent.CANCELLED`][byop.scheduling.events.TaskEvent.CANCELLED]
+    """
 
 
-@frozen(kw_only=True)
-class Task(Generic[R]):
-    """A thin wrapper for a future with a name and reference to the task description."""
+@dataclass(frozen=True)
+class TaskFuture(Generic[TaskParams, TaskReturn]):
+    """A thin wrapper for a future with a name and reference to the task description.
 
-    future: asyncio.Future[R] = field(repr=False)
-    """The future holding the result"""
+    Attributes:
+        desc: The task associated with this future.
+        future: The future associated with this task.
+    """
 
-    desc: TaskDescription
-    """The task description this is attributed to"""
+    desc: Task[TaskParams, TaskReturn]
+    future: Future[TaskReturn] = field(repr=False)
 
     @property
     def name(self) -> TaskName:
         """The name of the task."""
         return self.desc.name
 
-    def result(self) -> R:
+    @property
+    def result(self) -> TaskReturn:
         """Get the result of the task."""
         return self.future.result()
+
+    @property
+    def exception(self) -> BaseException | None:
+        """Get the exception of the task."""
+        return self.future.exception()
 
     def cancel(self) -> None:
         """Cancel the task."""
@@ -414,47 +374,3 @@ class Task(Generic[R]):
     def cancelled(self) -> bool:
         """Check if the task is cancelled."""
         return self.future.cancelled()
-
-    def exception(self) -> BaseException | None:
-        """Get the exception of the task."""
-        return self.future.exception()
-
-    def modified(self, *args: Any, **kwargs: Any) -> TaskDescription:
-        """Modify the task description.
-
-        Returns:
-            A new task description with the same name and function, but with the
-            new args and kwargs.
-        """
-        return self.desc.modified(*args, **kwargs)
-
-
-@frozen(kw_only=True)
-class CommTask(Task[R]):
-    """A thin wrapper for a future with a name and reference to the task description."""
-
-    future: asyncio.Future[R] = field(repr=False)
-    """The future holding the result"""
-
-    desc: TaskDescription
-    """The task description this is attributed to"""
-
-    comm: Comm = field(repr=False)
-    """The communication object to communicate with the worker."""
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Dispatch the task."""
-        return self.desc.__call__(*args, **kwargs)
-
-    def send(self, msg: Msg) -> None:
-        """Send a message to the worker."""
-        self.comm.send(msg)
-
-    def recv(self) -> Msg:
-        """Receive a message from the worker."""
-        return self.comm.recv()
-
-    @classmethod
-    def from_task(cls, task: Task[R], comm: Comm) -> CommTask[R]:
-        """Create a CommTask from a Task."""
-        return cls(future=task.future, desc=task.desc, comm=comm)

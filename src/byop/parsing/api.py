@@ -108,11 +108,9 @@ def parse(
         parsers = DEFAULT_PARSERS
         results = seekable(p._parse(pipeline, seed) for p in DEFAULT_PARSERS)
 
-    elif parser == "configspace":
-        parsers = [ConfigSpaceParser]
-        results = seekable([ConfigSpaceParser._parse(pipeline, seed)])
-
-    elif isinstance(parser, type) and safe_issubclass(parser, "ConfigurationSpace"):
+    elif parser == "configspace" or (
+        isinstance(parser, type) and safe_issubclass(parser, "ConfigurationSpace")
+    ):
         parsers = [ConfigSpaceParser]
         results = seekable([ConfigSpaceParser._parse(pipeline, seed)])
 
