@@ -409,7 +409,7 @@ class Scheduler:
             stop_reason = ExitCode.STOPPED
             self.event_manager.emit(SchedulerEvent.STOP)
         elif queue_empty and queue_empty.done():
-            stop_reason = ExitCode.EMPTY
+            stop_reason = ExitCode.EXHAUSTED
         elif timeout is not None:
             logger.debug(f"Timeout of {timeout} reached for scheduler")
             stop_reason = ExitCode.TIMEOUT
@@ -426,7 +426,7 @@ class Scheduler:
         for stopping_criteria in stop_criterion:
             stopping_criteria.cancel()
 
-        self.event_manager.emit(SchedulerEvent.STOPPING)
+        self.event_manager.emit(SchedulerEvent.FINISHING)
 
         if self.terminate:
             logger.debug(f"Shutting down scheduler executor with {wait=}")
@@ -648,7 +648,8 @@ class Scheduler:
     ) -> Self:
         """Register a callback for the `SchedulerEvent.STARTED` event.
 
-        See [`SchedulerEvent.STARTED`](byop.scheduling.events.STARTED) for more details.
+        See [`SchedulerEvent.STARTED`][byop.scheduling.events.SchedulerEvent.STARTED]
+        for more details.
 
         Args:
             callback: The callback to register.
@@ -666,17 +667,18 @@ class Scheduler:
         """
         return self.on(SchedulerEvent.STARTED, callback, name=name, when=when)
 
-    def on_stopping(
+    def on_finishing(
         self,
         callback: Callable[[], Any],
         *,
         name: CallbackName | None = None,
         when: Callable[[Counter[EventTypes]], bool] | None = None,
     ) -> Self:
-        """Register a callback for the `SchedulerEvent.STOPPING` event.
+        """Register a callback for the `SchedulerEvent.FINISHING` event.
 
-        See [`SchedulerEvent.STOPPING`](byop.scheduling.events.STOPPING) for
-        more details.
+        See
+        [`SchedulerEvent.FINISHING`][byop.scheduling.events.SchedulerEvent.FINISHING]
+        for more details.
 
         Args:
             callback: The callback to register.
@@ -692,7 +694,7 @@ class Scheduler:
         Returns:
             The scheduler itself
         """
-        return self.on(SchedulerEvent.STOPPING, callback, name=name, when=when)
+        return self.on(SchedulerEvent.FINISHING, callback, name=name, when=when)
 
     def on_finished(
         self,
@@ -703,8 +705,8 @@ class Scheduler:
     ) -> Self:
         """Register a callback for the `SchedulerEvent.FINISHED` event.
 
-        See [`SchedulerEvent.FINISHED`](byop.scheduling.events.FINISHED) for
-        more details.
+        See [`SchedulerEvent.FINISHED`][byop.scheduling.events.SchedulerEvent.FINISHED]
+        for more details.
 
         Args:
             callback: The callback to register.
@@ -729,10 +731,10 @@ class Scheduler:
         name: CallbackName | None = None,
         when: Callable[[Counter[EventTypes]], bool] | None = None,
     ) -> Self:
-        """Register a callback for the `SchedulerEvent.STOPPING` event.
+        """Register a callback for the `SchedulerEvent.STOP` event.
 
-        See [`SchedulerEvent.STOPPING`](byop.scheduling.events.STOPPING) for
-        more details.
+        See [`SchedulerEvent.STOP`][byop.scheduling.events.SchedulerEvent.STOP]
+        for more details.
 
         Args:
             callback: The callback to register.
@@ -748,7 +750,7 @@ class Scheduler:
         Returns:
             The scheduler itself
         """
-        return self.on(SchedulerEvent.STOPPING, callback, name=name, when=when)
+        return self.on(SchedulerEvent.STOP, callback, name=name, when=when)
 
     def on_timeout(
         self,
@@ -759,7 +761,8 @@ class Scheduler:
     ) -> Self:
         """Register a callback for the `SchedulerEvent.TIMEOUT` event.
 
-        See [`SchedulerEvent.TIMEOUT`](byop.scheduling.events.TIMEOUT) for more details.
+        See [`SchedulerEvent.TIMEOUT`][byop.scheduling.events.SchedulerEvent.TIMEOUT]
+        for more details.
 
         Args:
             callback: The callback to register.
@@ -786,7 +789,8 @@ class Scheduler:
     ) -> Self:
         """Register a callback for the `SchedulerEvent.EMPTY` event.
 
-        See [`SchedulerEvent.EMPTY`](byop.scheduling.events.EMPTY) for more details.
+        See [`SchedulerEvent.EMPTY`][byop.scheduling.events.SchedulerEvent.EMPTY]
+        for more details.
 
         Args:
             callback: The callback to register.
@@ -855,9 +859,9 @@ class Scheduler:
     See [`SchedulerEvent.STARTED`][byop.scheduling.events.SchedulerEvent.STARTED]
     """
 
-    STOPPING: ClassVar = SchedulerEvent.STOPPING
-    """The scheduler is stopping.
-    See [`SchedulerEvent.STOPPING`][byop.scheduling.events.SchedulerEvent.STOPPING]
+    FINISHING: ClassVar = SchedulerEvent.FINISHING
+    """The scheduler is finishing up.
+    See [`SchedulerEvent.FINISHING`][byop.scheduling.events.SchedulerEvent.FINISHING]
     """
 
     FINISHED: ClassVar = SchedulerEvent.FINISHED
@@ -867,7 +871,7 @@ class Scheduler:
 
     STOP: ClassVar = SchedulerEvent.STOP
     """The scheduler was stopped forcefully with `Scheduler.stop`.
-    See [`SchedulerEvent.STOPPED`][byop.scheduling.events.SchedulerEvent.STOPPED]
+    See [`SchedulerEvent.STOP`][byop.scheduling.events.SchedulerEvent.STOP]
     """
 
     TIMEOUT: ClassVar = SchedulerEvent.TIMEOUT

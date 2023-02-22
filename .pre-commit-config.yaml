@@ -32,6 +32,7 @@ repos:
         additional_dependencies:
           - "attrs"
           - "strenum"
+          - "types-pyyaml"
   - repo: https://github.com/psf/black
     rev: 23.1.0
     hooks:

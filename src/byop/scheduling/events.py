@@ -44,8 +44,8 @@ class SchedulerEvent(Enum):
     start deploying tasks to the executor.
     """
 
-    STOPPING = auto()
-    """The scheduler is stopping.
+    FINISHING = auto()
+    """The scheduler is finishing.
 
     This means the executor is still running but the stopping criterion
     for the scheduler are no longer monitored. If using `run(..., wait=True)`
@@ -96,8 +96,8 @@ class ExitCode(Enum):
     TIMEOUT = auto()
     """The scheduler finished because of a timeout."""
 
-    EMPTY = auto()
-    """The scheduler finished because of an empty queue."""
+    EXHAUSTED = auto()
+    """The scheduler finished because it exhausted its queue."""
 
     UNKNOWN = auto()
     """The scheduler finished for an unknown reason."""

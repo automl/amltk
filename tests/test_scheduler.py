@@ -70,7 +70,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
         ("sleep", TaskEvent.DONE): 1,
         ("sleep", TaskEvent.SUCCESS): 1,
         SchedulerEvent.STARTED: 1,
-        SchedulerEvent.STOPPING: 1,
+        SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,
         SchedulerEvent.TIMEOUT: 1,
     }
@@ -104,7 +104,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
         ("sleep", TaskEvent.SUBMITTED): 1,
         ("sleep", TaskEvent.CANCELLED): 1,
         SchedulerEvent.STARTED: 1,
-        SchedulerEvent.STOPPING: 1,
+        SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,
         SchedulerEvent.TIMEOUT: 1,
     }
@@ -137,12 +137,12 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
         ("second", TaskEvent.DONE): 1,
         ("second", TaskEvent.SUCCESS): 1,
         SchedulerEvent.STARTED: 1,
-        SchedulerEvent.STOPPING: 1,
+        SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,
     }
     assert scheduler.counts == expected_counts
     assert results == [0.1, 0.1]
-    assert end_status == scheduler.exitcodes.EMPTY
+    assert end_status == scheduler.exitcodes.EXHAUSTED
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -172,7 +172,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
         ("sleep", TaskEvent.DONE): 1,
         ("sleep", TaskEvent.SUCCESS): 1,
         SchedulerEvent.STARTED: 1,
-        SchedulerEvent.STOPPING: 1,
+        SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,
         SchedulerEvent.EMPTY: 2,
         SchedulerEvent.STOP: 1,

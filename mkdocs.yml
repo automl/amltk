@@ -99,6 +99,8 @@ plugins:
           paths: [src]
           import:
             - 'https://docs.python.org/3/objects.inv'
+            - 'https://numpy.org/doc/stable/objects.inv'
+            - 'https://pandas.pydata.org/docs/objects.inv'
           options:
             show_root_heading: false
             show_root_toc_entry: false

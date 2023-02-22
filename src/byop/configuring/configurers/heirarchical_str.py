@@ -98,7 +98,7 @@ class HeirarchicalStrConfigurer(Configurer[Mapping[str, Any], str]):
             if len(config) == 0:
                 return True
 
-            first_key = first(config.keys())
+            first_key = first(config.keys(), None)
             return isinstance(first_key, type(pipeline.head.name))
 
         return False
