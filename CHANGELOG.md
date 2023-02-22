@@ -1,3 +1,9 @@
+## v0.6.0 (2023-02-22)
+
+### Feat
+
+- **buckets**: Easy way to store and load data
+
 ## v0.5.0 (2023-02-20)
 
 ### Feat
