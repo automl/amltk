@@ -30,6 +30,7 @@ from typing_extensions import Self
 from byop.event_manager import EventManager
 from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
+from byop.scheduling.exception_wrap import exception_wrap
 from byop.types import CallbackName, TaskName, TaskParams, TaskReturn
 
 logger = logging.getLogger(__name__)
@@ -83,8 +84,30 @@ class Task(Generic[TaskParams, TaskReturn]):
     function: Callable[TaskParams, TaskReturn] = field(repr=False)
     _event_manager: EventManager = field(repr=False)
     _dispatch: Callable[[Self], None] = field(repr=False)
+    _lookup: Callable[[Self], list[TaskFuture[TaskParams, TaskReturn]]] = field(
+        repr=False
+    )
     limit: int | None = None
     n_called: int = 0
+
+    def __post_init__(self) -> None:
+        self.function = exception_wrap(self.function)
+
+    def running(self) -> bool:
+        """Check if this task is currently running.
+
+        Returns:
+            bool: True if the task is currently running.
+        """
+        return any(future.running() for future in self._lookup(self))
+
+    def futures(self) -> list[TaskFuture[TaskParams, TaskReturn]]:
+        """Get the futures for this task.
+
+        Returns:
+            list[TaskFuture]: A list of futures for this task.
+        """
+        return self._lookup(self)
 
     @property
     def counts(self) -> Counter[TaskEvent]:
@@ -374,3 +397,7 @@ class TaskFuture(Generic[TaskParams, TaskReturn]):
     def cancelled(self) -> bool:
         """Check if the task is cancelled."""
         return self.future.cancelled()
+
+    def running(self) -> bool:
+        """Check if the task is running."""
+        return not self.future.done()

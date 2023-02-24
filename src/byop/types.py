@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Hashable, Iterator, ParamSpec, Protocol, TypeVar
+from typing import Any, Hashable, Iterator, ParamSpec, Protocol, TypeVar, Union
 
+import numpy as np
 from typing_extensions import TypeAlias
 
 Item = TypeVar("Item")
@@ -12,7 +13,7 @@ Item = TypeVar("Item")
 Space = TypeVar("Space")
 """Generic for objects that are aware of a space but not the specific kind"""
 
-Seed: TypeAlias = int
+Seed: TypeAlias = Union[int, np.random.RandomState, np.random.Generator]
 """Type alias for kinds of Seeded objects"""
 
 Key = TypeVar("Key", bound=Hashable)
@@ -35,6 +36,8 @@ TaskReturn = TypeVar("TaskReturn")
 
 TrialResult = TypeVar("TrialResult")
 """Something you tell the optimizer about"""
+TrialResult_co = TypeVar("TrialResult_co")
+TrialResult_contra = TypeVar("TrialResult_contra")
 
 TaskName: TypeAlias = Hashable
 """A name for a task"""
@@ -47,6 +50,8 @@ Msg: TypeAlias = Any
 
 Config = TypeVar("Config")
 """An object representing a configuration of a pipeline."""
+Config_co = TypeVar("Config_co")
+Config_contra = TypeVar("Config_contra")
 
 
 class Comparable(Protocol):

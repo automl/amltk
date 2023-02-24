@@ -9,7 +9,7 @@ types in a single location.
 """
 from __future__ import annotations
 
-from typing import Any, Iterator, Protocol, TypeVar
+from typing import Any, Hashable, Iterable, Iterator, Mapping, Protocol, TypeVar
 
 from byop.store.drop import Drop
 from byop.store.loader import Loader
@@ -20,7 +20,7 @@ T = TypeVar("T")
 DEFAULT_FILE_LOADERS: tuple[Loader, ...] = ()
 
 LinkT = TypeVar("LinkT")
-KeyT = TypeVar("KeyT")
+KeyT = TypeVar("KeyT", bound=Hashable)
 
 
 class Bucket(Protocol[LinkT, KeyT]):
@@ -89,3 +89,33 @@ class Bucket(Protocol[LinkT, KeyT]):
     def __len__(self) -> int:
         """Get the number of keys in the bucket."""
         ...
+
+    def update(self, items: Mapping[str, Any]) -> None:
+        """Update the bucket with the items from a mapping.
+
+        Args:
+            items: The items to update the bucket with.
+        """
+        ...
+
+    def fetch(
+        self,
+        keys: Iterable[KeyT],
+        *,
+        default: None | Any | dict[KeyT, Any] = None,
+    ) -> dict[KeyT, Any]:
+        """Fetch a resource from the bucket.
+
+        Args:
+            keys: The keys to the resources.
+            default: The default value to return if the key is not in the bucket.
+                If a dict is passed, the default for each key will be the value
+                in the dict for that key, using None if not present.
+
+        Returns:
+            The resources stored in the bucket at the given keys.
+        """
+        default_dict = {} if not isinstance(default, dict) else default
+        return {
+            key: self[key].get(default=default_dict.get(key, default)) for key in keys
+        }

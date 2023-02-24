@@ -22,6 +22,7 @@ from byop.asyncm import AsyncConnection
 from byop.event_manager import EventManager
 from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
+from byop.scheduling.exception_wrap import exception_wrap
 from byop.scheduling.task import Task, TaskFuture
 from byop.types import CallbackName, Msg, TaskName, TaskParams, TaskReturn
 
@@ -89,8 +90,14 @@ class CommTask(Task[TaskParams, TaskReturn]):
     function: Callable[TaskParams, TaskReturn] = field(repr=False)
     _event_manager: EventManager = field(repr=False)
     _dispatch: Callable[[Self], None] = field(repr=False)
+    _lookup: Callable[[Self], list[TaskFuture[TaskParams, TaskReturn]]] = field(
+        repr=False
+    )
     limit: int | None = None
     n_called: int = 0
+
+    def __post_init__(self) -> None:
+        self.function = exception_wrap(self.function)
 
     @overload
     def on(

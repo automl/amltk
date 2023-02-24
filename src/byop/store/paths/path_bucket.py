@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from itertools import chain
 from pathlib import Path
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 from more_itertools import ilen
 
@@ -152,6 +152,11 @@ class PathBucket(Bucket[Path, str]):
         return (
             (p.name, self._drop(p, loaders=self.loaders)) for p in self.path.iterdir()
         )
+
+    def update(self, other: Mapping[str, Any]) -> None:
+        """Update the bucket with the items in other."""
+        for key, value in other.items():
+            self[key].put(value)
 
     def __contains__(self, key: str) -> bool:
         return (self.path / key).exists()

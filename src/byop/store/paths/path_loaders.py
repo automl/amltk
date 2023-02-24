@@ -157,7 +157,6 @@ class PDLoader(PathLoader[pd.DataFrame]):
     def load(cls, path: Path, /) -> pd.DataFrame:
         """See [`Loader.load`][byop.store.loader.Loader.load]."""
         load_method = cls._load_methods[path.suffix]
-        print(path.suffix, load_method)
         return load_method(path)
 
     @classmethod

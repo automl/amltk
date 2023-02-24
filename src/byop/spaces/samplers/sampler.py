@@ -5,7 +5,7 @@ It's primary role is to allow sampling from a particular Space.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, overload
+from typing import Any, Generic, overload
 
 from byop.types import Config, Space
 
@@ -48,3 +48,13 @@ class Sampler(ABC, Generic[Space, Config]):
     def __call__(self, space: Space, n: int | None = None) -> Config | list[Config]:
         """Call the sampler."""
         return self.sample(space, n)
+
+    @classmethod
+    def find(cls, space: Space, /) -> type[Sampler[Space, Any]] | None:
+        """Find a sampler for the given space."""
+        from byop.spaces.samplers import DEFAULT_SAMPLERS
+
+        for sampler in DEFAULT_SAMPLERS:
+            if sampler.supports(space):
+                return sampler
+        return None

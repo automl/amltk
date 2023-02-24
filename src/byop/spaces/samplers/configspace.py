@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from ConfigSpace import Configuration, ConfigurationSpace
 
 
-class ConfigSpaceSampler(Sampler):
+class ConfigSpaceSampler(Sampler["ConfigurationSpace", "Configuration"]):
     """A sampler for a search space."""
 
     @overload

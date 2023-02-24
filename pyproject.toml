@@ -218,6 +218,10 @@ disallow_untyped_defs = true       # All functions must have types
 disallow_untyped_decorators = true # ... even decorators
 disallow_incomplete_defs = true    # ...all types
 
+enable_incomplete_feature = [
+    "TypeVarTuple"
+]
+
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]

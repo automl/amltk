@@ -159,23 +159,23 @@ class Scheduler:
     @overload
     def task(
         self,
-        function: Callable[Concatenate[Comm, P], R],
+        function: Callable[P, R],
         *,
         name: TaskName | None | Literal[True] = ...,
         limit: int | None = ...,
         comms: Literal[False] = False,
-    ) -> Task[P, R] | CommTask[P, R]:
+    ) -> Task[P, R]:
         ...
 
     @overload
     def task(
         self,
-        function: Callable[P, R],
+        function: Callable[Concatenate[Comm, P], R],
         *,
         name: TaskName | None | Literal[True] = ...,
         limit: int | None = ...,
-        comms: Literal[True] = True,
-    ) -> Task[P, R]:
+        comms: Literal[True],
+    ) -> CommTask[P, R]:
         ...
 
     def task(
@@ -207,12 +207,24 @@ class Scheduler:
         task_type = CommTask if comms else Task
 
         return task_type(
-            function=function,  # type: ignore
+            function=function,
             name=name,
             limit=limit,
             _event_manager=self.event_manager,
             _dispatch=self._dispatch,
+            _lookup=self.lookup_task,
         )
+
+    def lookup_task(self, task: Task[P, R]) -> list[TaskFuture[P, R]]:
+        """Lookup a task to see if it has any futures in the queue.
+
+        Args:
+            task: The task to lookup.
+
+        Returns:
+            A list of all the futures associated with the task.
+        """
+        return [future for future in self.queue.values() if future.desc is task]
 
     def _dispatch(
         self,

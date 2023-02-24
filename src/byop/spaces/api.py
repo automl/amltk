@@ -49,7 +49,9 @@ def sample(
 ) -> Config | list[Config]:
     """Sample a configuration from the given space."""
     if sampler == "auto":
-        valid_sampler = first_true(DEFAULT_SAMPLERS, pred=lambda s: s.supports(space))
+        valid_sampler = first_true(
+            DEFAULT_SAMPLERS, pred=lambda s: s.supports(space), default=None
+        )
         if valid_sampler is None:
             raise ValueError(f"No sampler found for space in {DEFAULT_SAMPLERS}")
         return valid_sampler.sample(space, n=n)
