@@ -10,6 +10,7 @@ from typing import Any, Callable
 from ConfigSpace import Configuration
 import numpy as np
 import openml
+from dask_jobqueue import SLURMCluster
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import VarianceThreshold
@@ -206,7 +207,6 @@ def target_function(
 
 if __name__ == "__main__":
     seed = 42
-    n_workers = 4
 
     space = pipeline.space(seed=seed, parser="configspace")
 
@@ -243,15 +243,37 @@ if __name__ == "__main__":
         }
     )
 
-    rs = RandomSearch(space=space, sampler=ConfigSpaceSampler)
+    here = Path(__file__).absolute().parent
+    logs = here / "logs-test-dask-slurm"
+    logs.mkdir(exist_ok=True)
+    
+    # For testing out slurm
+    #n_workers = 256
+    #SLURMCluster.job_cls.submit_command = "sbatch --bosch"
+    #cluster = SLURMCluster(
+    #    memory="2GB",
+    #    processes=1,
+    #    cores=1,
+    #    local_directory=here,
+    #    log_directory=logs,
+    #    queue="bosch_cpu-cascadelake",
+    #    job_extra_directives=["--time 0-00:10:00"]
+    #)
+    #cluster.adapt(maximum_jobs=n_workers)
+    #executor = cluster.get_client().get_executor()
+    #scheduler = Scheduler(executor=executor)
+
+    # For local
+    n_workers = 4
     scheduler = Scheduler.with_processes(n_workers)
+    rs = RandomSearch(space=space, sampler=ConfigSpaceSampler)
     objective = AskAndTell.objective(target_function, bucket=bucket, pipeline=pipeline)
 
     controller = AskAndTell(
         objective=objective,
         scheduler=scheduler,
         optimizer=rs,
-        max_trials=20,
+        max_trials=n_workers * 2,
         concurrent_trials=n_workers - 1,
     )
 
@@ -273,5 +295,6 @@ if __name__ == "__main__":
     scheduler.on_empty(lambda: ensemble_task(bucket, size=10, seed=seed))
     controller.run()
 
+    print(scheduler.counts)
     print(val_results)
     print([e.trajectory[-1] for e in ensembles])
