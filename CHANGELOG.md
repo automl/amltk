@@ -1,3 +1,9 @@
+## v0.7.0 (2023-02-24)
+
+### Feat
+
+- **control**: AskAndTell controller
+
 ## v0.6.0 (2023-02-22)
 
 ### Feat
