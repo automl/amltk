@@ -55,22 +55,18 @@ def weighted_ensemble_caruana(
         targets: The targets
         size: The size of the ensemble to create
         metric: The metric to use in calculating which models to add to the ensemble.
-        select:
-            Selects a models from the list based on the values of the metric on their
-            predictions. Can return a single ID or a list of them, in which case a
-            random selection will be made.
-        is_probabilities:
-            Whether the predictions are probabilities or not. If they are, then
-            ``classes`` must be provided.
-        classes: The classes to use if ``is_probabilities`` for ``model_predictions``.
+        select: Selects a models from the list based on the values of the metric on
+            their predictions. Can return a single ID or a list of them, in which
+            case a random selection will be made.
+        is_probabilities: Whether the predictions are probabilities or not.
+            If they are, then `classes` must be provided.
+        classes: The classes to use if `is_probabilities` for `model_predictions`.
             For now we assume to style of sklearn for specifying clases and probabilties
             for binary, multiclass and multi-label targets.
         seed: The seed to use for breaking ties
 
     Returns:
-        A dictionary mapping from id's to values genrated from adding a model at each
-        time step and a list of tuples with the id of the model added and the value of
-        the ensemble when it was added.
+        A mapping from id's to it's weight in the ensemble and the trajectory.
     """
     if not size > 0:
         raise ValueError("`size` must be positive")
