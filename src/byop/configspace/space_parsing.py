@@ -95,9 +95,9 @@ def generate_configspace(
     """
     cs = ConfigurationSpace(seed=seed)
     for splits, parents, step in pipeline.walk():
-        parents = parents if parents is not None else []
-        splits = splits if splits is not None else []
-        _process_step(splits, parents, step, cs)
+        _parents = parents if parents is not None else []
+        _splits = splits if splits is not None else []
+        _process_step(_splits, _parents, step, cs)
     return cs
 
 

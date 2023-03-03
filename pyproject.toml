@@ -57,7 +57,7 @@ doc = [
   "cairosvg",
 ]
 smac = [
-  "smac==2.0.0b1",
+  "smac>=2.0",
   "configspace",
 ]
 

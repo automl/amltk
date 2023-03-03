@@ -5,21 +5,43 @@ without doing anything with them.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Generic
+from dataclasses import dataclass
+from functools import partial
+from typing import Callable, Generic, ParamSpec, TypeVar
 
-from byop.optimization.protocols import Optimizer
-from byop.spaces import Sampler
-from byop.types import Config, Space
+from byop.optimization.optimizer import Optimizer, Trial, TrialReport
+from byop.samplers import Sampler
+from byop.types import Config, Seed, Space
+
+P = ParamSpec("P")
+Q = ParamSpec("Q")
+Result = TypeVar("Result")
 
 
-class RandomSearch(Optimizer[Config, Any], Generic[Space, Config]):
+@dataclass
+class RSTrialInfo(Generic[Config]):
+    """The information about a random search trial.
+
+    Args:
+        name: The name of the trial.
+        trial_number: The number of the trial.
+        config: The configuration sampled from the space.
+    """
+
+    name: str
+    trial_number: int
+    config: Config
+
+
+class RandomSearch(Optimizer[RSTrialInfo[Config], Config]):
     """A random search optimizer."""
 
     def __init__(
         self,
         *,
         space: Space,
-        sampler: Callable[[Space], Config] | type[Sampler[Space, Config]] | None = None,
+        sampler: Callable[[Space], Config] | Sampler[Space, Config] | None = None,
+        seed: Seed | None = None,
     ):
         """Initialize the optimizer.
 
@@ -27,32 +49,36 @@ class RandomSearch(Optimizer[Config, Any], Generic[Space, Config]):
             space: The space to sample from.
             sampler: The sampler to use to sample from the space.
                 If not provided, the sampler will be automatically found.
+            seed: The seed to use for the sampler, if no sampler is provided.
         """
         self.space = space
-        if sampler is None:
-            sampler = Sampler.find(space)
+        self.trial_count = 0
 
+        self.sampler: Callable[[], Config]
         if sampler is None:
-            raise ValueError(f"No sampler found for {space=} of type {type(space)=}")
-
-        self._sampler: Callable[[Space], Config]
-        if isinstance(sampler, type) and issubclass(sampler, Sampler):
-            self._sample = sampler.sample
+            sampler_cls: type[Sampler[Space, Config]] = Sampler.find(space)
+            self.sampler = sampler_cls(space, seed=seed)
+        elif isinstance(sampler, Sampler):
+            self.sampler = sampler
         else:
-            # TODO: No idea why this is saying `sampler` is an `overloaded function`
-            self._sample = sampler  # type: ignore
+            self.sampler = partial(sampler, space)
 
-    def ask(self) -> Config:
+    def ask(self) -> Trial[RSTrialInfo[Config], Config]:
         """Sample from the space."""
-        return self._sample(self.space)
+        config = self.sampler()
+        name = f"random-{self.trial_count}"
+        info = RSTrialInfo(name, self.trial_count, config)
+        trial = Trial(name=name, config=config, info=info)
+        self.trial_count = self.trial_count + 1
+        return trial
 
-    def tell(self, result: Any) -> None:
-        """Do nothing with the result.
+    def tell(self, _: TrialReport[RSTrialInfo[Config], Config]) -> None:
+        """Do nothing with the report.
 
         ???+ note
-            We do nothing with the results as it's random search
-            and does not use the results to do anything useful.
+            We do nothing with the report as it's random search
+            and does not use the report to do anything useful.
 
         Args:
-            result: The result of the sampled configuration.
+            report: The report of the trial.
         """

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import Future
-from collections import Counter
+from collections import Counter, defaultdict
 from concurrent.futures import Executor, ProcessPoolExecutor
 import logging
 from multiprocessing.context import BaseContext
@@ -16,6 +16,7 @@ from typing import (
     Callable,
     ClassVar,
     Concatenate,
+    Hashable,
     Literal,
     ParamSpec,
     TypeVar,
@@ -36,6 +37,8 @@ from byop.types import CallbackName, Msg, TaskName, TaskParams, TaskReturn
 
 P = ParamSpec("P")
 R = TypeVar("R")
+TaskT = TypeVar("TaskT", bound=Task)
+CommTaskT = TypeVar("CommTaskT", bound=CommTask)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +92,9 @@ class Scheduler:
 
         # The current state of things and references to them
         self.queue: dict[Future, TaskFuture] = {}
+
+        # Futures indexed by the task name
+        self.task_futures: dict[TaskName, list[TaskFuture]] = defaultdict(list)
 
         # This can be triggered either by `scheduler.stop` in a callback
         self._stop_event: asyncio.Event = asyncio.Event()
@@ -164,6 +170,7 @@ class Scheduler:
         name: TaskName | None | Literal[True] = ...,
         limit: int | None = ...,
         comms: Literal[False] = False,
+        task_type: None = None,
     ) -> Task[P, R]:
         ...
 
@@ -175,17 +182,43 @@ class Scheduler:
         name: TaskName | None | Literal[True] = ...,
         limit: int | None = ...,
         comms: Literal[True],
+        task_type: None = None,
     ) -> CommTask[P, R]:
         ...
 
+    @overload
     def task(
+        self,
+        function: Callable[Concatenate[Comm, P], R],
+        *,
+        name: TaskName | None | Literal[True] = ...,
+        limit: int | None = ...,
+        comms: Literal[True],
+        task_type: type[CommTaskT],
+    ) -> CommTaskT:
+        ...
+
+    @overload
+    def task(
+        self,
+        function: Callable[P, Any],
+        *,
+        name: TaskName | None | Literal[True] = ...,
+        limit: int | None = ...,
+        comms: bool = ...,
+        task_type: type[TaskT],
+    ) -> TaskT:
+        ...
+
+    def task(  # type: ignore
         self,
         function: Callable[P, R] | Callable[Concatenate[Comm, P], R],
         *,
         name: TaskName | None | Literal[True] = None,
         limit: int | None = None,
         comms: bool = False,
-    ) -> Task[P, R] | CommTask[P, R]:
+        task_type: type[TaskT] | type[CommTaskT] | None = None,
+    ) -> Task[P, R] | CommTask[P, R] | TaskT | CommTaskT:
         """Define a scheduler task.
 
         Args:
@@ -195,6 +228,12 @@ class Scheduler:
             limit: The maximum number of times this task can be run.
             comms: Whether the function requires a `Comm` to `send`
                 and `recv`.
+            task_type: The custom type of task to create. Must extend
+                from [`Task`][byop.scheduling.Task]
+                or [`CommTask`][byop.scheduling.CommTask].
+                If left as `None`, the default, a [`Task`][byop.scheduling.Task]
+                will be created if `comms` is `False`, otherwise a
+                [`CommTask`][byop.scheduling.CommTask] will be created.
 
         Returns:
             A Task which can be used to set up callbacks.
@@ -204,34 +243,28 @@ class Scheduler:
         elif name is True:
             name = str(uuid4())
 
-        task_type = CommTask if comms else Task
+        if task_type is not None:
+            return task_type(
+                function=function,
+                name=name,
+                limit=limit,
+                scheduler=self,
+            )
 
-        return task_type(
+        task_cls = CommTask if comms else Task
+        return task_cls(
             function=function,
             name=name,
             limit=limit,
-            _event_manager=self.event_manager,
-            _dispatch=self._dispatch,
-            _lookup=self.lookup_task,
+            scheduler=self,
         )
-
-    def lookup_task(self, task: Task[P, R]) -> list[TaskFuture[P, R]]:
-        """Lookup a task to see if it has any futures in the queue.
-
-        Args:
-            task: The task to lookup.
-
-        Returns:
-            A list of all the futures associated with the task.
-        """
-        return [future for future in self.queue.values() if future.desc is task]
 
     def _dispatch(
         self,
         task: Task[P, R] | CommTask[Concatenate[Comm, P], R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> None:
+    ) -> TaskFuture[P, R]:
         if not self._running:
             raise RuntimeError("Scheduler is not currently running")
 
@@ -244,6 +277,7 @@ class Scheduler:
             )
             raise e
 
+        task_future: TaskFuture[P, R] | CommTaskFuture[Concatenate[Comm, P], R]
         if not isinstance(task, CommTask):
             scheduler_comm = None
             sync_future = self.executor.submit(task.function, *args, **kwargs)
@@ -269,61 +303,80 @@ class Scheduler:
 
         # Place our future and task in the queue
         self.queue[future] = task_future
+        self.task_futures[task.name].append(task_future)
         self._queue_has_items.set()
 
         # Emit the general submitted event and the task specific submitted event
         logger.debug(f"Submitted task {task}")
         self.event_manager.emit(TaskEvent.SUBMITTED, task)
         self.event_manager.emit((task.name, TaskEvent.SUBMITTED), task)
+        return task_future
 
     def _on_task_complete(self, future: asyncio.Future) -> None:
-        # Remove it fom the
-        task = self.queue.pop(future, None)
-        if task is None:
-            logger.warning(f"Task for {future} was not found in scheduler queue!")
+        # Remove it fom the queue and get the wrapped task_future object
+        task_future = self.queue.pop(future, None)
+        if task_future is None:
+            logger.warning(f"Task for {task_future} was not found in scheduler queue!")
             return
+
+        # Try remove it from the task to futures lookup
+        task_name = task_future.name
+        if task_name not in self.task_futures:
+            logger.warning(f"Task {task_name=} was not found {self.task_futures=}!")
+        else:
+            task_futures = self.task_futures[task_name]
+            try:
+                task_futures.remove(task_future)
+            except ValueError:
+                logger.warning(
+                    f"Future {task_future} was not found in futures"
+                    f" for {task_name=}!"
+                )
 
         # NOTE: I have no reason to choose whether to emit the general
         # or task specific event first. If there is a compelling argument
         # to choose one over the other, please raise an issue dicussing it!
         # @eddiebergman
-        if future.cancelled():
-            logger.debug(f"Task {task} was cancelled")
+        if task_future.cancelled():
+            logger.debug(f"Task {task_name} was cancelled")
 
-            self.event_manager.emit(TaskEvent.CANCELLED, task)
-            self.event_manager.emit((task.name, TaskEvent.CANCELLED), task)
+            self.event_manager.emit(TaskEvent.CANCELLED, task_future)
+            self.event_manager.emit((task_name, TaskEvent.CANCELLED), task_future)
             return
 
         exception = future.exception()
         result = future.result() if exception is None else None
 
-        logger.debug(f"Task {task} finished")
-        self.event_manager.emit(TaskEvent.DONE, task)
-        self.event_manager.emit((task.name, TaskEvent.DONE), task)
+        logger.debug(f"Task {task_future} finished")
+        self.event_manager.emit(TaskEvent.DONE, task_future)
+        self.event_manager.emit((task_name, TaskEvent.DONE), task_future)
 
         if exception is None:
-            logger.debug(f"{task} completed successfully")
-            self.event_manager.emit(TaskEvent.SUCCESS, result)
-            self.event_manager.emit((task.name, TaskEvent.SUCCESS), result)
+            logger.debug(f"{task_future} completed successfully")
+            self.event_manager.emit(TaskEvent.RETURNED, result)
+            self.event_manager.emit((task_name, TaskEvent.RETURNED), result)
         else:
-            logger.debug(f"{task} failed with Exception:`{exception}`")
-            self.event_manager.emit(TaskEvent.ERROR, exception)
-            self.event_manager.emit((task.name, TaskEvent.ERROR), exception)
+            logger.debug(f"{task_future} failed with Exception:`{exception}`")
+            self.event_manager.emit(TaskEvent.NO_RETURN, exception)
+            self.event_manager.emit((task_name, TaskEvent.NO_RETURN), exception)
 
         # If dealing with a comm task, get the async task that was in
         # charge of monitoring the pipes and cancel it, as well as close
         # remaining comms
-        if isinstance(task, CommTaskFuture):
-            async_communicate_task = self.communcations.pop(task.name, None)
+        if isinstance(task_future, CommTaskFuture):
+            async_communicate_task = self.communcations.pop(task_name, None)
             if async_communicate_task is None:
-                msg = f"Task to communicate with {task} was not found in scheduler!"
+                msg = (
+                    f"Task to communicate with {task_future} was not found"
+                    " in the scheduler!"
+                )
                 logger.warning(msg)
             else:
                 async_communicate_task.cancel()
 
             # Close the pipe if it hasn't been closed
-            assert isinstance(task, CommTaskFuture)
-            task.comm.close()
+            assert isinstance(task_future, CommTaskFuture)
+            task_future.comm.close()
 
     async def _communicate(self, task: CommTaskFuture) -> None:
         """Communicate with the task.
@@ -575,7 +628,8 @@ class Scheduler:
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.SUCCESS] | tuple[TaskName, Literal[TaskEvent.SUCCESS]],
+        event: Literal[TaskEvent.RETURNED]
+        | tuple[TaskName, Literal[TaskEvent.RETURNED]],
         callback: Callable[[TaskReturn], Any] | Task[[TaskReturn], Any],
         *,
         name: CallbackName | None = ...,
@@ -586,7 +640,8 @@ class Scheduler:
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.ERROR] | tuple[TaskName, Literal[TaskEvent.ERROR]],
+        event: Literal[TaskEvent.NO_RETURN]
+        | tuple[TaskName, Literal[TaskEvent.NO_RETURN]],
         callback: Callable[[BaseException], Any] | Task[[BaseException], Any],
         *,
         name: CallbackName | None = ...,
@@ -622,9 +677,20 @@ class Scheduler:
     ) -> Self:
         ...
 
+    @overload
     def on(
         self,
-        event: TaskEvent | SchedulerEvent | tuple[TaskName, TaskEvent],
+        event: Hashable | tuple[TaskName, Hashable],
+        callback: Callable,
+        *,
+        name: CallbackName | None = ...,
+        when: Callable[[Counter], bool] | None = ...,
+    ) -> Self:
+        ...
+
+    def on(
+        self,
+        event: TaskEvent | SchedulerEvent | tuple[TaskName, TaskEvent] | Hashable,
         callback: Callable[P, Any],
         *,
         name: CallbackName | None = None,
@@ -841,14 +907,14 @@ class Scheduler:
     See [`TaskEvent.DONE`][byop.scheduling.events.TaskEvent.DONE]
     """
 
-    SUCCESS: ClassVar = TaskEvent.SUCCESS
+    RETURNED: ClassVar = TaskEvent.RETURNED
     """Event triggered when the task has successfully returned a value.
-    See [`TaskEvent.SUCCESS`][byop.scheduling.events.TaskEvent.SUCCESS]
+    See [`TaskEvent.RETURNED`][byop.scheduling.events.TaskEvent.RETURNED]
     """
 
-    ERROR: ClassVar = TaskEvent.ERROR
-    """Event triggered when the task has errored.
-    See [`TaskEvent.ERROR`][byop.scheduling.events.TaskEvent.ERROR]
+    NO_RETURN: ClassVar = TaskEvent.NO_RETURN
+    """Event triggered when the task has not returned anything.
+    See [`TaskEvent.NO_RETURN`][byop.scheduling.events.TaskEvent.NO_RETURN]
     """
 
     CANCELLED: ClassVar = TaskEvent.CANCELLED

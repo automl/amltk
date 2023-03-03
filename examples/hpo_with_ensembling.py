@@ -7,7 +7,6 @@ import re
 import shutil
 from typing import Any, Callable
 
-from ConfigSpace import Configuration
 import numpy as np
 import openml
 from sklearn.compose import ColumnTransformer, make_column_selector
@@ -26,14 +25,14 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 from sklearn.svm import SVC
-from tabpfn.scripts.transformer_prediction_interface import TabPFNClassifier
+from smac.runhistory.dataclasses import TrialInfo
+from byop.optimization.random_search import RandomSearch, RSResult, RandomSearchTrial
 
 from byop.control import AskAndTell
 from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
-from byop.optimization import RandomSearch
+from byop.optimization.smac.optimizer import SMAC
 from byop.pipeline import Pipeline, choice, split, step
 from byop.scheduling import Scheduler
-from byop.spaces import ConfigSpaceSampler
 from byop.store import PathBucket
 
 logger = logging.getLogger(__name__)
@@ -102,12 +101,6 @@ pipeline = Pipeline.create(
                 "learning_rate": ["constant", "invscaling", "adaptive"],
             },
         ),
-        step(
-            "tabpfn",
-            TabPFNClassifier,
-            space={"N_ensemble_configurations": [1,2,3,4] },
-            config = {"device": "cpu", "seed":42},
-        )
     ),
 )
 
@@ -125,23 +118,25 @@ def create_ensemble(
     size: int = 5,
     seed: int = 42,
 ) -> Ensemble:
-    trials = [
+    trials: list[str] = [
         match.group("trial")
         for key in bucket
         if (match := re.match(r"trial_(?P<trial>\d+)", key)) is not None
     ]
-    validation_predictions = {
-        trial: bucket[f"trial_{trial}_val_probabilities.npy"].load() for trial in trials
+    validation_predictions: dict[str, np.ndarray] = {
+        trial: bucket[f"trial_{trial}_val_probabilities.npy"].load(check=np.ndarray)
+        for trial in trials
     }
     targets = bucket["y_val.npy"].load()
     metric: Callable[[np.ndarray, np.ndarray], float] = accuracy_score  # type: ignore
 
+    trajectory: list[tuple[str, float]]
     weights, trajectory = weighted_ensemble_caruana(
         model_predictions=validation_predictions,
         targets=targets,
         size=size,
         metric=metric,
-        select=max,
+        select=max,  # type: ignore
         seed=seed,
         is_probabilities=True,
         classes=[0, 1],
@@ -154,12 +149,11 @@ def create_ensemble(
 
 
 def target_function(
-    trial_number: int,
-    config: Configuration,
+    trial: RandomSearchTrial,
     /,
     bucket: PathBucket,
     pipeline: Pipeline,
-) -> float:
+) -> RSResult:
     X_train, X_val, X_test, y_train, y_val, y_test = (
         bucket["X_train.csv"].load(),
         bucket["X_val.csv"].load(),
@@ -169,10 +163,14 @@ def target_function(
         bucket["y_test.npy"].load(),
     )
 
-    pipeline = pipeline.configure(config)
+    pipeline = pipeline.configure(trial.config)
     sklearn_pipeline = pipeline.build()
 
-    sklearn_pipeline.fit(X_train, y_train)
+    with trial.begin():
+        try:
+            sklearn_pipeline.fit(X_train, y_train)
+        except Exception as e:
+            return trial.fail(score=-np.inf, exception=e)
 
     train_predictions = sklearn_pipeline.predict(X_train)
     val_predictions = sklearn_pipeline.predict(X_val)
@@ -183,7 +181,6 @@ def target_function(
     val_accuracy = accuracy_score(val_predictions, y_val)
     test_accuracy = accuracy_score(test_predictions, y_test)
 
-    trial_name = f"trial_{trial_number}"
     # Save all of this to the file system
     scores = {
         "train_accuracy": train_accuracy,
@@ -192,16 +189,17 @@ def target_function(
     }
     bucket.update(
         {
-            f"{trial_name}_config.json": dict(config),
-            f"{trial_name}_scores.json": scores,
-            f"{trial_name}.pkl": sklearn_pipeline,
-            f"{trial_name}_val_predictions.npy": val_predictions,
-            f"{trial_name}_val_probabilities.npy": val_probabilites,
-            f"{trial_name}_test_predictions.npy": test_predictions,
+            f"{trial.name}_config.json": dict(trial.config),
+            f"{trial.name}_scores.json": scores,
+            f"{trial.name}.pkl": sklearn_pipeline,
+            f"{trial.name}_val_predictions.npy": val_predictions,
+            f"{trial.name}_val_probabilities.npy": val_probabilites,
+            f"{trial.name}_test_predictions.npy": test_predictions,
         }
     )
     assert isinstance(val_accuracy, float)
-    return val_accuracy
+
+    return trial.success(score=val_accuracy)
 
 
 if __name__ == "__main__":
@@ -221,7 +219,7 @@ if __name__ == "__main__":
         dataset_format="dataframe", target=dataset.default_target_attribute
     )
     print(X, y)
-    print(X.columns)
+    print(X.columns)  # type: ignore
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=seed, test_size=0.4
@@ -231,26 +229,29 @@ if __name__ == "__main__":
     )
     le = LabelEncoder().fit(y)
 
-    # Save all of this to the file system
+# Save all of this to the file system
     bucket.update(
-        {
-            "X_train.csv": X_train,
-            "X_val.csv": X_val,
-            "X_test.csv": X_test,
-            "y_train.npy": le.transform(y_train),
+    {
+        "X_train.csv": X_train,
+        "X_val.csv": X_val,
+        "X_test.csv": X_test,
+        "y_train.npy": le.transform(y_train),
             "y_val.npy": le.transform(y_val),
             "y_test.npy": le.transform(y_test),
         }
     )
 
-    rs = RandomSearch(space=space, sampler=ConfigSpaceSampler)
-    scheduler = Scheduler.with_processes(n_workers)
-    objective = AskAndTell.objective(target_function, bucket=bucket, pipeline=pipeline)
+    space = pipeline.space(parser="auto")  # Your own space impl.
 
+    optimizer = ...  # Your own optimizer
+    scheduler = Scheduler(executor=...)  # Your own execution backend
+    objective = AskAndTell.objective(target_function, pipeline=pipeline)
+
+    # Use a preset ask and tell controller, or implement your own
     controller = AskAndTell(
         objective=objective,
+        optimizer=optimizer,
         scheduler=scheduler,
-        optimizer=rs,
         max_trials=20,
         concurrent_trials=n_workers - 1,
     )

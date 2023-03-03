@@ -34,10 +34,11 @@ TaskParams = ParamSpec("TaskParams")
 TaskReturn = TypeVar("TaskReturn")
 """The return type of a task"""
 
-TrialResult = TypeVar("TrialResult")
+TrialResult = TypeVar("TrialResult", covariant=True)
 """Something you tell the optimizer about"""
-TrialResult_co = TypeVar("TrialResult_co")
-TrialResult_contra = TypeVar("TrialResult_contra")
+
+TrialInfo = TypeVar("TrialInfo")
+"""The info associated with a trial"""
 
 TaskName: TypeAlias = Hashable
 """A name for a task"""

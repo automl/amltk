@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import numpy as np
 
+from byop.types import Seed
+
 MAX_INT = np.iinfo(np.int32).max
-MIN_INT = np.iinfo(np.int32).min
 
 
-def as_rng(
-    seed: int | np.random.RandomState | np.random.Generator | None = None,
-) -> np.random.Generator:
+def as_rng(seed: Seed | None = None) -> np.random.Generator:
     """Converts a valid seed arg into a numpy.random.Generator instance.
 
     Args:
@@ -22,9 +21,33 @@ def as_rng(
         return seed
 
     if isinstance(seed, np.random.RandomState):
-        seed = seed.randint(MIN_INT, MAX_INT)
+        seed = seed.randint(0, MAX_INT)
 
     if seed is None or isinstance(seed, int):
         return np.random.default_rng()
 
     raise ValueError(f"Can't use {seed=} to create a numpy.random.Generator instance")
+
+
+def as_int(seed: Seed | None = None) -> int:
+    """Converts a valid seed arg into an integer.
+
+    Args:
+        seed: The seed to use
+
+    Returns:
+        A valid integer to use as a seed
+    """
+    if isinstance(seed, int):
+        return seed
+
+    if seed is None:
+        return np.random.default_rng().integers(0, MAX_INT)
+
+    if isinstance(seed, np.random.Generator):
+        return seed.integers(0, MAX_INT)
+
+    if isinstance(seed, np.random.RandomState):
+        return seed.randint(0, MAX_INT)
+
+    raise ValueError(f"Can't use {seed=} to create an integer seed")

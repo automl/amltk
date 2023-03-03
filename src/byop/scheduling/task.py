@@ -15,6 +15,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -22,16 +23,19 @@ from typing import (
     Literal,
     ParamSpec,
     TypeVar,
+    cast,
     overload,
 )
 
 from typing_extensions import Self
 
-from byop.event_manager import EventManager
+from byop.exceptions import exception_wrap
 from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
-from byop.scheduling.exception_wrap import exception_wrap
 from byop.types import CallbackName, TaskName, TaskParams, TaskReturn
+
+if TYPE_CHECKING:
+    from byop.scheduling.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -66,29 +70,41 @@ class Task(Generic[TaskParams, TaskReturn]):
     my_task: Task[[int], int] = scheduler.task("call_f", f)
 
     # Subscribe to events
-    my_task.on_success(lambda result: print(result)) # (1)!
-    my_task.on_error(lambda error: print(error)) # (2)!
+    my_task.on_return(lambda result: print(result)) # (1)!
+    my_task.on_noreturn(lambda error: print(error)) # (2)!
     ```
 
-    1. You could also write: `#!python my_task.on(task.SUCCESS, lambda res: print(res))`
-    2. You could also write: `#!python my_task.on(task.ERROR, lambda err: print(err))`
+    1. You could also do: `#!python my_task.on(task.RETURNED, lambda res: print(res))`
+    2. You could also do: `#!python my_task.on(task.NO_RETURN, lambda err: print(err))`
 
     Attributes:
         name: The name of the task.
         function: The function of this task
+        scheduler: The scheduler that this task is registered with.
         n_called: How many times this task has been called.
         limit: How many times this task can be run. Defaults to `None`
     """
 
-    name: TaskName
-    function: Callable[TaskParams, TaskReturn] = field(repr=False)
-    _event_manager: EventManager = field(repr=False)
-    _dispatch: Callable[[Self], None] = field(repr=False)
-    _lookup: Callable[[Self], list[TaskFuture[TaskParams, TaskReturn]]] = field(
-        repr=False
-    )
-    limit: int | None = None
-    n_called: int = 0
+    def __init__(
+        self,
+        name: TaskName,
+        function: Callable[TaskParams, TaskReturn],
+        scheduler: Scheduler,
+        limit: int | None = None,
+    ) -> None:
+        """Initialize a task.
+
+        Args:
+            name: The name of the task.
+            function: The function of this task
+            scheduler: The scheduler that this task is registered with.
+            limit: How many times this task can be run. Defaults to `None`
+        """
+        self.name = name
+        self.function = function
+        self.scheduler = scheduler
+        self.limit = limit
+        self.n_called = 0
 
     def __post_init__(self) -> None:
         self.function = exception_wrap(self.function)
@@ -99,7 +115,7 @@ class Task(Generic[TaskParams, TaskReturn]):
         Returns:
             bool: True if the task is currently running.
         """
-        return any(future.running() for future in self._lookup(self))
+        return any(future.running() for future in self.futures())
 
     def futures(self) -> list[TaskFuture[TaskParams, TaskReturn]]:
         """Get the futures for this task.
@@ -107,7 +123,13 @@ class Task(Generic[TaskParams, TaskReturn]):
         Returns:
             list[TaskFuture]: A list of futures for this task.
         """
-        return self._lookup(self)
+        # NOTE: This could technically fail if there is multiple tasks
+        # with different function definitions but the same name.
+        futures = cast(
+            list[TaskFuture[TaskParams, TaskReturn]],
+            self.scheduler.task_futures.get(self.name, []),
+        )
+        return futures  # noqa: RET504
 
     @property
     def counts(self) -> Counter[TaskEvent]:
@@ -118,7 +140,7 @@ class Task(Generic[TaskParams, TaskReturn]):
                 has been emitted.
         """
         counts = {
-            event: self._event_manager.counts[(self.name, event)]
+            event: self.scheduler.event_manager.counts[(self.name, event)]
             for event in iter(TaskEvent)
         }
         return Counter(counts)
@@ -137,7 +159,7 @@ class Task(Generic[TaskParams, TaskReturn]):
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.ERROR],
+        event: Literal[TaskEvent.NO_RETURN],
         callback: Callable[[BaseException], Any],
         *,
         name: CallbackName | None = ...,
@@ -148,7 +170,7 @@ class Task(Generic[TaskParams, TaskReturn]):
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.SUCCESS],
+        event: Literal[TaskEvent.RETURNED],
         callback: Callable[[TaskReturn], Any],
         *,
         name: CallbackName | None = ...,
@@ -170,8 +192,8 @@ class Task(Generic[TaskParams, TaskReturn]):
             * [`on_submitted`][byop.scheduling.task.Task.on_submitted]
             * [`on_done`][byop.scheduling.task.Task.on_done]
             * [`on_cancelled`][byop.scheduling.task.Task.on_cancelled]
-            * [`on_success`][byop.scheduling.task.Task.on_success]
-            * [`on_error`][byop.scheduling.task.Task.on_error]
+            * [`on_return`][byop.scheduling.task.Task.on_return]
+            * [`on_noreturn`][byop.scheduling.task.Task.on_noreturn]
 
         Args:
             event: The event to listen to.
@@ -190,7 +212,7 @@ class Task(Generic[TaskParams, TaskReturn]):
 
         pred = None if when is None else (lambda counts=self.counts: when(counts))
         _event = (self.name, event)
-        self._event_manager.on(_event, callback, name=name, when=pred)
+        self.scheduler.event_manager.on(_event, callback, name=name, when=pred)
         return self
 
     def on_submitted(
@@ -259,7 +281,7 @@ class Task(Generic[TaskParams, TaskReturn]):
         """
         return self.on(TaskEvent.CANCELLED, callback, name=name, when=when)
 
-    def on_success(
+    def on_return(
         self,
         callback: Callable[[TaskReturn], Any],
         *,
@@ -276,9 +298,9 @@ class Task(Generic[TaskParams, TaskReturn]):
                 returns a boolean. If the boolean is True, the callback will
                 be called.
         """
-        return self.on(TaskEvent.SUCCESS, callback, name=name, when=when)
+        return self.on(TaskEvent.RETURNED, callback, name=name, when=when)
 
-    def on_error(
+    def on_noreturn(
         self,
         callback: Callable[[BaseException], Any],
         *,
@@ -295,7 +317,7 @@ class Task(Generic[TaskParams, TaskReturn]):
                 returns a boolean. If the boolean is True, the callback will
                 be called.
         """
-        return self.on(TaskEvent.ERROR, callback, name=name, when=when)
+        return self.on(TaskEvent.NO_RETURN, callback, name=name, when=when)
 
     def __call__(
         self: Self,
@@ -326,7 +348,7 @@ class Task(Generic[TaskParams, TaskReturn]):
             return None
 
         self.n_called += 1
-        return self._dispatch(self, *args, **kwargs)
+        return self.scheduler._dispatch(self, *args, **kwargs)
 
     event: ClassVar = TaskEvent
     """The possible events a task can emit
@@ -343,14 +365,14 @@ class Task(Generic[TaskParams, TaskReturn]):
     See [`TaskEvent.DONE`][byop.scheduling.events.TaskEvent.DONE]
     """
 
-    SUCCESS: ClassVar = TaskEvent.SUCCESS
+    RETURNED: ClassVar = TaskEvent.RETURNED
     """Event triggered when the task has successfully returned a value.
-    See [`TaskEvent.SUCCESS`][byop.scheduling.events.TaskEvent.SUCCESS]
+    See [`TaskEvent.RETURNED`][byop.scheduling.events.TaskEvent.RETURNED]
     """
 
-    ERROR: ClassVar = TaskEvent.ERROR
+    NO_RETURN: ClassVar = TaskEvent.NO_RETURN
     """Event triggered when the task has errored.
-    See [`TaskEvent.ERROR`][byop.scheduling.events.TaskEvent.ERROR]
+    See [`TaskEvent.NO_RETURN`][byop.scheduling.events.TaskEvent.NO_RETURN]
     """
 
     CANCELLED: ClassVar = TaskEvent.CANCELLED
@@ -385,6 +407,10 @@ class TaskFuture(Generic[TaskParams, TaskReturn]):
     def exception(self) -> BaseException | None:
         """Get the exception of the task."""
         return self.future.exception()
+
+    def has_result(self) -> bool:
+        """Check if the task has a result."""
+        return self.future.done() and not self.future.cancelled()
 
     def cancel(self) -> None:
         """Cancel the task."""

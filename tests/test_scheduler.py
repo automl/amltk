@@ -52,7 +52,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
 
     task = scheduler.task(sleep_and_return, name="sleep")
 
-    task.on_success(results.append)
+    task.on_return(results.append)
 
     def begin() -> None:
         task(sleep_time=sleep_time)
@@ -65,10 +65,10 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
     counts = {
         TaskEvent.SUBMITTED: 1,
         TaskEvent.DONE: 1,
-        TaskEvent.SUCCESS: 1,
+        TaskEvent.RETURNED: 1,
         ("sleep", TaskEvent.SUBMITTED): 1,
         ("sleep", TaskEvent.DONE): 1,
-        ("sleep", TaskEvent.SUCCESS): 1,
+        ("sleep", TaskEvent.RETURNED): 1,
         SchedulerEvent.STARTED: 1,
         SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,
@@ -119,23 +119,25 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
     results: list[float] = []
     task_1 = scheduler.task(sleep_and_return, name="first")
     task_2 = scheduler.task(sleep_and_return, name="second")
-    task_1.on_success(results.append)
-    task_2.on_success(results.append)
+    task_1.on_return(results.append)
+    task_2.on_return(results.append)
 
     # Feed the output of task_1 into task_2
-    task_1.on_success(task_2)
-    end_status = scheduler.on_start(lambda: task_1(sleep_time=0.1))
+    task_1.on_return(task_2)
+    scheduler.on_start(lambda: task_1(sleep_time=0.1))
+
+    end_status = scheduler.run(wait=True)
 
     expected_counts = {
         TaskEvent.SUBMITTED: 2,
         TaskEvent.DONE: 2,
-        TaskEvent.SUCCESS: 2,
+        TaskEvent.RETURNED: 2,
         ("first", TaskEvent.SUBMITTED): 1,
         ("first", TaskEvent.DONE): 1,
-        ("first", TaskEvent.SUCCESS): 1,
+        ("first", TaskEvent.RETURNED): 1,
         ("second", TaskEvent.SUBMITTED): 1,
         ("second", TaskEvent.DONE): 1,
-        ("second", TaskEvent.SUCCESS): 1,
+        ("second", TaskEvent.RETURNED): 1,
         SchedulerEvent.STARTED: 1,
         SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,
@@ -167,10 +169,10 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
     expected_counts = {
         TaskEvent.SUBMITTED: 1,
         TaskEvent.DONE: 1,
-        TaskEvent.SUCCESS: 1,
+        TaskEvent.RETURNED: 1,
         ("sleep", TaskEvent.SUBMITTED): 1,
         ("sleep", TaskEvent.DONE): 1,
-        ("sleep", TaskEvent.SUCCESS): 1,
+        ("sleep", TaskEvent.RETURNED): 1,
         SchedulerEvent.STARTED: 1,
         SchedulerEvent.FINISHING: 1,
         SchedulerEvent.FINISHED: 1,

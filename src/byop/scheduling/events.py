@@ -21,10 +21,10 @@ class TaskEvent(Enum):
     CANCELLED = auto()
     """A Task has been cancelled."""
 
-    SUCCESS = auto()
+    RETURNED = auto()
     """A Task has successfully returned a value."""
 
-    ERROR = auto()
+    NO_RETURN = auto()
     """A Task failed to return anything."""
 
     UPDATE = auto()

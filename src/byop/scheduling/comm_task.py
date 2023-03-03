@@ -14,22 +14,23 @@ from collections import Counter
 from dataclasses import dataclass, field
 from multiprocessing import Pipe
 from multiprocessing.connection import Connection
-from typing import Any, Callable, ClassVar, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, TypeVar, overload
 
 from typing_extensions import Self
 
 from byop.asyncm import AsyncConnection
-from byop.event_manager import EventManager
+from byop.exceptions import exception_wrap
 from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
-from byop.scheduling.exception_wrap import exception_wrap
 from byop.scheduling.task import Task, TaskFuture
 from byop.types import CallbackName, Msg, TaskName, TaskParams, TaskReturn
+
+if TYPE_CHECKING:
+    from byop.scheduling import Scheduler
 
 T = TypeVar("T")
 
 
-@dataclass
 class CommTask(Task[TaskParams, TaskReturn]):
     """A task that can communicate with a remote worker.
 
@@ -62,7 +63,7 @@ class CommTask(Task[TaskParams, TaskReturn]):
     my_comm_task.on_update(lambda task, msg: print(msg)) # (6)!
     my_comm_task.on_waiting(lambda task: task.send(42)) # (7)!
 
-    my_comm_task.on_success(lambda result: print(results))
+    my_comm_task.on_return(lambda result: print(results))
     ```
 
     1. The task sends `x * 2` to the scheduler,
@@ -72,7 +73,7 @@ class CommTask(Task[TaskParams, TaskReturn]):
         triggering [`WAITING`][byop.scheduling.events.TaskEvent.WAITING].
     4. The task returns a result, triggering
         [`DONE`][byop.scheduling.events.TaskEvent.DONE] and
-        [`SUCCESS`][byop.scheduling.events.TaskEvent.SUCCESS].
+        [`RETURNED`][byop.scheduling.events.TaskEvent.RETURNED].
     5. Create a task with a [`Comm`][byop.scheduling.comm_task.Comm].
     6. Register a callback to be called when the task sends an update.
     7. Register a callback to be called when the task is waiting for a
@@ -86,15 +87,26 @@ class CommTask(Task[TaskParams, TaskReturn]):
         limit: How many times this task can be run. Defaults to `None`
     """
 
-    name: TaskName
-    function: Callable[TaskParams, TaskReturn] = field(repr=False)
-    _event_manager: EventManager = field(repr=False)
-    _dispatch: Callable[[Self], None] = field(repr=False)
-    _lookup: Callable[[Self], list[TaskFuture[TaskParams, TaskReturn]]] = field(
-        repr=False
-    )
-    limit: int | None = None
-    n_called: int = 0
+    def __init__(
+        self,
+        name: TaskName,
+        function: Callable[TaskParams, TaskReturn],
+        scheduler: Scheduler,
+        limit: int | None = None,
+    ) -> None:
+        """Initialize a task.
+
+        Args:
+            name: The name of the task.
+            function: The function of this task
+            scheduler: The scheduler that this task is registered with.
+            limit: How many times this task can be run. Defaults to `None`
+        """
+        self.name = name
+        self.function = function
+        self.scheduler = scheduler
+        self.limit = limit
+        self.n_called = 0
 
     def __post_init__(self) -> None:
         self.function = exception_wrap(self.function)
@@ -113,7 +125,7 @@ class CommTask(Task[TaskParams, TaskReturn]):
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.ERROR],
+        event: Literal[TaskEvent.NO_RETURN],
         callback: Callable[[BaseException], Any],
         *,
         name: CallbackName | None = ...,
@@ -124,7 +136,7 @@ class CommTask(Task[TaskParams, TaskReturn]):
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.SUCCESS],
+        event: Literal[TaskEvent.RETURNED],
         callback: Callable[[TaskReturn], Any],
         *,
         name: CallbackName | None = ...,
@@ -178,7 +190,7 @@ class CommTask(Task[TaskParams, TaskReturn]):
 
         pred = None if when is None else (lambda counts=self.counts: when(counts))
         _event = (self.name, event)
-        self._event_manager.on(_event, callback, name=name, when=pred)
+        self.scheduler.event_manager.on(_event, callback, name=name, when=pred)
         return self
 
     def on_update(

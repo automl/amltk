@@ -8,6 +8,7 @@ import traceback
 from typing import Callable, Generic, ParamSpec, TypeVar
 
 R = TypeVar("R")
+E = TypeVar("E")
 P = ParamSpec("P")
 
 
@@ -38,7 +39,19 @@ class exception_wrap(Generic[P, R]):  # noqa: N801
         try:
             return self.f(*args, **kwargs)
         except Exception as e:  # noqa: BLE001
-            err_type = type(e)
-            tb = traceback.format_exc()
-            err_msg = str(e)
-            raise err_type(f"{err_msg}\n{tb}") from e
+            raise attach_traceback(e) from e
+
+
+def attach_traceback(exception: E) -> E:
+    """Attach a traceback to the exception message.
+
+    Args:
+        exception: The exception to attach a traceback to.
+
+    Returns:
+        The exception with the traceback attached.
+    """
+    err_type: type[E] = type(exception)
+    tb = traceback.format_exc()
+    err_msg = str(exception)
+    return err_type(f"{err_msg}\n{tb}")  # type: ignore

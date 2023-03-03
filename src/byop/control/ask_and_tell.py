@@ -5,58 +5,72 @@ then tell the optimizer the result of the trial after each trial.
 """
 from __future__ import annotations
 
+from collections import Counter
+from enum import Enum, auto
 import logging
-from typing import Any, Callable, Concatenate, Generic, ParamSpec
+from typing import Any, Callable, Generic, ParamSpec, TypeVar
 
-from byop.optimization import Optimizer
-from byop.scheduling import ExitCode, Scheduler
-from byop.types import Config, TrialResult
+from byop.optimization import Optimizer, Trial, TrialReport
+from byop.scheduling import ExitCode, Scheduler, Task, TaskFuture
+from byop.types import CallbackName, Config, TrialInfo
 
 logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
+Q = ParamSpec("Q")
+FailT = TypeVar("FailT")
+SuccessT = TypeVar("SuccessT")
 
 
-class Objective(Generic[Config, TrialResult]):
-    """A callable that holds a target function and adds in the specific
-    trial number and config when called.
-    """
+class AskAndTellEvent(Enum):
+    """The specific events that can be emitted by the ask-and-tell controller."""
 
-    def __init__(
+    SUCCESS = auto()
+    """Emitted when a trial succeeds."""
+
+    FAILURE = auto()
+    """Emmited when a trial fails."""
+
+
+class AskAndTellTask(Task[[Trial[TrialInfo, Config]], TrialReport[TrialInfo, Config]]):
+    """A task that will run a target function and tell the optimizer the result."""
+
+    def on_success(
         self,
-        target_function: Callable[Concatenate[int, Config, P], TrialResult],
-        *args: P.args,
-        **kwargs: P.kwargs,
+        callback: Callable[[TrialReport[TrialInfo, Config]], None],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter], bool] | None = None,
     ) -> None:
-        """Initialize the objective.
+        """Register a callback to be called when a trial succeeds.
 
         Args:
-            target_function: The target function to run.
-            args: The positional arguments to pass to the target function.
-            kwargs: The keyword arguments to pass to the target function.
+            callback: The callback to call.
+            name: The name of the callback.
+            when: A function that takes the counter of events and returns
+                whether the callback should be called.
         """
-        self.target_function = target_function
-        self.args = args
-        self.kwargs = kwargs
+        self.scheduler.on(AskAndTellEvent.SUCCESS, callback, name=name, when=when)
 
-    def __call__(
+    def on_failure(
         self,
-        trial_number: int,
-        config: Config,
-    ) -> TrialResult:
-        """Call the target function with the trial number and config.
+        callback: Callable[[TrialReport[TrialInfo, Config]], None],
+        *,
+        name: CallbackName | None = None,
+        when: Callable[[Counter], bool] | None = None,
+    ) -> None:
+        """Register a callback to be called when a trial fails.
 
         Args:
-            trial_number: The trial number.
-            config: The config to run the trial with.
-
-        Returns:
-            The result of the target function.
+            callback: The callback to call.
+            name: The name of the callback.
+            when: A function that takes the counter of events and returns
+                whether the callback should be called.
         """
-        return self.target_function(trial_number, config, *self.args, **self.kwargs)
+        self.scheduler.on(AskAndTellEvent.FAILURE, callback, name=name, when=when)
 
 
-class AskAndTell(Generic[Config, TrialResult]):
+class AskAndTell(Generic[TrialInfo, Config]):
     """A controller that will run a target function and tell the optimizer
     the result.
     """
@@ -64,8 +78,8 @@ class AskAndTell(Generic[Config, TrialResult]):
     def __init__(
         self,
         *,
-        objective: Objective[Config, TrialResult],
-        optimizer: Optimizer[Config, TrialResult],
+        objective: Callable[[Trial[TrialInfo, Config]], TrialReport[TrialInfo, Config]],
+        optimizer: Optimizer[TrialInfo, Config],
         scheduler: Scheduler,
         max_trials: int | None = None,
         concurrent_trials: int = 1,
@@ -86,41 +100,53 @@ class AskAndTell(Generic[Config, TrialResult]):
 
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.events = scheduler.event_manager
         self.max_trials = max_trials
         self.concurrent_trials = concurrent_trials
         self._objective = objective
 
-        self.trial = scheduler.task(self._objective, name="trial", limit=max_trials)
+        self.trial = scheduler.task(
+            self._objective,
+            name="trial",
+            limit=max_trials,
+            task_type=AskAndTellTask,
+        )
+
+        # Whenever a worker is done with a task, check if we have
+        # a return value and if we do, raise further events.
+        self.trial.on_done(self._maybe_emit_success_or_fail)
+
+        # Whenever a trial is done, either returned or not, ask for a new trial
+        # and evaluate it.
         self.trial.on_done(self._ask_and_evaluate)
-        self.trial.on_success(self.optimizer.tell)
+
+        # Whenever we get a return value from the objective, tell the
+        # optimizer.
+        self.trial.on_return(self.optimizer.tell)
 
         for i in range(concurrent_trials):
             scheduler.on_start(self._ask_and_evaluate, name=f"worker-{i}")
 
+    def _maybe_emit_success_or_fail(
+        self,
+        task_future: TaskFuture[..., TrialReport[TrialInfo, Config]],
+    ) -> None:
+        # We only care about emitting a success or fail of a trial
+        # if the call to the objective actually returned a value.
+        if task_future.has_result():
+            task_name = task_future.name
+            report: TrialReport[TrialInfo, Config] = task_future.result
+            success = report.successful
+
+            event = AskAndTellEvent.SUCCESS if success else AskAndTellEvent.FAILURE
+            self.events.emit(event, report)
+            self.events.emit((task_name, event), report)
+
     def _ask_and_evaluate(self, *_: Any) -> None:
-        config = self.optimizer.ask()
-        trial_number = self.trial.n_called
-        logger.debug(f"Running {trial_number=} with {config=}")
-        self.trial(trial_number, config)
-
-    @classmethod
-    def objective(
-        cls,
-        target_function: Callable[Concatenate[int, Config, P], TrialResult],
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> Objective[Config, TrialResult]:
-        """Create an objective from a target function, specific to AskAndTell.
-
-        Args:
-            target_function: The target function to run.
-            args: The positional arguments to pass to the target function.
-            kwargs: The keyword arguments to pass to the target function.
-
-        Returns:
-            An objective that can be passed to the AskAndTell controller.
-        """
-        return Objective(target_function, *args, **kwargs)
+        trial = self.optimizer.ask()
+        logger.info(f"Running {trial.name}")
+        logger.debug(f"{trial=}")
+        self.trial(trial)
 
     def run(
         self,

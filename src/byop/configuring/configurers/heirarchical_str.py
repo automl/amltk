@@ -8,11 +8,11 @@ from byop import Pipeline, step, split
 
 pipeline = Pipeline.create(
     step("one", space={"v": [1, 2, 3]})
-    split("split", 
+    split("split",
         step("x", space={"v": [4, 5, 6]}),
         step("y", space={"v": [4, 5, 6]}),
     ),
-    choice("choice", 
+    choice("choice",
         step("a", space={"v": [4, 5, 6]}),
         step("b", space={"v": [4, 5, 6]}),
     )
