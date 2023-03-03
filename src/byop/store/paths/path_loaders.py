@@ -90,7 +90,12 @@ class NPYLoader(PathLoader[np.ndarray]):
     @classmethod
     def load(cls, path: Path, /) -> np.ndarray:
         """See [`Loader.load`][byop.store.loader.Loader.load]."""
-        return np.load(path)
+        item = np.load(path)
+        if not isinstance(item, np.ndarray):
+            msg = f"Expected `np.ndarray` from {path=} but got `{type(item).__name__}`."
+            raise TypeError(msg)
+
+        return item
 
     @classmethod
     def save(cls, obj: np.ndarray, path: Path, /) -> None:
@@ -199,7 +204,13 @@ class JSONLoader(PathLoader[dict | list]):
     def load(cls, path: Path, /) -> dict | list:
         """See [`Loader.load`][byop.store.loader.Loader.load]."""
         with path.open("r") as f:
-            return json.load(f)
+            item = json.load(f)
+
+        if not isinstance(item, (dict, list)):
+            msg = f"Expected `dict | list` from {path=} but got `{type(item).__name__}`"
+            raise TypeError(msg)
+
+        return item
 
     @classmethod
     def save(cls, obj: dict | list, path: Path, /) -> None:
@@ -242,7 +253,13 @@ class YAMLLoader(PathLoader[dict | list]):
             raise ModuleNotFoundError("PyYAML is not installed")
 
         with path.open("r") as f:
-            return yaml.safe_load(f)
+            item = yaml.safe_load(f)
+
+        if not isinstance(item, (dict, list)):
+            msg = f"Expected `dict | list` from {path=} but got `{type(item).__name__}`"
+            raise TypeError(msg)
+
+        return item
 
     @classmethod
     def save(cls, obj: dict | list, path: Path, /) -> None:
@@ -279,7 +296,11 @@ class PickleLoader(PathLoader[Any]):
 
     @classmethod
     def can_load(
-        cls, path: Path, /, *, check: type | None = None  # noqa: ARG003
+        cls,
+        path: Path,
+        /,
+        *,
+        check: type | None = None,  # noqa: ARG003
     ) -> bool:
         """See [`Loader.can_load`][byop.store.loader.Loader.can_load]."""
         return path.suffix in (".pkl", ".pickle")

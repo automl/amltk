@@ -220,9 +220,7 @@ disallow_untyped_defs = true       # All functions must have types
 disallow_untyped_decorators = true # ... even decorators
 disallow_incomplete_defs = true    # ...all types
 
-enable_incomplete_feature = [
-    "TypeVarTuple"
-]
+warn_return_any = true
 
 
 [[tool.mypy.overrides]]
@@ -235,11 +233,7 @@ disallow_incomplete_defs = false    # Sometimes we just want to ignore verbose t
 module = [
   "sklearn.*",
   "ConfigSpace.*",
-  "networkx.*",
-  "matplotlib.*",
-  "pygraphviz.*",
   "pandas.*",
   "more_itertools.*",
-  "strenum",
 ]
 ignore_missing_imports = true

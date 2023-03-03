@@ -210,6 +210,7 @@ class Scheduler:
     ) -> TaskT:
         ...
 
+    # NOTE: Mypy says doesn't implement signature of overload 3, not sure why
     def task(  # type: ignore
         self,
         function: Callable[P, R] | Callable[Concatenate[Comm, P], R],
@@ -251,9 +252,16 @@ class Scheduler:
                 scheduler=self,
             )
 
-        task_cls = CommTask if comms else Task
-        return task_cls(
-            function=function,
+        if comms:
+            return CommTask(
+                function=function,  # type: ignore
+                name=name,
+                limit=limit,
+                scheduler=self,
+            )
+
+        return Task(
+            function=function,  # type: ignore
             name=name,
             limit=limit,
             scheduler=self,
