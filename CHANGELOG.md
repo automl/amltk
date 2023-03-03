@@ -1,3 +1,13 @@
+## v0.8.0 (2023-03-03)
+
+### Feat
+
+- **optimizer**: SMAC intregration
+
+### Fix
+
+- Merge conflict
+
 ## v0.7.0 (2023-02-24)
 
 ### Feat
