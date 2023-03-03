@@ -241,13 +241,11 @@ if __name__ == "__main__":
         }
     )
 
-<<<<<<< HEAD
     space = pipeline.space(parser="auto")  # Your own space impl.
-=======
     here = Path(__file__).absolute().parent
     logs = here / "logs-test-dask-slurm"
     logs.mkdir(exist_ok=True)
-    
+
     # For testing out slurm
     #n_workers = 256
     #SLURMCluster.job_cls.submit_command = "sbatch --bosch"
@@ -269,7 +267,6 @@ if __name__ == "__main__":
     scheduler = Scheduler.with_processes(n_workers)
     rs = RandomSearch(space=space, sampler=ConfigSpaceSampler)
     objective = AskAndTell.objective(target_function, bucket=bucket, pipeline=pipeline)
->>>>>>> 8616616dc9f8a6ce63cb2ca6eb6d80e5e700d2f5
 
     optimizer = ...  # Your own optimizer
     scheduler = Scheduler(executor=...)  # Your own execution backend
@@ -280,12 +277,7 @@ if __name__ == "__main__":
         objective=objective,
         optimizer=optimizer,
         scheduler=scheduler,
-<<<<<<< HEAD
         max_trials=20,
-=======
-        optimizer=rs,
-        max_trials=n_workers * 2,
->>>>>>> 8616616dc9f8a6ce63cb2ca6eb6d80e5e700d2f5
         concurrent_trials=n_workers - 1,
     )
 
