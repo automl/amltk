@@ -168,7 +168,10 @@ class Scheduler:
         function: Callable[P, R],
         *,
         name: TaskName | None | Literal[True] = ...,
-        limit: int | None = ...,
+        call_limit: int | None = ...,
+        memory_limit: int | tuple[int, str] | None = ...,
+        cpu_time_limit: float | tuple[float, str] | None = ...,
+        wall_time_limit: float | tuple[float, str] | None = ...,
         comms: Literal[False] = False,
         task_type: None = None,
     ) -> Task[P, R]:
@@ -180,7 +183,10 @@ class Scheduler:
         function: Callable[Concatenate[Comm, P], R],
         *,
         name: TaskName | None | Literal[True] = ...,
-        limit: int | None = ...,
+        call_limit: int | None = ...,
+        memory_limit: int | tuple[int, str] | None = ...,
+        cpu_time_limit: float | tuple[float, str] | None = ...,
+        wall_time_limit: float | tuple[float, str] | None = ...,
         comms: Literal[True],
         task_type: None = None,
     ) -> CommTask[P, R]:
@@ -192,7 +198,10 @@ class Scheduler:
         function: Callable[Concatenate[Comm, P], R],
         *,
         name: TaskName | None | Literal[True] = ...,
-        limit: int | None = ...,
+        call_limit: int | None = ...,
+        memory_limit: int | tuple[int, str] | None = ...,
+        cpu_time_limit: float | tuple[float, str] | None = ...,
+        wall_time_limit: float | tuple[float, str] | None = ...,
         comms: Literal[True],
         task_type: type[CommTaskT],
     ) -> CommTaskT:
@@ -204,8 +213,11 @@ class Scheduler:
         function: Callable[P, Any],
         *,
         name: TaskName | None | Literal[True] = ...,
-        limit: int | None = ...,
+        call_limit: int | None = ...,
         comms: bool = ...,
+        memory_limit: int | tuple[int, str] | None = ...,
+        cpu_time_limit: float | tuple[float, str] | None = ...,
+        wall_time_limit: float | tuple[float, str] | None = ...,
         task_type: type[TaskT],
     ) -> TaskT:
         ...
@@ -215,7 +227,10 @@ class Scheduler:
         function: Callable[P, R] | Callable[Concatenate[Comm, P], R],
         *,
         name: TaskName | None | Literal[True] = None,
-        limit: int | None = None,
+        call_limit: int | None = None,
+        memory_limit: int | tuple[int, str] | None = None,
+        cpu_time_limit: int | tuple[float, str] | None = None,
+        wall_time_limit: int | tuple[float, str] | None = None,
         comms: bool = False,
         task_type: type[TaskT] | type[CommTaskT] | None = None,
     ) -> Task[P, R] | CommTask[P, R] | TaskT | CommTaskT:
@@ -225,9 +240,18 @@ class Scheduler:
             function: The function to wrap up as a task.
             name: The name of the task, if None, the name of the function
                 will be used. If True, a unique name will be generated.
-            limit: The maximum number of times this task can be run.
+            call_limit: The maximum number of times this task can be run.
             comms: Whether the function requires a `Comm` to `send`
                 and `recv`.
+            memory_limit: A memory limit to set on the function.
+                This uses `Pynisher` and runs the function in a
+                subprocess wherever your executor runs the function.
+            cpu_time_limit: A cpu time limit to set on the function.
+                This uses `Pynisher` and runs the function in a
+                subprocess wherever your executor runs the function.
+            wall_time_limit: A wall time limit to set on the function.
+                This uses `Pynisher` and runs the function in a
+                subprocess wherever your executor runs the function.
             task_type: The custom type of task to create. Must extend
                 from [`Task`][byop.scheduling.Task]
                 or [`CommTask`][byop.scheduling.CommTask].
@@ -247,7 +271,10 @@ class Scheduler:
             return task_type(
                 function=function,
                 name=name,
-                limit=limit,
+                call_limit=call_limit,
+                memory_limit=memory_limit,
+                cpu_time_limit=cpu_time_limit,
+                wall_time_limit=wall_time_limit,
                 scheduler=self,
             )
 
@@ -255,7 +282,10 @@ class Scheduler:
         return task_cls(
             function=function,
             name=name,
-            limit=limit,
+            call_limit=call_limit,
+            memory_limit=memory_limit,
+            cpu_time_limit=cpu_time_limit,
+            wall_time_limit=wall_time_limit,
             scheduler=self,
         )
 
@@ -292,7 +322,12 @@ class Scheduler:
                 **kwargs,
             )
             future = asyncio.wrap_future(sync_future, loop=loop)
-            task_future = CommTaskFuture(future=future, desc=task, comm=scheduler_comm)
+            # NOTE: Not really sure why the below fails a type check.
+            #   My best guess is due to the bound `CommTaskT` not being
+            #   fully compatible.
+            task_future = CommTaskFuture(  # type: ignore
+                future=future, desc=task, comm=scheduler_comm
+            )
 
         future.add_done_callback(self._on_task_complete)
 
@@ -357,8 +392,8 @@ class Scheduler:
             self.event_manager.emit((task_name, TaskEvent.RETURNED), result)
         else:
             logger.debug(f"{task_future} failed with Exception:`{exception}`")
-            self.event_manager.emit(TaskEvent.NO_RETURN, exception)
-            self.event_manager.emit((task_name, TaskEvent.NO_RETURN), exception)
+            self.event_manager.emit(TaskEvent.EXCEPTION, exception)
+            self.event_manager.emit((task_name, TaskEvent.EXCEPTION), exception)
 
         # If dealing with a comm task, get the async task that was in
         # charge of monitoring the pipes and cancel it, as well as close
@@ -640,8 +675,8 @@ class Scheduler:
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.NO_RETURN]
-        | tuple[TaskName, Literal[TaskEvent.NO_RETURN]],
+        event: Literal[TaskEvent.EXCEPTION]
+        | tuple[TaskName, Literal[TaskEvent.EXCEPTION]],
         callback: Callable[[BaseException], Any] | Task[[BaseException], Any],
         *,
         name: CallbackName | None = ...,
@@ -912,9 +947,9 @@ class Scheduler:
     See [`TaskEvent.RETURNED`][byop.scheduling.events.TaskEvent.RETURNED]
     """
 
-    NO_RETURN: ClassVar = TaskEvent.NO_RETURN
+    EXCEPTION: ClassVar = TaskEvent.EXCEPTION
     """Event triggered when the task has not returned anything.
-    See [`TaskEvent.NO_RETURN`][byop.scheduling.events.TaskEvent.NO_RETURN]
+    See [`TaskEvent.EXCEPTION`][byop.scheduling.events.TaskEvent.EXCEPTION]
     """
 
     CANCELLED: ClassVar = TaskEvent.CANCELLED

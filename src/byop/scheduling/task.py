@@ -27,6 +27,7 @@ from typing import (
     overload,
 )
 
+from pynisher import Pynisher
 from typing_extensions import Self
 
 from byop.exceptions import exception_wrap
@@ -44,7 +45,6 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-@dataclass
 class Task(Generic[TaskParams, TaskReturn]):
     """A task is a unit of work that can be scheduled by the scheduler.
 
@@ -75,22 +75,25 @@ class Task(Generic[TaskParams, TaskReturn]):
     ```
 
     1. You could also do: `#!python my_task.on(task.RETURNED, lambda res: print(res))`
-    2. You could also do: `#!python my_task.on(task.NO_RETURN, lambda err: print(err))`
+    2. You could also do: `#!python my_task.on(task.EXCEPTION, lambda err: print(err))`
 
     Attributes:
         name: The name of the task.
         function: The function of this task
         scheduler: The scheduler that this task is registered with.
         n_called: How many times this task has been called.
-        limit: How many times this task can be run. Defaults to `None`
+        call_limit: How many times this task can be run. Defaults to `None`task
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         name: TaskName,
         function: Callable[TaskParams, TaskReturn],
         scheduler: Scheduler,
-        limit: int | None = None,
+        call_limit: int | None = None,
+        memory_limit: int | tuple[int, str] | None = None,
+        cpu_time_limit: int | tuple[float, str] | None = None,
+        wall_time_limit: int | tuple[float, str] | None = None,
     ) -> None:
         """Initialize a task.
 
@@ -98,16 +101,43 @@ class Task(Generic[TaskParams, TaskReturn]):
             name: The name of the task.
             function: The function of this task
             scheduler: The scheduler that this task is registered with.
-            limit: How many times this task can be run. Defaults to `None`
+            call_limit: How many times this task can be run. Defaults to `None`
+            memory_limit: The memory limit for this task. Defaults to `None`
+            cpu_time_limit: The cpu time limit for this task. Defaults to `None`
+            wall_time_limit: The wall time limit for this task. Defaults to `None`
         """
-        self.name = name
-        self.function = function
-        self.scheduler = scheduler
-        self.limit = limit
-        self.n_called = 0
+        self.function: Callable[TaskParams, TaskReturn]
 
-    def __post_init__(self) -> None:
-        self.function = exception_wrap(self.function)
+        self.name = name
+        self.scheduler = scheduler
+        self.call_limit = call_limit
+
+        # We wrap the function such that when an error occurs, it's
+        # traceback is attached to the message. This is because we
+        # can't retrieve the traceback from an exception in another
+        # process.
+        self.function = exception_wrap(function)
+
+        # Pynisher limits
+        self.memory_limit = memory_limit
+        self.cpu_time_limit = cpu_time_limit
+        self.wall_time_limit = wall_time_limit
+
+        # If any of our limits is set, we need to wrap it in Pynisher
+        # to enfore these limits.
+        if any(
+            limit is not None
+            for limit in (memory_limit, cpu_time_limit, wall_time_limit)
+        ):
+            self.function = Pynisher(
+                self.function,
+                memory=memory_limit,
+                cpu_time=cpu_time_limit,
+                wall_time=wall_time_limit,
+                terminate_child_processes=True,
+            )
+
+        self.n_called = 0
 
     def running(self) -> bool:
         """Check if this task is currently running.
@@ -159,7 +189,7 @@ class Task(Generic[TaskParams, TaskReturn]):
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.NO_RETURN],
+        event: Literal[TaskEvent.EXCEPTION],
         callback: Callable[[BaseException], Any],
         *,
         name: CallbackName | None = ...,
@@ -300,7 +330,7 @@ class Task(Generic[TaskParams, TaskReturn]):
         """
         return self.on(TaskEvent.RETURNED, callback, name=name, when=when)
 
-    def on_noreturn(
+    def on_exception(
         self,
         callback: Callable[[BaseException], Any],
         *,
@@ -317,7 +347,7 @@ class Task(Generic[TaskParams, TaskReturn]):
                 returns a boolean. If the boolean is True, the callback will
                 be called.
         """
-        return self.on(TaskEvent.NO_RETURN, callback, name=name, when=when)
+        return self.on(TaskEvent.EXCEPTION, callback, name=name, when=when)
 
     def __call__(
         self: Self,
@@ -327,10 +357,10 @@ class Task(Generic[TaskParams, TaskReturn]):
         """Dispatch this task.
 
         !!! note
-            If `task.limit` was set and this limit was reached, the call
+            If `task.call_limit` was set and this limit was reached, the call
             will have no effect and nothing well be dispatched. Only a
             debug message will be logged. You can use `task.n_called`
-            and `task.limit` to check if the limit was reached.
+            and `task.call_limit` to check if the limit was reached.
 
         Args:
             *args: The positional arguments to pass to the task.
@@ -339,10 +369,10 @@ class Task(Generic[TaskParams, TaskReturn]):
         Returns:
             The future of the task, or `None` if the limit was reached.
         """
-        if self.limit and self.n_called >= self.limit:
+        if self.call_limit and self.n_called >= self.call_limit:
             msg = (
                 f"Task {self.name} has been called {self.n_called} times,"
-                f" reaching its limit {self.limit}."
+                f" reaching its call_limit {self.call_limit}."
             )
             logger.debug(msg)
             return None
@@ -370,9 +400,9 @@ class Task(Generic[TaskParams, TaskReturn]):
     See [`TaskEvent.RETURNED`][byop.scheduling.events.TaskEvent.RETURNED]
     """
 
-    NO_RETURN: ClassVar = TaskEvent.NO_RETURN
+    EXCEPTION: ClassVar = TaskEvent.EXCEPTION
     """Event triggered when the task has errored.
-    See [`TaskEvent.NO_RETURN`][byop.scheduling.events.TaskEvent.NO_RETURN]
+    See [`TaskEvent.EXCEPTION`][byop.scheduling.events.TaskEvent.EXCEPTION]
     """
 
     CANCELLED: ClassVar = TaskEvent.CANCELLED
