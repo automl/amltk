@@ -31,7 +31,7 @@ hub fork
 ```
 
 #### Installation
-To install `amltk` for development, we rely on specify dependancies
+To install `amltk` for development, we rely on specific dependancies
 that are not required for the actual library to run. There are listed
 in the `pyproject.toml` under the `[project.optional-dependencies]` header.
 
@@ -109,6 +109,11 @@ your code where these changes are required and upon fixing them, we will
 happily merge these into the `main` branch and thank you for your
 open-source contributions!
 
+Good practice is to actually review your own PR after submitting it.
+You'll often find small issues such as doc strings or even small logical
+issues. In general, if you can't understand your own PR, it's likely we
+wont either.
+
 ##### Granting access to your fork
 If the PR requires larger structural changes or more discussion, there
 will likely be a few back-and-forth discussion points which we will
@@ -121,25 +126,91 @@ integration. To do so, please follow the instructions
 
 
 ## Commits
-TODO Mention conventional commits, link to docs, some basic use cases
-and finally motivation to do so
+This library uses [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/#summary)
+as a way to write commits. This makes commit messages simpler and easier
+to read as well as allows for an easier time managing the repo, such as
+changelogs and versioning. This is important enough that we even enforce
+this through `pre-commit` to fail the commit if the message does not follow
+the format. Please follow the link above to find out more but for reference,
+here are some short examples:
+```git
+fix(scheduler): Use X instead of Y
+feat(pipeline): Allow for Z
+refactor(Optuna): Move integrations to seperate file
+doc(Example): Integrating custom space parser
+```
 
 ## Testing
+Our testing for the library is done using [`pytest`](https://docs.pytest.org/),
+with some additional utilities from [`pytest-coverage`](https://pytest-cov.readthedocs.io/en/latest/)
+for code coverage and [`pytest-cases`](https://smarie.github.io/python-pytest-cases/)
+for test structure.
 
-TODO Mention we use pytest and some basic commands to do so
+In general, writing a test and running `pytest` to test the whole library should be sufficient.
+If you need more fine grained control, such as only testing a particular test, please refer to [this
+cheatsheet](https://gist.github.com/kwmiebach/3fd49612ef7a52b5ce3a).
+```bash
+pytest  # Test whole library
+pytest -k "test_name_of_my_test"  # Test a particular test
+pytest --lf -x  # Run all tests but stop on first failed, beginning from the latest failure
+```
 
+We have automated testing that will happen so this will be seen during the PR. This note is
+here for completion and for contributing your own tests and testing them.
+
+If you are not sure how to test your contribution or need some pointers to get started, please
+reach out in the PR comments and we will be happy to assist!
 
 ## Code Quality
+To ensure a consistent code quality and to reduce noise in the PR, there are a selection of code
+quality tools that run. These will be run automatically before a commit can be done with
+[`pre-commit`](https://pre-commit.com/). The configuration for this can be found in
+`.pre-commit-config.yaml`. All of these can be manually triggered using `just check`.
 
-TODO Link to all the tools and what they do
+The primary linter we use is [`ruff`](https://github.com/charliermarsh/ruff), an amazingly fast
+python code linter which subsumes many previously used linters like, `pylint`, `flake8`, `pep8`,
+and even import sorters like `isort`. This also includes automatic fixes
+for many of the smaller problems that occur. The fixes can be done with `just fix`.
 
+This codebase also relies heavily on pythons `typing` and [`mypy`](https://mypy.readthedocs.io/en/stable/)
+to ensure correctness across modules.
+This is often an area of contention but typing alone means many redundant tests can be removed and
+ensures code is likely to remain working together even after being changed, letting you know if
+this is no longer the case. If any of the typing concepts are confusing, now is a good chance to learn
+and we would be happy to assist in helping properly type your PR if things do not work. If all else
+fails, please feel free to introduce a `# type: ignore` to tell `mypy` to shut up **along with a
+description to why it is there**. This will help future contributors and maintainers understand the
+reasons behind these ignores. You can find a cheatsheet for basic mypy type hinting [here](https://mypy.readthedocs.io/en/stable/cheat_sheet_py3.html#cheat-sheet-py3).
+
+Lastly, we use [`black`](https://github.com/psf/black) which is a python code formatter. This
+will not change any logical meaning of your python code but simply format it in a consistent
+manner so that the code is consistent and follows the same standards. This can be run with
+`just fix`.
 
 ## Git workflow
-TODO Mention `main` branch with prs directly into main and some motivation
+We follow a _PR into trunk_ development cycle, in which all development is done in
+feature branches and the merged into `main`. The reason for feature branches is to
+allow multiple maintainers to actively work on `amltk` without interfering. Others
+familiar with a `main` and `development` branch may notice the lack of a `development`
+branch here. This is an intentional decision to reduce maintence overhead of constant
+merging of `main` and `development` to ensure they remain in-sync, allowing us to
+push changes faster.
 
 ## Documentation
-TODO basic instructions on how to view it, set it up contiunously. Links
-to mkdocs and provide basic references for some of its cool features
+The documentation is handled by [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/)
+with some additional plugins. This is a markdown based documentation generator which allows
+custom documentation and renders API documentation written in the code itself.
+
+You can live view documentation changes by running `just docs`,
+which will open your webbrowser and then run `mkdocs` to watch all files
+and live update any changes that occur.
+
+Where possible prefer to describe most of your documentation in code, with more custom
+documentation generally not required for PRs.
+
+You can find a collection of features for custom documentation [here](https://squidfunk.github.io/mkdocs-material/reference/)
+as well as code reference documentation [here](https://mkdocstrings.github.io/usage/)
+
 
 ## Type Driven Development
 If you are unfamiliar with `types` in `python` then please consider
@@ -148,8 +219,6 @@ on types to ensure code editors can be as smart as possible, helping
 guide users to writing correct code while using `amltk`.
 
 #### What is Type Driven Development?
-TODO: Link to a basic introduction to typing.
-
 It probably means a lot of things, but for the purposes of `amltk` it
 means bundle objects that belong together, together. This also means
 favour re-usable components that are decoupled from where they are
@@ -160,12 +229,12 @@ being composed.
 
 Lets take a look at a few examples at these different concepts.
 
-##### A Timer
-TODO: Link to dataclasses
+You can find a basic cheatsheet for types [here](https://mypy.readthedocs.io/en/stable/cheat_sheet_py3.html#cheat-sheet-py3)
 
+##### A Timer
 Consider we need some timing functionality, that is we need to start
 some `Timer` and then eventually `stop` it and record a `start`, `end`
-and `duration`. We will use pythons `@dataclass` to create a simple
+and `duration`. We will use pythons [`@dataclass`](https://docs.python.org/3/library/dataclasses.html) to create a simple
 implementation and slowly iterate until we reach a well designed timer.
 
 ```python
@@ -391,7 +460,7 @@ as a means of implementing their desired behaviours, you complicate
 both your own `class` design, but also the job of a user.
 
 However, sometimes you really do need a user to implement a certain
-contract, for this we will use python's version of interfaces, `Protocol`s.
+contract, for this we will use python's version of interfaces, [`Protocol`s](https://mypy.readthedocs.io/en/stable/protocols.html).
 By relying on **interfaces**, which do not implement any functionality, you
 provide a clean interaction point between people who wish to integrate
 code and the main libraries inner workings, without intertwining the two.
@@ -412,6 +481,84 @@ x: dict[str, Any] = ...
 In the above two examples, you've declared `int` as the specialized type
 of the container `list`, and likewise for the `dict`, you've indicated
 that the keys are `str` and that the values can be `Any`thing.
+
+To illustrate the need for generics, imagine you have a function which just
+returns whatever was passed in.
+
+```python
+def f(x):
+    return x
+
+result = f("hello") # Tools don't know result is a str
+result = f(4)       # Tools don't know result is an int
+```
+
+While it's clear that result is a `str`, `mypy` and your editor have no way of knowing this.
+To signify this to `mypy`, we use what is called a `TypeVar`.
+
+```python
+from typing import TypeVar
+
+T = TypeVar("T")
+
+def f(x: T) -> T:
+    return x
+
+result: str = f("hello") # Yup, passed in type is an str so result is a str
+result: int = f(4)       # Yup, passed in type is an int so result is an int
+```
+
+We can do even more funky things with `Generic` and `TypeVar` combined, to essentially
+have objects bound to specific types information. This is similar to generics from other
+languages and is what let's us write things like `list[str]`.
+
+```python
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
+
+class Box(Generic[T])
+    """Simple class which holds an item"""
+
+    def __init__(self, x: T):
+        self.x = x
+
+box_str: Box[str] = Box("hello")
+box_str.x  # mypy knows this is a str
+
+box_int: Box[int] = Box(4)
+box_int.x  # mypy knows this is an int
+
+def unbox(boxes: list[Box[T]]) -> list[T]:
+    return [box.x for box in boxes]
+
+unbox([Box(1), Box(4)])  # [1, 4] <- known to be a box of int
+unbox([Box(1), Box("hello")])  # [1, "hello"] <- list[int | str]
+```
+
+As a last quick example to get up to scratch, we can `bound` a `TypeVar` to basically
+say that the type it can be must inherit from a specific class.
+
+```python
+from typing import TypeVar
+
+T = TypeVar("T", bound=float)
+
+class Box(Generic[T])
+    """Simple class which holds an item"""
+
+    def __init__(self, x: T):
+        self.x = x
+
+Box(1.0)  # okay
+Box(1)  # okay, int inherits from float
+Box("hello")  # Not okay, str does not inherit from float
+```
+
+There are many more cool typing concepts that could be covered, like `ParamSpec`, `Self`,
+`Literal`, `Callable`, `Sequence`, ... but please refer to
+the [python typing documentation](https://docs.python.org/3/library/typing.html) for more.
+
 
 ## Tips
 
@@ -454,8 +601,16 @@ time to do so to get a much happier coding experience.
 TODO
 ##### PyCharm
 TODO
+
 ##### Neovim
-TODO
+A person of culture, very nice. We recommend using [`mason`](https://github.com/williamboman/mason.nvim), [`mason-lsp-config`](https://github.com/williamboman/mason-lspconfig.nvim)
+and [`null-ls`](https://github.com/jose-elias-alvarez/null-ls.nvim) plugins for setting up many of the linting tools used here.
+
+You can find my (eddiebergman) setup in my `.dot` files
+for [`mason`](https://github.com/eddiebergman/.dot/blob/f209d028ecd6564508c33f653d600c922fc3c041/.config/nvim/lua/config/mason.lua#L1-L22)
+and [`null-ls`](https://github.com/eddiebergman/.dot/blob/f209d028ecd6564508c33f653d600c922fc3c041/.config/nvim/lua/config/null-ls.lua#L1-L107).
+Feel free to leave an issue there if something is not clear but it can't be explained
+here for brevity's sake
 
 ---
 
@@ -483,8 +638,6 @@ comments, please maintain decorum, respond nicely, and if issues persist,
 then inform the user they will be blocked.
 
 #### Merging
-TODO: Insert link for convential commits
-
 We use `squash-merge` from feature branches to keep the commit log
 to the `convential-commits` standard. This helps automate systems.
 
@@ -506,9 +659,7 @@ code features. Any and all automation to the repository is greatly
 appreciated but should be documented in the `Maintainers` section.
 
 #### Versioning
-TODO: Insert links
-
-Using [`convential-commits`]() and `commitizen`, the versioning of
+Using [`convential-commits`](https://www.conventionalcommits.org/en/v1.0.0/) and `commitizen`, the versioning of
 `amltk` automatically keeps a `CHANGELOG.md` and bumps versions in
 any respective files.
 
