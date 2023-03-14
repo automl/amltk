@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from multiprocessing import Pipe
 from multiprocessing.connection import Connection
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, TypeVar, overload
+from typing import Any, Callable, ClassVar, Literal, TypeVar, overload
 
 from typing_extensions import Self
 
@@ -23,9 +23,6 @@ from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
 from byop.scheduling.task import Task, TaskFuture
 from byop.types import CallbackName, Msg, TaskParams, TaskReturn
-
-if TYPE_CHECKING:
-    pass
 
 T = TypeVar("T")
 
