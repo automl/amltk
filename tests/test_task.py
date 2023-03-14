@@ -24,12 +24,12 @@ def case_process_executor() -> ProcessPoolExecutor:
 
 @case(tags=["executor"])
 def case_dask_executor() -> ClientExecutor:
-    # NOTE: There is logging errors for the workers shutting down
-    # but we can safely ignore it. One limitation might be that
-    # other dask errors get hidden by this.
+    # Dask will raise a warning when re-using the ports, hence
+    # we silence the warnings here.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         cluster = LocalCluster(n_workers=2, silence_logs=logging.ERROR, processes=False)
+
     client = Client(cluster)
     return client.get_executor()
 
