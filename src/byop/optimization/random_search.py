@@ -72,7 +72,7 @@ class RandomSearch(Optimizer[RSTrialInfo[Config], Config]):
         self.trial_count = self.trial_count + 1
         return trial
 
-    def tell(self, _: TrialReport[RSTrialInfo[Config], Config] | BaseException) -> None:
+    def tell(self, _: TrialReport[RSTrialInfo[Config], Config]) -> None:
         """Do nothing with the report.
 
         ???+ note
