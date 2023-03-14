@@ -29,6 +29,7 @@ def case_dask_executor() -> ClientExecutor:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         cluster = LocalCluster(n_workers=2, silence_logs=logging.ERROR, processes=False)
+
     client = Client(cluster)
     return client.get_executor()
 
