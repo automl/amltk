@@ -133,6 +133,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
         status_type = StatusType.CRASHED
         if report.exception is not None:
             status_type = status_types.get(type(report.exception), StatusType.CRASHED)
+            additional_info["exception"] = report.exception
 
         # If we have no reported costs, we need to ensure that we have a
         # valid crash_cost based on the number of objectives
