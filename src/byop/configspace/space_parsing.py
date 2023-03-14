@@ -21,6 +21,7 @@ import numpy as np
 
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split, Step
+import byop.randomness
 from byop.types import Seed
 
 
@@ -94,7 +95,8 @@ def generate_configspace(
     Returns:
         ConfigurationSpace
     """
-    cs = ConfigurationSpace(seed=seed)
+    int_seed = byop.randomness.as_int(seed)
+    cs = ConfigurationSpace(seed=int_seed)
     for splits, parents, step in pipeline.walk():
         _parents = parents if parents is not None else []
         _splits = splits if splits is not None else []

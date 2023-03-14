@@ -12,7 +12,7 @@ from typing import Any, Callable, Generic, ParamSpec, TypeVar
 
 from byop.optimization import Optimizer, Trial, TrialReport
 from byop.scheduling import ExitCode, Scheduler, Task, TaskFuture
-from byop.types import CallbackName, Config, TrialInfo
+from byop.types import CallbackName, Config, TaskName, TrialInfo
 
 logger = logging.getLogger(__name__)
 
@@ -108,45 +108,94 @@ class AskAndTell(Generic[TrialInfo, Config]):
         self.trial = scheduler.task(
             self._objective,
             name="trial",
-            limit=max_trials,
+            call_limit=max_trials,
             task_type=AskAndTellTask,
         )
 
-        # Whenever a worker is done with a task, check if we have
-        # a return value and if we do, raise further events.
-        self.trial.on_done(self._maybe_emit_success_or_fail)
-
         # Whenever a trial is done, either returned or not, ask for a new trial
         # and evaluate it.
-        self.trial.on_done(self._ask_and_evaluate)
+        self.trial.on_done(self.when_done_ask_and_evaluate, name="ask-and-evaluate")
 
-        # Whenever we get a return value from the objective, tell the
-        # optimizer.
-        self.trial.on_return(self.optimizer.tell)
+        # Whenever we get something from a trial, tell the optimizer about it.
+        # This will also emit appropriate events.
+        self.trial.on_done(self.when_done_tell_optimizer, name="tell-optimizer")
 
+        # Set up the scheduler to run the callback several times
         for i in range(concurrent_trials):
-            scheduler.on_start(self._ask_and_evaluate, name=f"worker-{i}")
+            scheduler.on_start(
+                self.when_done_ask_and_evaluate,
+                name=f"ask-and-tell-worker-{i}",
+            )
 
-    def _maybe_emit_success_or_fail(
+        self.trial_lookup: dict[TaskName, Trial[TrialInfo, Config]] = {}
+
+    def when_done_tell_optimizer(
         self,
-        task_future: TaskFuture[..., TrialReport[TrialInfo, Config]],
+        task_future: TaskFuture[
+            [Trial[TrialInfo, Config]], TrialReport[TrialInfo, Config]
+        ],
     ) -> None:
-        # We only care about emitting a success or fail of a trial
-        # if the call to the objective actually returned a value.
+        """Tell the optimizer about the results of a trial.
+
+        Args:
+            task_future: The future for the task that completed.
+        """
+        if task_future not in self.trial_lookup:
+            raise RuntimeError(
+                f"Task {task_future} recorded as done but the controller has no"
+                " record of it. Please raise an issue on github!"
+            )
+
+        if task_future.cancelled():
+            # There's really nothing we can do of value if it was cancelled.
+            # Telling the optimizer about it is misleading as it's not due
+            # to the trial itself. There's also no SUCCESS or FAILURE state
+            # to really report to the user. They can use the `on_cancelled`
+            # callback to handle this.
+            return
+
         if task_future.has_result():
-            task_name = task_future.name
-            report: TrialReport[TrialInfo, Config] = task_future.result
-            success = report.successful
+            report = task_future.result
+        else:
+            trial = self.trial_lookup[task_future.name]
+            if trial.exception is not None:
+                report = trial.crashed()
+            elif task_future.exception is not None:
+                report = trial.crashed(exception=task_future.exception)
+            else:
+                raise RuntimeError(
+                    f"Task {task_future} has no result or exception we can use."
+                    " Please raise an issue on github!"
+                )
 
-            event = AskAndTellEvent.SUCCESS if success else AskAndTellEvent.FAILURE
-            self.events.emit(event, report)
-            self.events.emit((task_name, event), report)
+        self.optimizer.tell(report)
 
-    def _ask_and_evaluate(self, *_: Any) -> None:
+        task_name = task_future.name
+        if report.successful:
+            event = AskAndTellEvent.SUCCESS
+        else:
+            event = AskAndTellEvent.FAILURE
+
+        self.events.emit(event, report)
+        self.events.emit((task_name, event), report)
+
+        if not task_future.cancelled():
+            raise RuntimeError(
+                f"Task {task_future} has neither a result nor an exception."
+                " Please raise an issue on github!"
+            )
+
+    def when_done_ask_and_evaluate(self, *_: Any) -> None:
+        """Ask the optimizer for a new trial and evaluate it."""
         trial = self.optimizer.ask()
         logger.info(f"Running {trial.name}")
         logger.debug(f"{trial=}")
-        self.trial(trial)
+        future = self.trial(trial)
+
+        # If there is a future for the task, make sure we can look up the trial
+        # that spawned it for later
+        if future is not None:
+            self.trial_lookup[future.name] = trial
 
     def run(
         self,

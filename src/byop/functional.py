@@ -125,15 +125,23 @@ def rgetattr(obj: Any, attr: str, *args: Any) -> Any:
     return reduce(_getattr, [obj, *attr.split(".")])
 
 
-def funcname(func: Callable) -> str:
+def funcname(func: Callable, default: str | None = None) -> str:
     """Get the name of a function.
 
     Args:
         func: The function to get the name of.
+        default: The default value to return if the name cannot be
+            determined automatically.
 
     Returns:
         The name of the function.
     """
     if isinstance(func, partial):
         return func.func.__name__
-    return func.__qualname__
+    if hasattr(func, "__qualname__"):
+        return func.__qualname__
+    if hasattr(func, "__class__"):
+        return func.__class__.__name__
+    if default is not None:
+        return default
+    return str(func)

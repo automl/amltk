@@ -24,8 +24,8 @@ class TaskEvent(Enum):
     RETURNED = auto()
     """A Task has successfully returned a value."""
 
-    NO_RETURN = auto()
-    """A Task failed to return anything."""
+    EXCEPTION = auto()
+    """A Task failed to return anything but an exception."""
 
     UPDATE = auto()
     """A CommTask has sent an update with `send`."""

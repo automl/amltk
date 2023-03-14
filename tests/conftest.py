@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 import re
-from typing import Iterator
+from typing import Any, Iterator
 
 import pytest
 
@@ -74,6 +74,24 @@ def event_loop(_):
     loop = asyncio.get_event_loop()
     yield loop
     loop.close()
+
+
+def pytest_sessionfinish(*_: Any) -> None:
+    """Called after tests finished, before returning the exit status to the system."""
+    # So Dask does something with logging which causes the logging to become
+    # a massive mess after the tests run. This is the hack I could find to fix
+    # it. However I'm not sure if this causes long term issues to occur.
+    # I don't advise reading through the whole thread, it gets a bit messy
+    # and caused conflict. Someone even quotes Linus Torvald.
+    # https://github.com/pytest-dev/pytest/issues/5502#issuecomment-647157873
+    # https://github.com/pytest-dev/pytest/issues/5502#issuecomment-702374419
+    import logging
+
+    loggers = [logging.getLogger(), *list(logging.Logger.manager.loggerDict.values())]
+    for logger in loggers:
+        handlers = getattr(logger, "handlers", [])
+        for handler in handlers:
+            logger.removeHandler(handler)  # type: ignore
 
 
 pytest_plugins = fixture_modules()

@@ -4,7 +4,14 @@ import logging
 
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.optimization import Optimizer, RandomSearch, Trial, TrialReport
+from byop.optimization import (
+    FailReport,
+    Optimizer,
+    RandomSearch,
+    SuccessReport,
+    Trial,
+    TrialReport,
+)
 from byop.optimization.smac_opt import SMACOptimizer
 from byop.pipeline import Pipeline, step
 from byop.timing import TimeInterval, TimeKind
@@ -52,9 +59,9 @@ def test_report_success(optimizer: Optimizer, time_kind: TimeKind):
     report = target_function(trial, time_kind=time_kind, err=None)
     optimizer.tell(report)
 
+    assert isinstance(report, SuccessReport)
     assert valid_time_interval(report.time)
     assert report.info is trial.info
-    assert report.exception is None
     assert report.successful is True
     assert report.results == {"cost": 1}
 
@@ -70,6 +77,7 @@ def test_report_failure(optimizer: Optimizer, time_kind: TimeKind):
         err=ValueError("ValueError happened"),
     )
     optimizer.tell(report)
+    assert isinstance(report, FailReport)
 
     assert valid_time_interval(report.time)
     assert report.info is trial.info
