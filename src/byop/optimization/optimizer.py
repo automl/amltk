@@ -134,7 +134,7 @@ class Trial(Generic[TrialInfo, Config]):
         """
         if self.timer is None:
             raise RuntimeError(
-                "Cannot fail a trial that has not been started."
+                "Cannot succeed a trial that has not been started."
                 " Please use `with trial.begin():` to start the trial."
             )
 
@@ -210,8 +210,7 @@ class Optimizer(Protocol[TrialInfo, Config]):
         """Tell the optimizer the report for an asked trial.
 
         Args:
-            report: The report of the trial or an exception if it happened in the
-                target function.
+            report: The report for a trial
         """
         ...
 
