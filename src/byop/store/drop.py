@@ -237,7 +237,7 @@ class Drop(Generic[KeyT]):
         else:
             self._remove(self.key)
 
-    def exists(self, *, how: Callable[[KeyT], Any] | None = None) -> bool:
+    def exists(self, *, how: Callable[[KeyT], bool] | None = None) -> bool:
         """Check if the resource exists.
 
         Returns:

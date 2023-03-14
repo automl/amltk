@@ -31,8 +31,11 @@ repos:
       - id: mypy
         additional_dependencies:
           - "attrs"
-          - "strenum"
           - "types-pyyaml"
+          - "types-psutil"
+        args:
+          - "--no-warn-return-any"  # Disable this because it doesn't know about 3rd part imports
+          - "--ignore-missing-imports"
   - repo: https://github.com/psf/black
     rev: 23.1.0
     hooks:
