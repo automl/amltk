@@ -21,8 +21,8 @@ import numpy as np
 
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split, Step
-import byop.randomness
 from byop.types import Seed
+import byop.randomness
 
 
 def remove_hyperparameter(name: str, space: ConfigurationSpace) -> ConfigurationSpace:
@@ -82,7 +82,10 @@ def replace_constants(
     return space
 
 
-def generate_configspace(pipeline: Pipeline, seed: Seed) -> ConfigurationSpace:
+def generate_configspace(
+    pipeline: Pipeline,
+    seed: Seed | None = None,
+) -> ConfigurationSpace:
     """The space for this given pipeline.
 
     Args:
