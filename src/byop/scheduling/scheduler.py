@@ -169,6 +169,7 @@ class Scheduler:
         *,
         name: TaskName | None | Literal[True] = ...,
         call_limit: int | None = ...,
+        concurrent_limit: int | None = ...,
         memory_limit: int | tuple[int, str] | None = ...,
         cpu_time_limit: float | tuple[float, str] | None = ...,
         wall_time_limit: float | tuple[float, str] | None = ...,
@@ -184,6 +185,7 @@ class Scheduler:
         *,
         name: TaskName | None | Literal[True] = ...,
         call_limit: int | None = ...,
+        concurrent_limit: int | None = ...,
         memory_limit: int | tuple[int, str] | None = ...,
         cpu_time_limit: float | tuple[float, str] | None = ...,
         wall_time_limit: float | tuple[float, str] | None = ...,
@@ -199,6 +201,7 @@ class Scheduler:
         *,
         name: TaskName | None | Literal[True] = ...,
         call_limit: int | None = ...,
+        concurrent_limit: int | None = ...,
         memory_limit: int | tuple[int, str] | None = ...,
         cpu_time_limit: float | tuple[float, str] | None = ...,
         wall_time_limit: float | tuple[float, str] | None = ...,
@@ -214,6 +217,7 @@ class Scheduler:
         *,
         name: TaskName | None | Literal[True] = ...,
         call_limit: int | None = ...,
+        concurrent_limit: int | None = ...,
         comms: bool = ...,
         memory_limit: int | tuple[int, str] | None = ...,
         cpu_time_limit: float | tuple[float, str] | None = ...,
@@ -229,6 +233,7 @@ class Scheduler:
         *,
         name: TaskName | None | Literal[True] = None,
         call_limit: int | None = None,
+        concurrent_limit: int | None = None,
         memory_limit: int | tuple[int, str] | None = None,
         cpu_time_limit: int | tuple[float, str] | None = None,
         wall_time_limit: int | tuple[float, str] | None = None,
@@ -242,6 +247,8 @@ class Scheduler:
             name: The name of the task, if None, the name of the function
                 will be used. If True, a unique name will be generated.
             call_limit: The maximum number of times this task can be run.
+            concurrent_limit: How many of this task can be running conccurently.
+                By default this is `None` which means that there is no limit.
             comms: Whether the function requires a `Comm` to `send`
                 and `recv`.
             memory_limit: A memory limit to set on the function.
@@ -272,6 +279,7 @@ class Scheduler:
             return task_type(
                 function=function,
                 name=name,
+                concurrent_limit=concurrent_limit,
                 call_limit=call_limit,
                 memory_limit=memory_limit,
                 cpu_time_limit=cpu_time_limit,
@@ -283,13 +291,18 @@ class Scheduler:
             return CommTask(
                 function=function,  # type: ignore
                 name=name,
-                limit=limit,
+                concurrent_limit=concurrent_limit,
+                call_limit=call_limit,
+                memory_limit=memory_limit,
+                cpu_time_limit=cpu_time_limit,
+                wall_time_limit=wall_time_limit,
                 scheduler=self,
             )
 
         return Task(
             function=function,  # type: ignore
             name=name,
+            concurrent_limit=concurrent_limit,
             call_limit=call_limit,
             memory_limit=memory_limit,
             cpu_time_limit=cpu_time_limit,
