@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     from byop.building import Builder
     from byop.configuring import Configurer
+    from byop.optuna_space.space_parsing import OPTUNA_SEARCH_SPACE
     from byop.parsing import SpaceParser
     from byop.pipeline.components import Split
 
@@ -282,6 +283,15 @@ class Pipeline(Generic[Key, Name]):
     @overload
     def space(
         self,
+        parser: Literal["optuna"],
+        *,
+        seed: Seed | None = ...,
+    ) -> OPTUNA_SEARCH_SPACE:
+        ...
+
+    @overload
+    def space(
+        self,
         parser: Callable[[Pipeline], Space] | Callable[[Pipeline, Seed | None], Space],
         *,
         seed: Seed | None = ...,
@@ -302,6 +312,7 @@ class Pipeline(Generic[Key, Name]):
         parser: (
             Literal["auto"]
             | Literal["configspace"]
+            | Literal["optuna"]
             | type[ConfigurationSpace]
             | Callable[[Pipeline], Space]
             | Callable[[Pipeline, Seed | None], Space]
@@ -309,7 +320,7 @@ class Pipeline(Generic[Key, Name]):
         ) = "auto",
         *,
         seed: Seed | None = None,
-    ) -> Space | ConfigurationSpace | Any:
+    ) -> Space | ConfigurationSpace | OPTUNA_SEARCH_SPACE | Any:
         """Get the space for the pipeline.
 
         Args:
