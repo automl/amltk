@@ -91,6 +91,7 @@ class Task(Generic[TaskParams, TaskReturn]):
         function: Callable[TaskParams, TaskReturn],
         scheduler: Scheduler,
         call_limit: int | None = None,
+        concurrent_limit: int | None = None,
         memory_limit: int | tuple[int, str] | None = None,
         cpu_time_limit: int | tuple[float, str] | None = None,
         wall_time_limit: int | tuple[float, str] | None = None,
@@ -102,6 +103,8 @@ class Task(Generic[TaskParams, TaskReturn]):
             function: The function of this task
             scheduler: The scheduler that this task is registered with.
             call_limit: How many times this task can be run. Defaults to `None`
+            concurrent_limit: How many of this task can be running conccurently.
+                By default this is `None` which means that there is no limit.
             memory_limit: The memory limit for this task. Defaults to `None`
             cpu_time_limit: The cpu time limit for this task. Defaults to `None`
             wall_time_limit: The wall time limit for this task. Defaults to `None`
@@ -111,6 +114,7 @@ class Task(Generic[TaskParams, TaskReturn]):
         self.name = name
         self.scheduler = scheduler
         self.call_limit = call_limit
+        self.concurrent_limit = concurrent_limit
 
         # We wrap the function such that when an error occurs, it's
         # traceback is attached to the message. This is because we
@@ -146,6 +150,14 @@ class Task(Generic[TaskParams, TaskReturn]):
             bool: True if the task is currently running.
         """
         return any(future.running() for future in self.futures())
+
+    def running_count(self) -> int:
+        """Get the number of times this task is currently running.
+
+        Returns:
+            int: The number of this task that is currently running.
+        """
+        return sum(future.running() for future in self.futures())
 
     def futures(self) -> list[TaskFuture[TaskParams, TaskReturn]]:
         """Get the futures for this task.
@@ -373,6 +385,15 @@ class Task(Generic[TaskParams, TaskReturn]):
             msg = (
                 f"Task {self.name} has been called {self.n_called} times,"
                 f" reaching its call_limit {self.call_limit}."
+            )
+            logger.debug(msg)
+            return None
+
+        running_count = self.running_count()
+        if self.concurrent_limit is not None and running_count >= self.concurrent_limit:
+            msg = (
+                f"Task {self.name} has {running_count} running instances,"
+                f" reaching its concurrent_limit {self.concurrent_limit}."
             )
             logger.debug(msg)
             return None

@@ -143,3 +143,33 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
         SchedulerEvent.FINISHED: 1,
     }
     assert dict(scheduler.counts) == counts
+
+
+def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
+    task = scheduler.task(time_wasting_function, concurrent_limit=2)
+
+    results: list[int] = []
+    task.on_return(results.append)
+
+    def launch_many() -> None:
+        for _ in range(10):
+            task(duration=2)
+
+    scheduler.on_start(launch_many)
+
+    end_status = scheduler.run(end_on_empty=True)
+    assert end_status == scheduler.exitcodes.EXHAUSTED
+    assert len(results) == 2
+
+    counts = {
+        TaskEvent.SUBMITTED: 2,
+        TaskEvent.DONE: 2,
+        TaskEvent.RETURNED: 2,
+        ("time_wasting_function", TaskEvent.SUBMITTED): 2,
+        ("time_wasting_function", TaskEvent.DONE): 2,
+        ("time_wasting_function", TaskEvent.RETURNED): 2,
+        SchedulerEvent.STARTED: 1,
+        SchedulerEvent.FINISHING: 1,
+        SchedulerEvent.FINISHED: 1,
+    }
+    assert dict(scheduler.counts) == counts
