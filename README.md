@@ -80,7 +80,7 @@ TODO:
 
 ## Installation
 ```bash
-git clone git@github:automl/byop.git
+git clone git@github.com:automl/byop.git
 pip install -e ".[dev]"
 ```
 
