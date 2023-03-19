@@ -14,19 +14,15 @@ from collections import Counter
 from dataclasses import dataclass, field
 from multiprocessing import Pipe
 from multiprocessing.connection import Connection
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, TypeVar, overload
+from typing import Any, Callable, ClassVar, Literal, TypeVar, overload
 
 from typing_extensions import Self
 
 from byop.asyncm import AsyncConnection
-from byop.exceptions import exception_wrap
 from byop.functional import funcname
 from byop.scheduling.events import TaskEvent
 from byop.scheduling.task import Task, TaskFuture
-from byop.types import CallbackName, Msg, TaskName, TaskParams, TaskReturn
-
-if TYPE_CHECKING:
-    from byop.scheduling import Scheduler
+from byop.types import CallbackName, Msg, TaskParams, TaskReturn
 
 T = TypeVar("T")
 
@@ -84,32 +80,8 @@ class CommTask(Task[TaskParams, TaskReturn]):
         name: The name of the task.
         function: The function of this task
         n_called: How many times this task has been called.
-        limit: How many times this task can be run. Defaults to `None`
+        call_limit: How many times this task can be run. Defaults to `None`
     """
-
-    def __init__(
-        self,
-        name: TaskName,
-        function: Callable[TaskParams, TaskReturn],
-        scheduler: Scheduler,
-        limit: int | None = None,
-    ) -> None:
-        """Initialize a task.
-
-        Args:
-            name: The name of the task.
-            function: The function of this task
-            scheduler: The scheduler that this task is registered with.
-            limit: How many times this task can be run. Defaults to `None`
-        """
-        self.name = name
-        self.function = function
-        self.scheduler = scheduler
-        self.limit = limit
-        self.n_called = 0
-
-    def __post_init__(self) -> None:
-        self.function = exception_wrap(self.function)
 
     @overload
     def on(
@@ -125,7 +97,7 @@ class CommTask(Task[TaskParams, TaskReturn]):
     @overload
     def on(
         self,
-        event: Literal[TaskEvent.NO_RETURN],
+        event: Literal[TaskEvent.EXCEPTION],
         callback: Callable[[BaseException], Any],
         *,
         name: CallbackName | None = ...,

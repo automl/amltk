@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 from ConfigSpace import Configuration, ConfigurationSpace
+from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, Scenario
 from smac.facade import AbstractFacade
 from smac.runhistory import StatusType
@@ -15,7 +16,14 @@ from smac.runhistory import TrialInfo as SMACTrialInfo
 from smac.runhistory import TrialValue as SMACTrialValue
 from typing_extensions import Self
 
-from byop.optimization.optimizer import Optimizer, Trial, TrialReport
+from byop.optimization.optimizer import (
+    CrashReport,
+    FailReport,
+    Optimizer,
+    SuccessReport,
+    Trial,
+    TrialReport,
+)
 from byop.randomness import as_int
 from byop.types import Seed
 
@@ -76,54 +84,90 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
         unique_name = f"{config_id=}.{instance=}.{seed=}.{budget=}"
         return Trial(name=unique_name, config=config, info=smac_trial_info)
 
-    def tell(self, report: TrialReport[SMACTrialInfo, Configuration]) -> None:
+    def tell(  # noqa: C901
+        self,
+        report: TrialReport[SMACTrialInfo, Configuration],
+    ) -> None:
         """Tell the optimizer the result of the sampled config.
 
         Args:
             report: The report of the trial.
         """
-        # TODO: We do not support memory and time limiting yet
-        reported_costs = report.results.get("cost", None)
-        if reported_costs is None:
-            raise ValueError("No cost (float | list[float]) reported for trial")
-
-        if report.successful:
-            status_type = StatusType.SUCCESS
-            trial_value = SMACTrialValue(
-                time=report.time.duration,
-                starttime=report.time.start,
-                endtime=report.time.end,
-                cost=reported_costs,
-                status=status_type,
-                additional_info=report.results.get("additional_info", {}),
-            )
-        else:
-            status_type = StatusType.CRASHED
-            crash_cost = self.facade.scenario.crash_cost
-
-            # Check to make sure we can convert crash_cost to that of the reported costs
-            if (
-                isinstance(reported_costs, Sequence)
-                and isinstance(crash_cost, Sequence)
-            ) and (len(reported_costs) != len(crash_cost)):
-                msg = (
-                    f"Length of reported costs ({len(reported_costs)}) and crash costs "
-                    f"({len(crash_cost)}) must be equal"
+        # If we're successful, get the cost and times and report them
+        if isinstance(report, SuccessReport):
+            if "cost" not in report.results:
+                raise ValueError(
+                    f"Report must have 'cost' if successful but got {report}."
+                    " Use `trial.success(cost=...)` to set the results of the trial."
                 )
-                raise ValueError(msg)
-
-            if isinstance(reported_costs, Sequence) and not isinstance(
-                crash_cost, Sequence
-            ):
-                crash_cost = [crash_cost] * len(reported_costs)
 
             trial_value = SMACTrialValue(
                 time=report.time.duration,
                 starttime=report.time.start,
                 endtime=report.time.end,
-                cost=crash_cost,
-                status=status_type,
+                cost=report.results["cost"],
+                status=StatusType.SUCCESS,
                 additional_info=report.results.get("additional_info", {}),
             )
+            return
 
+        if isinstance(report, FailReport):
+            duration = report.time.duration
+            start = report.time.start
+            end = report.time.end
+            reported_cost = report.results.get("cost", None)
+            additional_info = report.results.get("additional_info", {})
+        elif isinstance(report, CrashReport):
+            duration = 0
+            start = 0
+            end = 0
+            reported_cost = None
+            additional_info = {}
+
+        # We got either a fail or a crash, time to deal with it
+        status_types: dict[type, StatusType] = {
+            MemoryLimitException: StatusType.MEMORYOUT,
+            TimeoutException: StatusType.TIMEOUT,
+        }
+
+        status_type = StatusType.CRASHED
+        if report.exception is not None:
+            status_type = status_types.get(type(report.exception), StatusType.CRASHED)
+            additional_info["exception"] = str(report.exception)
+
+        # If we have no reported costs, we need to ensure that we have a
+        # valid crash_cost based on the number of objectives
+        crash_cost = self.facade.scenario.crash_cost
+        objectives = self.facade.scenario.objectives
+
+        if reported_cost is not None:
+            cost = reported_cost
+        elif isinstance(crash_cost, float) and not isinstance(objectives, Sequence):
+            cost = crash_cost
+        elif isinstance(crash_cost, float) and isinstance(objectives, Sequence):
+            cost = [crash_cost for _ in range(len(objectives))]
+        elif isinstance(crash_cost, Sequence) and isinstance(objectives, Sequence):
+            cost = crash_cost
+        else:
+            raise ValueError(
+                f"Multiple crash cost reported ({crash_cost}) for only a single"
+                f" objective in `Scenario({objectives=}, ...)"
+            )
+
+        if (isinstance(cost, Sequence) and isinstance(objectives, Sequence)) and (
+            len(cost) != len(objectives)
+        ):
+            raise ValueError(
+                f"Length of crash cost ({len(cost)}) and objectives "
+                f"({len(objectives)}) must be equal"
+            )
+
+        trial_value = SMACTrialValue(
+            time=duration,
+            starttime=start,
+            endtime=end,
+            cost=cost,
+            status=status_type,
+            additional_info=additional_info,
+        )
         self.facade.tell(info=report.info, value=trial_value, save=True)
