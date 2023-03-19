@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Protocol, TypeVar, runtime_checkable
+from typing import ClassVar, Protocol, runtime_checkable
 
 from result import Result
 
 from byop.pipeline.pipeline import Pipeline
-
-B = TypeVar("B", covariant=True)
+from byop.types import BuiltPipeline
 
 
 class BuilderError(RuntimeError):
@@ -18,13 +17,13 @@ class BuilderError(RuntimeError):
 
 
 @runtime_checkable
-class Builder(Protocol[B]):
+class Builder(Protocol[BuiltPipeline]):
     """Attempts to build a usable object from a pipeline."""
 
     Error: ClassVar[type[BuilderError]] = BuilderError
 
     @classmethod
-    def build(cls, pipeline: Pipeline) -> B:
+    def build(cls, pipeline: Pipeline) -> BuiltPipeline:
         """Build a pipeline in to a usable object."""
         result = cls._build(pipeline)
 
@@ -37,13 +36,13 @@ class Builder(Protocol[B]):
     def _build(
         cls,
         pipeline: Pipeline,
-    ) -> Result[B, BuilderError | Exception]:
+    ) -> Result[BuiltPipeline, BuilderError | Exception]:
         """Build a pipeline into a usable object.
 
         Args:
             pipeline: The pipeline to build
 
         Returns:
-            Result[B, BuilderError | Exception]
+            Result[BuiltPipeline, BuilderError | Exception]
         """
         ...

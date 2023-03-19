@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Generic, ParamSpec, TypeVar
 
-from byop.optimization.optimizer import Optimizer, Trial
+from byop.optimization.optimizer import Optimizer, Trial, TrialReport
 from byop.samplers import Sampler
 from byop.types import Config, Seed, Space
 
@@ -33,7 +33,7 @@ class RSTrialInfo(Generic[Config]):
     config: Config
 
 
-class RandomSearch(Optimizer[RSTrialInfo[Config]]):
+class RandomSearch(Optimizer[RSTrialInfo[Config], Config]):
     """A random search optimizer."""
 
     def __init__(
@@ -63,16 +63,16 @@ class RandomSearch(Optimizer[RSTrialInfo[Config]]):
         else:
             self.sampler = partial(sampler, space)
 
-    def ask(self) -> Trial[RSTrialInfo[Config]]:
+    def ask(self) -> Trial[RSTrialInfo[Config], Config]:
         """Sample from the space."""
         config = self.sampler()
         name = f"random-{self.trial_count}"
         info = RSTrialInfo(name, self.trial_count, config)
-        trial = Trial(name=name, info=info)
+        trial = Trial(name=name, config=config, info=info)
         self.trial_count = self.trial_count + 1
         return trial
 
-    def tell(self, _: Trial.Report[RSTrialInfo[Config]]) -> None:
+    def tell(self, _: TrialReport[RSTrialInfo[Config], Config]) -> None:
         """Do nothing with the report.
 
         ???+ note

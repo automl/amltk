@@ -3,6 +3,7 @@ any exception raised.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import traceback
 from typing import Callable, Generic, ParamSpec, TypeVar
 
@@ -11,6 +12,7 @@ E = TypeVar("E")
 P = ParamSpec("P")
 
 
+@dataclass
 class exception_wrap(Generic[P, R]):  # noqa: N801
     """Wrap a function to add a traceback to any exception raised.
 
@@ -18,9 +20,7 @@ class exception_wrap(Generic[P, R]):  # noqa: N801
         f: The function to wrap.
     """
 
-    def __init__(self, f: Callable[P, R]) -> None:
-        """Initialize the decorator."""
-        self.f = f
+    f: Callable[P, R]
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Call the wrapped function.

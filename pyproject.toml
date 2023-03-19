@@ -67,16 +67,9 @@ smac = [
 documentation = "https://github.com/automl/byop/"
 source = "https://github.com/automl/byop/"
 
-# https://docs.pytest.org/en/7.2.x/reference/reference.html#ini-options-ref
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-minversion = "7.0"
-empty_parameter_set_mark = "xfail"
-log_cli = false
-log_level = "DEBUG"
-xfail_strict = true
-addopts = "--durations=10 -vv"
-
+minversion = "3.8"
 
 [tool.coverage.run]
 branch = true
@@ -244,4 +237,3 @@ module = [
   "more_itertools.*",
 ]
 ignore_missing_imports = true
-

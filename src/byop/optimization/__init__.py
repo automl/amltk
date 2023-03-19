@@ -1,5 +1,19 @@
-from byop.optimization.optimizer import Optimizer
-from byop.optimization.random_search import RandomSearch, RSTrialInfo
-from byop.optimization.trial import Trial
+from byop.optimization.optimizer import (
+    CrashReport,
+    FailReport,
+    Optimizer,
+    SuccessReport,
+    Trial,
+    TrialReport,
+)
+from byop.optimization.random_search import RandomSearch
 
-__all__ = ["Optimizer", "RandomSearch", "Trial", "RSTrialInfo"]
+__all__ = [
+    "Optimizer",
+    "RandomSearch",
+    "Trial",
+    "TrialReport",
+    "FailReport",
+    "SuccessReport",
+    "CrashReport",
+]

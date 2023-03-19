@@ -7,15 +7,14 @@ from your configured [`Pipeline`][byop.pipeline.Pipeline].
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, TypeVar, overload
+from typing import Any, Callable, Literal, overload
 
 from more_itertools import first_true, seekable
 from result import Result, as_result
 
 from byop.building.builders import DEFAULT_BUILDERS, Builder
 from byop.pipeline.pipeline import Pipeline
-
-B = TypeVar("B")
+from byop.types import BuiltPipeline
 
 
 @overload
@@ -29,22 +28,24 @@ def build(pipeline: Pipeline, builder: Literal["auto"]) -> Any:
 
 
 @overload
-def build(pipeline: Pipeline, builder: Builder[B]) -> B:
+def build(pipeline: Pipeline, builder: Builder[BuiltPipeline]) -> BuiltPipeline:
     ...
 
 
 @overload
 def build(
     pipeline: Pipeline,
-    builder: Callable[[Pipeline], B],
-) -> B:
+    builder: Callable[[Pipeline], BuiltPipeline],
+) -> BuiltPipeline:
     ...
 
 
 def build(
     pipeline: Pipeline,
-    builder: Literal["auto"] | Builder[B] | Callable[[Pipeline], B] = "auto",
-) -> B | Any:
+    builder: (
+        Literal["auto"] | Builder[BuiltPipeline] | Callable[[Pipeline], BuiltPipeline]
+    ) = "auto",
+) -> BuiltPipeline | Any:
     """Build a pipeline into a usable object.
 
     Args:
@@ -55,7 +56,7 @@ def build(
     Returns:
         The built pipeline
     """
-    results: seekable[Result[B, Exception]]
+    results: seekable[Result[BuiltPipeline, Exception]]
     builders: list[Any]
 
     if builder == "auto":

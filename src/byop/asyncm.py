@@ -29,7 +29,6 @@ class AsyncConnection:
 
         result = self.connection.recv()
         is_readable.clear()
-        loop.remove_reader(self.connection.fileno())
         return result
 
     async def send(self, obj: Any) -> None:
@@ -46,4 +45,3 @@ class AsyncConnection:
 
         self.connection.send(obj)
         is_writable.clear()
-        loop.remove_writer(self.connection.fileno())
