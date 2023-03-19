@@ -6,7 +6,7 @@ from typing import Callable, Iterator, Literal, TypeVar
 import numpy as np
 import pandas as pd
 import pytest
-from pytest_cases import fixture, parametrize, parametrize_with_cases
+from pytest_cases import case, fixture, parametrize, parametrize_with_cases
 
 from byop.store import Bucket, PathBucket
 
@@ -22,6 +22,7 @@ def unsupported_format(thing: object):
     return xfail(thing, "Unsupported format: https://github.com/automl/byop/issues/4")
 
 
+@case
 def bucket_path_bucket(tmp_path: Path) -> Iterator[PathBucket]:
     path = tmp_path / "bucket"
     yield PathBucket(path)
@@ -128,10 +129,6 @@ def test_bucket(
     assert len(bucket) == 1
 
     retrieved = bucket[key].load()
-    print(item)
-    print("---")
-    print(retrieved)
-    print(item == retrieved)
     assert equal(item, retrieved)
 
     retrieved = bucket[key].get()
@@ -144,3 +141,11 @@ def test_bucket(
     assert not bucket[key].exists()
     assert key not in bucket
     assert len(bucket) == 0
+
+
+@parametrize_with_cases("bucket", cases=[bucket_path_bucket])
+def test_pathbucket_subdirectory(bucket: PathBucket) -> None:
+    subbucket = bucket / "subdir"
+    assert subbucket.path.name == "subdir"
+    assert subbucket.path.parent == bucket.path
+    assert subbucket.path.exists()

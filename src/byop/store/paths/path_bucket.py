@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
 from more_itertools import ilen
+from typing_extensions import Self
 
 from byop.store.bucket import Bucket
 from byop.store.drop import Drop
@@ -80,6 +81,11 @@ class PathBucket(Bucket[Path, str]):
     maybe_df = bucket["df.csv"].get()  # !(3)
     model: LinearRegression = bucket["model.pkl"].get(check=LinearRegression)  # !(4)
 
+    # Create subdirectories
+    model_bucket = bucket / "my_model" # !(5)
+    model_bucket["model.pkl"] = model
+    model_bucket["predictions.npy"] = model.predict(X)
+
     # Acts like a mapping
     assert "myarray.npy" in bucket
     assert len(bucket) == 3
@@ -95,6 +101,7 @@ class PathBucket(Bucket[Path, str]):
     3. The `get` method acts like the [`dict.load`][dict] method.
     4. The `get` method can be used to check the type of the loaded object.
         If the type does not match, a `TypeError` is raised.
+    5. Uses the familiar [`Path`][pathlib.Path] API to create subdirectories.
     """
 
     def __init__(
@@ -163,6 +170,18 @@ class PathBucket(Bucket[Path, str]):
 
     def __len__(self) -> int:
         return ilen(self.path.iterdir())
+
+    def __truediv__(self, key: str | Path) -> Self:
+        try:
+            return type(self)(self.path / key, loaders=self.loaders)
+        except TypeError:
+            return NotImplemented
+
+    def __rtruediv__(self, key: str | Path) -> Self:
+        try:
+            return type(self)(key / self.path, loaders=self.loaders)
+        except TypeError:
+            return NotImplemented
 
     @classmethod
     def _drop(cls, path: Path, loaders: tuple[PathLoader, ...]) -> Drop[Path]:
