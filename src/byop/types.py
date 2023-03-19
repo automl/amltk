@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Hashable, Iterator, ParamSpec, Protocol, TypeVar, Union
+from typing import Any, Hashable, Iterator, Protocol, TypeVar, Union
 
 import numpy as np
 from typing_extensions import TypeAlias
 
 Item = TypeVar("Item")
 """The type associated with components, splits and choices"""
+
+Config = TypeVar("Config")
+"""An object representing a configuration of a pipeline."""
 
 Space = TypeVar("Space")
 """Generic for objects that are aware of a space but not the specific kind"""
@@ -21,38 +24,6 @@ Key = TypeVar("Key", bound=Hashable)
 
 Name = TypeVar("Name", bound=Hashable)
 """A name of a pipeline"""
-
-ResultKey = TypeVar("ResultKey", bound=Hashable)
-"""The key for a result"""
-
-BuiltPipeline = TypeVar("BuiltPipeline", covariant=True)
-"""A built pipeline object"""
-
-TaskParams = ParamSpec("TaskParams")
-"""The paramspec of a task"""
-
-TaskReturn = TypeVar("TaskReturn")
-"""The return type of a task"""
-
-TrialResult = TypeVar("TrialResult", covariant=True)
-"""Something you tell the optimizer about"""
-
-TrialInfo = TypeVar("TrialInfo")
-"""The info associated with a trial"""
-
-TaskName: TypeAlias = Hashable
-"""A name for a task"""
-
-CallbackName: TypeAlias = Hashable
-"""A name for a callback"""
-
-Msg: TypeAlias = Any
-"""A message or response to/from a comm task"""
-
-Config = TypeVar("Config")
-"""An object representing a configuration of a pipeline."""
-Config_co = TypeVar("Config_co")
-Config_contra = TypeVar("Config_contra")
 
 
 class Comparable(Protocol):

@@ -18,3 +18,6 @@ bump:
   cz bump || exit
   git push
   git push origin "v$(cz version --project)"
+
+test:
+  pytest -x --lf
