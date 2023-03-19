@@ -158,13 +158,12 @@ class AskAndTell(Generic[TrialInfo, Config]):
             report = task_future.result
         else:
             trial = self.trial_lookup[task_future.name]
-            if trial.exception is not None:
-                report = trial.crashed()
-            elif task_future.exception is not None:
+            if task_future.exception is not None:
                 report = trial.crashed(exception=task_future.exception)
             else:
                 raise RuntimeError(
                     f"Task {task_future} has no result or exception we can use."
+                    " Otherwise the task should have had a result or been cancelled."
                     " Please raise an issue on github!"
                 )
 
