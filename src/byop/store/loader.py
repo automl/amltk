@@ -43,14 +43,15 @@ class Loader(Protocol[KeyT, T]):
         """
         ...
 
-    def can_save(self, obj: Any, /) -> bool:
+    def can_save(self, obj: Any, key: KeyT, /) -> bool:
         """Return True if this loader can save this object.
 
         This is used to determine which loader to use when loading a
         resource from a key.
 
         Args:
-            obj: The key used to identify the resource
+            obj: The object to save.
+            key: The key used to identify the resource
         """
         ...
 

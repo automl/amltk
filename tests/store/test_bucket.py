@@ -29,6 +29,10 @@ def bucket_path_bucket(tmp_path: Path) -> Iterator[PathBucket]:
     shutil.rmtree(path)
 
 
+def unjson_serialisable(x):
+    return x
+
+
 @fixture
 @parametrize_with_cases("bucket", cases=".", prefix="bucket_")
 def bucket(bucket: Bucket) -> Bucket:
@@ -99,12 +103,20 @@ def data_dict_json() -> tuple[dict, str, type[dict], Callable[[dict, dict], bool
     return {"a": 1, "b": 2}, "dict.json", dict, operator.eq
 
 
+def data_dict_pickle() -> tuple[dict, str, type[dict], Callable[[dict, dict], bool]]:
+    return {"b": unjson_serialisable}, "dict.pkl", dict, operator.eq
+
+
 def data_dict_yaml() -> tuple[dict, str, type[dict], Callable[[dict, dict], bool]]:
     return {"a": 1, "b": 2}, "dict.yaml", dict, operator.eq
 
 
 def data_list_json() -> tuple[list, str, type[list], Callable[[list, list], bool]]:
     return [1, 2, 3], "list.json", list, operator.eq
+
+
+def data_list_pickle() -> tuple[list, str, type[list], Callable[[list, list], bool]]:
+    return [unjson_serialisable], "list.pkl", list, operator.eq
 
 
 def data_list_yaml() -> tuple[list, str, type[list], Callable[[list, list], bool]]:
