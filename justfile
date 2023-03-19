@@ -41,3 +41,5 @@ pr-other name:
   git pull origin main
   git checkout -b other-{{name}} main
   git push --set-upstream origin other-{{name}}
+test:
+  pytest -x --lf

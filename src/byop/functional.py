@@ -7,9 +7,19 @@ from __future__ import annotations
 from functools import partial, reduce
 from itertools import count
 from types import EllipsisType
-from typing import Any, Callable, Iterator, Reversible, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Hashable,
+    Iterator,
+    Reversible,
+    Sequence,
+    TypeVar,
+)
 
 T = TypeVar("T")
+K = TypeVar("K", bound=Hashable)
+VK = TypeVar("VK", bound=Hashable)
 
 
 def reverse_enumerate(
@@ -145,3 +155,24 @@ def funcname(func: Callable, default: str | None = None) -> str:
     if default is not None:
         return default
     return str(func)
+
+
+def callstring(f: Callable, *args: Any, **kwargs: Any) -> str:
+    """Get a string representation of a function call.
+
+    Args:
+        f: The function to get the string representation of.
+        *args: The positional arguments.
+        **kwargs: The keyword arguments.
+
+    Returns:
+        The string representation of the function call.
+    """
+    # Iterate over all args, convert them to str, and join them
+    args_str = ""
+    if any(args):
+        args_str += ", ".join(map(str, args))
+    if any(kwargs):
+        args_str += ", ".join(f"{k}={v}" for k, v in kwargs.items())
+
+    return f"{funcname(f)}({args_str})"

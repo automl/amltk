@@ -21,9 +21,13 @@ import numpy as np
 
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split, Step
+<<<<<<< HEAD
 import byop.randomness
 from byop.types import Seed
+=======
+>>>>>>> 560efc9 (feat: Task overhaul)
 import byop.randomness
+from byop.types import Seed
 
 
 def remove_hyperparameter(name: str, space: ConfigurationSpace) -> ConfigurationSpace:
