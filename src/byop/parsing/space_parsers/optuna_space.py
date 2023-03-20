@@ -9,12 +9,12 @@ from byop.parsing.space_parsers.space_parser import ParseError, SpaceParser
 from byop.pipeline.components import Component, Split
 
 if TYPE_CHECKING:
-    from byop.optuna_space.space_parsing import OPTUNA_SEARCH_SPACE
+    from byop.optuna_space.space_parsing import OptunaSearchSpace
     from byop.pipeline import Pipeline
     from byop.types import Seed
 
 
-class OptunaSpaceParser(SpaceParser["OPTUNA_SEARCH_SPACE"]):
+class OptunaSpaceParser(SpaceParser["OptunaSearchSpace"]):
     """Attempts to parse a pipeline into a ConfigSpace."""
 
     @classmethod
@@ -22,7 +22,7 @@ class OptunaSpaceParser(SpaceParser["OPTUNA_SEARCH_SPACE"]):
         cls,
         pipeline: Pipeline,
         seed: Seed | None = None,  # noqa[ARG003]
-    ) -> Result[OPTUNA_SEARCH_SPACE, ParseError | Exception]:
+    ) -> Result[OptunaSearchSpace, ParseError | Exception]:
         """Parse a pipeline into a space.
 
         Args:

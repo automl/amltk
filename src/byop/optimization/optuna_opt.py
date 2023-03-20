@@ -14,20 +14,18 @@ from optuna.trial import TrialState
 from typing_extensions import Self
 
 from byop.optimization.optimizer import Optimizer, Trial, TrialReport
-from byop.optuna_space.space_parsing import OPTUNA_CONFIG, OPTUNA_SEARCH_SPACE
-
-OPTUNA_OBJECTIVE = "minimize"
+from byop.optuna_space.space_parsing import OptunaConfig, OptunaSearchSpace
 
 
-class OptunaOptimizer(Optimizer[OptunaTrial, OPTUNA_CONFIG]):
+class OptunaOptimizer(Optimizer[OptunaTrial, OptunaConfig]):
     """An optimizer that uses Optuna to optimize a search space."""
 
-    def __init__(self, *, study: Study, space: OPTUNA_SEARCH_SPACE) -> None:
+    def __init__(self, *, study: Study, space: OptunaSearchSpace) -> None:
         """Initialize the optimizer.
 
         Args:
-            study (Study): The Optuna Study to use.
-            space (OPTUNA_SEARCH_SPACE): Defines the current search space.
+            study: The Optuna Study to use.
+            space: Defines the current search space.
         """
         self.study = study
         self.space = space
@@ -36,30 +34,32 @@ class OptunaOptimizer(Optimizer[OptunaTrial, OPTUNA_CONFIG]):
     def create(
         cls,
         *,
-        space: OPTUNA_SEARCH_SPACE,
+        space: OptunaSearchSpace,
         study_name: str | None = None,
         storage: str | BaseStorage | None = None,
         sampler: BaseSampler | None = None,
         pruner: BasePruner | None = None,
+        direction: str = "minimize",
     ) -> Self:
         """Create a new Optuna optimizer. For more information, check
             Optuna documentation
             [here](https://optuna.readthedocs.io/en/stable/reference/generated/optuna.study.create_study.html#).
 
         Args:
-            space (OPTUNA_SEARCH_SPACE): Defines the current search space.
-            study_name (str | None): Name of optuna study. If this argument is set to
+            space: Defines the current search space.
+            study_name: Name of optuna study. If this argument is set to
                  None, a unique name is generated automatically
-            storage (str | BaseStorage | None): Database URL. If this argument is set to
+            storage: Database URL. If this argument is set to
                  None, in-memory storage is used, and the Study will not be persistent.
-            sampler (BaseSampler | None): A sampler object.
-            pruner (BasePruner | None): A pruner object.
+            sampler: A sampler object.
+            pruner: A pruner object.
+            direction: Direction of optimization. Either 'minimize' or 'maximize'.
 
         Returns:
-            Self: _description_
+            Self: The newly created optimizer.
         """
         study = optuna.create_study(
-            direction=OPTUNA_OBJECTIVE,
+            direction=direction,
             study_name=study_name,
             storage=storage,
             sampler=sampler,
@@ -68,7 +68,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial, OPTUNA_CONFIG]):
 
         return cls(study=study, space=space)
 
-    def ask(self) -> Trial[OptunaTrial, OPTUNA_CONFIG]:
+    def ask(self) -> Trial[OptunaTrial, OptunaConfig]:
         """Ask the optimizer for a new config.
 
         Returns:
@@ -82,7 +82,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial, OPTUNA_CONFIG]):
         unique_name = f"{trial_number=}"
         return Trial(name=unique_name, config=config, info=optuna_trial)
 
-    def tell(self, report: TrialReport[OptunaTrial, OPTUNA_CONFIG]) -> None:
+    def tell(self, report: TrialReport[OptunaTrial, OptunaConfig]) -> None:
         """Tell the optimizer the result of the sampled config.
 
         Args:

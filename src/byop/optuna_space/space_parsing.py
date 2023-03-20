@@ -23,19 +23,25 @@ from byop.parsing.space_parsers.space_parser import ParseError
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split, Step
 
-HYPERPARAMETER_TYPE = int | str | float
-OPTUNA_CONFIG: TypeAlias = dict[str, HYPERPARAMETER_TYPE]
-OPTUNA_SEARCH_SPACE: TypeAlias = dict[str, BaseDistribution]
+HyperparameterType: TypeAlias = int | str | float
+OptunaConfig: TypeAlias = dict[str, HyperparameterType]
+OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
 N_RANGE = 2
 
 
 def _convert_hp_to_optuna_distribution(
-    hp: tuple | list | HYPERPARAMETER_TYPE, name: str
+    hp: tuple | list | HyperparameterType, name: str
 ) -> BaseDistribution:
     if isinstance(hp, tuple):
         if len(hp) != N_RANGE:
             raise ParseError(f"{name} must be (lower, upper) bound, got {hp}")
         lower, upper = hp
+        if type(lower) != type(upper):
+            raise ParseError(
+                f"Expected {name} to have same type for lower and upper bound,"
+                f"got lower: {type(lower)}, upper: {type(upper)}."
+            )
+
         if isinstance(lower, float):
             real_hp = FloatDistribution(lower, upper)
         else:
@@ -49,7 +55,7 @@ def _convert_hp_to_optuna_distribution(
         real_hp = CategoricalDistribution(hp)
 
     # If it's an allowed type, it's a constant
-    elif isinstance(hp, HYPERPARAMETER_TYPE):  # type: ignore[misc, arg-type]
+    elif isinstance(hp, HyperparameterType):  # type: ignore[misc, arg-type]
         real_hp = CategoricalDistribution([hp])
     else:
         raise ParseError(
@@ -63,7 +69,7 @@ def _extract_search_space(
     space: dict[str, Any],
     prefix: str,
     delimiter: str,
-) -> OPTUNA_SEARCH_SPACE:
+) -> OptunaSearchSpace:
     """Extracts "Define-and-run" search space compatible with
     Optuna study for a given step.
 
@@ -74,9 +80,9 @@ def _extract_search_space(
         delimiter: Symbol used to join the prefix with the name of the hyperparameter.
 
     Returns:
-        OPTUNA_SEARCH_SPACE
+        OptunaSearchSpace
     """
-    search_space: OPTUNA_SEARCH_SPACE = {}
+    search_space: OptunaSearchSpace = {}
     for name, hp in space.items():
         if isinstance(hp, BaseDistribution):
             subspace = hp
@@ -88,21 +94,21 @@ def _extract_search_space(
 
 def generate_optuna_search_space(
     pipeline: Pipeline,
-) -> OPTUNA_SEARCH_SPACE:
+) -> OptunaSearchSpace:
     """Generates the search space for the given pipeline.
 
     Args:
         pipeline: The pipeline to generate the space for.
 
     Returns:
-        OPTUNA_SEARCH_SPACE
+        OptunaSearchSpace
     """
-    search_space: OPTUNA_SEARCH_SPACE = {}
+    search_space: OptunaSearchSpace = {}
     for splits, _, step in pipeline.walk():
         _splits = splits if splits is not None else []
         subspace = _process_step(_splits, step)
         if subspace is not None:
-            search_space = {**search_space, **subspace}
+            search_space.update(subspace)
     return search_space
 
 
@@ -111,7 +117,7 @@ def _process_step(
     step: Step,
     *,
     delimiter: str = ":",
-) -> OPTUNA_SEARCH_SPACE:
+) -> OptunaSearchSpace:
     """Returns the subspace for the given step of the pipeline.
 
     Args:
@@ -121,19 +127,22 @@ def _process_step(
         delimiter (str): Delimiter used to separate different steps in
             the hyperparameter name. Defaults to ":".
 
-    Returns:
-        OPTUNA_SEARCH_SPACE | ParseError: Returns the subspace or raises a ParseError
-            in case, it was not able to extract.
-    """
-    prefix = delimiter.join([s.name for s in splits]) if len(splits) > 0 else ""
+    Raises:
+        ParseError: Raises a ParseError in case, it was not able to extract.
 
-    prefix = f"{prefix}{delimiter}{step.name}" if bool(prefix) else step.name
+    Returns:
+        OptunaSearchSpace: Returns the subspace for the given step.
+    """
+    prefix = delimiter.join([s.name for s in splits])
+
+    prefix = f"{prefix}{delimiter}{step.name}" if prefix != "" else step.name
     choices = (s for s in splits if isinstance(s, Choice))
 
     # In case this step is supposed to be conditioned on a choice.
     if any(choices):
         raise ParseError("We currently do not support conditionals with Optuna.")
 
+    # In case this step is a choice.
     if isinstance(step, Choice):
         raise ParseError("We currently do not support conditionals with Optuna.")
 
@@ -150,6 +159,6 @@ def _process_step(
             subspace = {}
 
     else:
-        raise ParseError(f"Unknown type: {type(step)} of step")
+        raise ParseError(f"Unknown type: {type(step)} of step: {step.name}")
 
     return subspace
