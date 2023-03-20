@@ -76,68 +76,7 @@ class AskAndTell(Generic[Info, Config]):
         # Dictionary from a trial name to the trial itself
         self.trial_lookup: dict[str, Trial[Info]] = {}
 
-<<<<<<< HEAD
-        self.trial_lookup: dict[TaskName, Trial[TrialInfo, Config]] = {}
-
-    def when_done_tell_optimizer(
-        self,
-        task_future: TaskFuture[
-            [Trial[TrialInfo, Config]], TrialReport[TrialInfo, Config]
-        ],
-    ) -> None:
-        """Tell the optimizer about the results of a trial.
-
-        Args:
-            task_future: The future for the task that completed.
-        """
-        if task_future not in self.trial_lookup:
-            raise RuntimeError(
-                f"Task {task_future} recorded as done but the controller has no"
-                " record of it. Please raise an issue on github!"
-            )
-
-        if task_future.cancelled():
-            # There's really nothing we can do of value if it was cancelled.
-            # Telling the optimizer about it is misleading as it's not due
-            # to the trial itself. There's also no SUCCESS or FAILURE state
-            # to really report to the user. They can use the `on_cancelled`
-            # callback to handle this.
-            return
-
-        if task_future.has_result():
-            report = task_future.result
-        else:
-            trial = self.trial_lookup[task_future.name]
-            if task_future.exception is not None:
-                report = trial.crashed(exception=task_future.exception)
-            else:
-                raise RuntimeError(
-                    f"Task {task_future} has no result or exception we can use."
-                    " Otherwise the task should have had a result or been cancelled."
-                    " Please raise an issue on github!"
-                )
-
-        self.optimizer.tell(report)
-
-        task_name = task_future.name
-        if report.successful:
-            event = AskAndTellEvent.SUCCESS
-        else:
-            event = AskAndTellEvent.FAILURE
-
-        self.events.emit(event, report)
-        self.events.emit((task_name, event), report)
-
-        if not task_future.cancelled():
-            raise RuntimeError(
-                f"Task {task_future} has neither a result nor an exception."
-                " Please raise an issue on github!"
-            )
-
-    def when_done_ask_and_evaluate(self, *_: Any) -> None:
-=======
     def ask_and_evaluate(self, *_: Any) -> None:
->>>>>>> 560efc9 (feat: Task overhaul)
         """Ask the optimizer for a new trial and evaluate it."""
         trial = self.optimizer.ask()
         logger.info(f"Running {trial.name}")
