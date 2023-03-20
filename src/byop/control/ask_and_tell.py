@@ -80,7 +80,7 @@ class AskAndTell(Generic[TrialInfo, Config]):
         *,
         objective: Callable[[Trial[TrialInfo, Config]], TrialReport[TrialInfo, Config]],
         optimizer: Optimizer[TrialInfo, Config],
-        scheduler: Scheduler,
+        scheduler: Scheduler | None = None,
         max_trials: int | None = None,
         concurrent_trials: int = 1,
     ):
@@ -90,6 +90,8 @@ class AskAndTell(Generic[TrialInfo, Config]):
             objective: The objective to run.
             optimizer: The optimizer to use.
             scheduler: The scheduler to use.
+                When None, a basic Scheduler is set up that runs with a single process
+                worker.
             max_trials: The maximum number of trials to run.
                 If not provided, will run indefinitely.
             concurrent_trials: The number of concurrent trials to run.
@@ -97,6 +99,9 @@ class AskAndTell(Generic[TrialInfo, Config]):
         """
         if concurrent_trials < 1:
             raise ValueError(f"{concurrent_trials=} must be >= 1")
+
+        if scheduler is None:
+            scheduler = Scheduler.with_processes(max_workers=1)
 
         self.optimizer = optimizer
         self.scheduler = scheduler
