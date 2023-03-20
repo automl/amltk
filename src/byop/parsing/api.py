@@ -15,6 +15,7 @@ from result import Result, as_result
 
 from byop.parsing.space_parsers import DEFAULT_PARSERS, ParseError, SpaceParser
 from byop.parsing.space_parsers.configspace import ConfigSpaceParser
+from byop.parsing.space_parsers.optuna_space import OptunaSpaceParser
 from byop.types import Seed, Space, safe_issubclass
 
 if TYPE_CHECKING:
@@ -45,6 +46,17 @@ def parse(
     ...
 
 
+# Call with a optuna literal
+@overload
+def parse(
+    pipeline: Pipeline,
+    parser: Literal["optuna"] = "optuna",
+    *,
+    seed: Seed | None = ...,
+) -> Any:
+    ...
+
+
 # Call with callable to parse, accepting or not accepting a seed
 @overload
 def parse(
@@ -72,6 +84,7 @@ def parse(
     parser: (
         Literal["auto"]
         | Literal["configspace"]
+        | Literal["optuna"]
         | type[ConfigurationSpace]
         | Callable[[Pipeline], Space]
         | Callable[[Pipeline, Seed | None], Space]
@@ -89,6 +102,8 @@ def parse(
             * If `"auto"` is provided, the assembler will attempt to
             automatically figure out the kind of Space to extract from the pipeline.
             * If `"configspace"` is provided, a ConfigurationSpace will be attempted
+            to be extracted.
+            * If `"optuna"` is provided, an Optuna space will be attempted
             to be extracted.
             * If a `type` is provided, it will attempt to infer which parser to use.
             * If `parser` is a parser type, we will attempt to use that.
@@ -113,6 +128,10 @@ def parse(
     ):
         parsers = [ConfigSpaceParser]
         results = seekable([ConfigSpaceParser._parse(pipeline, seed)])
+
+    elif parser == "optuna":
+        parsers = [OptunaSpaceParser]
+        results = seekable([OptunaSpaceParser._parse(pipeline, seed)])  # type: ignore
 
     elif isinstance(parser, SpaceParser):
         parsers = [parser]

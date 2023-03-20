@@ -82,7 +82,10 @@ def replace_constants(
     return space
 
 
-def generate_configspace(pipeline: Pipeline, seed: Seed) -> ConfigurationSpace:
+def generate_configspace(
+    pipeline: Pipeline,
+    seed: Seed | None = None,
+) -> ConfigurationSpace:
     """The space for this given pipeline.
 
     Args:

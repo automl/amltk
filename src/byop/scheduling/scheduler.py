@@ -230,7 +230,6 @@ class Scheduler:
             await asyncio.wait(self.queue, return_when=asyncio.ALL_COMPLETED)
 
         logger.debug("Scheduler queue is empty")
-        return
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
@@ -251,7 +250,6 @@ class Scheduler:
         await self._stop_event.wait()
 
         logger.debug("Stop event triggered, stopping scheduler")
-        return
 
     async def _run_scheduler(  # noqa: PLR0912, C901
         self,

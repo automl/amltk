@@ -1,5 +1,5 @@
 install:
-  pip install -e ".[dev, test, doc, smac]"
+  pip install -e ".[dev, test, doc, smac, optuna]"
   pre-commit install
   pre-commit install --hook-type commit-msg
 
