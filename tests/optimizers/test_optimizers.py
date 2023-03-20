@@ -55,7 +55,7 @@ def opt_smac_hpo() -> SMACOptimizer:
 @case
 def opt_optuna() -> OptunaOptimizer:
     pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
-    return OptunaOptimizer.create(space=pipeline.space(parser="optuna_search_space"))
+    return OptunaOptimizer.create(space=pipeline.space(parser="optuna"))
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
