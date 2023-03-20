@@ -27,7 +27,7 @@ class OptunaSpaceParser(SpaceParser["OPTUNA_SEARCH_SPACE"]):
 
         Args:
             pipeline: The pipeline to parse
-            seed (optional): The seed to use for the space generated.
+            seed: The seed to use for the space generated.
 
         Returns:
             Result[Space, ParseError]

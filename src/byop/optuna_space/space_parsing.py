@@ -68,9 +68,10 @@ def _extract_search_space(
     Optuna study for a given step.
 
     Args:
-        space (dict[str, Any]): search space of the step.
-        prefix (str): prefix that is added to the name of each hyperparameter.
-        delimiter (str): used to join the prefix with the name of the hyperparameter.
+        space: search space of the step.
+        prefix: prefix that is added to the name of each hyperparameter,
+            usually the name of parent steps.
+        delimiter: Symbol used to join the prefix with the name of the hyperparameter.
 
     Returns:
         OPTUNA_SEARCH_SPACE
@@ -88,10 +89,10 @@ def _extract_search_space(
 def generate_optuna_search_space(
     pipeline: Pipeline,
 ) -> OPTUNA_SEARCH_SPACE:
-    """Generates the search space for this given pipeline.
+    """Generates the search space for the given pipeline.
 
     Args:
-        pipeline: The pipeline to generate the space for
+        pipeline: The pipeline to generate the space for.
 
     Returns:
         OPTUNA_SEARCH_SPACE
