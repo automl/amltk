@@ -44,7 +44,7 @@ class PathLoader(Loader[Path, T], Protocol[T]):
         """See [`Loader.name`][byop.store.loader.Loader.name]."""
         ...
 
-    def can_save(self, obj: Any, /) -> bool:
+    def can_save(self, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
         ...
 
@@ -78,9 +78,9 @@ class NPYLoader(PathLoader[np.ndarray]):
     """See [`Loader.name`][byop.store.loader.Loader.name]."""
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:
+    def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, np.ndarray)
+        return isinstance(obj, np.ndarray) and path.suffix in {".npy"}
 
     @classmethod
     def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
@@ -147,8 +147,10 @@ class PDLoader(PathLoader[pd.DataFrame]):
         return path.suffix in cls._load_methods and passes_check
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:
+    def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
+        if path.suffix not in cls._save_methods:
+            return False
         if not isinstance(obj, pd.DataFrame):
             return False
 
@@ -196,9 +198,9 @@ class JSONLoader(PathLoader[dict | list]):
         return path.suffix == ".json" and check in (dict, list, None)
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:
+    def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list))
+        return isinstance(obj, (dict, list)) and path.suffix == ".json"
 
     @classmethod
     def load(cls, path: Path, /) -> dict | list:
@@ -242,9 +244,9 @@ class YAMLLoader(PathLoader[dict | list]):
         return path.suffix == ".yaml" and check in (dict, list, None)
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:
+    def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list))
+        return isinstance(obj, (dict, list)) and path.suffix == ".yaml"
 
     @classmethod
     def load(cls, path: Path, /) -> dict | list:
@@ -306,7 +308,7 @@ class PickleLoader(PathLoader[Any]):
         return path.suffix in (".pkl", ".pickle")
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:  # noqa: ARG003
+    def can_save(cls, obj: Any, path: Path, /) -> bool:  # noqa: ARG003
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
         return True  # Anything can be attempted to be pickled
 
@@ -346,9 +348,9 @@ class TxtLoader(PathLoader[str]):
         return path.suffix in (".text", ".txt") and check in (str, None)
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:
+    def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, str)
+        return isinstance(obj, str) and path.suffix in (".text", ".txt")
 
     @classmethod
     def load(cls, path: Path, /) -> str:
@@ -385,9 +387,9 @@ class ByteLoader(PathLoader[bytes]):
         return path.suffix in (".bin", ".bytes") and check in (bytes, None)
 
     @classmethod
-    def can_save(cls, obj: Any, /) -> bool:
+    def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list))
+        return isinstance(obj, (dict, list)) and path.suffix in (".bin", ".bytes")
 
     @classmethod
     def load(cls, path: Path, /) -> bytes:

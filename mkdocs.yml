@@ -101,6 +101,8 @@ plugins:
             - 'https://docs.python.org/3/objects.inv'
             - 'https://numpy.org/doc/stable/objects.inv'
             - 'https://pandas.pydata.org/docs/objects.inv'
+            - 'https://optuna.readthedocs.io/en/stable/objects.inv'
+              # base_url: https://optuna.readthedocs.io/en/stable/
           options:
             show_root_heading: false
             show_root_toc_entry: false

@@ -6,7 +6,7 @@ from typing import Callable, Iterator, Literal, TypeVar
 import numpy as np
 import pandas as pd
 import pytest
-from pytest_cases import fixture, parametrize, parametrize_with_cases
+from pytest_cases import case, fixture, parametrize, parametrize_with_cases
 
 from byop.store import Bucket, PathBucket
 
@@ -22,10 +22,15 @@ def unsupported_format(thing: object):
     return xfail(thing, "Unsupported format: https://github.com/automl/byop/issues/4")
 
 
+@case
 def bucket_path_bucket(tmp_path: Path) -> Iterator[PathBucket]:
     path = tmp_path / "bucket"
     yield PathBucket(path)
     shutil.rmtree(path)
+
+
+def unjson_serialisable(x):
+    return x
 
 
 @fixture
@@ -98,12 +103,20 @@ def data_dict_json() -> tuple[dict, str, type[dict], Callable[[dict, dict], bool
     return {"a": 1, "b": 2}, "dict.json", dict, operator.eq
 
 
+def data_dict_pickle() -> tuple[dict, str, type[dict], Callable[[dict, dict], bool]]:
+    return {"b": unjson_serialisable}, "dict.pkl", dict, operator.eq
+
+
 def data_dict_yaml() -> tuple[dict, str, type[dict], Callable[[dict, dict], bool]]:
     return {"a": 1, "b": 2}, "dict.yaml", dict, operator.eq
 
 
 def data_list_json() -> tuple[list, str, type[list], Callable[[list, list], bool]]:
     return [1, 2, 3], "list.json", list, operator.eq
+
+
+def data_list_pickle() -> tuple[list, str, type[list], Callable[[list, list], bool]]:
+    return [unjson_serialisable], "list.pkl", list, operator.eq
 
 
 def data_list_yaml() -> tuple[list, str, type[list], Callable[[list, list], bool]]:
@@ -128,10 +141,6 @@ def test_bucket(
     assert len(bucket) == 1
 
     retrieved = bucket[key].load()
-    print(item)
-    print("---")
-    print(retrieved)
-    print(item == retrieved)
     assert equal(item, retrieved)
 
     retrieved = bucket[key].get()
@@ -144,3 +153,11 @@ def test_bucket(
     assert not bucket[key].exists()
     assert key not in bucket
     assert len(bucket) == 0
+
+
+@parametrize_with_cases("bucket", cases=[bucket_path_bucket])
+def test_pathbucket_subdirectory(bucket: PathBucket) -> None:
+    subbucket = bucket / "subdir"
+    assert subbucket.path.name == "subdir"
+    assert subbucket.path.parent == bucket.path
+    assert subbucket.path.exists()

@@ -4,7 +4,8 @@ import logging
 
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.optimization import Optimizer, RandomSearch, Trial, TrialReport
+from byop.optimization import Optimizer, RandomSearch, Trial
+from byop.optimization.optuna_opt import OptunaOptimizer
 from byop.optimization.smac_opt import SMACOptimizer
 from byop.pipeline import Pipeline, step
 from byop.timing import TimeInterval, TimeKind
@@ -12,11 +13,10 @@ from byop.timing import TimeInterval, TimeKind
 logger = logging.getLogger(__name__)
 
 
-def target_function(trial: Trial, /, time_kind: TimeKind, err=None) -> TrialReport:
+def target_function(trial: Trial, /, time_kind: TimeKind, err=None) -> Trial.Report:
     """A target function for testing optimizers."""
     with trial.begin(time=time_kind):
         # Do stuff with trail.info here
-        logger.debug(trial.config)
         logger.debug(trial.info)
 
         if err is not None:
@@ -44,6 +44,12 @@ def opt_smac_hpo() -> SMACOptimizer:
     return SMACOptimizer.HPO(space=pipeline.space(), seed=2**32 - 1)
 
 
+@case
+def opt_optuna() -> OptunaOptimizer:
+    pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
+    return OptunaOptimizer.create(space=pipeline.space(parser="optuna"))
+
+
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
 @parametrize("time_kind", [TimeKind.WALL, TimeKind.CPU, TimeKind.PROCESS])
 def test_report_success(optimizer: Optimizer, time_kind: TimeKind):
@@ -52,10 +58,9 @@ def test_report_success(optimizer: Optimizer, time_kind: TimeKind):
     report = target_function(trial, time_kind=time_kind, err=None)
     optimizer.tell(report)
 
+    assert isinstance(report, Trial.SuccessReport)
     assert valid_time_interval(report.time)
-    assert report.info is trial.info
-    assert report.exception is None
-    assert report.successful is True
+    assert report.trial.info is trial.info
     assert report.results == {"cost": 1}
 
 
@@ -70,9 +75,8 @@ def test_report_failure(optimizer: Optimizer, time_kind: TimeKind):
         err=ValueError("ValueError happened"),
     )
     optimizer.tell(report)
+    assert isinstance(report, Trial.FailReport)
 
     assert valid_time_interval(report.time)
-    assert report.info is trial.info
     assert isinstance(report.exception, ValueError)
-    assert report.successful is False
     assert report.results == {"cost": 2000}

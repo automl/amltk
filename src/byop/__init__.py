@@ -4,13 +4,8 @@ from byop.pipeline import Pipeline, choice, split, step
 from byop.scheduling import (
     Comm,
     CommTask,
-    CommTaskFuture,
-    ExitCode,
     Scheduler,
-    SchedulerEvent,
     Task,
-    TaskEvent,
-    TaskFuture,
 )
 from byop.store import (
     Bucket,
@@ -36,12 +31,7 @@ __all__ = [
     "Scheduler",
     "Comm",
     "CommTask",
-    "CommTaskFuture",
     "Task",
-    "TaskFuture",
-    "TaskEvent",
-    "ExitCode",
-    "SchedulerEvent",
     "Bucket",
     "Drop",
     "PathBucket",

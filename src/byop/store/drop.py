@@ -81,7 +81,9 @@ class Drop(Generic[KeyT]):
             how(obj)
             return
 
-        loader = first((_l for _l in self.loaders if _l.can_save(obj)), default=None)
+        loader = first(
+            (_l for _l in self.loaders if _l.can_save(obj, self.key)), default=None
+        )
         if not loader:
             msg = (
                 f"No default way to handle {type(obj)=} objects."

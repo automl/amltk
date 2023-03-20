@@ -11,28 +11,23 @@ be used for communication between the task and the main process.
 from __future__ import annotations
 
 from asyncio import Future
-from collections import Counter
-from dataclasses import dataclass, field
+from itertools import chain
 import logging
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    ClassVar,
     Generic,
-    Literal,
+    Hashable,
     ParamSpec,
     TypeVar,
-    cast,
-    overload,
 )
 
-from typing_extensions import Self
+from pynisher import Pynisher
 
+from byop.events import Event, Subscriber
 from byop.exceptions import exception_wrap
-from byop.functional import funcname
-from byop.scheduling.events import TaskEvent
-from byop.types import CallbackName, TaskName, TaskParams, TaskReturn
+from byop.functional import callstring, funcname
 
 if TYPE_CHECKING:
     from byop.scheduling.scheduler import Scheduler
@@ -41,11 +36,13 @@ logger = logging.getLogger(__name__)
 
 
 P = ParamSpec("P")
+P2 = ParamSpec("P2")
+
 R = TypeVar("R")
+CallableT = TypeVar("CallableT", bound=Callable)
 
 
-@dataclass
-class Task(Generic[TaskParams, TaskReturn]):
+class Task(Generic[P, R]):
     """A task is a unit of work that can be scheduled by the scheduler.
 
     It is defined by its `name` and a `function` to call. Whenever a task
@@ -75,22 +72,60 @@ class Task(Generic[TaskParams, TaskReturn]):
     ```
 
     1. You could also do: `#!python my_task.on(task.RETURNED, lambda res: print(res))`
-    2. You could also do: `#!python my_task.on(task.NO_RETURN, lambda err: print(err))`
+    2. You could also do: `#!python my_task.on(task.EXCEPTION, lambda err: print(err))`
 
     Attributes:
         name: The name of the task.
         function: The function of this task
         scheduler: The scheduler that this task is registered with.
         n_called: How many times this task has been called.
-        limit: How many times this task can be run. Defaults to `None`
+        call_limit: How many times this task can be run. Defaults to `None`task
     """
+
+    SUBMITTED: Event[Future] = Event("task-submitted")
+    """A Task has been submitted to the scheduler."""
+
+    DONE: Event[Future] = Event("task-done")
+    """A Task has finished running."""
+
+    CANCELLED: Event[Future] = Event("task-cancelled")
+    """A Task has been cancelled."""
+
+    RETURNED: Event[Future, Any] = Event("task-returned")
+    """A Task has successfully returned a value."""
+
+    EXCEPTION: Event[Future, BaseException] = Event("task-exception")
+    """A Task failed to return anything but an exception."""
+
+    TIMEOUT: Event[Future, BaseException] = Event("task-timeout")
+    """A Task timed out."""
+
+    MEMORY_LIMIT_REACHED: Event[Future, BaseException] = Event("task-memory-limit")
+    """A Task was submitted but reached it's memory limit."""
+
+    CPU_TIME_LIMIT_REACHED: Event[Future, BaseException] = Event("task-cputime-limit")
+    """A Task was submitted but reached it's cpu time limit."""
+
+    WALL_TIME_LIMIT_REACHED: Event[Future, BaseException] = Event("task-walltime-limit")
+    """A Task was submitted but reached it's wall time limit."""
+
+    CONCURRENT_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")
+    """A Task was submitted but reached it's concurrency limit."""
+
+    CALL_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")
+    """A Task was submitted but reached it's concurrency limit."""
 
     def __init__(
         self,
-        name: TaskName,
-        function: Callable[TaskParams, TaskReturn],
+        function: Callable[P, R],
         scheduler: Scheduler,
-        limit: int | None = None,
+        *,
+        name: str | None = None,
+        call_limit: int | None = None,
+        concurrent_limit: int | None = None,
+        memory_limit: int | tuple[int, str] | None = None,
+        cpu_time_limit: int | tuple[float, str] | None = None,
+        wall_time_limit: int | tuple[float, str] | None = None,
     ) -> None:
         """Initialize a task.
 
@@ -98,239 +133,157 @@ class Task(Generic[TaskParams, TaskReturn]):
             name: The name of the task.
             function: The function of this task
             scheduler: The scheduler that this task is registered with.
-            limit: How many times this task can be run. Defaults to `None`
+            call_limit: How many times this task can be run. Defaults to `None`
+            concurrent_limit: How many of this task can be running conccurently.
+                By default this is `None` which means that there is no limit.
+            memory_limit: The memory limit for this task. Defaults to `None`
+            cpu_time_limit: The cpu time limit for this task. Defaults to `None`
+            wall_time_limit: The wall time limit for this task. Defaults to `None`
         """
-        self.name = name
-        self.function = function
+        self.function: Callable[P, R]
+
+        self.name = funcname(function) if name is None else name
         self.scheduler = scheduler
-        self.limit = limit
+        self.call_limit = call_limit
+        self.concurrent_limit = concurrent_limit
+
+        self.queue: list[Future[R]] = []
+
+        # We hold reference to this because we will wrap it with some
+        # utility to handle tracebacks and possible pynisher
+        self._original_function = function
+
+        # We wrap the function such that when an error occurs, it's
+        # traceback is attached to the message. This is because we
+        # can't retrieve the traceback from an exception in another
+        # process.
+        self.function = exception_wrap(function)
+
+        # If any of our limits is set, we need to wrap it in Pynisher
+        # to enfore these limits.
+        if any(
+            limit is not None
+            for limit in (memory_limit, cpu_time_limit, wall_time_limit)
+        ):
+            self.function = Pynisher(
+                self.function,
+                memory=memory_limit,
+                cpu_time=cpu_time_limit,
+                wall_time=wall_time_limit,
+                terminate_child_processes=True,
+            )
+
+        # Pynisher limits
+        self.memory_limit = memory_limit
+        self.cpu_time_limit = cpu_time_limit
+        self.wall_time_limit = wall_time_limit
         self.n_called = 0
 
-    def __post_init__(self) -> None:
-        self.function = exception_wrap(self.function)
+        # Set up subscription methods to events
+        self.on_submitted: Subscriber[Future[R]]
+        self.on_submitted = self.subscriber(self.SUBMITTED)
 
-    def running(self) -> bool:
-        """Check if this task is currently running.
+        self.on_done: Subscriber[Future[R]]
+        self.on_done = self.subscriber(self.DONE)
 
-        Returns:
-            bool: True if the task is currently running.
-        """
-        return any(future.running() for future in self.futures())
+        self.on_cancelled: Subscriber[Future[R]]
+        self.on_cancelled = self.subscriber(self.CANCELLED)
 
-    def futures(self) -> list[TaskFuture[TaskParams, TaskReturn]]:
+        self.on_returned: Subscriber[Future[R], R]
+        self.on_returned = self.subscriber(self.RETURNED)
+
+        self.on_exception: Subscriber[Future[R], BaseException]
+        self.on_exception = self.subscriber(self.EXCEPTION)
+
+        self.on_timeout: Subscriber[Future[R], BaseException]
+        self.on_timeout = self.subscriber(self.TIMEOUT)
+
+        self.on_memory_limit: Subscriber[Future[R], BaseException]
+        self.on_memory_limit = self.subscriber(self.MEMORY_LIMIT_REACHED)
+
+        self.on_cpu_time_limit_reached: Subscriber[Future[R], BaseException]
+        self.on_cputime_limit_reached = self.subscriber(self.CPU_TIME_LIMIT_REACHED)
+
+        self.on_walltime_limit_reached: Subscriber[Future[R], BaseException]
+        self.on_walltime_limit_reached = self.subscriber(self.WALL_TIME_LIMIT_REACHED)
+
+        self.on_call_limit_reached: Subscriber[P]
+        self.on_call_limit_reached = self.subscriber(self.CALL_LIMIT_REACHED)
+
+        self.on_concurrent_limit_reached: Subscriber[P]
+        self.on_concurrent_limit_reached = self.subscriber(
+            self.CONCURRENT_LIMIT_REACHED
+        )
+
+    def futures(self) -> list[Future[R]]:
         """Get the futures for this task.
 
         Returns:
-            list[TaskFuture]: A list of futures for this task.
+            A list of futures for this task.
         """
-        # NOTE: This could technically fail if there is multiple tasks
-        # with different function definitions but the same name.
-        futures = cast(
-            list[TaskFuture[TaskParams, TaskReturn]],
-            self.scheduler.task_futures.get(self.name, []),
-        )
-        return futures  # noqa: RET504
+        return self.queue
 
     @property
-    def counts(self) -> Counter[TaskEvent]:
+    def counts(self) -> dict[Event, int]:
         """Get the number of event counts for this task.
 
         Returns:
-            Counter[TaskEvent]: A counter of the number of times each event
-                has been emitted.
+            A counter of the number of times each event has been emitted.
         """
-        counts = {
-            event: self.scheduler.event_manager.counts[(self.name, event)]
-            for event in iter(TaskEvent)
+        return {
+            event: count
+            for event in self.events()
+            if (count := self.scheduler.event_manager.counts.get((event, self.name)))
+            is not None
+            and count > 0
         }
-        return Counter(counts)
 
-    @overload
-    def on(
-        self,
-        event: Literal[TaskEvent.SUBMITTED, TaskEvent.DONE, TaskEvent.CANCELLED],
-        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
-        *,
-        name: CallbackName | None = ...,
-        when: Callable[[Counter[TaskEvent]], bool] | None = ...,
-    ) -> Self:
-        ...
+    @classmethod
+    def events(cls) -> list[Event]:
+        """Return the events that this class emits."""
+        inherited_attrs = chain.from_iterable(vars(cls).values() for cls in cls.__mro__)
+        return [attr for attr in inherited_attrs if isinstance(attr, Event)]
 
-    @overload
-    def on(
-        self,
-        event: Literal[TaskEvent.NO_RETURN],
-        callback: Callable[[BaseException], Any],
-        *,
-        name: CallbackName | None = ...,
-        when: Callable[[Counter[TaskEvent]], bool] | None = ...,
-    ) -> Self:
-        ...
-
-    @overload
-    def on(
-        self,
-        event: Literal[TaskEvent.RETURNED],
-        callback: Callable[[TaskReturn], Any],
-        *,
-        name: CallbackName | None = ...,
-        when: Callable[[Counter[TaskEvent]], bool] | None = ...,
-    ) -> Self:
-        ...
-
-    def on(
-        self,
-        event: TaskEvent,
-        callback: Callable,
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Counter[TaskEvent]], bool] | None = None,
-    ) -> Self:
-        """Register a callback to be called when the task emits an event.
-
-        ???+ note "See the more specific versions of this method for more"
-            * [`on_submitted`][byop.scheduling.task.Task.on_submitted]
-            * [`on_done`][byop.scheduling.task.Task.on_done]
-            * [`on_cancelled`][byop.scheduling.task.Task.on_cancelled]
-            * [`on_return`][byop.scheduling.task.Task.on_return]
-            * [`on_noreturn`][byop.scheduling.task.Task.on_noreturn]
+    def subscriber(self, event: Event[P2]) -> Subscriber[P2]:
+        """Return an object that can be used to subscribe to an event for this task.
 
         Args:
-            event: The event to listen to.
-            callback: The callback to call.
-            name: A specific name to give this callback.
-            when: A function that takes the current state of the task and
-                returns a boolean. If the boolean is True, the callback will
-                be called.
-        """
-        if name is None:
-            if isinstance(callback, Task):  # noqa: SIM108
-                name = callback.name
-            else:
-                name = funcname(callback)
-            name = f"on-{self.name}-{event}-{name}"
-
-        pred = None if when is None else (lambda counts=self.counts: when(counts))
-        _event = (self.name, event)
-        self.scheduler.event_manager.on(_event, callback, name=name, when=pred)
-        return self
-
-    def on_submitted(
-        self,
-        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Counter[TaskEvent]], bool] | None = None,
-    ) -> Self:
-        """Register a callback to be called when the task is submitted.
-
-        Args:
-            callback: The callback to call, which must accept this tasks
-                TaskFuture as its only argument.
-            name: A specific name to give this callback.
-            when: A function that takes the current state of the task and
-                returns a boolean. If the boolean is True, the callback will
-                be called.
+            event: The event to subscribe to.
 
         Returns:
-            The task itself.
+            A callable object that can be used to subscribe to events.
         """
-        return self.on(TaskEvent.SUBMITTED, callback, name=name, when=when)
+        _event = (event, self.name)
+        return self.scheduler.event_manager.subscriber(_event)
 
-    def on_done(
-        self,
-        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Counter[TaskEvent]], bool] | None = None,
-    ) -> Self:
-        """Register a callback to be called when the task is done.
+    def emit(self, event: Event, *args: Any, **kwargs: Any) -> None:
+        """Emit an event.
 
         Args:
-            callback: The callback to call, which must accept this tasks
-                TaskFuture as its only argument.
-            name: A specific name to give this callback.
-            when: A function that takes the current state of the task and
-                returns a boolean. If the boolean is True, the callback will
-                be called.
-
-        Returns:
-            The task itself.
+            event: The event to emit.
+            *args: The positional arguments to pass to the event handlers.
+            **kwargs: The keyword arguments to pass to the event handlers.
         """
-        return self.on(TaskEvent.DONE, callback, name=name, when=when)
+        task_event = (event, self.name)
+        self.scheduler.event_manager.emit(task_event, *args, **kwargs)
 
-    def on_cancelled(
-        self,
-        callback: Callable[[TaskFuture[TaskParams, TaskReturn]], Any],
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Counter[TaskEvent]], bool] | None = None,
-    ) -> Self:
-        """Register a callback to be called when the task is cancelled.
+    def forward_event(self, frm: Hashable, to: Hashable) -> None:
+        """Forward an event to another event.
 
         Args:
-            callback: The callback to call, which must accept this tasks
-                TaskFuture as its only argument.
-            name: A specific name to give this callback.
-            when: A function that takes the current state of the task and
-                returns a boolean. If the boolean is True, the callback will
-                be called.
-
-        Returns:
-            The task itself.
+            frm: The event to forward.
+            to: The event to forward to.
         """
-        return self.on(TaskEvent.CANCELLED, callback, name=name, when=when)
+        self.scheduler.event_manager.forward(frm, to)
 
-    def on_return(
-        self,
-        callback: Callable[[TaskReturn], Any],
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Counter[TaskEvent]], bool] | None = None,
-    ) -> Self:
-        """Register a callback to be called when the task emits a success event.
-
-        Args:
-            callback: The callback to call, which must accept the return value
-                of the task as its only argument.
-            name: A specific name to give the callback
-            when: A function that takes the current state of the task and
-                returns a boolean. If the boolean is True, the callback will
-                be called.
-        """
-        return self.on(TaskEvent.RETURNED, callback, name=name, when=when)
-
-    def on_noreturn(
-        self,
-        callback: Callable[[BaseException], Any],
-        *,
-        name: CallbackName | None = None,
-        when: Callable[[Counter[TaskEvent]], bool] | None = None,
-    ) -> Self:
-        """Register a callback to be called when the task emits a success event.
-
-        Args:
-            callback: The callback to call, which must accept the return value
-                of the task as its only argument.
-            name: A specific name to give this callback.
-            when: A function that takes the current state of the task and
-                returns a boolean. If the boolean is True, the callback will
-                be called.
-        """
-        return self.on(TaskEvent.NO_RETURN, callback, name=name, when=when)
-
-    def __call__(
-        self: Self,
-        *args: TaskParams.args,
-        **kwargs: TaskParams.kwargs,
-    ) -> TaskFuture[TaskParams, TaskReturn] | None:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Future[R] | None:
         """Dispatch this task.
 
         !!! note
-            If `task.limit` was set and this limit was reached, the call
+            If `task.call_limit` was set and this limit was reached, the call
             will have no effect and nothing well be dispatched. Only a
             debug message will be logged. You can use `task.n_called`
-            and `task.limit` to check if the limit was reached.
+            and `task.call_limit` to check if the limit was reached.
 
         Args:
             *args: The positional arguments to pass to the task.
@@ -339,91 +292,62 @@ class Task(Generic[TaskParams, TaskReturn]):
         Returns:
             The future of the task, or `None` if the limit was reached.
         """
-        if self.limit and self.n_called >= self.limit:
-            msg = (
-                f"Task {self.name} has been called {self.n_called} times,"
-                f" reaching its limit {self.limit}."
-            )
-            logger.debug(msg)
+        if self.call_limit and self.n_called >= self.call_limit:
+            self.emit(self.CALL_LIMIT_REACHED, *args, **kwargs)
+            return None
+
+        n_running = sum(1 for f in self.queue if not f.done())
+        if self.concurrent_limit is not None and n_running >= self.concurrent_limit:
+            self.emit(self.CONCURRENT_LIMIT_REACHED, *args, **kwargs)
             return None
 
         self.n_called += 1
-        return self.scheduler._dispatch(self, *args, **kwargs)
+        future = self.scheduler._submit(self.function, *args, **kwargs)
+        self.queue.append(future)
 
-    event: ClassVar = TaskEvent
-    """The possible events a task can emit
-    See [`TaskEvent`][byop.scheduling.events.TaskEvent] for more details.
-    """
+        # Process the task once it's completed
+        future.add_done_callback(self._process_future)
 
-    SUBMITTED: ClassVar = TaskEvent.SUBMITTED
-    """Event triggered when the task has been submitted.
-    See [`TaskEvent.SUBMITTED`][byop.scheduling.events.TaskEvent.SUBMITTED].
-    """
+        # We actuall have the function wrapped in something will
+        # attach tracebacks to errors, so we need to get the
+        # original function name.
+        msg = (
+            f"Submitted {self} with "
+            f"{callstring(self._original_function, *args, **kwargs)}"
+        )
+        logger.debug(msg)
+        self.emit(Task.SUBMITTED, future)
 
-    DONE: ClassVar = TaskEvent.DONE
-    """Event triggered when the task is done.
-    See [`TaskEvent.DONE`][byop.scheduling.events.TaskEvent.DONE]
-    """
+        return future
 
-    RETURNED: ClassVar = TaskEvent.RETURNED
-    """Event triggered when the task has successfully returned a value.
-    See [`TaskEvent.RETURNED`][byop.scheduling.events.TaskEvent.RETURNED]
-    """
+    def _process_future(self, future: Future[R]) -> None:
+        try:
+            self.queue.remove(future)
+        except ValueError as e:
+            raise ValueError(f"{future=} not found in task queue {self.queue=}") from e
 
-    NO_RETURN: ClassVar = TaskEvent.NO_RETURN
-    """Event triggered when the task has errored.
-    See [`TaskEvent.NO_RETURN`][byop.scheduling.events.TaskEvent.NO_RETURN]
-    """
+        if future.cancelled():
+            self.emit(Task.CANCELLED, future)
+            return
 
-    CANCELLED: ClassVar = TaskEvent.CANCELLED
-    """Event triggered when the task has been cancelled.
-    See [`TaskEvent.CANCELLED`][byop.scheduling.events.TaskEvent.CANCELLED]
-    """
+        self.emit(Task.DONE, future)
 
+        exception = future.exception()
+        if exception is not None:
+            self.emit(Task.EXCEPTION, future, exception)
 
-@dataclass(frozen=True)
-class TaskFuture(Generic[TaskParams, TaskReturn]):
-    """A thin wrapper for a future with a name and reference to the task description.
+            # If it was a limiting exception, emit it
+            if isinstance(exception, Pynisher.TimeoutException):
+                self.emit(Task.TIMEOUT, future, exception)
+            if isinstance(exception, Pynisher.WallTimeoutException):
+                self.emit(Task.WALL_TIME_LIMIT_REACHED, future, exception)
+            if isinstance(exception, Pynisher.MemoryLimitException):
+                self.emit(Task.MEMORY_LIMIT_REACHED, future, exception)
+            if isinstance(exception, Pynisher.CpuTimeoutException):
+                self.emit(Task.CPU_TIME_LIMIT_REACHED, future, exception)
+        else:
+            result = future.result()
+            self.emit(Task.RETURNED, future, result)
 
-    Attributes:
-        desc: The task associated with this future.
-        future: The future associated with this task.
-    """
-
-    desc: Task[TaskParams, TaskReturn]
-    future: Future[TaskReturn] = field(repr=False)
-
-    @property
-    def name(self) -> TaskName:
-        """The name of the task."""
-        return self.desc.name
-
-    @property
-    def result(self) -> TaskReturn:
-        """Get the result of the task."""
-        return self.future.result()
-
-    @property
-    def exception(self) -> BaseException | None:
-        """Get the exception of the task."""
-        return self.future.exception()
-
-    def has_result(self) -> bool:
-        """Check if the task has a result."""
-        return self.future.done() and not self.future.cancelled()
-
-    def cancel(self) -> None:
-        """Cancel the task."""
-        self.future.cancel()
-
-    def done(self) -> bool:
-        """Check if the task is done."""
-        return self.future.done()
-
-    def cancelled(self) -> bool:
-        """Check if the task is cancelled."""
-        return self.future.cancelled()
-
-    def running(self) -> bool:
-        """Check if the task is running."""
-        return not self.future.done()
+    def __repr__(self) -> str:
+        return f"Task(name={self.name})"
