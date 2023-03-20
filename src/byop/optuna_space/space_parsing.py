@@ -26,14 +26,13 @@ from byop.pipeline.components import Choice, Component, Split, Step
 HyperparameterType: TypeAlias = int | str | float
 OptunaConfig: TypeAlias = dict[str, HyperparameterType]
 OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
-N_RANGE = 2
 
 
 def _convert_hp_to_optuna_distribution(
     hp: tuple | list | HyperparameterType, name: str
 ) -> BaseDistribution:
     if isinstance(hp, tuple):
-        if len(hp) != N_RANGE:
+        if len(hp) != 2:  # noqa: PLR2004
             raise ParseError(f"{name} must be (lower, upper) bound, got {hp}")
         lower, upper = hp
         if type(lower) != type(upper):
@@ -107,8 +106,7 @@ def generate_optuna_search_space(
     for splits, _, step in pipeline.walk():
         _splits = splits if splits is not None else []
         subspace = _process_step(_splits, step)
-        if subspace is not None:
-            search_space.update(subspace)
+        search_space.update(subspace)
     return search_space
 
 

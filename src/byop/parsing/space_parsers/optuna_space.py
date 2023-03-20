@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from byop.types import Seed
 
 
-class OptunaSpaceParser(SpaceParser["OptunaSearchSpace"]):
+class OptunaSpaceParser(SpaceParser[OptunaSearchSpace]):
     """Attempts to parse a pipeline into a ConfigSpace."""
 
     @classmethod
