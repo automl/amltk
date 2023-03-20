@@ -1,5 +1,5 @@
 install:
-  pip install -e ".[dev, test, doc, smac]"
+  pip install -e ".[dev, test, doc, smac, optuna]"
   pre-commit install
   pre-commit install --hook-type commit-msg
 
@@ -41,3 +41,5 @@ pr-other name:
   git pull origin main
   git checkout -b other-{{name}} main
   git push --set-upstream origin other-{{name}}
+test:
+  pytest -x --lf

@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Any
 
 from result import Err, Ok, Result
 
+from byop.optuna_space.space_parsing import OptunaSearchSpace
 from byop.parsing.space_parsers.space_parser import ParseError, SpaceParser
 from byop.pipeline.components import Component, Split
 
 if TYPE_CHECKING:
-    from byop.optuna_space.space_parsing import OptunaSearchSpace
     from byop.pipeline import Pipeline
     from byop.types import Seed
 

@@ -103,6 +103,8 @@ def parse(
             automatically figure out the kind of Space to extract from the pipeline.
             * If `"configspace"` is provided, a ConfigurationSpace will be attempted
             to be extracted.
+            * If `"optuna"` is provided, an Optuna space will be attempted
+            to be extracted.
             * If a `type` is provided, it will attempt to infer which parser to use.
             * If `parser` is a parser type, we will attempt to use that.
             * If `parser` is a callable, we will attempt to use that.
@@ -129,7 +131,7 @@ def parse(
 
     elif parser == "optuna":
         parsers = [OptunaSpaceParser]
-        results = seekable([OptunaSpaceParser._parse(pipeline, seed)])
+        results = seekable([OptunaSpaceParser._parse(pipeline, seed)])  # type: ignore
 
     elif isinstance(parser, SpaceParser):
         parsers = [parser]

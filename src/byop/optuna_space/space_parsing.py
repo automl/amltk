@@ -41,6 +41,7 @@ def _convert_hp_to_optuna_distribution(
                 f"got lower: {type(lower)}, upper: {type(upper)}."
             )
 
+        real_hp: BaseDistribution
         if isinstance(lower, float):
             real_hp = FloatDistribution(lower, upper)
         else:
@@ -135,6 +136,7 @@ def _process_step(
 
     prefix = f"{prefix}{delimiter}{step.name}" if prefix != "" else step.name
     choices = (s for s in splits if isinstance(s, Choice))
+    subspace: OptunaSearchSpace
 
     # In case this step is supposed to be conditioned on a choice.
     if any(choices):

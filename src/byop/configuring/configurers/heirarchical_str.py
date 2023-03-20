@@ -185,5 +185,3 @@ def _process(
 
     if step.nxt is not None:
         yield from _process(step.nxt, config, splits=splits, delimiter=delimiter)
-
-    return

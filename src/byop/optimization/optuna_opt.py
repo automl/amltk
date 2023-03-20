@@ -13,11 +13,11 @@ from optuna.trial import Trial as OptunaTrial
 from optuna.trial import TrialState
 from typing_extensions import Self
 
-from byop.optimization.optimizer import Optimizer, Trial, TrialReport
-from byop.optuna_space.space_parsing import OptunaConfig, OptunaSearchSpace
+from byop.optimization.optimizer import Optimizer, Trial
+from byop.optuna_space.space_parsing import OptunaSearchSpace
 
 
-class OptunaOptimizer(Optimizer[OptunaTrial, OptunaConfig]):
+class OptunaOptimizer(Optimizer[OptunaTrial]):
     """An optimizer that uses Optuna to optimize a search space."""
 
     def __init__(self, *, study: Study, space: OptunaSearchSpace) -> None:
@@ -68,32 +68,30 @@ class OptunaOptimizer(Optimizer[OptunaTrial, OptunaConfig]):
 
         return cls(study=study, space=space)
 
-    def ask(self) -> Trial[OptunaTrial, OptunaConfig]:
+    def ask(self) -> Trial[OptunaTrial]:
         """Ask the optimizer for a new config.
 
         Returns:
             The trial info for the new config.
         """
         optuna_trial = self.study.ask(self.space)
-
-        config = optuna_trial.params
-
         trial_number = optuna_trial.number
         unique_name = f"{trial_number=}"
-        return Trial(name=unique_name, config=config, info=optuna_trial)
+        return Trial(name=unique_name, info=optuna_trial)
 
-    def tell(self, report: TrialReport[OptunaTrial, OptunaConfig]) -> None:
+    def tell(self, report: Trial.Report[OptunaTrial]) -> None:
         """Tell the optimizer the result of the sampled config.
 
         Args:
             report: The report of the trial.
         """
-        reported_costs = report.results.get("cost", None)
-
-        trial = report.info
-        trial_state = TrialState.COMPLETE if report.successful else TrialState.FAIL
-
-        # In case of failure, Optuna does not expect any value
-        if trial_state == TrialState.FAIL:
+        if isinstance(report, Trial.SuccessReport):
+            reported_costs = report.results.get("cost", None)
+            trial = report.trial.info
+            trial_state = TrialState.COMPLETE
+        else:
             reported_costs = None
+            trial = report.trial.info
+            trial_state = TrialState.FAIL
+
         self.study.tell(trial=trial, values=reported_costs, state=trial_state)

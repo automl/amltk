@@ -62,14 +62,22 @@ smac = [
   "smac>=2.0",
   "configspace",
 ]
+optuna = ["optuna"]
 
 [project.urls]
 documentation = "https://github.com/automl/byop/"
 source = "https://github.com/automl/byop/"
 
+# https://docs.pytest.org/en/7.2.x/reference/reference.html#ini-options-ref
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-minversion = "3.8"
+minversion = "7.0"
+empty_parameter_set_mark = "xfail"
+log_cli = false
+log_level = "DEBUG"
+xfail_strict = true
+addopts = "--durations=10 -vv"
+
 
 [tool.coverage.run]
 branch = true
@@ -154,6 +162,7 @@ ignore = [
   "A003", # Shadowing a builtin
   "S101", # Use of assert detected.
   "W292", # No newline at end of file
+  "PLC1901", # "" can be simplified to be falsey
 ]
 
 exclude = [
@@ -237,3 +246,4 @@ module = [
   "more_itertools.*",
 ]
 ignore_missing_imports = true
+

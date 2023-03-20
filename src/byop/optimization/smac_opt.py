@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Sequence
 
-from ConfigSpace import Configuration, ConfigurationSpace
+from ConfigSpace import ConfigurationSpace
 from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, Scenario
 from smac.facade import AbstractFacade
@@ -16,19 +16,12 @@ from smac.runhistory import TrialInfo as SMACTrialInfo
 from smac.runhistory import TrialValue as SMACTrialValue
 from typing_extensions import Self
 
-from byop.optimization.optimizer import (
-    CrashReport,
-    FailReport,
-    Optimizer,
-    SuccessReport,
-    Trial,
-    TrialReport,
-)
+from byop.optimization.optimizer import Optimizer, Trial
 from byop.randomness import as_int
 from byop.types import Seed
 
 
-class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
+class SMACOptimizer(Optimizer[SMACTrialInfo]):
     """An optimizer that uses SMAC to optimize a config space."""
 
     def __init__(self, *, facade: AbstractFacade) -> None:
@@ -59,7 +52,6 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
                 SMAC's handling of logging.
         """
         seed = as_int(seed)
-        print(seed)
         facade = HyperparameterOptimizationFacade(
             scenario=Scenario(configspace=space, seed=seed),
             target_function="dummy",  # NOTE: https://github.com/automl/SMAC3/issues/946
@@ -68,7 +60,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
         )
         return cls(facade=facade)
 
-    def ask(self) -> Trial[SMACTrialInfo, Configuration]:
+    def ask(self) -> Trial[SMACTrialInfo]:
         """Ask the optimizer for a new config.
 
         Returns:
@@ -82,19 +74,16 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}.{instance=}.{seed=}.{budget=}"
-        return Trial(name=unique_name, config=config, info=smac_trial_info)
+        return Trial(name=unique_name, info=smac_trial_info)
 
-    def tell(  # noqa: C901
-        self,
-        report: TrialReport[SMACTrialInfo, Configuration],
-    ) -> None:
+    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:
         """Tell the optimizer the result of the sampled config.
 
         Args:
             report: The report of the trial.
         """
         # If we're successful, get the cost and times and report them
-        if isinstance(report, SuccessReport):
+        if isinstance(report, Trial.SuccessReport):
             if "cost" not in report.results:
                 raise ValueError(
                     f"Report must have 'cost' if successful but got {report}."
@@ -111,13 +100,13 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
             )
             return
 
-        if isinstance(report, FailReport):
+        if isinstance(report, Trial.FailReport):
             duration = report.time.duration
             start = report.time.start
             end = report.time.end
             reported_cost = report.results.get("cost", None)
             additional_info = report.results.get("additional_info", {})
-        elif isinstance(report, CrashReport):
+        else:
             duration = 0
             start = 0
             end = 0
@@ -129,8 +118,9 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
             MemoryLimitException: StatusType.MEMORYOUT,
             TimeoutException: StatusType.TIMEOUT,
         }
-
         status_type = StatusType.CRASHED
+
+        assert isinstance(report, (Trial.FailReport, Trial.CrashReport))
         if report.exception is not None:
             status_type = status_types.get(type(report.exception), StatusType.CRASHED)
             additional_info["exception"] = str(report.exception)
@@ -170,4 +160,4 @@ class SMACOptimizer(Optimizer[SMACTrialInfo, Configuration]):
             status=status_type,
             additional_info=additional_info,
         )
-        self.facade.tell(info=report.info, value=trial_value, save=True)
+        self.facade.tell(info=report.trial.info, value=trial_value, save=True)

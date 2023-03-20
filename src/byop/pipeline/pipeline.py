@@ -25,9 +25,10 @@ from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.step import Step
-from byop.types import BuiltPipeline, Config, Key, Name, Seed, Space
+from byop.types import Config, Key, Name, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
+B = TypeVar("B")  # Built pipeline
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
@@ -387,18 +388,14 @@ class Pipeline(Generic[Key, Name]):
     @overload
     def build(
         self,
-        builder: Builder[BuiltPipeline] | Callable[[Pipeline], BuiltPipeline],
-    ) -> BuiltPipeline:
+        builder: Builder[B] | Callable[[Pipeline], B],
+    ) -> B:
         ...
 
     def build(
         self,
-        builder: (
-            Literal["auto"]
-            | Builder[BuiltPipeline]
-            | Callable[[Pipeline], BuiltPipeline]
-        ) = "auto",
-    ) -> BuiltPipeline | Any:
+        builder: (Literal["auto"] | Builder[B] | Callable[[Pipeline], B]) = "auto",
+    ) -> B | Any:
         """Build the pipeline.
 
         Args:
