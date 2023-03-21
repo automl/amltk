@@ -712,3 +712,11 @@ the `.github/dependabot.yml`. This bot will periodically
 make pull requests to the repository that update dependancies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
+
+
+#### Long Term Decisions
+Whenever faced with a long impacting decision, e.g. do we always
+use `"cost"` as the values to return in a `Trial`, please make
+an issue with the header `[Decision] Title Description` and
+append the label `(decision)` on github. This lets us
+revisit decisions made as well as the reasoning behind them.
