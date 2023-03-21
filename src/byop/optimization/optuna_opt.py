@@ -4,11 +4,10 @@ TODO: More description and explanation with examples.
 """
 from __future__ import annotations
 
+from typing import Any, Sequence
+
 import optuna
-from optuna.pruners import BasePruner
-from optuna.samplers import BaseSampler
-from optuna.storages import BaseStorage
-from optuna.study import Study
+from optuna.study import Study, StudyDirection
 from optuna.trial import Trial as OptunaTrial
 from optuna.trial import TrialState
 from typing_extensions import Self
@@ -35,37 +34,21 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         cls,
         *,
         space: OptunaSearchSpace,
-        study_name: str | None = None,
-        storage: str | BaseStorage | None = None,
-        sampler: BaseSampler | None = None,
-        pruner: BasePruner | None = None,
-        direction: str = "minimize",
+        **kwargs: Any,
     ) -> Self:
-        """Create a new Optuna optimizer. For more information, check
-            Optuna documentation
+        """Create a new Optuna optimizer. For more information, check Optuna
+            documentation
             [here](https://optuna.readthedocs.io/en/stable/reference/generated/optuna.study.create_study.html#).
 
         Args:
             space: Defines the current search space.
-            study_name: Name of optuna study. If this argument is set to
-                 None, a unique name is generated automatically
-            storage: Database URL. If this argument is set to
-                 None, in-memory storage is used, and the Study will not be persistent.
-            sampler: A sampler object.
-            pruner: A pruner object.
-            direction: Direction of optimization. Either 'minimize' or 'maximize'.
+            **kwargs: Additional arguments to pass to
+                [`optuna.create_study`][optuna.create_study].
 
         Returns:
             Self: The newly created optimizer.
         """
-        study = optuna.create_study(
-            direction=direction,
-            study_name=study_name,
-            storage=storage,
-            sampler=sampler,
-            pruner=pruner,
-        )
-
+        study = optuna.create_study(**kwargs)
         return cls(study=study, space=space)
 
     def ask(self) -> Trial[OptunaTrial]:
@@ -86,13 +69,53 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         Args:
             report: The report of the trial.
         """
-        if isinstance(report, Trial.SuccessReport):
-            reported_costs = report.results.get("cost", None)
-            trial = report.trial.info
-            trial_state = TrialState.COMPLETE
-        else:
-            reported_costs = None
-            trial = report.trial.info
-            trial_state = TrialState.FAIL
+        trial = report.trial.info
 
-        self.study.tell(trial=trial, values=reported_costs, state=trial_state)
+        if isinstance(report, Trial.SuccessReport):
+            trial_state = TrialState.COMPLETE
+            values = self._verify_success_report_values(report)
+        else:
+            trial_state = TrialState.FAIL
+            values = None
+
+        self.study.tell(trial=trial, values=values, state=trial_state)
+
+    def _verify_success_report_values(
+        self,
+        report: Trial.SuccessReport[OptunaTrial],
+    ) -> Sequence[float]:
+        """Verify that the report is valid.
+
+        Args:
+            report: The report to check.
+
+        Raises:
+            ValueError: If both "cost" and "values" reported or
+                if the study direction is not "minimize" and "cost" is reported.
+        """
+        if "cost" in report.results and "values" in report.results:
+            raise ValueError(
+                "Both 'cost' and 'values' were provided in the report. "
+                "Only one of them should be provided."
+            )
+
+        if "cost" not in report.results and "values" not in report.results:
+            raise ValueError(
+                "Neither 'cost' nor 'values' were provided in the report. "
+                "At least one of them should be provided."
+            )
+
+        directions = self.study.directions
+
+        values = None
+        if "cost" in report.results:
+            if not all(direct == StudyDirection.MINIMIZE for direct in directions):
+                raise ValueError(
+                    "The study direction is not 'minimize',"
+                    " but 'cost' was provided in the report."
+                )
+            values = report.results["cost"]
+        else:
+            values = report.results["values"]
+
+        return values
