@@ -9,23 +9,23 @@ from result import Result
 from byop.configuring.configurers.configurer import ConfigurationError, Configurer
 from byop.configuring.configurers.heirarchical_str import HeirarchicalStrConfigurer
 from byop.pipeline.pipeline import Pipeline
-from byop.types import Config, Name
+from byop.types import Config
 
 if TYPE_CHECKING:
     from ConfigSpace import Configuration
 
 
-class ConfigSpaceConfigurer(Configurer[str]):
+class ConfigSpaceConfigurer(Configurer):
     """A Configurer that uses a configure a pipeline."""
 
     @classmethod
     def _configure(
         cls,
-        pipeline: Pipeline[str, Name],
+        pipeline: Pipeline,
         config: Configuration,
         *,
         delimiter: str = ":",  # TODO: This could be a list of things to try
-    ) -> Result[Pipeline[str, Name], ConfigurationError | Exception]:
+    ) -> Result[Pipeline, ConfigurationError | Exception]:
         """Takes a pipeline and a config to produce a configured pipeline.
 
         Relies on there being a flat map structure in the config where the

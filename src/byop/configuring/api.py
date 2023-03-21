@@ -23,23 +23,21 @@ from byop.configuring.configurers import (
 )
 from byop.functional import reposition
 from byop.pipeline.pipeline import Pipeline
-from byop.types import Config, Key, Name, safe_isinstance
+from byop.types import Config, safe_isinstance
 
 if TYPE_CHECKING:
     import ConfigSpace
 
 
 def configure(
-    pipeline: Pipeline[Key, Name],
+    pipeline: Pipeline,
     config: Config | ConfigSpace.Configuration,
     *,
     configurer: (
-        Literal["auto"]
-        | Configurer
-        | Callable[[Pipeline[Key, Name], Config], Pipeline[Key, Name]]
+        Literal["auto"] | Configurer | Callable[[Pipeline, Config], Pipeline]
     ) = "auto",
-    rename: bool | Name = False,
-) -> Pipeline[Key, Name]:
+    rename: bool | str = False,
+) -> Pipeline:
     """Configure a pipeline with a given config.
 
     Args:
@@ -54,7 +52,7 @@ def configure(
     Returns:
         The configured pipeline.
     """
-    results: seekable[Result[Pipeline[Key, Name], ConfigurationError | Exception]]
+    results: seekable[Result[Pipeline, ConfigurationError | Exception]]
     configurers: list[Any]
 
     if configurer == "auto":

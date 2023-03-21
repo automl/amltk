@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Callable, Iterable, Mapping, TypeVar, overload
 
 from byop.pipeline.components import Choice, Component, Split
-from byop.pipeline.step import Key, Step
+from byop.pipeline.step import Step
 
 Space = TypeVar("Space")
 T = TypeVar("T")
@@ -15,32 +15,32 @@ T = TypeVar("T")
 
 @overload
 def step(
-    name: Key,
+    name: str,
     item: T | Callable[..., T],
     *,
     config: Mapping[str, Any] | None = ...,
-) -> Component[Key, T, None]:
+) -> Component[T, None]:
     ...
 
 
 @overload
 def step(
-    name: Key,
+    name: str,
     item: T | Callable[..., T],
     *,
     space: Space,
     config: Mapping[str, Any] | None = ...,
-) -> Component[Key, T, Space]:
+) -> Component[T, Space]:
     ...
 
 
 def step(
-    name: Key,
+    name: str,
     item: T | Callable[..., T],
     *,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
-) -> Component[Key, T, Space] | Component[Key, T, None]:
+) -> Component[T, Space] | Component[T, None]:
     """A step in a pipeline.
 
     Can be joined together with the `|` operator, creating a chain and returning
@@ -73,45 +73,45 @@ def step(
 
 @overload
 def choice(
-    name: Key,
+    name: str,
     *choices: Step,
     weights: Iterable[float] | None = ...,
     item: None = None,
-) -> Choice[Key, None, None]:
+) -> Choice[None, None]:
     ...
 
 
 @overload
 def choice(
-    name: Key,
+    name: str,
     *choices: Step,
     weights: Iterable[float] | None = ...,
     item: T,
     config: Mapping[str, Any] | None = ...,
-) -> Choice[Key, T, None]:
+) -> Choice[T, None]:
     ...
 
 
 @overload
 def choice(
-    name: Key,
+    name: str,
     *choices: Step,
     weights: Iterable[float] | None = ...,
     item: T,
     space: Space,
     config: Mapping[str, Any] | None = ...,
-) -> Choice[Key, T, Space]:
+) -> Choice[T, Space]:
     ...
 
 
 def choice(
-    name: Key,
+    name: str,
     *choices: Step,
     weights: Iterable[float] | None = None,
     item: T | None = None,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
-) -> Choice[Key, T, Space] | Choice[Key, T, None] | Choice[Key, None, None]:
+) -> Choice[T, Space] | Choice[T, None] | Choice[None, None]:
     """Define a choice in a pipeline.
 
     Args:
@@ -143,40 +143,40 @@ def choice(
 
 @overload
 def split(
-    name: Key,
+    name: str,
     *paths: Step,
-) -> Split[Key, None, None]:
+) -> Split[None, None]:
     ...
 
 
 @overload
 def split(
-    name: Key,
+    name: str,
     *paths: Step,
     item: T | Callable[..., T],
     config: Mapping[str, Any] | None = ...,
-) -> Split[Key, T, None]:
+) -> Split[T, None]:
     ...
 
 
 @overload
 def split(
-    name: Key,
+    name: str,
     *paths: Step,
     item: T | Callable[..., T],
     space: Space,
     config: Mapping[str, Any] | None = ...,
-) -> Split[Key, T, Space]:
+) -> Split[T, Space]:
     ...
 
 
 def split(
-    name: Key,
+    name: str,
     *paths: Step,
     item: T | Callable[..., T] | None = None,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
-) -> Split[Key, T, Space] | Split[Key, T, None] | Split[Key, None, None]:
+) -> Split[T, Space] | Split[T, None] | Split[None, None]:
     """Create a Split component, allowing data to flow multiple paths.
 
     Args:

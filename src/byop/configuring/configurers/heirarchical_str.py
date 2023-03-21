@@ -45,20 +45,20 @@ from result import Err, Ok, Result
 from byop.configuring.configurers.configurer import ConfigurationError, Configurer
 from byop.pipeline.components import Choice, Component, Split, Step
 from byop.pipeline.pipeline import Pipeline
-from byop.types import Config, Name
+from byop.types import Config
 
 
-class HeirarchicalStrConfigurer(Configurer[str]):
+class HeirarchicalStrConfigurer(Configurer):
     """A configurer that uses a mapping of strings to values."""
 
     @classmethod
     def _configure(
         cls,
-        pipeline: Pipeline[str, Name],
+        pipeline: Pipeline,
         config: Mapping[str, Any],
         *,
         delimiter: str = ":",  # TODO: This could be a list of things to try
-    ) -> Result[Pipeline[str, Name], ConfigurationError | Exception]:
+    ) -> Result[Pipeline, ConfigurationError | Exception]:
         """Takes a pipeline and a config to produce a configured pipeline.
 
         Relies on there being a flat map structure in the config where the
@@ -105,12 +105,12 @@ class HeirarchicalStrConfigurer(Configurer[str]):
 
 
 def _process(
-    step: Step[str],
+    step: Step,
     config: Mapping[str, Any],
     *,
     splits: list[Split] | None = None,
     delimiter: str = ":",
-) -> Iterator[Step[str]]:
+) -> Iterator[Step]:
     """Process a step, returning a new step with the config applied.
 
     Args:
@@ -129,7 +129,7 @@ def _process(
     def is_for_step(_key: str) -> bool:
         return _key.startswith(f"{step_key}{delimiter}")
 
-    def is_for_path(_key: str, _paths: Iterable[Step[str]]) -> bool:
+    def is_for_path(_key: str, _paths: Iterable[Step]) -> bool:
         return any(
             _key.startswith(f"{step_key}{delimiter}{_path.name}") for _path in _paths
         )

@@ -13,11 +13,11 @@ from attrs import field, frozen
 from more_itertools import first_true
 
 from byop.pipeline.step import Step
-from byop.types import Item, Key, Space
+from byop.types import Item, Space
 
 
 @frozen(kw_only=True)
-class Component(Step[Key], Generic[Key, Item, Space]):
+class Component(Step, Generic[Item, Space]):
     """A Fixed component with an item attached.
 
     Attributes:
@@ -27,7 +27,7 @@ class Component(Step[Key], Generic[Key, Item, Space]):
         space (optional): A search space associated with this component
     """
 
-    name: Key
+    name: str
     item: Callable[..., Item] | Item = field(hash=False)
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
@@ -54,27 +54,27 @@ class Component(Step[Key], Generic[Key, Item, Space]):
         if self.nxt is not None:
             yield from self.nxt.traverse()  # type: ignore
 
-    def replace(self, replacements: Mapping[Key, Step]) -> Iterator[Step]:
+    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
         """See `Step.replace`."""
         yield replacements.get(self.name, self)
 
         if self.nxt is not None:
-            yield from self.nxt.replace(replacements=replacements)  # type: ignore
+            yield from self.nxt.replace(replacements=replacements)
 
-    def remove(self, keys: Sequence[Key]) -> Iterator[Step]:
+    def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """See `Step.remove`."""
         if self.name not in keys:
             yield self
 
         if self.nxt is not None:
-            yield from self.nxt.remove(keys)  # type: ignore
+            yield from self.nxt.remove(keys)
 
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
+    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
         """See `Step.select`."""
         yield self
 
         if self.nxt is not None:
-            yield from self.nxt.select(choices)  # type: ignore
+            yield from self.nxt.select(choices)
 
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
@@ -97,7 +97,7 @@ class Component(Step[Key], Generic[Key, Item, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
+class Split(Mapping[str, Step], Step, Generic[Item, Space]):
     """A split in the pipeline.
 
     Attributes:
@@ -108,8 +108,8 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
         space (optional): A search space associated with this component
     """
 
-    name: Key
-    paths: Sequence[Step[Key]] = field(hash=False)
+    name: str
+    paths: Sequence[Step] = field(hash=False)
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
@@ -121,12 +121,12 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
             yield self
 
         yield from chain.from_iterable(path.traverse() for path in self.paths)
-        yield from self.nxt.traverse() if self.nxt else []  # type: ignore
+        yield from self.nxt.traverse() if self.nxt else []
 
     def walk(
         self,
         splits: Sequence[Split],
-        parents: Sequence[Step[Key]],
+        parents: Sequence[Step],
     ) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """See `Step.walk`."""
         splits = list(splits)
@@ -142,7 +142,7 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
                 parents=[*parents, self],
             )
 
-    def replace(self, replacements: Mapping[Key, Step]) -> Iterator[Step]:
+    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
         """See `Step.replace`."""
         if self.name in replacements:
             yield replacements[self.name]
@@ -156,9 +156,9 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
             yield self.mutate(paths=paths)
 
         if self.nxt is not None:
-            yield from self.nxt.replace(replacements=replacements)  # type: ignore
+            yield from self.nxt.replace(replacements=replacements)
 
-    def remove(self, keys: Sequence[Key]) -> Iterator[Step]:
+    def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """See `Step.remove`."""
         if self.name not in keys:
             # We need to call remove on all the paths. If this removes a
@@ -173,20 +173,20 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
             yield self.mutate(paths=paths)
 
         if self.nxt is not None:
-            yield from self.nxt.remove(keys)  # type: ignore
+            yield from self.nxt.remove(keys)
 
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
+    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
         """See `Step.select`."""
         yield self
 
         if self.nxt is not None:
-            yield from self.nxt.select(choices)  # type: ignore
+            yield from self.nxt.select(choices)
 
     # OPTIMIZE: Unlikely to be an issue but I figure `.items()` on
     # a split of size `n` will cause `n` iterations of `paths`
     # Fixable by implementing more of the `Mapping` functions
 
-    def __getitem__(self, key: Key) -> Step[Key]:
+    def __getitem__(self, key: str) -> Step:
         if val := first_true(self.paths, pred=lambda p: p.name == key):
             return val
         raise KeyError(key)
@@ -194,7 +194,7 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
     def __len__(self) -> int:
         return len(self.paths)
 
-    def __iter__(self) -> Iterator[Key]:
+    def __iter__(self) -> Iterator[str]:
         return iter(p.name for p in self.paths)
 
     def build(self, **kwargs: Any) -> Item:
@@ -221,7 +221,7 @@ class Split(Mapping[Key, Step[Key]], Step[Key], Generic[Key, Item, Space]):
 
 
 @frozen(kw_only=True)
-class Choice(Split[Key, Item, Space]):
+class Choice(Split[Item, Space]):
     """A Choice between different subcomponents.
 
     Attributes:
@@ -233,8 +233,8 @@ class Choice(Split[Key, Item, Space]):
         space (optional): A search space associated with this component
     """
 
-    name: Key
-    paths: Sequence[Step[Key]] = field(hash=False)
+    name: str
+    paths: Sequence[Step] = field(hash=False)
 
     weights: Sequence[float] | None = field(hash=False)
 
@@ -242,11 +242,11 @@ class Choice(Split[Key, Item, Space]):
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
 
-    def iter_weights(self) -> Iterator[tuple[Step[Key], float]]:
+    def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""
         return zip(self.paths, (repeat(1) if self.weights is None else self.weights))
 
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step]:
+    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
         """See `Step.select`."""
         if self.name in choices:
             choice = choices[self.name]
@@ -260,4 +260,4 @@ class Choice(Split[Key, Item, Space]):
             yield self.mutate(paths=paths)
 
         if self.nxt is not None:
-            yield from self.nxt.select(choices)  # type: ignore
+            yield from self.nxt.select(choices)
