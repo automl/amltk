@@ -12,7 +12,7 @@ from more_itertools import first_true
 from byop.types import Config, Seed, Space
 
 
-class Sampler(ABC, Generic[Space, Config]):
+class Sampler(ABC, Generic[Space]):
     """A sampler for a search space."""
 
     @abstractmethod
@@ -58,7 +58,7 @@ class Sampler(ABC, Generic[Space, Config]):
         return self.sample(n)
 
     @classmethod
-    def find(cls, space: Space) -> type[Sampler[Space, Config]]:
+    def find(cls, space: Space) -> type[Sampler[Space]]:
         """Find a sampler for the given space.
 
         Args:

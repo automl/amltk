@@ -75,9 +75,10 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
             The trial info for the new config.
         """
         optuna_trial = self.study.ask(self.space)
+        config = optuna_trial.params
         trial_number = optuna_trial.number
         unique_name = f"{trial_number=}"
-        return Trial(name=unique_name, info=optuna_trial)
+        return Trial(name=unique_name, config=config, info=optuna_trial)
 
     def tell(self, report: Trial.Report[OptunaTrial]) -> None:
         """Tell the optimizer the result of the sampled config.

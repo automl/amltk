@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ConfigSpace import Configuration, ConfigurationSpace
 
 
-class ConfigSpaceSampler(Sampler["ConfigurationSpace", "Configuration"]):
+class ConfigSpaceSampler(Sampler["ConfigurationSpace"]):
     """A sampler for a search space."""
 
     def __init__(

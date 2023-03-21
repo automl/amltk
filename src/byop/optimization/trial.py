@@ -7,7 +7,7 @@ from __future__ import annotations
 from asyncio import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, Iterator, Literal, TypeVar
+from typing import Any, Callable, Generic, Iterator, Literal, Mapping, TypeVar
 
 from byop.events import Event, Subscriber
 from byop.exceptions import attach_traceback
@@ -28,6 +28,7 @@ class Trial(Generic[Info]):
         self,
         *,
         name: str,
+        config: Mapping[str, Any],
         info: Info,
         time: TimeInterval | None = None,
         timer: Timer | None = None,
@@ -37,12 +38,14 @@ class Trial(Generic[Info]):
 
         Args:
             name: The name of the trial.
+            config: The config for the trial.
             info: The info of the trial.
             time: The time taken by the trial.
             timer: The timer used to time the trial.
             exception: The exception raised by the trial, if any.
         """
         self.name = name
+        self.config = config
         self.info = info
         self.time = time
         self.timer = timer

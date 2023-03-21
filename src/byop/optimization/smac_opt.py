@@ -74,7 +74,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}.{instance=}.{seed=}.{budget=}"
-        return Trial(name=unique_name, info=smac_trial_info)
+        return Trial(name=unique_name, config=config, info=smac_trial_info)
 
     def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:
         """Tell the optimizer the result of the sampled config.
