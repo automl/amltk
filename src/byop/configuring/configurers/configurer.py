@@ -14,7 +14,7 @@ class ConfigurationError(Exception):
     """An error that occurred during configuration."""
 
 
-class Configurer(Generic[Config, Key]):
+class Configurer(Generic[Key]):
     """Attempts to parse a pipeline into a space."""
 
     Error: ClassVar[type[ConfigurationError]] = ConfigurationError

@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     from ConfigSpace import Configuration
 
 
-class ConfigSpaceConfigurer(Configurer["Configuration", str]):
-    """A Configurer that uses a ConfigSpace::Configuration to configure a pipeline."""
+class ConfigSpaceConfigurer(Configurer[str]):
+    """A Configurer that uses a configure a pipeline."""
 
     @classmethod
     def _configure(

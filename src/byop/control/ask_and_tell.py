@@ -10,7 +10,6 @@ from typing import Any, Callable, Generic, ParamSpec, TypeVar
 
 from byop.optimization import Optimizer, Trial
 from byop.scheduling import Scheduler
-from byop.types import Config
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ SuccessT = TypeVar("SuccessT")
 Info = TypeVar("Info")
 
 
-class AskAndTell(Generic[Info, Config]):
+class AskAndTell(Generic[Info]):
     """A controller that will run a target function and tell the optimizer
     the result.
     """

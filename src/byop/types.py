@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Hashable, Iterator, Protocol, TypeVar, Union
+from typing import Any, Hashable, Iterator, Mapping, Protocol, TypeVar, Union
 
 import numpy as np
 from typing_extensions import TypeAlias
@@ -10,7 +10,7 @@ from typing_extensions import TypeAlias
 Item = TypeVar("Item")
 """The type associated with components, splits and choices"""
 
-Config = TypeVar("Config")
+Config: TypeAlias = Mapping[str, Any]
 """An object representing a configuration of a pipeline."""
 
 Space = TypeVar("Space")

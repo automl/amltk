@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Generic, ParamSpec, TypeVar
+from typing import Callable, ParamSpec, TypeVar
 
 from byop.optimization.optimizer import Optimizer, Trial
 from byop.samplers import Sampler
@@ -19,7 +19,7 @@ Result = TypeVar("Result")
 
 
 @dataclass
-class RSTrialInfo(Generic[Config]):
+class RSTrialInfo:
     """The information about a random search trial.
 
     Args:
@@ -33,14 +33,14 @@ class RSTrialInfo(Generic[Config]):
     config: Config
 
 
-class RandomSearch(Optimizer[RSTrialInfo[Config]]):
+class RandomSearch(Optimizer[RSTrialInfo]):
     """A random search optimizer."""
 
     def __init__(
         self,
         *,
         space: Space,
-        sampler: Callable[[Space], Config] | Sampler[Space, Config] | None = None,
+        sampler: Callable[[Space], Config] | Sampler[Space] | None = None,
         seed: Seed | None = None,
     ):
         """Initialize the optimizer.
@@ -56,23 +56,23 @@ class RandomSearch(Optimizer[RSTrialInfo[Config]]):
 
         self.sampler: Callable[[], Config]
         if sampler is None:
-            sampler_cls: type[Sampler[Space, Config]] = Sampler.find(space)
+            sampler_cls: type[Sampler[Space]] = Sampler.find(space)
             self.sampler = sampler_cls(space, seed=seed)
         elif isinstance(sampler, Sampler):
             self.sampler = sampler
         else:
             self.sampler = partial(sampler, space)
 
-    def ask(self) -> Trial[RSTrialInfo[Config]]:
+    def ask(self) -> Trial[RSTrialInfo]:
         """Sample from the space."""
         config = self.sampler()
         name = f"random-{self.trial_count}"
         info = RSTrialInfo(name, self.trial_count, config)
-        trial = Trial(name=name, info=info)
+        trial = Trial(name=name, config=config, info=info)
         self.trial_count = self.trial_count + 1
         return trial
 
-    def tell(self, _: Trial.Report[RSTrialInfo[Config]]) -> None:
+    def tell(self, _: Trial.Report[RSTrialInfo]) -> None:
         """Do nothing with the report.
 
         ???+ note
