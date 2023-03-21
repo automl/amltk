@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Hashable, Iterator, Mapping, Protocol, TypeVar, Union
+from typing import Any, Iterator, Mapping, Protocol, TypeVar, Union
 
 import numpy as np
 from typing_extensions import TypeAlias
@@ -18,12 +18,6 @@ Space = TypeVar("Space")
 
 Seed: TypeAlias = Union[int, np.random.RandomState, np.random.Generator]
 """Type alias for kinds of Seeded objects"""
-
-Key = TypeVar("Key", bound=Hashable)
-"""The name of an individual step, requires being Hashable"""
-
-Name = TypeVar("Name", bound=Hashable)
-"""A name of a pipeline"""
 
 
 class Comparable(Protocol):

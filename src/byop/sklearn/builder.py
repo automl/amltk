@@ -9,7 +9,7 @@ from typing_extensions import TypeAlias
 
 from byop.pipeline.components import Component, Split
 from byop.pipeline.pipeline import Pipeline
-from byop.types import Any, Name
+from byop.types import Any
 
 COLUMN_TRANSFORMER_ARGS = [
     "remainder",
@@ -24,12 +24,10 @@ COLUMN_TRANSFORMER_ARGS = [
 # However sklearn operates in a bit more of a general level so it would
 # require creating protocols to type this properly and work with sklearn's
 # duck-typing.
-SklearnComponent: TypeAlias = Any | ColumnTransformer
+SklearnItem: TypeAlias = Any | ColumnTransformer
 
 
-def process_component(
-    step: Component[str, SklearnComponent, Any]
-) -> tuple[str, SklearnComponent]:
+def process_component(step: Component[SklearnItem, Any]) -> tuple[str, SklearnItem]:
     """Process a single step into a tuple of (name, component) for sklearn.
 
     Args:
@@ -38,12 +36,10 @@ def process_component(
     Returns:
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
-    return (step.name, step.build())
+    return (str(step.name), step.build())
 
 
-def process_split(
-    step: Split[str, SklearnComponent, Any]
-) -> tuple[str, SklearnComponent]:
+def process_split(step: Split[SklearnItem, Any]) -> tuple[str, SklearnItem]:
     """Process a single split into a tuple of (name, component) for sklearn.
 
     Args:
@@ -66,7 +62,7 @@ def process_split(
     # We passthrough if there's no config associated with the split as we
     # don't know what to pass to each possible path when the config is missing
     if step.config is None:
-        return (step.name, ColumnTransformer([], remainder="passthrough"))
+        return (str(step.name), ColumnTransformer([], remainder="passthrough"))
 
     ct_config = {k: v for k, v in step.config.items() if k in COLUMN_TRANSFORMER_ARGS}
 
@@ -78,7 +74,7 @@ def process_split(
             assert isinstance(path, (Component, Split))
             steps = list(process_from(path))
 
-            sklearn_step: SklearnComponent
+            sklearn_step: SklearnItem
             sklearn_step = steps[0][1] if len(steps) == 1 else SklearnPipeline(steps)
 
             config = step.config[path.name]
@@ -89,8 +85,8 @@ def process_split(
 
 
 def process_from(
-    step: Component[str, SklearnComponent, Any] | Split[str, SklearnComponent, Any]
-) -> Iterable[tuple[str, SklearnComponent]]:
+    step: Component[SklearnItem, Any] | Split[SklearnItem, Any]
+) -> Iterable[tuple[str, SklearnItem]]:
     """Process a chain of steps into tuples of (name, component) for sklearn.
 
     Args:
@@ -111,7 +107,7 @@ def process_from(
         yield from process_from(step.nxt)
 
 
-def build(pipeline: Pipeline[str, Name]) -> SklearnPipeline:
+def build(pipeline: Pipeline) -> SklearnPipeline:
     """Build a pipeline into a usable object.
 
     # TODO: SklearnPipeline has arguments not accessible to the outside caller.

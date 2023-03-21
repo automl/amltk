@@ -80,6 +80,7 @@ def test_remove_many(head: Component) -> None:
     removals = chain.from_iterable(combinations(steps, length) for length in lens)
 
     for to_remove in removals:
-        removed_chain = list(head.remove(list(removals)))
-        expected = [s for s in head.iter() if s.name not in to_remove]
-        assert expected == removed_chain
+        names = [r.name for r in to_remove]
+        remaining = list(head.remove(names))
+        expected = [s for s in head.iter() if s.name not in names]
+        assert expected == remaining

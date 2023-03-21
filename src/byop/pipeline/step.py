@@ -12,7 +12,6 @@ from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
-    Generic,
     Iterable,
     Iterator,
     Mapping,
@@ -24,14 +23,12 @@ from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
 from typing_extensions import Self
 
-from byop.types import Key
-
 if TYPE_CHECKING:
     from byop.pipeline.components import Split
 
 
 @frozen(kw_only=True)
-class Step(Generic[Key], ABC):
+class Step(ABC):
     """The core step class for the pipeline.
 
     Attributes:
@@ -40,11 +37,11 @@ class Step(Generic[Key], ABC):
         nxt: The next step in the chain
     """
 
-    name: Key
-    prv: Step[Key] | None = field(default=None, eq=False, repr=False)
-    nxt: Step[Key] | None = field(default=None, eq=False, repr=False)
+    name: str
+    prv: Step | None = field(default=None, eq=False, repr=False)
+    nxt: Step | None = field(default=None, eq=False, repr=False)
 
-    def __or__(self, nxt: Step[Key]) -> Step[Key]:
+    def __or__(self, nxt: Step) -> Step:
         """Append a step on this one, return the head of a new chain of steps.
 
         Args:
@@ -58,7 +55,7 @@ class Step(Generic[Key], ABC):
 
         return self.append(nxt)
 
-    def append(self, nxt: Step[Key]) -> Step[Key]:
+    def append(self, nxt: Step) -> Step:
         """Append a step on this one, return the head of a new chain of steps.
 
         Args:
@@ -69,7 +66,7 @@ class Step(Generic[Key], ABC):
         """
         return Step.join(self, nxt)
 
-    def extend(self, nxt: Iterable[Step[Key]]) -> Step[Key]:
+    def extend(self, nxt: Iterable[Step]) -> Step:
         """Extend many steps on to this one, return the head of a new chain of steps.
 
         Args:
@@ -85,8 +82,8 @@ class Step(Generic[Key], ABC):
         *,
         backwards: bool = False,
         include_self: bool = True,
-        to: Key | Step[Key] | None = None,
-    ) -> Iterator[Step[Key]]:
+        to: str | Step | None = None,
+    ) -> Iterator[Step]:
         """Iterate the linked-list of steps.
 
         Args:
@@ -113,19 +110,19 @@ class Step(Generic[Key], ABC):
         elif self.nxt is not None:
             yield from self.nxt.iter(backwards=False, to=to)
 
-    def head(self) -> Step[Key]:
+    def head(self) -> Step:
         """Get the first step of this chain."""
         return last(self.iter(backwards=True))
 
-    def tail(self) -> Step[Key]:
+    def tail(self) -> Step:
         """Get the last step of this chain."""
         return last(self.iter())
 
-    def proceeding(self) -> Iterator[Step[Key]]:
+    def proceeding(self) -> Iterator[Step]:
         """Iterate the steps that follow this one."""
         return self.iter(include_self=False)
 
-    def preceeding(self) -> Iterator[Step[Key]]:
+    def preceeding(self) -> Iterator[Step]:
         """Iterate the steps that preceed this one."""
         head = self.head()
         if self != head:
@@ -156,7 +153,7 @@ class Step(Generic[Key], ABC):
         return copy(self)
 
     @abstractmethod
-    def select(self, choices: Mapping[Key, Key]) -> Iterator[Step[Key]]:
+    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
         """Replace the current step with the chosen step if it's a choice.
 
         Args:
@@ -169,7 +166,7 @@ class Step(Generic[Key], ABC):
         ...
 
     @abstractmethod
-    def remove(self, keys: Sequence[Key]) -> Iterator[Step[Key]]:
+    def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """Remove the given steps from this chain.
 
         Args:
@@ -199,7 +196,7 @@ class Step(Generic[Key], ABC):
         ...
 
     @abstractmethod
-    def replace(self, replacements: Mapping[Key, Step[Key]]) -> Iterator[Step[Key]]:
+    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
         """Replace the given step with a new one.
 
         Args:
@@ -211,7 +208,7 @@ class Step(Generic[Key], ABC):
         ...
 
     @abstractmethod
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step[Key]]:
+    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """Traverse any sub-steps associated with this step.
 
         Subclasses should overwrite as required
@@ -225,7 +222,7 @@ class Step(Generic[Key], ABC):
         ...
 
     @classmethod
-    def join(cls, *steps: Step[Key] | Iterable[Step[Key]]) -> Step[Key]:
+    def join(cls, *steps: Step | Iterable[Step]) -> Step:
         """Join together a collection of steps, returning the head.
 
         This is essentially a shortform of Step.chain(*steps) that returns
@@ -248,8 +245,8 @@ class Step(Generic[Key], ABC):
 
     @classmethod
     def chain(
-        cls, *steps: Step[Key] | Iterable[Step[Key]], expand: bool = True
-    ) -> Iterator[Step[Key]]:
+        cls, *steps: Step | Iterable[Step], expand: bool = True
+    ) -> Iterator[Step]:
         """Chain together a collection of steps into an iterable.
 
         Args:
@@ -277,4 +274,4 @@ class Step(Generic[Key], ABC):
         for a, b, c in triplewise(itr):
             object.__setattr__(b, "prv", a)
             object.__setattr__(b, "nxt", c)
-            yield cast("Step[Key]", b)
+            yield cast(Step, b)

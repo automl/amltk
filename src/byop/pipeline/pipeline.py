@@ -11,7 +11,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Generic,
     Iterable,
     Iterator,
     Literal,
@@ -25,7 +24,7 @@ from attrs import frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.step import Step
-from byop.types import Config, Key, Name, Seed, Space
+from byop.types import Config, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 B = TypeVar("B")  # Built pipeline
@@ -41,7 +40,7 @@ if TYPE_CHECKING:
 
 
 @frozen(kw_only=True)
-class Pipeline(Generic[Key, Name]):
+class Pipeline:
     """Base class implementing search routines over steps.
 
     Attributes:
@@ -49,20 +48,20 @@ class Pipeline(Generic[Key, Name]):
         steps: The steps in the pipeline
     """
 
-    name: Name
-    steps: list[Step[Key]]
+    name: str
+    steps: list[Step]
 
     @property
-    def head(self) -> Step[Key]:
+    def head(self) -> Step:
         """The first step in the pipeline."""
         return self.steps[0]
 
     @property
-    def tail(self) -> Step[Key]:
+    def tail(self) -> Step:
         """The last step in the pipeline."""
         return self.steps[-1]
 
-    def __contains__(self, key: Key | Step[Key]) -> bool:
+    def __contains__(self, key: str | Step) -> bool:
         """Check if a step is in the pipeline.
 
         Args:
@@ -77,14 +76,14 @@ class Pipeline(Generic[Key, Name]):
     def __len__(self) -> int:
         return len(self.steps)
 
-    def __iter__(self) -> Iterator[Step[Key]]:
+    def __iter__(self) -> Iterator[Step]:
         return self.steps.__iter__()
 
-    def __or__(self, other: Step[Key] | Pipeline[Key, Name]) -> Pipeline[Key, Name]:
+    def __or__(self, other: Step | Pipeline) -> Pipeline:
         """Append a step or pipeline to this one and return a new one."""
         return self.append(other)
 
-    def iter(self) -> Iterator[Step[Key]]:
+    def iter(self) -> Iterator[Step]:
         """Iterate over the top layer of the pipeline.
 
         Yields:
@@ -92,7 +91,7 @@ class Pipeline(Generic[Key, Name]):
         """
         yield from iter(self.steps)
 
-    def traverse(self) -> Iterator[Step[Key]]:
+    def traverse(self) -> Iterator[Step]:
         """Traverse the pipeline in a depth-first manner.
 
         Yields:
@@ -113,23 +112,27 @@ class Pipeline(Generic[Key, Name]):
 
     @overload
     def find(
-        self, key: Key | Callable[[Step[Key]], bool], default: T, *, deep: bool = ...
-    ) -> Step[Key] | T:
+        self,
+        key: str | Callable[[Step], bool],
+        default: T,
+        *,
+        deep: bool = ...,
+    ) -> Step | T:
         ...
 
     @overload
     def find(
-        self, key: Key | Callable[[Step[Key]], bool], *, deep: bool = ...
-    ) -> Step[Key] | None:
+        self, key: str | Callable[[Step], bool], *, deep: bool = ...
+    ) -> Step | None:
         ...
 
     def find(
         self,
-        key: Key | Callable[[Step[Key]], bool],
+        key: str | Callable[[Step], bool],
         default: T | None = None,
         *,
         deep: bool = True,
-    ) -> Step[Key] | T | None:
+    ) -> Step | T | None:
         """Find a step in the pipeline.
 
         Args:
@@ -151,10 +154,10 @@ class Pipeline(Generic[Key, Name]):
 
     def select(
         self,
-        choices: Mapping[Key, Key],
+        choices: Mapping[str, str],
         *,
-        name: Name | None = None,
-    ) -> Pipeline[Key, Name]:
+        name: str | None = None,
+    ) -> Pipeline:
         """Select particular choices from the pipeline.
 
         Args:
@@ -169,12 +172,7 @@ class Pipeline(Generic[Key, Name]):
             name=self.name if name is None else name,
         )
 
-    def remove(
-        self,
-        step: Key | list[Key],
-        *,
-        name: Name | None = None,
-    ) -> Pipeline[Key, Name]:
+    def remove(self, step: str | list[str], *, name: str | None = None) -> Pipeline:
         """Remove a step from the pipeline.
 
         Args:
@@ -196,12 +194,7 @@ class Pipeline(Generic[Key, Name]):
             name=name if name is not None else self.name,
         )
 
-    def append(
-        self,
-        nxt: Pipeline[Key, Name] | Step[Key],
-        *,
-        name: Name | None = None,
-    ) -> Pipeline[Key, Name]:
+    def append(self, nxt: Pipeline | Step, *, name: str | None = None) -> Pipeline:
         """Append a step or pipeline to this one and return a new one.
 
         Args:
@@ -223,11 +216,11 @@ class Pipeline(Generic[Key, Name]):
 
     def replace(
         self,
-        key: Key | dict[Key, Step[Key]],
-        step: Step[Key] | None = None,
+        key: str | dict[str, Step],
+        step: Step | None = None,
         *,
-        name: Name | None = None,
-    ) -> Pipeline[Key, Name]:
+        name: str | None = None,
+    ) -> Pipeline:
         """Replace a step in the pipeline.
 
         Args:
@@ -300,12 +293,7 @@ class Pipeline(Generic[Key, Name]):
         ...
 
     @overload
-    def space(
-        self,
-        parser: SpaceParser[Space],
-        *,
-        seed: Seed | None = ...,
-    ) -> Space:
+    def space(self, parser: SpaceParser[Space], *, seed: Seed | None = ...) -> Space:
         ...
 
     def space(
@@ -349,12 +337,10 @@ class Pipeline(Generic[Key, Name]):
         config: Config,
         *,
         configurer: (
-            Literal["auto"]
-            | Configurer
-            | Callable[[Pipeline[Key, Name], Config], Pipeline[Key, Name]]
+            Literal["auto"] | Configurer | Callable[[Pipeline, Config], Pipeline]
         ) = "auto",
-        rename: bool | Name = False,
-    ) -> Pipeline[Key, Name]:
+        rename: bool | str = False,
+    ) -> Pipeline:
         """Configure the pipeline with the given configuration.
 
         This takes a pipeline with spaces and choices and trims it down based on the
@@ -413,28 +399,11 @@ class Pipeline(Generic[Key, Name]):
         return build(self, builder=builder)
 
     @classmethod
-    @overload
     def create(
         cls,
-        *steps: Step[Key] | Pipeline[Key, Name] | Iterable[Step[Key]],
-    ) -> Pipeline[Key, str]:
-        ...
-
-    @classmethod
-    @overload
-    def create(
-        cls,
-        *steps: Step[Key] | Pipeline[Key, Name] | Iterable[Step[Key]],
-        name: Name,
-    ) -> Pipeline[Key, Name]:
-        ...
-
-    @classmethod
-    def create(
-        cls,
-        *steps: Step[Key] | Pipeline[Key, Name] | Iterable[Step[Key]],
-        name: Name | None = None,
-    ) -> Pipeline[Key, Name] | Pipeline[Key, str]:
+        *steps: Step | Pipeline | Iterable[Step],
+        name: str | None = None,
+    ) -> Pipeline:
         """Create a pipeline from a sequence of steps.
 
         Args:
