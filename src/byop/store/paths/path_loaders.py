@@ -246,7 +246,7 @@ class YAMLLoader(PathLoader[dict | list]):
     @classmethod
     def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list)) and path.suffix == ".yaml"
+        return isinstance(obj, (dict, list)) and path.suffix in (".yaml", ".yml")
 
     @classmethod
     def load(cls, path: Path, /) -> dict | list:
