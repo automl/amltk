@@ -10,6 +10,9 @@ fix:
 check:
   pre-commit run --all-files
 
+check-types:
+  mypy src
+
 docs:
   python -m webbrowser -t "http://127.0.0.1:8000/"
   while true; do mkdocs serve --watch-theme; done
