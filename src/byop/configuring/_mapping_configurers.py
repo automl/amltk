@@ -39,69 +39,35 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Iterator, Mapping
 
-from more_itertools import first, first_true
-from result import Err, Ok, Result
+from more_itertools import first_true
 
-from byop.configuring.configurers.configurer import ConfigurationError, Configurer
 from byop.pipeline.components import Choice, Component, Split, Step
 from byop.pipeline.pipeline import Pipeline
-from byop.types import Config
 
 
-class HeirarchicalStrConfigurer(Configurer):
-    """A configurer that uses a mapping of strings to values."""
+def str_mapping_configurer(
+    pipeline: Pipeline,
+    config: Mapping[str, Any],
+    *,
+    delimiter: str = ":",
+) -> Pipeline:
+    """Configure a pipeline using a mapping of strings to values.
 
-    @classmethod
-    def _configure(
-        cls,
-        pipeline: Pipeline,
-        config: Mapping[str, Any],
-        *,
-        delimiter: str = ":",  # TODO: This could be a list of things to try
-    ) -> Result[Pipeline, ConfigurationError | Exception]:
-        """Takes a pipeline and a config to produce a configured pipeline.
+    Args:
+        pipeline: The pipeline to configure
+        config: The config to use
+        delimiter: The delimiter to use to separate the names of the
+            hierarchy. Defaults to ":".
 
-        Relies on there being a flat map structure in the config where the
-        keys map to the names of the components in the pipeline.
+    Returns:
+        Pipeline: The configured pipeline
+    """
+    for _, _, step in pipeline.walk():
+        if delimiter in step.name:
+            raise ValueError(f"{delimiter=} is in step name: `{step.name}`")
 
-        For nested pipelines, the delimiter is used to separate the names
-        of the heriarchy.
-
-        Args:
-            pipeline: The pipeline to configure
-            config: The config object to use
-            delimiter: The delimiter to use to separate the names of the
-                hierarchy.
-
-        Returns:
-            Result[Pipeline, Exception]
-        """
-        # Make sure we don't have the delimiter in a name of a step.
-        for _, _, step in pipeline.walk():
-            if delimiter in step.name:
-                msg = f"Delimiter {delimiter} is in step name: `{step.name}`"
-                e = Configurer.Error(msg)
-                return Err(e)
-
-        try:
-            configured_steps = _process(pipeline.head, config, delimiter=delimiter)
-            result = Pipeline.create(configured_steps, name=pipeline.name)
-            return Ok(result)
-        except (ConfigurationError, Exception) as e:
-            return Err(e)
-
-    @classmethod
-    def supports(cls, pipeline: Pipeline, config: Config) -> bool:
-        """Whether this configurer can use a given config on this pipeline."""
-        if isinstance(config, Mapping):
-            # We of course support an empty configuration, I think ...
-            if len(config) == 0:
-                return True
-
-            first_key = first(config.keys(), None)
-            return isinstance(first_key, type(pipeline.head.name))
-
-        return False
+    configured_steps = _process(pipeline.head, config, delimiter=delimiter)
+    return Pipeline.create(configured_steps, name=pipeline.name)
 
 
 def _process(
@@ -154,11 +120,11 @@ def _process(
     elif isinstance(step, Choice):
         chosen_name = config.get(step_key, None)
         if chosen_name is None:
-            raise ConfigurationError(f"Choice {step_key=} not found in {config=}")
+            raise ValueError(f"Choice {step_key=} not found in {config=}")
 
         chosen_path = first_true(step.paths, None, lambda p: (p.name == chosen_name))
         if chosen_path is None:
-            raise ConfigurationError(f"Choice {chosen_name=} not found in {step.paths}")
+            raise ValueError(f"Choice {chosen_name=} not found in {step.paths}")
 
         new_splits: list[Split] = [*splits, step] if splits else [step]
         yield from _process(chosen_path, config, splits=new_splits, delimiter=delimiter)

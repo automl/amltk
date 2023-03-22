@@ -19,12 +19,10 @@ from optuna.distributions import (
     IntDistribution,
 )
 
-from byop.parsing.space_parsers.space_parser import ParseError
-from byop.pipeline import Pipeline
-from byop.pipeline.components import Choice, Component, Split, Step
+from byop.parsing import ParseError
+from byop.pipeline import Choice, Component, Pipeline, Split, Step
 
 HyperparameterType: TypeAlias = int | str | float
-OptunaConfig: TypeAlias = dict[str, HyperparameterType]
 OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
 
 

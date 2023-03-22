@@ -4,7 +4,6 @@ version = "0.8.0"
 dependencies = [
   "typing_extensions",  # Better typing
   "more_itertools",  # Better iteration
-  "result",  # Could be removed, used for parsing, building, configuring
   "psutil",  # Used for process termination of executors
   "pandas",
   "numpy",

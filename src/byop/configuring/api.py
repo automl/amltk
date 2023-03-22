@@ -8,34 +8,33 @@ the spaces from the pipeline steps.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Literal
 from uuid import uuid4
 
-from more_itertools import first, first_true, seekable
-from result import Result, as_result
+from more_itertools import first_true, seekable
 
-from byop.configuring.configurers import (
-    DEFAULT_CONFIGURERS,
-    ConfigSpaceConfigurer,
-    ConfigurationError,
-    Configurer,
-    HeirarchicalStrConfigurer,
-)
-from byop.functional import reposition
+from byop.configuring._mapping_configurers import str_mapping_configurer
+from byop.exceptions import attach_traceback
 from byop.pipeline.pipeline import Pipeline
-from byop.types import Config, safe_isinstance
+from byop.types import Config
 
 if TYPE_CHECKING:
     import ConfigSpace
+
+DEFAULT_CONFIGURERS: list[Callable[[Pipeline, Any], Pipeline]] = [
+    str_mapping_configurer,
+]
+
+
+class ConfiguringError(Exception):
+    """Error when a pipeline could not be configured."""
 
 
 def configure(
     pipeline: Pipeline,
     config: Config | ConfigSpace.Configuration,
     *,
-    configurer: (
-        Literal["auto"] | Configurer | Callable[[Pipeline, Config], Pipeline]
-    ) = "auto",
+    configurer: (Literal["auto"] | Callable[[Pipeline, Config], Pipeline]) = "auto",
     rename: bool | str = False,
 ) -> Pipeline:
     """Configure a pipeline with a given config.
@@ -52,64 +51,47 @@ def configure(
     Returns:
         The configured pipeline.
     """
-    results: seekable[Result[Pipeline, ConfigurationError | Exception]]
-    configurers: list[Any]
-
     if configurer == "auto":
         configurers = DEFAULT_CONFIGURERS
-
-        # If we can infer something about the config, prioritize that.
-        if safe_isinstance(config, "Configuration"):
-            configurers = reposition(configurers, [ConfigSpaceConfigurer, ...])
-
-        elif isinstance(config, Mapping) and isinstance(
-            first(config.keys(), default=None), str
-        ):
-            configurers = reposition(configurers, [HeirarchicalStrConfigurer, ...])
-
-        results = seekable(
-            configurer._configure(pipeline, config)
-            for configurer in configurers
-            if configurer.supports(pipeline, config)
-        )
-
-    elif isinstance(configurer, Configurer):
-        configurers = [configurer]
-        results = seekable([configurer._configure(pipeline, config)])
-
     elif callable(configurer):
         configurers = [configurer]
-        safe_configurer = as_result(Exception)(configurer)
-        results = seekable([safe_configurer(pipeline, config)])
     else:
         raise NotImplementedError(f"Configurer {configurer} not supported")
 
+    def _configure(
+        _configurer: Callable[[Pipeline, Config], Pipeline],
+        _pipeline: Pipeline,
+        _config: Config,
+    ) -> Pipeline | Exception:
+        try:
+            return _configurer(_pipeline, _config)
+        except Exception as e:  # noqa: BLE001
+            return attach_traceback(e)
+
+    itr = (_configure(_configurer, pipeline, config) for _configurer in configurers)
+    results = seekable(itr)
     selected_configuration = first_true(
         results,
         default=None,
-        pred=lambda r: r.is_ok(),
+        pred=lambda r: not isinstance(r, Exception),
     )
 
     if selected_configuration is None:
         results.seek(0)
-        errors = [(c, r.unwrap_err()) for c, r in zip(configurers, results)]
-        okay_errors = [(c, e) for c, e in errors if isinstance(e, ConfigurationError)]
-        others = [(c, e) for c, e in errors if not isinstance(e, ConfigurationError)]
-        raise ValueError(
-            f"Could not configure pipeline with the configurers, "
-            f"\n{configurers=}"
-            "\n"
-            f" Configuration errors:\n{okay_errors=}"
-            f" Other errors:\n{others=}"
+        results.seek(0)  # Reset to start of the iterator
+        msgs = "\n".join(
+            f"{configurer}: {err}" for configurer, err in zip(configurers, results)
+        )
+        raise ConfiguringError(
+            f"Could not parse pipeline with any of the parser:\n{msgs}"
         )
 
-    assert selected_configuration.is_ok()
-    pipeline = selected_configuration.unwrap()
+    assert not isinstance(selected_configuration, Exception)
 
     # HACK: This is a hack to get around the fact that the pipeline
     # is frozen but we need to rename it.
     if rename is not False:
         new_name = str(uuid4()) if rename is True else rename
-        object.__setattr__(pipeline, "name", new_name)
+        object.__setattr__(selected_configuration, "name", new_name)
 
-    return pipeline
+    return selected_configuration

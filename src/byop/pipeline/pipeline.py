@@ -32,10 +32,7 @@ B = TypeVar("B")  # Built pipeline
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
-    from byop.building import Builder
-    from byop.configuring import Configurer
     from byop.optuna_space.space_parsing import OptunaSearchSpace
-    from byop.parsing import SpaceParser
     from byop.pipeline.components import Split
 
 
@@ -292,10 +289,6 @@ class Pipeline:
     ) -> Space:
         ...
 
-    @overload
-    def space(self, parser: SpaceParser[Space], *, seed: Seed | None = ...) -> Space:
-        ...
-
     def space(
         self,
         parser: (
@@ -305,7 +298,6 @@ class Pipeline:
             | type[ConfigurationSpace]
             | Callable[[Pipeline], Space]
             | Callable[[Pipeline, Seed | None], Space]
-            | SpaceParser[Space]
         ) = "auto",
         *,
         seed: Seed | None = None,
@@ -336,9 +328,7 @@ class Pipeline:
         self,
         config: Config,
         *,
-        configurer: (
-            Literal["auto"] | Configurer | Callable[[Pipeline, Config], Pipeline]
-        ) = "auto",
+        configurer: (Literal["auto"] | Callable[[Pipeline, Config], Pipeline]) = "auto",
         rename: bool | str = False,
     ) -> Pipeline:
         """Configure the pipeline with the given configuration.
@@ -351,8 +341,7 @@ class Pipeline:
             config: The configuration to use
             configurer: The configurer to use. Default is `"auto"`.
                 * If `"auto"` is provided, the assembler will attempt to automatically
-                    figure out the kind of Configurer to use from the config.
-                * If `configurer` is a configurer type, we will attempt to use that.
+                    figure out how to configure the pipeline.
                 * If `configurer` is a callable, we will attempt to use that.
                 If there are other intuitive ways to indicate the type, please open an
                 issue on GitHub and we will consider it!
@@ -372,23 +361,19 @@ class Pipeline:
         ...
 
     @overload
-    def build(
-        self,
-        builder: Builder[B] | Callable[[Pipeline], B],
-    ) -> B:
+    def build(self, builder: Callable[[Pipeline], B]) -> B:
         ...
 
     def build(
         self,
-        builder: (Literal["auto"] | Builder[B] | Callable[[Pipeline], B]) = "auto",
+        builder: (Literal["auto"] | Callable[[Pipeline], B]) = "auto",
     ) -> B | Any:
         """Build the pipeline.
 
         Args:
             builder: The builder to use. Default is `"auto"`.
                 * If `"auto"` is provided, the assembler will attempt to automatically
-                    figure out the kind of Builder to use from the pipeline.
-                * If `builder` is a builder type, we will attempt to use that.
+                    figure out build the pipeline as it can.
                 * If `builder` is a callable, we will attempt to use that.
 
         Returns:

@@ -1,6 +1,6 @@
 import pytest
 
-from byop.parsing.space_parsers.space_parser import ParseError
+from byop.parsing import ParseError
 
 try:
     from optuna.distributions import (

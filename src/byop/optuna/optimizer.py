@@ -12,8 +12,8 @@ from optuna.trial import Trial as OptunaTrial
 from optuna.trial import TrialState
 from typing_extensions import Self
 
-from byop.optimization.optimizer import Optimizer, Trial
-from byop.optuna_space.space_parsing import OptunaSearchSpace
+from byop.optimization import Optimizer, Trial
+from byop.optuna.space import OptunaSearchSpace
 
 
 class OptunaOptimizer(Optimizer[OptunaTrial]):

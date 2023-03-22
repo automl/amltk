@@ -1,5 +1,4 @@
 from byop.control import AskAndTell
-from byop.parsing import ParseError
 from byop.pipeline import Pipeline, choice, split, step
 from byop.scheduling import (
     Comm,
@@ -27,7 +26,6 @@ __all__ = [
     "split",
     "step",
     "choice",
-    "ParseError",
     "Scheduler",
     "Comm",
     "CommTask",

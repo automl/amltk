@@ -10,12 +10,18 @@ from __future__ import annotations
 from typing import Any, Callable, Literal, TypeVar, overload
 
 from more_itertools import first_true, seekable
-from result import Result, as_result
 
-from byop.building.builders import DEFAULT_BUILDERS, Builder
+from byop.building._sklearn_builder import sklearn_builder
+from byop.exceptions import attach_traceback
 from byop.pipeline.pipeline import Pipeline
 
 B = TypeVar("B")
+
+DEFAULT_BUILDERS: list[Callable[[Pipeline], Any]] = [sklearn_builder]
+
+
+class BuildError(Exception):
+    """Error when a pipeline could not be built."""
 
 
 @overload
@@ -29,11 +35,6 @@ def build(pipeline: Pipeline, builder: Literal["auto"]) -> Any:
 
 
 @overload
-def build(pipeline: Pipeline, builder: Builder[B]) -> B:
-    ...
-
-
-@overload
 def build(
     pipeline: Pipeline,
     builder: Callable[[Pipeline], B],
@@ -43,7 +44,7 @@ def build(
 
 def build(
     pipeline: Pipeline,
-    builder: Literal["auto"] | Builder[B] | Callable[[Pipeline], B] = "auto",
+    builder: Literal["auto"] | Callable[[Pipeline], B] = "auto",
 ) -> B | Any:
     """Build a pipeline into a usable object.
 
@@ -55,38 +56,37 @@ def build(
     Returns:
         The built pipeline
     """
-    results: seekable[Result[B, Exception]]
     builders: list[Any]
 
     if builder == "auto":
         builders = DEFAULT_BUILDERS
-        results = seekable(builder._build(pipeline) for builder in builders)
-
-    elif isinstance(builder, Builder):
-        builders = [builder]
-        results = seekable(builder._build(pipeline) for builder in builders)
 
     elif callable(builder):
         builders = [builder]
-        safe_builder = as_result(Exception)(builder)
-        results = seekable([safe_builder(pipeline)])
 
     else:
         raise NotImplementedError(f"Builder {builder} is not supported")
 
+    def _build(_builder: Callable[[Pipeline], B], _pipeline: Pipeline) -> B | Exception:
+        try:
+            return _builder(_pipeline)
+        except Exception as e:  # noqa: BLE001
+            return attach_traceback(e)
+
+    itr = (_build(_builder, pipeline) for _builder in builders)
+    results = seekable(itr)
     selected_built_pipeline = first_true(
         results,
         default=None,
-        pred=lambda r: r.is_ok(),
+        pred=lambda r: not isinstance(r, Exception),
     )
 
+    # If we didn't manage to build a pipeline, iterate through
+    # the errors and raise a ValueError
     if selected_built_pipeline is None:
         results.seek(0)  # Reset to start of the iterator
-        errs = [r.unwrap_err() for r in results]
-        raise ValueError(
-            "Could not build a pipeline with any of the builders:"
-            f" {builders=}\nBuilder errors\n{errs=}",
-        )
+        msgs = "\n".join(f"{builder}: {err}" for builder, err in zip(builders, results))
+        raise BuildError(f"Could not build pipeline with any of the builders:\n{msgs}")
 
-    assert selected_built_pipeline.is_ok()
-    return selected_built_pipeline.unwrap()
+    assert not isinstance(selected_built_pipeline, Exception)
+    return selected_built_pipeline

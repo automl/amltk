@@ -1,7 +1,7 @@
 import pytest
 
-from byop import ParseError, Pipeline, split, step
-from byop.parsing import NoSpaceParser
+from byop import Pipeline, split, step
+from byop.parsing import ParseError, nospace_parser
 
 
 def test_none_parser_on_blank_pipeline() -> None:
@@ -23,4 +23,4 @@ def test_none_fails_pipeline_with_space() -> None:
     )
 
     with pytest.raises(ParseError):
-        pipeline.space(parser=NoSpaceParser)
+        pipeline.space(parser=nospace_parser)
