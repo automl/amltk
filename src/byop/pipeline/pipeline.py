@@ -32,7 +32,7 @@ B = TypeVar("B")  # Built pipeline
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
-    from byop.optuna_space.space_parsing import OptunaSearchSpace
+    from byop.optuna.space import OptunaSearchSpace
     from byop.pipeline.components import Split
 
 

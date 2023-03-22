@@ -83,7 +83,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
     def _verify_success_report_values(
         self,
         report: Trial.SuccessReport[OptunaTrial],
-    ) -> Sequence[float]:
+    ) -> float | Sequence[float]:
         """Verify that the report is valid.
 
         Args:
@@ -117,5 +117,14 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
             values = report.results["cost"]
         else:
             values = report.results["values"]
+
+        if not (
+            isinstance(values, float)
+            or (
+                isinstance(values, Sequence)
+                and all(isinstance(value, float) for value in values)
+            )
+        ):
+            raise ValueError("Reported values should be float or a sequence of floats")
 
         return values
