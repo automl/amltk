@@ -5,9 +5,9 @@ import logging
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from byop.optimization import Optimizer, RandomSearch, Trial
-from byop.optimization.optuna_opt import OptunaOptimizer
-from byop.optimization.smac_opt import SMACOptimizer
+from byop.optuna import OptunaOptimizer
 from byop.pipeline import Pipeline, step
+from byop.smac import SMACOptimizer
 from byop.timing import TimeInterval, TimeKind
 
 logger = logging.getLogger(__name__)

@@ -11,17 +11,31 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Literal, overload
 
 from more_itertools import first_true, seekable
-from result import Result, as_result
 
-from byop.parsing.space_parsers import DEFAULT_PARSERS, ParseError, SpaceParser
-from byop.parsing.space_parsers.configspace import ConfigSpaceParser
-from byop.parsing.space_parsers.optuna_space import OptunaSpaceParser
+from byop.exceptions import attach_traceback
+from byop.parsing._configspace_parser import configspace_parser
+from byop.parsing._nospace_parser import nospace_parser
+from byop.parsing._optuna_parser import optuna_parser
 from byop.types import Seed, Space, safe_issubclass
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
     from byop.pipeline import Pipeline  # Prevent recursive imports
+
+DEFAULT_PARSERS: list[
+    Callable[[Pipeline], Any] | Callable[[Pipeline, Seed | None], Any]
+] = [
+    nospace_parser,  # Retain this as the first one
+    configspace_parser,
+    optuna_parser,
+]
+
+SENTINAL = object()
+
+
+class ParseError(Exception):
+    """Error when a pipeline could not be parsed."""
 
 
 # Auto parsing, with or without seed
@@ -68,17 +82,6 @@ def parse(
     ...
 
 
-# Call with a parser
-@overload
-def parse(
-    pipeline: Pipeline,
-    parser: SpaceParser[Space] | type[SpaceParser[Space]],
-    *,
-    seed: Seed | None = ...,
-) -> Space:
-    ...
-
-
 def parse(
     pipeline: Pipeline,
     parser: (
@@ -88,8 +91,6 @@ def parse(
         | type[ConfigurationSpace]
         | Callable[[Pipeline], Space]
         | Callable[[Pipeline, Seed | None], Space]
-        | SpaceParser[Space]
-        | type[SpaceParser[Space]]
     ) = "auto",
     *,
     seed: Seed | None = None,
@@ -110,61 +111,53 @@ def parse(
             * If `parser` is a callable, we will attempt to use that.
             If there are other intuitive ways to indicate the type, please open
             an issue on GitHub and we will consider it!
-        seed (optional): The seed to seed the space with if applicable.
+        seed: The seed to seed the space with if applicable.
 
     Returns:
-        Space | ConfigurationSpace | Any
-            The built space
+        The built space
     """
-    results: seekable[Result[Space, ParseError | Exception]]
     parsers: list[Any]
 
     if parser == "auto":
         parsers = DEFAULT_PARSERS
-        results = seekable(p._parse(pipeline, seed) for p in DEFAULT_PARSERS)
-
     elif parser == "configspace" or (
         isinstance(parser, type) and safe_issubclass(parser, "ConfigurationSpace")
     ):
-        parsers = [ConfigSpaceParser]
-        results = seekable([ConfigSpaceParser._parse(pipeline, seed)])
-
+        parsers = [configspace_parser]
     elif parser == "optuna":
-        parsers = [OptunaSpaceParser]
-        results = seekable([OptunaSpaceParser._parse(pipeline, seed)])  # type: ignore
-
-    elif isinstance(parser, SpaceParser):
+        parsers = [optuna_parser]
+    elif callable(parser):
         parsers = [parser]
-        results = seekable([parser._parse(pipeline, seed)])
-
-    elif callable(parser) and seed is not None:
-        parsers = [parser]
-        safe_space = as_result(Exception)(parser)  # type: ignore
-        results = seekable([safe_space(pipeline, seed)])  # type: ignore
-
-    elif callable(parser) and seed is None:
-        parsers = [parser]
-        safe_space = as_result(Exception)(parser)  # type: ignore
-        results = seekable([safe_space(pipeline)])  # type: ignore
-
     else:
         raise NotImplementedError(f"Unknown what to do with {parser=}")
 
-    selected_space = first_true(results, default=None, pred=lambda r: r.is_ok())
+    def _parse(
+        _parser: Callable[[Pipeline], Space] | Callable[[Pipeline, Seed], Space],
+        _pipeline: Pipeline,
+        _seed: Seed | None = None,
+    ) -> Space | Exception:
+        """Attempt to parse a pipeline with a parser, catching any errors."""
+        try:
+            if _seed is not None:
+                return _parser(_pipeline, _seed)  # type: ignore
+            return _parser(_pipeline)  # type: ignore
+        except Exception as e:  # noqa: BLE001
+            return attach_traceback(e)
 
-    if selected_space is None:
+    itr = (_parse(_parser, pipeline, seed) for _parser in parsers)
+    results = seekable(itr)
+    selected_space = first_true(
+        results,
+        default=SENTINAL,
+        pred=lambda r: not isinstance(r, Exception),
+    )
+
+    # If we didn't manage to parse a space,
+    # iterate through the errors and raise a ValueError
+    if selected_space is SENTINAL:
         results.seek(0)  # Reset to start of the iterator
-        errs = [r.unwrap_err() for r in results]
-        parser_errs = [e for e in errs if isinstance(e, ParseError)]
-        others = [e for e in errs if not isinstance(e, ParseError)]
-        msg = (
-            "Could not create a space from your pipeline with the parsers"
-            f"\n{parsers=}"
-            "\n"
-            f" Parser errors:\n{parser_errs=}"
-            f" Other errors:\n{others=}"
-        )
-        raise ParseError(msg)
+        msgs = "\n".join(f"{parser}: {err}" for parser, err in zip(parsers, results))
+        raise ParseError(f"Could not parse pipeline with any of the parser:\n{msgs}")
 
-    assert selected_space.is_ok()
-    return selected_space.unwrap()
+    assert not isinstance(selected_space, Exception)
+    return selected_space

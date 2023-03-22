@@ -16,7 +16,7 @@ from smac.runhistory import TrialInfo as SMACTrialInfo
 from smac.runhistory import TrialValue as SMACTrialValue
 from typing_extensions import Self
 
-from byop.optimization.optimizer import Optimizer, Trial
+from byop.optimization import Optimizer, Trial
 from byop.randomness import as_int
 from byop.types import Seed
 
