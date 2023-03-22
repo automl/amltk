@@ -173,7 +173,9 @@ and even import sorters like `isort`. This also includes automatic fixes
 for many of the smaller problems that occur. The fixes can be done with `just fix`.
 
 This codebase also relies heavily on pythons `typing` and [`mypy`](https://mypy.readthedocs.io/en/stable/)
-to ensure correctness across modules.
+to ensure correctness across modules. Running this standalone on all files can take some time
+so we don't require you to run this, our automated testers will. If you wish to do so manually,
+then use `just check-types`.
 This is often an area of contention but typing alone means many redundant tests can be removed and
 ensures code is likely to remain working together even after being changed, letting you know if
 this is no longer the case. If any of the typing concepts are confusing, now is a good chance to learn
