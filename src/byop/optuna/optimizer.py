@@ -119,12 +119,14 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
             values = report.results["values"]
 
         if not (
-            isinstance(values, float)
+            isinstance(values, (float, int))
             or (
                 isinstance(values, Sequence)
-                and all(isinstance(value, float) for value in values)
+                and all(isinstance(value, (float, int)) for value in values)
             )
         ):
-            raise ValueError("Reported values should be float or a sequence of floats")
+            raise ValueError(
+                f"Reported {values=} should be float or a sequence of floats"
+            )
 
         return values
