@@ -37,12 +37,67 @@ or hyperparameter names.
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, Iterator, Mapping
+from itertools import chain
+from typing import Any, Iterable, Iterator, Mapping, TypeVar, cast
 
 from more_itertools import first_true
 
-from byop.pipeline.components import Choice, Component, Split, Step
+from byop.pipeline.components import Choice, Searchable, Split, Step
 from byop.pipeline.pipeline import Pipeline
+
+StepT = TypeVar("StepT", bound=Step)
+
+
+def _validate_names(pipeline: Pipeline, delimiter: str) -> None:
+    """Recursively validate that the names of the steps in a pipeline
+    do not contain the delimiter, including any modules attached to it.
+    """
+    for _, _, step in pipeline.walk():
+        if delimiter in step.name:
+            raise ValueError(f"{delimiter=} is in step name: `{step.name}`")
+
+    for module_name, module in pipeline.modules.items():
+        if delimiter in module_name:
+            raise ValueError(f"{delimiter=} is in module name: `{module_name}`")
+        try:
+            _validate_names(module, delimiter=delimiter)
+        except ValueError as e:
+            raise ValueError(f"{module_name}: {e}") from e
+
+    for searchable in pipeline.searchables.values():
+        if delimiter in searchable.name:
+            raise ValueError(f"{delimiter=} is in searchable name: `{searchable.name}`")
+
+
+def with_key(
+    key: str,
+    config: Mapping[str, Any],
+    *,
+    delimiter: str = ":",
+    trim: bool = True,
+) -> dict[str, Any]:
+    """Select all entries in the config that start with the key and
+    and optionally trim away the key and delimiter.
+
+    Args:
+        key: The key to select
+        config: The config to select from
+        delimiter: The delimiter to use to separate the names of the
+            hierarchy. Defaults to ":".
+        trim: Whether to trim the key and delimiter from the keys of
+            the returned config. Defaults to True.
+
+    Returns:
+        The selected config
+    """
+    if trim:
+        return {
+            k[len(key) + len(delimiter) :]: v
+            for k, v in config.items()
+            if k.startswith(key + delimiter)
+        }
+
+    return {k: v for k, v in config.items() if k.startswith(key + delimiter)}
 
 
 def str_mapping_configurer(
@@ -62,16 +117,33 @@ def str_mapping_configurer(
     Returns:
         Pipeline: The configured pipeline
     """
-    for _, _, step in pipeline.walk():
-        if delimiter in step.name:
-            raise ValueError(f"{delimiter=} is in step name: `{step.name}`")
+    _validate_names(pipeline, delimiter=delimiter)
 
-    configured_steps = _process(pipeline.head, config, delimiter=delimiter)
-    return Pipeline.create(configured_steps, name=pipeline.name)
+    configured_pipeline_steps = _process(pipeline.head, config, delimiter=delimiter)
+    configured_modules = (
+        str_mapping_configurer(
+            pipeline=module,
+            config=with_key(module.name, config, delimiter=delimiter, trim=True),
+            delimiter=delimiter,
+        )
+        for module in pipeline.modules.values()
+    )
+
+    searchables = chain.from_iterable(
+        _process(searchable, config, delimiter=delimiter)
+        for searchable in pipeline.searchables.values()
+    )
+
+    return Pipeline.create(
+        configured_pipeline_steps,
+        modules=configured_modules,
+        searchables=cast(Iterable[Searchable], searchables),
+        name=pipeline.name,
+    )
 
 
-def _process(
-    step: Step,
+def _process(  # noqa: C901
+    step: Step | Pipeline,
     config: Mapping[str, Any],
     *,
     splits: list[Split] | None = None,
@@ -89,6 +161,9 @@ def _process(
     Returns:
         Step[str]: The new step with the config applied
     """
+    if isinstance(step, Pipeline):
+        return _process(step.head, config, delimiter=delimiter)
+
     segments = [s.name for s in (*splits, step)] if splits is not None else [step.name]
     step_key = delimiter.join(segments)
 
@@ -105,19 +180,7 @@ def _process(
         return _key[prefix_len:]
 
     # Select the config for this step
-
-    if isinstance(step, Component):
-        selected_config = {
-            remove_prefix(k): v for k, v in config.items() if is_for_step(k)
-        }
-        predefined_config = step.config if step.config is not None else {}
-        new_config = {**predefined_config, **selected_config}
-        yield step.mutate(
-            config=new_config if len(new_config) > 0 else None,
-            space=None,
-        )
-
-    elif isinstance(step, Choice):
+    if isinstance(step, Choice):
         chosen_name = config.get(step_key, None)
         if chosen_name is None:
             raise ValueError(f"Choice {step_key=} not found in {config=}")
@@ -148,6 +211,20 @@ def _process(
             config=new_config if len(new_config) > 0 else None,
             space=None,
         )
+
+    elif isinstance(step, Searchable):
+        selected_config = {
+            remove_prefix(k): v for k, v in config.items() if is_for_step(k)
+        }
+        predefined_config = step.config if step.config is not None else {}
+        new_config = {**predefined_config, **selected_config}
+        yield step.mutate(
+            config=new_config if len(new_config) > 0 else None,
+            space=None,
+        )
+
+    else:
+        raise ValueError(f"Unknown step type: {type(step)}")
 
     if step.nxt is not None:
         yield from _process(step.nxt, config, splits=splits, delimiter=delimiter)

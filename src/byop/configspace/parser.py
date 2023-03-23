@@ -85,22 +85,57 @@ def replace_constants(
 def generate_configspace(
     pipeline: Pipeline,
     seed: Seed | None = None,
+    *,
+    delimiter: str = ":",
 ) -> ConfigurationSpace:
     """The space for this given pipeline.
 
     Args:
         pipeline: The pipeline to generate the space for
         seed: The seed to use for the ConfigurationSpace
+        delimiter: The delimiter to use for the ConfigurationSpace
 
     Returns:
         ConfigurationSpace
     """
     int_seed = byop.randomness.as_int(seed)
     cs = ConfigurationSpace(seed=int_seed)
+
+    # Process the main pipeline
     for splits, parents, step in pipeline.walk():
         _parents = parents if parents is not None else []
         _splits = splits if splits is not None else []
-        _process_step(_splits, _parents, step, cs)
+        _process_step(_splits, _parents, step, cs, delimiter=delimiter)
+
+    # Process any modules
+    for module_name, module in pipeline.modules.items():
+        module_space = generate_configspace(module, seed=seed, delimiter=delimiter)
+        cs.add_configuration_space(
+            prefix=f"{module_name}",
+            configuration_space=module_space,
+            delimiter=delimiter,
+        )
+
+    # Process any searchables
+    for name, searchable in pipeline.searchables.items():
+        if isinstance(searchable.space, dict):
+            space = ConfigurationSpace(searchable.space)
+        elif isinstance(searchable.space, Hyperparameter):
+            space = ConfigurationSpace({"hp": searchable.space})
+        elif isinstance(searchable.space, ConfigurationSpace):
+            space = searchable.space
+        else:
+            raise ValueError(f"{searchable.space} is not a valid space")
+
+        if searchable.config is not None:
+            space = replace_constants(searchable.config, space)
+
+        cs.add_configuration_space(
+            prefix=f"{name}",
+            configuration_space=space,
+            delimiter=delimiter,
+        )
+
     return cs
 
 
@@ -142,6 +177,10 @@ def _process_step(
             subspace = ConfigurationSpace(subspace)
         elif isinstance(subspace, Hyperparameter):
             subspace = ConfigurationSpace({"hp": subspace})
+        elif isinstance(subspace, ConfigurationSpace):
+            subspace = subspace
+        else:
+            raise ValueError(f"{subspace} is not parsable as a space")
 
         if step.config is not None:
             subspace = replace_constants(step.config, subspace)

@@ -17,21 +17,23 @@ from byop.types import Item, Space
 
 
 @frozen(kw_only=True)
-class Component(Step, Generic[Item, Space]):
-    """A Fixed component with an item attached.
+class Searchable(Step, Generic[Space]):
+    """Something to search over in a pipeline but has no implementation.
 
     Attributes:
-        name: The name of the component
-        item: The item attached to this component
-        config (optional): Any additional items to associate with this config
-        space (optional): A search space associated with this component
+        name: The name of the searchable
+        space: The searchspace
+        config (optional): Any fixed parameters of the searchable.
     """
 
     name: str
-    item: Callable[..., Item] | Item = field(hash=False)
 
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
     space: Space | None = field(default=None, hash=False, repr=False)
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+
+    def configured(self) -> bool:
+        """Check if this searchable is configured."""
+        return self.space is None
 
     def walk(
         self,
@@ -76,6 +78,24 @@ class Component(Step, Generic[Item, Space]):
         if self.nxt is not None:
             yield from self.nxt.select(choices)
 
+
+@frozen(kw_only=True)
+class Component(Searchable[Space], Generic[Item, Space]):
+    """A Fixed component with an item attached.
+
+    Attributes:
+        name: The name of the component
+        item: The item attached to this component
+        config (optional): Any additional items to associate with this config
+        space (optional): A search space associated with this component
+    """
+
+    name: str
+    item: Callable[..., Item] | Item = field(hash=False)
+
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+    space: Space | None = field(default=None, hash=False, repr=False)
+
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
@@ -97,7 +117,7 @@ class Component(Step, Generic[Item, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Mapping[str, Step], Step, Generic[Item, Space]):
+class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
     """A split in the pipeline.
 
     Attributes:
