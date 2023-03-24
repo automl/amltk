@@ -78,7 +78,4 @@ class RandomSearch(Optimizer[RSTrialInfo]):
         ???+ note
             We do nothing with the report as it's random search
             and does not use the report to do anything useful.
-
-        Args:
-            report: The report of the trial.
         """

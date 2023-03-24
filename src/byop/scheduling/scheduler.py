@@ -392,7 +392,6 @@ class Scheduler:
         """Async version of `run`.
 
         Args:
-            initial: The initial tasks to run. Defaults to `None`
             timeout: The maximum time to run the scheduler for.
                 Defaults to `None` which means no timeout.
             end_on_empty: Whether to end the scheduler when the

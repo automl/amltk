@@ -39,9 +39,11 @@ h3 .doc-heading code {
   font-size: 16px;
 }
 
+/*
 .doc.doc-object.doc-class h2.doc.doc-heading {
   text-align: center;
 }
+*/
 
 .doc-heading code {
   font-weight: normal;

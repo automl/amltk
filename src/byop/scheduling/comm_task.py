@@ -228,12 +228,6 @@ class CommTask(Task[Concatenate[Comm, P], R]):
     also provides a [`Comm`][byop.scheduling.comm_task.Comm] object to
     communicate with task once it's been dispatched.
 
-    All [events][byop.scheduling.events.TaskEvent] available, such as
-    [`task.SUBMITTED`][byop.scheduling.task.Task.SUBMITTED] and
-    [`task.DONE`][byop.scheduling.task.Task.DONE] are also available
-    on this object.
-
-
     ```python
     # Define some function to run
     def calculate(comm: Comm, x: int) -> int:
@@ -258,14 +252,14 @@ class CommTask(Task[Concatenate[Comm, P], R]):
     ```
 
     1. The task sends `x * 2` to the scheduler,
-        triggering [`MESSAGE`][byop.scheduling.events.TaskEvent.MESSAGE].
+        triggering [`MESSAGE`][byop.scheduling.CommTask.MESSAGE].
     2. The task can repeat as many times as it wants
     3. The task blocks until it recieves a message from the scheduler,
-        triggering [`REQUEST`][byop.scheduling.events.TaskEvent.REQUEST].
+        triggering [`REQUEST`][byop.scheduling.CommTask.REQUEST].
     4. The task returns a result, triggering
-        [`DONE`][byop.scheduling.events.TaskEvent.DONE] and
-        [`RETURNED`][byop.scheduling.events.TaskEvent.RETURNED].
-    5. Create a task with a [`Comm`][byop.scheduling.comm_task.Comm].
+        [`DONE`][byop.scheduling.Task.DONE] and
+        [`RETURNED`][byop.scheduling.Task.RETURNED].
+    5. Create a task with a [`Comm`][byop.scheduling.Comm].
     6. Register a callback to be called when the task sends an update.
     7. Register a callback to be called when the task is waiting for a
         message from the scheduler.

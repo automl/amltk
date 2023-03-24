@@ -30,8 +30,8 @@ class exception_wrap(Generic[P, R]):  # noqa: N801
             **kwargs: Keyword arguments to pass to the wrapped function.
 
         Raises:
-            Any exception raised by the wrapped function will be re-raised
-            with the traceback added to the error message.
+            Exception: Any exception raised by the wrapped function will be
+                re-raised with the traceback added to the error message.
 
         Returns:
             The return value of the wrapped function.

@@ -102,6 +102,7 @@ plugins:
             - 'https://numpy.org/doc/stable/objects.inv'
             - 'https://pandas.pydata.org/docs/objects.inv'
             - 'https://optuna.readthedocs.io/en/stable/objects.inv'
+            - 'https://scikit-learn.org/stable/objects.inv'
               # base_url: https://optuna.readthedocs.io/en/stable/
           options:
             show_root_heading: false
