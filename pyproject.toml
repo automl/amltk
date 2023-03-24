@@ -5,6 +5,7 @@ dependencies = [
   "typing_extensions",  # Better typing
   "more_itertools",  # Better iteration
   "psutil",  # Used for process termination of executors
+  "attrs",
   "pandas",
   "numpy",
 ]
