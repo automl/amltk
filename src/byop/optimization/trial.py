@@ -7,7 +7,17 @@ from __future__ import annotations
 from asyncio import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, Iterator, Literal, Mapping, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Concatenate,
+    Generic,
+    Iterator,
+    Literal,
+    Mapping,
+    ParamSpec,
+    TypeVar,
+)
 
 from byop.events import Event, Subscriber
 from byop.exceptions import attach_traceback
@@ -19,6 +29,8 @@ Info = TypeVar("Info")
 """The info associated with a trial"""
 
 InfoInner = TypeVar("InfoInner")
+
+P = ParamSpec("P")
 
 
 class Trial(Generic[Info]):
@@ -189,6 +201,30 @@ class Trial(Generic[Info]):
         time: TimeInterval
         exception: BaseException | None
         results: dict[str, Any] = field(default_factory=dict)
+
+    class Objective(Generic[P, InfoInner]):
+        """Attach static information to a function to be optimized."""
+
+        def __init__(
+            self,
+            f: Callable[Concatenate[Trial[InfoInner], P], Trial.Report[InfoInner]],
+            *args: P.args,
+            **kwargs: P.kwargs,
+        ):
+            """Initialize the objective.
+
+            Args:
+                f: The function to optimize.
+                args: The positional arguments to pass to `f` after trial.
+                kwargs: The keyword arguments to pass to `f`.
+            """
+            self.f = f
+            self.args = args
+            self.kwargs = kwargs
+
+        def __call__(self, trial: Trial[InfoInner]) -> Trial.Report[InfoInner]:
+            """Call the objective."""
+            return self.f(trial, *self.args, **self.kwargs)
 
     class Task(TaskBase[["Trial[InfoInner]"], "Trial.Report[InfoInner]"]):
         """A task that will run a target function and tell the optimizer the result."""

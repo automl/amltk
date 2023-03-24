@@ -115,6 +115,18 @@ class Task(Generic[P, R]):
     CALL_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")
     """A Task was submitted but reached it's concurrency limit."""
 
+    TimeoutException = Pynisher.TimeoutException
+    """The exception that is raised when a task times out."""
+
+    MemoryLimitException = Pynisher.MemoryLimitException
+    """The exception that is raised when a task reaches it's memory limit."""
+
+    CpuTimeoutException = Pynisher.CpuTimeoutException
+    """The exception that is raised when a task reaches it's cpu time limit."""
+
+    WallTimeoutException = Pynisher.WallTimeoutException
+    """The exception that is raised when a task reaches it's wall time limit."""
+
     def __init__(
         self,
         function: Callable[P, R],

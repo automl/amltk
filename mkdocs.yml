@@ -58,6 +58,8 @@ watch:
 markdown_extensions:
   - admonition
   - tables
+  - attr_list
+  - md_in_html
   - toc:
       permalink: "#"
   - pymdownx.highlight:
@@ -77,6 +79,9 @@ markdown_extensions:
       - name: mermaid
         class: mermaid
         format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 plugins:
   - search
@@ -103,6 +108,7 @@ plugins:
             - 'https://pandas.pydata.org/docs/objects.inv'
             - 'https://optuna.readthedocs.io/en/stable/objects.inv'
             - 'https://scikit-learn.org/stable/objects.inv'
+            - 'https://pytorch.org/docs/stable/objects.inv'
               # base_url: https://optuna.readthedocs.io/en/stable/
           options:
             show_root_heading: false
