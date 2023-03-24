@@ -37,19 +37,21 @@ allowing you to define, search and build machine learning systems.
 
 ---
 
+-   :material-tune-vertical-variant: __Event Driven__
+
+    AutoML-Toolkit is event driven, meaning you write code that reacts to
+    [events](doc_to_events) as they happen. You can ignore, extend and create
+    new events that have meaning to the systems you build.
+    This enables tools built from AutoML-Toolkit to support greater forms
+    of interaction, automation and deployment.
+
+---
+
 -   :material-directions-fork: __Task Agnostic__
 
     AutoML-Toolkit is task agnostic, meaning you can use it for any machine learning task.
     We provide a set of [common tasks](./tasks) which you can extend with [events](doc_to_events)
     and functionality specific to the tasks you care about.
-
----
-
--   :material-tune-vertical-variant: __Event Driven__
-
-    AutoML-Toolkit is event driven, meaning you write what happens and when. This
-    enables tools built from AutoML-Toolkit to support greater forms of interaction,
-    automation and deployment.
 
 ---
 
