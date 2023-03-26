@@ -54,6 +54,7 @@ doc = [
   "mkdocs-gen-files",
   "mkdocs-literate-nav",
   "mkdocstrings[python]",
+  "markdown-exec[ansi]",
   "mike",
   "pillow",
   "cairosvg",

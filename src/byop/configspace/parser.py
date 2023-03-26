@@ -171,8 +171,8 @@ def _process_step(
     else:
         condition = None
 
-    if isinstance(step, (Component, Split)) and step.space is not None:
-        subspace = step.space
+    if isinstance(step, (Component, Split)) and step.search_space is not None:
+        subspace = step.search_space
         if isinstance(subspace, dict):
             subspace = ConfigurationSpace(subspace)
         elif isinstance(subspace, Hyperparameter):
@@ -193,7 +193,7 @@ def _process_step(
         )
 
     elif isinstance(step, Choice):
-        if step.space is not None:
+        if step.search_space is not None:
             raise ValueError(
                 f"Not currently supported to have a choice with a search space, {step=}"
             )

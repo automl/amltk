@@ -123,9 +123,9 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
     Attributes:
         name: The name of the component
         paths: The paths that can be taken from this split
-        item (optional): The item attached to this component
-        config (optional): Any additional items to associate with this config
-        space (optional): A search space associated with this component
+        item: The item attached to this component
+        config: Any additional items to associate with this config
+        space: A search space associated with this component
     """
 
     name: str
@@ -133,7 +133,7 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    space: Space | None = field(default=None, hash=False, repr=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """See `Step.traverse`."""
@@ -247,10 +247,10 @@ class Choice(Split[Item, Space]):
     Attributes:
         name: The name of the component
         paths: The paths that can be taken from this split
-        weights (optional): The weights associated with each path
-        item (optional): The item attached to this component
-        config (optional): Any additional items to associate with this config
-        space (optional): A search space associated with this component
+        weights: The weights associated with each path
+        item: The item attached to this component
+        config: Any additional items to associate with this config
+        space: A search space associated with this component
     """
 
     name: str
@@ -260,7 +260,7 @@ class Choice(Split[Item, Space]):
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    space: Space | None = field(default=None, hash=False, repr=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
 
     def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""

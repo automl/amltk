@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 
     from byop.optuna.space import OptunaSearchSpace
     from byop.pipeline.components import Split
+    from byop.samplers import Sampler
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class Pipeline:
         Args:
             key: The key to search for or a function that returns True if the step
                 is the desired step
-            default (optional):
+            default:
                 The value to return if the step is not found. Defaults to None
             deep:
                 Whether to search the entire pipeline or just the top layer.
@@ -182,7 +183,7 @@ class Pipeline:
 
         Args:
             step: The name of the step(s) to remove
-            name (optional): A name to give to the new pipeline returned. Defaults to
+            name: A name to give to the new pipeline returned. Defaults to
                 the current pipelines name
 
         Returns:
@@ -204,7 +205,7 @@ class Pipeline:
 
         Args:
             nxt: The step or pipeline to append
-            name (optional): A name to give to the new pipeline returned. Defaults to
+            name: A name to give to the new pipeline returned. Defaults to
                 the current pipelines name
 
         Returns:
@@ -230,7 +231,7 @@ class Pipeline:
 
         Args:
             key: The key of the step to replace or a dictionary of steps to replace
-            step (optional): The step to replace the old step with. Only used if key is
+            step: The step to replace the old step with. Only used if key is
                 a single key
             name: A name to give to the new pipeline returned. Defaults to the current
 
@@ -366,7 +367,7 @@ class Pipeline:
                 * If `parser` is a callable, we will attempt to use that.
                 If there are other intuitive ways to indicate the type, please open
                 an issue on GitHub and we will consider it!
-            seed (optional): The seed to seed the space with if applicable.
+            seed: The seed to seed the space with if applicable.
 
         Returns:
             The space for the pipeline
@@ -374,6 +375,32 @@ class Pipeline:
         from byop.parsing import parse  # Prevent circular imports
 
         return parse(self, parser=parser, seed=seed)
+
+    def sample(
+        self,
+        space: Space,
+        *,
+        n: int | None = None,
+        sampler: Sampler[Space] | None = None,
+        seed: Seed | None = None,
+    ) -> Config | list[Config]:
+        """Sample a configuration from the space of the pipeline.
+
+        Args:
+            space: The space to sample from
+            n: The number of configurations to sample. If `None`, a single
+                configuration will be sampled. If `n` is greater than 1, a list of
+                configurations will be returned.
+            sampler: The sampler to use. If `None`, a sampler will be automatically
+                chosen based on the type of space that is provided.
+            seed: The seed to seed the space with if applicable.
+
+        Returns:
+            A configuration sampled from the space of the pipeline
+        """
+        from byop.parsing import sample
+
+        return sample(space, sampler=sampler, n=n, seed=seed)
 
     def configure(
         self,
