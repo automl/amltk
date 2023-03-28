@@ -356,6 +356,9 @@ class Pipeline:
     ) -> Space | ConfigurationSpace | OptunaSearchSpace | Any:
         """Get the space for the pipeline.
 
+        If there are any modules or searchables attached to this pipeline,
+        these will also be included in the space.
+
         Args:
             parser: The parser to use for assembling the space. Default is `"auto"`.
                 * If `"auto"` is provided, the assembler will attempt to
@@ -398,7 +401,7 @@ class Pipeline:
         Returns:
             A configuration sampled from the space of the pipeline
         """
-        from byop.parsing import sample
+        from byop.samplers import sample
 
         return sample(space, sampler=sampler, n=n, seed=seed)
 
@@ -414,6 +417,9 @@ class Pipeline:
         This takes a pipeline with spaces and choices and trims it down based on the
         configuration. For example, choosing selected steps and setting the `config`
         of steps with those present in the `config` object given to this function.
+
+        If there are any modules or searchables attached to this pipeline,
+        these will also be configured for you.
 
         Args:
             config: The configuration to use

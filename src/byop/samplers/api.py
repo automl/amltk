@@ -1,3 +1,4 @@
+"""API for sampling configurations from a search space."""
 from __future__ import annotations
 
 from typing import overload
