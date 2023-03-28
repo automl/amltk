@@ -48,6 +48,11 @@ from byop.pipeline.pipeline import Pipeline
 StepT = TypeVar("StepT", bound=Step)
 
 
+def remove_prefix(key: str, prefix: str, delimiter: str) -> str:
+    prefix_len = len(prefix) + len(delimiter)
+    return key[prefix_len:]
+
+
 def _validate_names(pipeline: Pipeline, delimiter: str) -> None:
     """Recursively validate that the names of the steps in a pipeline
     do not contain the delimiter, including any modules attached to it.
@@ -69,7 +74,7 @@ def _validate_names(pipeline: Pipeline, delimiter: str) -> None:
             raise ValueError(f"{delimiter=} is in searchable name: `{searchable.name}`")
 
 
-def with_key(
+def find_config_with_key(
     key: str,
     config: Mapping[str, Any],
     *,
@@ -92,7 +97,7 @@ def with_key(
     """
     if trim:
         return {
-            k[len(key) + len(delimiter) :]: v
+            remove_prefix(k, key, delimiter): v
             for k, v in config.items()
             if k.startswith(key + delimiter)
         }
@@ -123,7 +128,9 @@ def str_mapping_configurer(
     configured_modules = (
         str_mapping_configurer(
             pipeline=module,
-            config=with_key(module.name, config, delimiter=delimiter, trim=True),
+            config=find_config_with_key(
+                module.name, config, delimiter=delimiter, trim=True
+            ),
             delimiter=delimiter,
         )
         for module in pipeline.modules.values()
@@ -142,7 +149,7 @@ def str_mapping_configurer(
     )
 
 
-def _process(  # noqa: C901
+def _process(
     step: Step | Pipeline,
     config: Mapping[str, Any],
     *,
@@ -175,10 +182,6 @@ def _process(  # noqa: C901
             _key.startswith(f"{step_key}{delimiter}{_path.name}") for _path in _paths
         )
 
-    def remove_prefix(_key: str) -> str:
-        prefix_len = len(step_key) + len(delimiter)
-        return _key[prefix_len:]
-
     # Select the config for this step
     if isinstance(step, Choice):
         chosen_name = config.get(step_key, None)
@@ -194,7 +197,7 @@ def _process(  # noqa: C901
 
     elif isinstance(step, Split):
         selected_config = {
-            remove_prefix(k): v
+            remove_prefix(k, step_key, delimiter): v
             for k, v in config.items()
             if is_for_step(k) and not is_for_path(k, step.paths)
         }
@@ -214,7 +217,9 @@ def _process(  # noqa: C901
 
     elif isinstance(step, Searchable):
         selected_config = {
-            remove_prefix(k): v for k, v in config.items() if is_for_step(k)
+            remove_prefix(k, step_key, delimiter): v
+            for k, v in config.items()
+            if is_for_step(k)
         }
         predefined_config = step.config if step.config is not None else {}
         new_config = {**predefined_config, **selected_config}
