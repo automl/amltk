@@ -91,11 +91,17 @@ class Task(Generic[P, R]):
     CANCELLED: Event[Future] = Event("task-cancelled")
     """A Task has been cancelled."""
 
-    RETURNED: Event[Future, Any] = Event("task-returned")
-    """A Task has successfully returned a value."""
+    F_RETURNED: Event[Future, Any] = Event("task-future-returned")
+    """A Task has successfully returned a value. Comes with Future"""
 
-    EXCEPTION: Event[Future, BaseException] = Event("task-exception")
-    """A Task failed to return anything but an exception."""
+    RETURNED: Event[Any] = Event("task-returned")
+    """A Task has successfully returned a value.Future"""
+
+    F_EXCEPTION: Event[Future, BaseException] = Event("task-future-exception")
+    """A Task failed to return anything but an exception. Comes with Future"""
+
+    EXCEPTION: Event[BaseException] = Event("task-exception")
+    """A Task failed to return anything but an exception.Future"""
 
     TIMEOUT: Event[Future, BaseException] = Event("task-timeout")
     """A Task timed out."""
@@ -201,17 +207,23 @@ class Task(Generic[P, R]):
         self.on_cancelled: Subscriber[Future[R]]
         self.on_cancelled = self.subscriber(self.CANCELLED)
 
-        self.on_returned: Subscriber[Future[R], R]
+        self.on_f_returned: Subscriber[Future[R], R]
+        self.on_f_returned = self.subscriber(self.F_RETURNED)
+
+        self.on_f_exception: Subscriber[Future[R], BaseException]
+        self.on_f_exception = self.subscriber(self.F_EXCEPTION)
+
+        self.on_returned: Subscriber[R]
         self.on_returned = self.subscriber(self.RETURNED)
 
-        self.on_exception: Subscriber[Future[R], BaseException]
+        self.on_exception: Subscriber[BaseException]
         self.on_exception = self.subscriber(self.EXCEPTION)
 
         self.on_timeout: Subscriber[Future[R], BaseException]
         self.on_timeout = self.subscriber(self.TIMEOUT)
 
-        self.on_memory_limit: Subscriber[Future[R], BaseException]
-        self.on_memory_limit = self.subscriber(self.MEMORY_LIMIT_REACHED)
+        self.on_memory_limit_reached: Subscriber[Future[R], BaseException]
+        self.on_memory_limit_reached = self.subscriber(self.MEMORY_LIMIT_REACHED)
 
         self.on_cpu_time_limit_reached: Subscriber[Future[R], BaseException]
         self.on_cputime_limit_reached = self.subscriber(self.CPU_TIME_LIMIT_REACHED)
@@ -288,6 +300,11 @@ class Task(Generic[P, R]):
         """
         self.scheduler.event_manager.forward(frm, to)
 
+    @property
+    def n_running(self) -> int:
+        """Get the number of futures for this task that are currently running."""
+        return sum(1 for f in self.queue if not f.done())
+
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Future[R] | None:
         """Dispatch this task.
 
@@ -308,8 +325,10 @@ class Task(Generic[P, R]):
             self.emit(self.CALL_LIMIT_REACHED, *args, **kwargs)
             return None
 
-        n_running = sum(1 for f in self.queue if not f.done())
-        if self.concurrent_limit is not None and n_running >= self.concurrent_limit:
+        if (
+            self.concurrent_limit is not None
+            and self.n_running >= self.concurrent_limit
+        ):
             self.emit(self.CONCURRENT_LIMIT_REACHED, *args, **kwargs)
             return None
 
@@ -346,7 +365,8 @@ class Task(Generic[P, R]):
 
         exception = future.exception()
         if exception is not None:
-            self.emit(Task.EXCEPTION, future, exception)
+            self.emit(Task.F_EXCEPTION, future, exception)
+            self.emit(Task.EXCEPTION, exception)
 
             # If it was a limiting exception, emit it
             if isinstance(exception, Pynisher.TimeoutException):
@@ -359,7 +379,8 @@ class Task(Generic[P, R]):
                 self.emit(Task.CPU_TIME_LIMIT_REACHED, future, exception)
         else:
             result = future.result()
-            self.emit(Task.RETURNED, future, result)
+            self.emit(Task.F_RETURNED, future, result)
+            self.emit(Task.RETURNED, result)
 
     def __repr__(self) -> str:
         return f"Task(name={self.name})"

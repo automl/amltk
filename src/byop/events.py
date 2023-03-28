@@ -77,7 +77,30 @@ class SubcriberDecorator(Generic[P]):
 
 @dataclass
 class Subscriber(Generic[P]):
-    """An attachable object that allows subscribing to an event when called.
+    """An object that can be used to easily subscribe to a certain event.
+
+    ```python
+    from byop.events import Event, EventManager, Subscriber
+
+    event_manager = EventManager()
+    test_event: Event[[int, str]] = Event("test")
+
+    subscribe_to_test_event = Subscriber(event_manager, test_event)
+
+    # Use it as a decorator
+
+    @subscribe_to_test_event
+    def callback(a: int, b: str) -> None:
+        print(f"Got {a} and {b}!")
+
+    # ... or just pass a function
+
+    subscribe_to_test_event(callback)
+
+    # Will emit `test_event` with the arguments 1 and "hello"
+    # and call the callback with those same arguments.
+    event_manager.emit(test_event, 1, "hello")
+    ```
 
     Attributes:
         manager: The event manager to use.
@@ -123,7 +146,25 @@ class Subscriber(Generic[P]):
         repeat: int = 1,
         every: int | None = None,
     ) -> Callable[P, Any] | SubcriberDecorator[P]:
-        """Subscribe to an event."""
+        """Subscribe to this subscriberes event.
+
+        Args:
+            callback: The callback to register.
+            name: The name of the callback. If not provided, then the
+                name of the callback is used.
+            when: A predicate that must be satisfied for the callback
+                to be called.
+            every: The callback will be called every `every` times
+                the event is emitted.
+            repeat: The callback will be called `repeat` times
+                successively.
+            limit: The maximum number of times the callback can be
+                called.
+
+        Returns:
+            The callback if it was provided, otherwise it acts
+            as a decorator.
+        """
         if callback is None:
             return SubcriberDecorator(
                 manager=self.manager,

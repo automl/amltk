@@ -18,3 +18,7 @@ weights from choice
 ## Pipeline Builders
 
 * [sklearn](./sklearn)
+
+## Scheduler Executors
+
+* DaskJobQueue

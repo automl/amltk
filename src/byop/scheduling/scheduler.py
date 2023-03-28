@@ -32,7 +32,18 @@ logger = logging.getLogger(__name__)
 
 
 class Scheduler:
-    """A scheduler for submitting tasks to an Executor."""
+    """A scheduler for submitting tasks to an Executor.
+
+    ```python
+    from byop.scheduling import Scheduler
+
+    # For your own custom Executor
+    scheduler = Scheduler(executor=...)
+
+    # Create a scheduler which uses local processes as workers
+    scheduler = Scheduler.with_processes(2)
+    ```
+    """
 
     STARTED: Event[[]] = Event("scheduler-started")
     """The scheduler has started.
@@ -47,7 +58,7 @@ class Scheduler:
     This means the executor is still running but the stopping criterion
     for the scheduler are no longer monitored. If using `run(..., wait=True)`
     which is the deafult, the scheduler will wait until the queue as been
-    emptied before reaching STOPPED.
+    emptied before reaching FINISHED.
     """
 
     FINISHED: Event[[]] = Event("scheduler-finished")
@@ -59,7 +70,7 @@ class Scheduler:
     """
 
     STOP: Event[[]] = Event("scheduler-stop")
-    """The scheduler has been stopped.
+    """The scheduler has been stopped explicitly.
 
     This means the executor is no longer running so no further tasks can be
     dispatched. The scheduler is in a state where it will wait for the current
@@ -90,11 +101,12 @@ class Scheduler:
         terminate: Callable[[Executor], None] | bool = True,
         event_manager: EventManager | None = None,
     ) -> None:
-        """Initialize the scheduler.
+        """Initialize a scheduler.
 
-        Note:
+        !!! note "Forcibully Terminating Workers"
+
             As an `Executor` does not provide an interface to forcibly
-            terminate workers, we provide `terminate_workers` as a custom
+            terminate workers, we provide `terminate` as a custom
             strategy for cleaning up a provided executor. It is not possible
             to terminate running thread based workers, for example using
             `ThreadPoolExecutor` and any Executor using threads to spawn
