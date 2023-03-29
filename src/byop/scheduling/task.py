@@ -49,7 +49,7 @@ class Task(Generic[P, R]):
     has its `__call__` method called, the function will be dispatched to run
     by a [`Scheduler`][byop.scheduling.scheduler.Scheduler].
 
-    The scheduler will emit specific [events][byop.scheduling.events.TaskEvent]
+    The scheduler will emit specific events
     to this task which look like `(task.name, TaskEvent)`.
 
     To interact with the results of these tasks, you must subscribe to to these
@@ -67,12 +67,9 @@ class Task(Generic[P, R]):
     my_task: Task[[int], int] = scheduler.task("call_f", f)
 
     # Subscribe to events
-    my_task.on_return(lambda result: print(result)) # (1)!
-    my_task.on_noreturn(lambda error: print(error)) # (2)!
+    my_task.on_returned(lambda result: print(result))
+    my_task.on_exception(lambda error: print(error))
     ```
-
-    1. You could also do: `#!python my_task.on(task.RETURNED, lambda res: print(res))`
-    2. You could also do: `#!python my_task.on(task.EXCEPTION, lambda err: print(err))`
 
     Attributes:
         name: The name of the task.

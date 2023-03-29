@@ -163,7 +163,7 @@ class Subscriber(Generic[P]):
 
         Returns:
             The callback if it was provided, otherwise it acts
-            as a decorator.
+                as a decorator.
         """
         if callback is None:
             return SubcriberDecorator(
@@ -186,6 +186,23 @@ class Subscriber(Generic[P]):
             every=every,
         )
         return callback
+
+    def remove(self, callback_or_name: Callable | str) -> bool:
+        """Remove a callback from this subscribers event.
+
+        Args:
+            callback_or_name: The callback to remove or the name
+                of the callback to remove.
+
+        Returns:
+            Whether a callback was removed or not.
+        """
+        if callable(callback_or_name):
+            name = funcname(callback_or_name)
+        else:
+            name = callback_or_name
+
+        return self.manager.remove(name, event=self.event)
 
 
 @dataclass

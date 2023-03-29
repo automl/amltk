@@ -3,7 +3,9 @@ away from the main process __easy__, to foster increased ability for
 interactability, deployment and control. At the same time,
 we wanted to have an event based system to manage the complexity
 that comes with AutoML systems, all while making the API intuitive
-and extensible.
+and extensible. This allows workflows which encourage gradual development
+and experimentation, where the user can incrementally add more functionality
+and complexity to their system.
 
 By the end of this guide, we hope that the following code, it's options
 and it's inner working becomes easy to understand.
@@ -52,7 +54,91 @@ whose sole purpose is to allow you to do two things:
 * [`on`][byop.events.EventManager.on]: Register a function which gets called when a certain
   event is emitted.
 
-![Event Manager](../images/scheduler-guide-events.svg)
+=== "Diagram"
+
+    ![Event Manager](../images/scheduler-guide-events.svg)
+
+=== "Code"
+
+
+    ```python
+    from byop.events import EventManager
+
+    def f(a: int, b: str, c: float) -> None:
+        ...
+
+    def g(a: int, b: str, c: float) -> None:
+        ...
+
+    def h(a: int, b: str, c: float) -> None:
+        ...
+
+    event_manager = EventManager(name="manager-name")
+
+    # Subscribe the callbacks to the "hello" event
+    event_manager.on("hello", f)
+    event_manager.on("hello", g)
+    event_manager.on("hello", h)
+
+    # ... some time later
+
+    # Will call all functions subscribed to the hello event
+    event = "hello"
+    event_manager.emit(event, 10, "world", 3.14)
+    ```
+
+We can technically define any [`Hashable`][typing.Hashable] object as an event, such as `#!python "hello"`,
+but typically we create an [`Event`][byop.events.Event] object. By themselves they don't add much
+but when using python's
+typing and mypy/pyright, this let's us make sure the callbacks
+registered to an event are compatible with the arguments passed to
+[`emit`][byop.events.EventManager.emit].
+
+=== "Creating an Event"
+
+    ```python hl_lines="11"
+    from byop.events import EventManager, Event
+
+    def f(a: int, b: str, c: float) -> None:
+        ...
+
+    def h(x: str) -> None:
+        ...
+
+    event_manager = EventManager(name="manager-name")
+
+    event = Event(name="hello")
+
+    # Subscribe the callbacks to the "hello" event
+    event_manager.on(event, f)
+    event_manager.on(event, h)  # <--- This is not compatible with the emit below
+
+    # ... some time later
+    event_manager.emit(event, 10, "world", 3.14)  # <--- Exception happens when `h` is called
+    ```
+
+=== "Typed version"
+
+    ```python hl_lines="11"
+    from byop.events import EventManager, Event
+
+    def f(a: int, b: str, c: float) -> None:
+        ...
+
+    def h(x: str) -> None:
+        ...
+
+    event_manager = EventManager(name="manager-name")
+
+    event: Event[int, str, float] = Event(name="hello")
+
+    # Subscribe the callbacks to the "hello" event
+    event_manager.on(event, f)
+    event_manager.on(event, h)  # <--- Mypy will tell you there's an error here
+
+    # ... some time later
+    event_manager.emit(event, 10, "world", 3.14)
+    ```
 
 There is some _sugar_ the `EventManager` provides but we will introduce
 them as we go along.
@@ -66,9 +152,9 @@ it's arguments, returning a [`Future`][concurrent.futures.Future].
 
 ![Scheduler Events](../images/scheduler-guide-first.svg)
 
-!!! Note "A [`Future`][concurrent.futures.Future]"
+!!! quote "A [`Future`][concurrent.futures.Future]"
 
-    This is an object which will have the result or exception of some
+    This is a builtin Python object which will have the result or exception of some
     compute in the future.
 
 Using just these, we can start to scaffold an entire event based framework which
@@ -97,45 +183,188 @@ run compute in a seperate process on the same machine.
     scheduler = Scheduler(executor=executor)
     ```
 
-Python also defines a [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor]
-but there are some known drawbacks to offloading heavy compute to threads.
 
 Some popular distributions frameworks which support the `Executor` interface:
 
-* [`Dask`](https://distributed.dask.org/en/stable/): The `Client` from dask
-  has a method [`get_executor()`](https://distributed.dask.org/en/stable/api.html?highlight=get_executor#distributed.Client.get_executor)
-  which exposes the `Client` following the `Executor` interface.
-* [`dask-jobqueue`](https://jobqueue.dask.org/en/latest/): Provides `Executor`
-  interfaces that support workers on compute nodes for some common clusters.
-* We plan to support more integrations, for example [Apache Airflow](https://airflow.apache.org).
-  If there's an executor background you wish to integrate, we would be happy
-  to consider it and greatly appreciate a PR!
+-   :material-language-python: **Python**
 
-### Listening to Scheduler Events with `on_start()`
+    Python supports the `Executor` interface natively with the
+    [`concurrent.futures`][concurrent.futures] module for processes with the
+    [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor] and
+    [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor] for threads.
+
+    ??? example
+
+        === "Process Pool Executor"
+
+            ```python
+            from concurrent.futures import ProcessPoolExecutor
+            from byop.scheduling import Scheduler
+
+            executor = ProcessPoolExecutor(max_workers=2)
+            scheduler = Scheduler(executor=executor)
+            ```
+
+        === "Thread Pool Executor"
+
+            ```python
+            from concurrent.futures import ThreadPoolExecutor
+            from byop.scheduling import Scheduler
+
+            executor = ThreadPoolExecutor(max_workers=2)
+            scheduler = Scheduler(executor=executor)
+            ```
+
+            !!! danger "Why to not use threads"
+
+                Python also defines a [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor]
+                but there are some known drawbacks to offloading heavy compute to threads. Notably,
+                there's no way in python to terminate a thread from the outside while it's running.
+---
+
+-   :simple-dask: [`dask`](https://distributed.dask.org/en/stable/)
+
+    Dask and the supporting extension [`dask.distributed`](https://distributed.dask.org/en/stable/)
+    provide a robust and flexible framework for scheduling compute across workers.
+
+    ??? example
+
+        ```python hl_lines="5"
+        from dask.distributed import Client
+        from byop.scheduling import Scheduler
+
+        client = Client(...)
+        executor = client.get_executor()
+        scheduler = Scheduler(executor=executor)
+        ```
+---
+
+-   :simple-dask: [`dask-jobqueue`](https://jobqueue.dask.org/en/latest/)
+
+    A package for scheduling jobs across common clusters setups such as
+    PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
+
+    ??? example
+
+        ```python hl_lines="16"
+        from dask_jobqueue import SLURMCluster
+        from byop.scheduling import Scheduler
+
+        n_workers = 256
+
+        cluster = SLURMCluster(
+            memory="2GB",  # Memory per job
+            processes=1,  # Processes per job
+            cores=1,  # Cores per job
+            job_extra_directives=["--time 0-00:10:00"],  # Duration
+            queue="partition-name",
+        )
+
+        cluster.adapt(maximum_jobs=256)  # Automatically scale up to 256 jobs
+
+        executor = cluster.get_client().get_executor()
+        scheduler = Scheduler(executor=executor)
+        ```
+
+        !!! info "Modifying the launch command"
+
+            On some cluster commands, you'll need to modify the launch command.
+            You can use the following to do so:
+
+            ```python
+            SLURMCluster.job_cls.submit_command = "sbatch <extra-arguments>"
+            ```
+
+---
+
+-   :simple-ray: [`ray`](https://docs.ray.io/en/master/)
+
+    Ray is an open-source unified compute framework that makes it easy
+    to scale AI and Python workloads
+    — from reinforcement learning to deep learning to tuning,
+    and model serving.
+
+    ??? info "In progress"
+
+        Ray is currently in the works of supporting the Python
+        `Executor` interface. See this [PR](https://github.com/ray-project/ray/pull/30826)
+        for more info.
+
+---
+
+-   :simple-apacheairflow: [`airflow`](https://airflow.apache.org/)
+
+    Airflow is a platform created by the community to programmatically author,
+    schedule and monitor workflows. Their list of integrations to platforms is endless
+    but features compute platforms such as Kubernetes, AWS, Microsoft Azure and
+    GCP.
+
+    ??? info "Planned"
+
+        We plan to support `airflow` in the future. If you'd like to help
+        out, please reach out to us!
+
+---
+
+If there's an executor background you wish to integrate, we would be happy
+to consider it and greatly appreciate a PR!
+
+### Subscribing to Scheduler Events
+
+The `Scheduler` defines many events which are emitted depending on its state.
+One example of this is [`STARTED`][byop.scheduling.Scheduler.STARTED], an
+event to signal the scheduler has started and ready to accept tasks.
+We can subscribe to this event and trigger our callback with `on_start()`.
+
 !!! info inline end "Events"
 
     The `Scheduler` defines even more events which we can subscribe to:
 
-    * [`EMPTY`][byop.scheduling.Scheduler.EMPTY]: An event to signal
-      that there is nothing currently running in the scheduler. Subscribe
-      with `on_empty`.
-    * [`TIMEOUT`][byop.scheduling.Scheduler.TIMEOUT]: An event to signal
-      the scheduler has reached its time limit. Subscribe with `on_timeout()`.
-    * [`STOP`][byop.scheduling.Scheduler.STOP]: An event to signal the
-      scheduler has been stopped explicitly with
-      [`scheduler.stop()`][byop.scheduling.Scheduler.stop]. This can
-      be subscribed to with `on_stop()`.
+    ---
+    [`STARTED`][byop.scheduling.Scheduler.STARTED] : `on_start()`.
+
+    An event to signal that the scheduler is now up and running.
+
+    ---
+
+    [`FINISHING`][byop.scheduling.Scheduler.FINISHING] : `on_finishing()`.
+
+    An event to signal the scheduler is still running but is waiting for
+    currently running tasks to finish.
+
+    ---
+
+    [`FINISHED`][byop.scheduling.Scheduler.FINISHING] : `on_finished()`.
+
+    An event to signal the scheduler is no longer running and this is
+    the last event it will emit.
+
+    ---
+
+    [`EMPTY`][byop.scheduling.Scheduler.EMPTY] : `on_empty()`.
+
+    An event to signal that there is nothing currently running in the scheduler.
+
+    ---
+
+    [`TIMEOUT`][byop.scheduling.Scheduler.TIMEOUT] : `on_timeout()`.
+
+    An event to signal the scheduler has reached its time limit.
+
+    ---
+
+    [`STOP`][byop.scheduling.Scheduler.STOP] : `on_stop()`.
+
+    An event to signal the scheduler has been stopped explicitly with
+    [`scheduler.stop()`][byop.scheduling.Scheduler.stop].
+
+    ---
 
     In general, each event can be listened to with `on_event_name` where
     `event_name()` is the lowercase version of the `Event`.
 
     The complete list of events for [`Scheduler`][byop.scheduling.Scheduler].
 
-
-The `Scheduler` defines many events which are emitted depending on its state.
-One example of this is [`STARTED`][byop.scheduling.Scheduler.STARTED], an
-event to signal the scheduler has started and ready to accept tasks.
-We can subscribe to this event and trigger our callback with `on_start()`.
 We provide two ways to do so, one with _decorators_ and another in a _functional_
 way.
 
@@ -170,6 +399,90 @@ way.
     1. You can just pass in your callback and it will be called when the
     scheduler emits the [`STARTED`][byop.scheduling.Scheduler.STARTED] event.
 
+There's a variety of parameters you can use to customize the behavior of
+the callback. You can find the full list of parameters [here][byop.events.Subscriber.__call__].
+
+=== "`name=`"
+
+    Register a custom name with the callback to use for logging
+    or to [`remove`][byop.events.Subscriber.remove] the callback later.
+
+    ```python hl_lines="5"
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    @scheduler.on_start(name="my_callback")
+    def print_hello() -> None:
+        print("hello")
+    ```
+
+=== "`when=`"
+
+    A callable which takes no arguments and returns a `bool`. The callback
+    will only be called when the `when` callable returns `True`.
+
+    ```python hl_lines="10"
+    import random
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    def random_bool() -> bool:
+        return random.choice([True, False])
+
+    # Randomly decide whether to call the callback
+    @scheduler.on_start(when=random_bool)
+    def print_hello() -> None:
+        print("hello")
+    ```
+=== "`limit=`"
+
+    Limit the number of times a callback can be called, after which, the callback
+    will be ignored.
+
+    ```python hl_lines="6"
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    # Make sure it can only be called once
+    @scheduler.on_start(limit=1)
+    def print_hello() -> None:
+        print("hello")
+    ```
+
+=== "`repeat=`"
+
+    Repeat the callback a certain number of times, every time the event is emitted.
+
+    ```python hl_lines="6"
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    # Print "hello" 3 times when the scheduler starts
+    @scheduler.on_start(repeat=3)
+    def print_hello() -> None:
+        print("hello")
+    ```
+
+=== "`every=`"
+
+    Only call the callback every `every` times the event is emitted. This
+    includes the first time it's called.
+
+    ```python hl_lines="6"
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    # Print "hello" only every 3 times the scheduler starts.
+    @scheduler.on_start(every=3)
+    def print_hello() -> None:
+        print("hello")
+    ```
+
 It's worth noting that even though we are using an event based system, we
 are still guaranteed deterministic execution of the callbacks for any given
 event. The source of indeterminism is the order in which the events are
@@ -180,72 +493,128 @@ We can access all the counts of all events through the
 This is a `dict` which has the events as keys and the amount of times
 it was emitted as the values.
 
-??? Note "Unnecessary Details"
+??? info "Unnecessary Details"
 
     While not necessary to know, `on_start` is actually a callable object
-    called a [`Subscriber`][byop.events.Subscriber] which takes a variety
-    of arguments you can find [here][byop.events.Subscriber.__call__].
+    called a [`Subscriber`][byop.events.Subscriber].
 
-    * `name`: The name to give the callback. Used for reference in the logs
-    and in the [`EventManager`][byop.events.EventManager].
-    * `when`: A predicate which takes no arguments and returns True or
-    False on whether this callback should be called when the event is emitted.
-    * `limit`: The amount of times this callback can be called.
-    * `repeat`: How many times this callback will be called when the event
-    has been emitted.
-    * `every`: An int specifying the callback will be called every `every`
-    times the event is emitted.
+    You can create one of these quite easily!
+
+    ```python hl_lines="3 6"
+    from byop.events import EventManager, Event
+
+    USER_JOINED: Event[str] = Event("user-joined")  # (1)!
+
+    event_manager = EventManager(name="event_manager")
+    on_user_joined = event_manager.subscriber(USER_JOINED)
+
+    @on_user_joined
+    def print_hello(username: str) -> None:
+        print(f"hello {username}, welcome!")
+
+    on_user_joined(print_hello)
+    ```
+
+    1. We define our event with a type parameter to specify the type of
+    data we will pass to the callback.
 
 
-### How to `run()` and `stop()` the Scheduler
+### Running and Stopping the Scheduler
 We can run the scheduler in two different ways, synchronously with
 [`run()`][byop.scheduling.Scheduler.run]
 which is blocking, or with [`async_run()`][byop.scheduling.Scheduler.async_run]
 which runs the scheduler in an [`asyncio`][asyncio] loop, useful for
 interactive apps or servers.
 
-!!! Note inline end "Arguments to `run()`"
-
-    * `timeout`: The scheduler will automatically stop once `timeout` many seconds
-    is reached.
-    * `end_on_empty`: The scheduler will stop once there is no pending compute
-    running. The scheduler is out of fuel and no more events can occur.
-    * `wait`: Whether the scheduler should wait for currently running compute
-    to finish. Check out the `terminate` argument to
-    [`Scheduler`][byop.scheduling.Scheduler] for finer grained control on the
-    limitations of setting this to `False`.
-
-    Check it's documentation [`run()`][byop.scheduling.Scheduler.run]
-
 Once the scheduler finishes, it will return an [`ExitCode`][byop.scheduling.Scheduler.ExitCode], indicating why
 the scheduler finished.
 
-```python hl_lines="5"
-from byop.scheduling import Scheduler
+=== "`run()`"
 
-scheduler = Scheduler(...)
+    Default behavior is to run the scheduler until it's out of things
+    to run as there will be no more events to fire. In this case
+    it will return [`ExitCode.EXHAUSTED`][byop.scheduling.Scheduler.ExitCode.EXHAUSTED].
 
-exit_code = scheduler.run()
-```
+    ```python
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    exit_code = scheduler.run()
+    ```
+
+=== "`stop()`"
+
+    We can always forcibly stop the scheduler with
+    [`stop()`][byop.scheduling.Scheduler.stop], whether it be in a callback
+    or elsewhere.
+
+    ```python hl_lines="7"
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    @scheduler.on_start
+    def stop_immediatly() -> None:
+        scheduler.stop()
+
+    scheduler.run()
+    ```
 
 
-Lastly, we can always forcibly stop the scheduler with
-[`stop()`][byop.scheduling.Scheduler.stop], whether it be in a callback
-or elsewhere.
+=== "`run(timeout=...)`"
 
-```python hl_lines="7"
-from byop.scheduling import Scheduler
+    You can set a timeout for the scheduler which means it will shutdown after
+    `timeout=` seconds. We explicitly pass `end_on_empty=False` here to prevent
+    the scheduler from shutting down due to being out of fuel. In this
+    case the scheduler will return
+    [`ExitCode.TIMEOUT`][byop.scheduling.Scheduler.ExitCode.TIMEOUT].
 
-scheduler = Scheduler(...)
+    ```python
+    from byop.scheduling import Scheduler
 
-@scheduler.on_start
-def stop_immediatly() -> None:
-    scheduler.stop()
+    scheduler = Scheduler(...)
 
-scheduler.run()
-```
+    exit_code = scheduler.run(timeout=10, end_on_empty=False)
+    ```
 
-### Injecting fuel with `submit()`
+=== "`run(wait=...)`"
+
+    We can also set `wait=False` to prevent the scheduler from waiting for
+    currently running compute to finish if it stopped for whatever reason.
+    In this case the scheduler will return attempt to shutdown the executor
+    but you can pass in `terminate` to
+    [`Scheduler`][byop.scheduling.Scheduler] to define how this is done.
+
+    ```python
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    scheduler.run(wait=False)
+    ```
+
+=== "`async_run()`"
+
+    For running applications such as servers or interactive apps, we can use
+    [`async_run()`][byop.scheduling.Scheduler.async_run] which runs the scheduler
+    in an [`asyncio`][asyncio] loop. This is useful for running the scheduler
+    in the background while you do other things, such as respond to incoming
+    HTTP requests or draw and manage UI components. This takes the same arguments
+    as [`run()`][byop.scheduling.Scheduler.run].
+
+    ```python
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    # ... somewhere in your async code
+    await scheduler.async_run()
+    ```
+
+---
+
+### Submitting Compute to the Scheduler
 One thing that's missing from all of this is actually running something
 with the scheduler. We first introduce the manual way to do so with
 [`submit()`][byop.scheduling.Scheduler.submit] and follow up with
@@ -260,6 +629,9 @@ from asnycio import Future
 from byop.scheduling import Scheduler
 
 def long_running_function(x: int) -> int:
+    if x == 0:
+        raise ValueError("x cannot be 0")
+
     time.sleep(42)
     return x
 
@@ -268,7 +640,7 @@ futures: list[Future[int]] = []  # (3)!
 scheduler = Scheduler(...)
 
 @scheduler.on_start(repeat=3)  # (1)!
-def print_result() -> None:
+def submit_task() -> None:
     x = random.randrange(10)
     future = scheduler.submit(long_running_function, x)  # (2)!
     futures.append(future)
@@ -301,7 +673,7 @@ resource consumption and provide a convenient way to express special kinds
 of tasks, with the possibility to create their own custom events to hook
 into.
 
-!!! Note "Provided Extensions of `Task`"
+!!! info "Provided Extensions of `Task`"
 
     * [`CommTask`][byop.scheduling.CommTask]s are tasks which are given
     a [`Comm`][byop.scheduling.Comm] as their first argument
@@ -311,127 +683,275 @@ into.
     as their first argument and should return a [`Trial.Report`][byop.optimization.Trial.Report]
     for reporting how the optimization run went.
 
-### Using a `Task`
-To create a task, we need to wrap a function, let's use the same example from above
-but with tasks.
+### Creating a Task
+To create a task, we simply wrap the function we will want to distribute and pass
+in the scheduler we will use for managing the distribution.
 
-=== "Using Tasks"
+```python
+import time
+import random
 
-    ```python hl_lines="14"
+from byop.scheduling import Scheduler, Task
+
+def long_running_function(x: int) -> int:
+    if x == 0:
+        raise ValueError("x cannot be 0")
+
+    sleep_time = random.randrange(5)
+    time.sleep(sleep_time)
+    return x
+
+scheduler = Scheduler(...)
+task = Task(long_running_function, scheduler)
+```
+
+### Using a Task with Incremental Development
+
+To submit a task, we simply call it like a normal function. We can
+pass in any arguments that match the function signature. The call
+to the task will return a [`Future`][asyncio.Future] we can use if
+we like but the proffered way to handle the results is to use the
+`on_returned` and `on_exception` events.
+
+Here we demonstrate how we can gradually build up complexity to
+test our system and add functionality with small incremental changes
+
+=== "Initial Test"
+
+    We start by just having a simple test of submitting the task once
+    when the scheduler starts and printing the outcome.
+
+    ```python hl_lines="17 18 19 20 22 23 24 26 27 28"
     import time
     import random
 
     from byop.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
+        if x == 0:
+            raise ValueError("x cannot be 0")
+
         sleep_time = random.randrange(5)
         time.sleep(sleep_time)
         return x
 
-    results: list[int] = []
     scheduler = Scheduler(...)
+    task = Task(long_running_function, scheduler)
 
-    task = Task(long_running_function, scheduler)  # (1)!
-
-    @scheduler.on_start(repeat=3)
-    def print_result() -> None:
+    @scheduler.on_start
+    def submit_task() -> None:
         x = random.randrange(10)
-        task(x) # (2)!
+        task(x)
+
+    @task.on_returned
+    def print_result(result: int) -> None:
+        print(result)
+
+    @task.on_exception
+    def print_exception(exception: BaseException) -> None:
+        print(exception)
+
+    scheduler.run()
+    ```
+
+=== "Save results"
+
+    We realise we actually need to store the results somewhere so
+    we can add new functionality without disturbing our previous code.
+
+    ```python hl_lines="26 27 28 29 30"
+    import time
+    import random
+
+    from byop.scheduling import Scheduler, Task
+
+    def long_running_function(x: int) -> int:
+        if x == 0:
+            raise ValueError("x cannot be 0")
+
+        sleep_time = random.randrange(5)
+        time.sleep(sleep_time)
+        return x
+
+    scheduler = Scheduler(...)
+    task = Task(long_running_function, scheduler)
+
+    @scheduler.on_start
+    def submit_task() -> None:
+        x = random.randrange(10)
+        task(x)
+
+    @task.on_returned
+    def print_result(result: int) -> None:
+        print(result)
+
+    results: list[int] = []
 
     @task.on_returned
     def save_result(result: int) -> None:
         results.append(result)
 
     @task.on_exception
-    def stop_scheduler(exception: BaseException) -> None:
+    def print_exception(exception: BaseException) -> None:
         print(exception)
-        scheduler.stop()
 
     scheduler.run()
     ```
 
-    1. To type this properly, it's `Task[[int], int]`, similar
-       to how you would type a [`Callable`][typing.Callable].
-    2. To run the task, we simply call it with our arguments.
-       We can be type safe and `mypy` will give you an error
-       if your arguments do not match the function signature.
+=== "Concurrency"
 
-=== "Using Futures Directly"
+    We now see if we can submit our task 3 times at the same time
+    once the scheduler starts.
 
-    ```python
+    ```python hl_lines="17"
     import time
     import random
 
-    from asnycio import Future
-    from byop.scheduling import Scheduler
+    from byop.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
-        time.sleep(42)
+        if x == 0:
+            raise ValueError("x cannot be 0")
+
+        sleep_time = random.randrange(5)
+        time.sleep(sleep_time)
         return x
 
-    results: list[int] = []
     scheduler = Scheduler(...)
-
-    futures: list[Future[int]] = []
+    task = Task(long_running_function, scheduler)
 
     @scheduler.on_start(repeat=3)
-    def print_result() -> None:
+    def submit_task() -> None:
         x = random.randrange(10)
-        future = scheduler.submit(long_running_function, x)
-        futures.append(future)
-
-    scheduler.run()
-
-    for future in futures:
-      exception = future.exception()
-      if exception is not None:
-          print(exception)
-      else:
-          result = future.result()
-          results.append(result)
-    ```
-
-If you compare the two examples, you'll see that handling futures is
-abstracted away. Moreover, your callbacks will be handled as soon as a `Task`
-completes, something not possible using just raw `Future`s alone.
-
-Notice that we pass in the `scheduler` as the second argument to the `Task`.
-This is because the `Task` needs to know which scheduler to use to submit
-the compute function to.
-
-Subscribing to events on the task is done in the exact same
-manner as the scheduler, e.g. `on_returned()` and `on_exception()`.
-
-=== "Decorators"
-
-    ```python
-    from byop.scheduling import Task
-
-    task = Task(...)
+        task(x)
 
     @task.on_returned
-    def do_something_with_result(result) -> None:
-        ...
+    def print_result(result: int) -> None:
+        print(result)
+
+    results: list[int] = []
+
+    @task.on_returned
+    def save_result(result: int) -> None:
+        results.append(result)
+
+    @task.on_exception
+    def print_exception(exception: BaseException) -> None:
+        print(exception)
+
+    scheduler.run()
     ```
 
-=== "Functional"
+=== "Repeat for a time"
 
-    ```python
-    from byop.scheduling import Task
+    Now that we have a working system, we want to keep it running
+    for a while and keep the workers busy. We can do this by using
+    just resubmitting the task once one of it's submissions is done,
+    regardless of a result or exception.
 
-    task = Task(...)
+    ```python hl_lines="18 37"
+    import time
+    import random
 
-    def do_something_with_result(result) -> None:
-        ...
+    from byop.scheduling import Scheduler, Task
 
-    task.on_returned(do_something_with_result)
+    def long_running_function(x: int) -> int:
+        if x == 0:
+            raise ValueError("x cannot be 0")
+
+        sleep_time = random.randrange(5)
+        time.sleep(sleep_time)
+        return x
+
+    scheduler = Scheduler(...)
+    task = Task(long_running_function, scheduler)
+
+    @scheduler.on_start(repeat=3)
+    @task.on_done
+    def submit_task() -> None:
+        x = random.randrange(10)
+        task(x)
+
+    @task.on_returned
+    def print_result(result: int) -> None:
+        print(result)
+
+    results: list[int] = []
+
+    @task.on_returned
+    def save_result(result: int) -> None:
+        results.append(result)
+
+    @task.on_exception
+    def print_exception(exception: BaseException) -> None:
+        print(exception)
+
+    scheduler.run(timeout=60)
     ```
 
-It's worth noting here that for any given event the order in which callbacks
-are called is guaranteed to be the same as the order in which they were
-registered. However the order of events is not guaranteed, meaning that
-the list of results may change each time this code sample is run, depending
-on how long the sleep lasts.
+=== "Stopping Criteria"
+
+    Lastly, we realise we want to stop the scheduler once we have 50 results
+    or an exception occured. We can add in these stopping criterion quite fluidly.
+
+    ```python hl_lines="37 38 39 41 42 43"
+    import time
+    import random
+
+    from byop.scheduling import Scheduler, Task
+
+    def long_running_function(x: int) -> int:
+        if x == 0:
+            raise ValueError("x cannot be 0")
+
+        sleep_time = random.randrange(5)
+        time.sleep(sleep_time)
+        return x
+
+    scheduler = Scheduler(...)
+    task = Task(long_running_function, scheduler)
+
+    @scheduler.on_start(repeat=3)
+    @task.on_done
+    def submit_task() -> None:
+        x = random.randrange(10)
+        task(x)
+
+    @task.on_returned
+    def print_result(result: int) -> None:
+        print(result)
+
+    results: list[int] = []
+
+    @task.on_returned
+    def save_result(result: int) -> None:
+        results.append(result)
+
+    @task.on_exception
+    def print_exception(exception: BaseException) -> None:
+        print(exception)
+
+    @task.on_exception
+    def stop_on_exception(exception: BaseException) -> None:
+        scheduler.stop()
+
+    @task.on_done(when=lambda: len(results) >= 50)  # (1)!
+    def stop_on_50_results(result: int) -> None:
+        scheduler.stop()
+
+    scheduler.run(timeout=60)
+    ```
+
+    1. We can use the `when` keyword argument to specify a condition
+       and we use an inline `#!python lambda` function to check if we have
+       50 results.
+
+!!! info "Determinism"
+
+    It's worth noting here that for any given event the order in which callbacks
+    are called is guaranteed to be the same as the order in which they were
+    registered. However the order of events is not guaranteed and is subject
+    to undetermined behavior based on your computations and executor.
 
 ### Limiting resource consumption
 Tasks can be used to limit the amount of resources a function can use.
@@ -499,7 +1019,7 @@ This is done using the following arguments to `Task`:
     1. Check out the parameters on how to set the memory limit
     [here](https://github.com/automl/pynisher#parameters)
 
-    !!! Note "Memory Limits with Pynisher"
+    !!! warning "Memory Limits with Pynisher"
 
         Pynisher has some limitations with memory on Mac and Windows:
         https://github.com/automl/pynisher#features
@@ -527,7 +1047,7 @@ This is done using the following arguments to `Task`:
     1. Check out the parameters on how to set the cpu time limit
     [here](https://github.com/automl/pynisher#parameters)
 
-    !!! Note "CPU Time Limits with Pynisher"
+    !!! warning "CPU Time Limits with Pynisher"
 
         Pynisher has some limitations with cpu timing on Mac and Windows:
         https://github.com/automl/pynisher#features

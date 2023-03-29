@@ -367,8 +367,8 @@ class Scheduler:
         """Run the scheduler.
 
         Args:
-            timeout: The maximum time to run the scheduler for.
-                Defaults to `None` which means no timeout and it
+            timeout: The maximum time to run the scheduler for in
+                seconds. Defaults to `None` which means no timeout and it
                 will end once the queue becomes empty.
             end_on_empty: Whether to end the scheduler when the
                 queue becomes empty. Defaults to `True`.
