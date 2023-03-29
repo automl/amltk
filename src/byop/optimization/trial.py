@@ -269,8 +269,8 @@ class Trial(Generic[Info]):
             )
             self.trial_lookup: dict[Future, Trial[InfoInner]] = {}
 
-            self.on_returned(self._emit_report)
-            self.on_exception(self._emit_report)
+            self.on_f_returned(self._emit_report)
+            self.on_f_exception(self._emit_report)
 
             self.on_report: Subscriber[Trial.Report[InfoInner]]
             self.on_report = self.subscriber(self.REPORT)
@@ -315,11 +315,11 @@ class Trial(Generic[Info]):
             self.emit(self.REPORT, report)
 
             # Emit the specific type of report
-            if isinstance(future, Trial.SuccessReport):
+            if isinstance(report, Trial.SuccessReport):
                 self.emit(self.SUCCESS, report)
-            elif isinstance(future, Trial.FailReport):
+            elif isinstance(report, Trial.FailReport):
                 self.emit(self.FAILURE, report)
-            elif isinstance(future, Trial.CrashReport):
+            elif isinstance(report, Trial.CrashReport):
                 self.emit(self.CRASHED, report)
             else:
                 raise TypeError(f"Unexpected report type: {type(report)}")

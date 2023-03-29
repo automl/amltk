@@ -91,14 +91,14 @@ class Task(Generic[P, R]):
     F_RETURNED: Event[Future, Any] = Event("task-future-returned")
     """A Task has successfully returned a value. Comes with Future"""
 
-    RETURNED: Event[Any] = Event("task-returned")
-    """A Task has successfully returned a value.Future"""
+    RETURNED: Event[[Any]] = Event("task-returned")
+    """A Task has successfully returned a value."""
 
     F_EXCEPTION: Event[Future, BaseException] = Event("task-future-exception")
     """A Task failed to return anything but an exception. Comes with Future"""
 
     EXCEPTION: Event[BaseException] = Event("task-exception")
-    """A Task failed to return anything but an exception.Future"""
+    """A Task failed to return anything but an exception."""
 
     TIMEOUT: Event[Future, BaseException] = Event("task-timeout")
     """A Task timed out."""
@@ -277,7 +277,7 @@ class Task(Generic[P, R]):
         _event = (event, self.name)
         return self.scheduler.event_manager.subscriber(_event)
 
-    def emit(self, event: Event, *args: Any, **kwargs: Any) -> None:
+    def emit(self, event: Event[P2], *args: P2.args, **kwargs: P2.kwargs) -> None:
         """Emit an event.
 
         Args:

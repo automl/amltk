@@ -3,8 +3,6 @@
 ???+ note
     Please see the documentation for the [`Task`][byop.scheduling.task.Task]
     for basics of a task.
-
-
 """
 from __future__ import annotations
 

@@ -1074,3 +1074,505 @@ This is done using the following arguments to `Task`:
 
     1. Check out the parameters on how to set the wall time limit
     [here](https://github.com/automl/pynisher#parameters)
+
+### Task Events
+As the [`Task`][byop.scheduling.Task] is the main unit of abstraction for submitting
+a function to be computed, we try to provide an extensive set of events to capture
+the different events that can happen during the execution of a task.
+
+[`Events`][byop.events.Event] are typed with the arguments that are passed to the
+callback, such that they can be type check.
+
+This looks like `#!python Event[Arg1, Arg2, ...]` such that a callback registering to such an
+event should have the signature `#!python (Arg1, Arg2, ...) -> Any`, taking in the right type
+of arguments and can return anything.
+
+!!! info
+
+    Any return value from a callback will be ignored.
+
+Below are all the events that can be subscribed to with the [`Task`][byop.scheduling.Task]:
+
+=== "`SUBMITTED`"
+
+    `#!python SUBMITTED: Event[Future] = Event("task-submitted")`
+
+    The task has been submitted to the scheduler. You can subscribe to this event
+    with `on_submitted()`.
+
+=== "`DONE`"
+
+    `#!python DONE: Event[Future] = Event("task-done")`
+
+    The task has finished running. You can subscribe to this event
+    with `on_done()`.
+
+=== "`CANCELLED`"
+
+    `#!python CANCELLED: Event[Future] = Event("task-cancelled")`
+
+    The task has been cancelled. You can subscribe to this event
+    with `on_cancelled()`.
+
+=== "`RETURNED`"
+
+    `#!python RETURNED: Event[Any] = Event("task-returned")`
+
+    The task has successfully returned a value. You can subscribe to this event
+    with `on_returned()`.
+
+=== "`EXCEPTION`"
+
+    `#!python EXCEPTION: Event[BaseException] = Event("task-exception")`
+
+    The task raised an Exception and failed to return a value.
+    You can subscribe to this event with `on_exception()`.
+
+=== "`F_RETURNED`"
+
+    `#!python F_RETURNED: Event[Future, Any] = Event("task-future-returned")`
+
+    The task has successfully returned a value. This also passes the future along with
+    the result which can be useful during debugging and retrieving of the arguments the
+    task was submitted with as a `Future` can be used as a dictionary key.
+    You can subscribe to this event with `on_f_returned()`.
+
+=== "`F_EXCEPTION`"
+
+    `#!python F_EXCEPTION: Event[Future, BaseException] = Event("task-future-exception")`
+
+    The task raised an Exception and failed to return a value.
+    This also passes the future along with the exception which can be useful during
+    debugging and retrieving of the arguments the task was submitted with as a `Future`
+    can be used as a dictionary key.
+    You can subscribe to this event with `on_f_exception()`.
+
+=== "`TIMEOUT`"
+
+    `#!python TIMEOUT: Event[Future, BaseException] = Event("task-timeout")`
+
+    The task was given a `wall_time_limit` or `cpu_time_limit` and it timed out.
+    You can subscribe to this event with `on_timeout()`.
+
+=== "`CALL_LIMIT_REACHED`"
+
+    `#!python CALL_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")`
+
+    The task was submitted but reached it's maximum call limit. The callback
+    will be passed the `#!python *args, **kwargs` that the task was called with.
+    You can subscribe to this event with `on_concurrent_limit_reached()`.
+
+
+=== "`CONCURRENT_LIMIT_REACHED`"
+
+    `#!python CONCURRENT_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")`
+
+    The task was submitted but reached it's maximum concurrency limit. The callback
+    will be passed the `#!python *args, **kwargs` that the task was called with.
+    You can subscribe to this event with `on_concurrent_limit_reached()`.
+
+=== "`MEMORY_LIMIT_REACHED`"
+
+    `#!python MEMORY_LIMIT_REACHED: Event[Future, BaseException] = Event("task-memory-limit")`
+
+    The task was given a `memory_limit` and it was exceeded.
+    You can subscribe to this event with `on_memory_limit_reached()`.
+
+=== "`CPU_TIME_LIMIT_REACHED`"
+
+    `#!python CPU_TIME_LIMIT_REACHED: Event[Future, BaseException] = Event("task-cputime-limit")`
+
+    The task was submitted with a cpu time limit but exceeded the limit.
+    You can subscribe to this event with `on_cpu_time_limit_reached()`.
+
+=== "`WALL_TIME_LIMIT_REACHED`"
+
+    `#!python WALL_TIME_LIMIT_REACHED: Event[Future, BaseException] = Event("task-walltime-limit")`
+
+    The task was submitted with a wall time limit but exceeded the limit.
+    You can subscribe to this event with `on_cpu_time_limit_reached()`.
+
+
+## Comm Tasks
+The [`CommTask`][byop.scheduling.CommTask] is a special type of task that is used
+for two way communication between a worker and the server. It builds upon
+a [`Task`][byop.scheduling.Task] to both specialize the signature of functions
+it accepts but also to provide custom events for this kind of task.
+
+??? warning "Local Processes Only"
+
+    We currently use [`multiprocessing.Pipe`][multiprocessing.Pipe] to communicate
+    between the worker and the scheduler. This means we are limited to local processes
+    only.
+
+    If there is interest, we could extend this to be interfaced and provide web socket
+    communication as well. Please open an issue if you are interested in this or if you
+    would like to contribute.
+
+### Usage of Comm Tasks
+A [`CommTask`][byop.scheduling.CommTask] relies heavily on a [`Comm`][byop.scheduling.Comm] object to
+facilitate the communication between the worker and the scheduler. By using this `Comm`,
+we can [`send()`][byop.scheduling.Comm.send] and [`request()`][byop.scheduling.Comm.request]
+messages from the workers point of view.
+These messages are then received by the scheduler and emitted as the
+[`MESSAGE`][byop.scheduling.CommTask.MESSAGE] and [`REQUEST`][byop.scheduling.CommTask.REQUEST]
+events respectively which both pass a [`CommTask.Msg`][byop.scheduling.CommTask.Msg] object
+to the callback. This object contains the `data` that was transmitted.
+
+Below we show an example of both `send()` and
+`request()` in action.
+
+=== "`send()`"
+
+    ```python hl_lines="7 16 17 18 19"
+    from byop.scheduling import Scheduler, CommTask, Comm
+
+    # The function must accept a `Comm` object as the first argument
+    def echoer(comm: Comm, xs: list[int]):
+        with comm:  # (1)!
+          for x in xs:
+              comm.send(x)  # (2)!
+
+    scheduler = Scheduler(...)
+    task = CommTask(echoer, scheduler)
+
+    @scheduler.on_start
+    def start():
+        task.submit([1, 2, 3, 4, 5])
+
+    @task.on_message
+    def on_message(msg: CommTask.Msg):  # (3)!
+        print(f"Recieved a message {msg=}")
+        print(msg.data)
+
+    scheduler.run()
+    ```
+
+    1. The `Comm` object should be used as a context manager. This is to ensure
+       that the `Comm` object is closed correctly when the function exits.
+    2. Here we use the [`send()`][byop.scheduling.Comm.send] method to send a message
+       to the scheduler.
+    3. We can also do `#!python CommTask.Msg[int]` to specify the type of data
+       we expect to receive.
+
+=== "`request()`"
+
+    ```python hl_lines="7 16 17 18 19"
+    from byop.scheduling import Scheduler, CommTask, Comm
+
+    # The function must accept a `Comm` object as the first argument
+    def echoer(comm: Comm, n_requests: int):
+        with comm:
+          for _ in range(n):
+              response = comm.request(n)  # (1)!
+
+    scheduler = Scheduler(...)
+    task = CommTask(echoer, scheduler)
+
+    @scheduler.on_start
+    def start():
+        task.submit([1, 2, 3, 4, 5])
+
+    @task.on_request
+    def handle_request(msg: CommTask.Msg):
+        print(f"Recieved request {msg=}")
+        msg.respond(msg.data * 2)  # (2)!
+
+    scheduler.run()
+    ```
+
+    1. Here we use the [`request()`][byop.scheduling.Comm.request] method to send a request
+       to the scheduler with some data.
+    2. We can use the [`respond()`][byop.scheduling.CommTask.Msg.respond] method to
+       respond to the request with some data.
+
+!!! tip "Identifying Workers"
+
+    The [`CommTask.Msg`][byop.scheduling.CommTask.Msg] object also has the `future`
+    attribute, which is the [`Future`][concurrent.futures.Future] object that represents
+    the worker. This is hashable and usable in a dictionary as a key.
+
+## Extending `Task`
+The goal of task was to provide a simple interface for submitting functions to the `Scheduler`
+but also to provide a way to extend the functionality of the `Scheduler` and `Task` objects
+in a simple manner.
+
+For an example, we will create a simple task that should accept a random seed and count
+how far the seed gets without producing a number greater than `#!python 0.9`.
+
+First we should define what a sample of this task should look like.
+
+```python
+import random
+
+def random_task(seed: int) -> tuple[int, int]:
+    rng = random.Random(seed)
+    count = 0
+    while rng.uniform(0, 1) < 0.9:
+      count += 1
+
+    return count, seed
+```
+
+We can think about what events we would like to emit for this task. We could of course emit
+an event for the task completing but we can already use [`RETURNED`][byop.scheduling.Task.RETURNED]
+for this.
+
+After some thinking, you might decide an interesting event is that we have found a seed
+that produces the longest seen running count. Let's call this event, `LONGEST_RUN` which
+will return the `(count, seed)`.
+
+Let's define a simple `#!python class SeedTask(Task)` definition with this event, along with
+some variable `best_count_seed` to track both the `count` and the `seed` that produced it.
+
+=== "No types"
+
+    ```python hl_lines="3 5 9"
+    from byop.scheduling import Task, Event
+
+    class SeedTask(Task):  # (1)!
+
+      LONGEST_RUN = Event("longest-run") # (2)!
+
+      def __init__(self, *args, **kwargs):
+          super().__init__(*args, **kwargs)
+          self.best_count_seed = None
+    ```
+
+    1. We inherit from the [`Task`][byop.scheduling.Task] class.
+    2. We make the `LONGEST_RUN` event an attribute of the `SeedTask` class for easy access.
+
+=== "With types"
+
+    ```python hl_lines="3 5 9"
+    from byop.scheduling import Task, Event
+
+    class SeedTask(Task[[int], tuple[int, int]]):  # (1)!
+
+      LONGEST_RUN: Event[tuple[int, int]] = Event("longest-run")  # (2)!
+
+      def __init__(self, *args, **kwargs):
+          super().__init__(*args, **kwargs)
+          self.best_count_seed: tuple[int, int] | None = None
+    ```
+
+    1. The `#!python Task` class is generic and accepts two type arguments. The first
+       is the type of the arguments that the task accepts and the second is the type
+       of the return value, similar to a [`Callable`][typing.Callable].
+       We can use this to specify the type of the arguments and the return value of the task.
+    2. We make the `LONGEST_RUN` event an attribute of the `SeedTask` class for easy access.
+       We can also specify the type of the event. This is useful to identify why callbacks
+       which subscribe to this event should have as their signature.
+
+Our next step is that we need to hook into the [`RETURNED`][byop.scheduling.Task.RETURNED]
+event so that the `SeedTask` itself can update the `best_count_seed` variable.
+If we do update the variable, we should then also `emit` the `LONGEST_RUN` event
+as well as the updated variables.
+
+=== "No types"
+
+    ```python hl_lines="11 13 14 15 16 17"
+    from byop.scheduling import Task, Event
+
+    class SeedTask(Task):
+
+      LONGEST_RUN = Event("longest-run")
+
+      def __init__(self, *args, **kwargs):
+          super().__init__(*args, **kwargs)
+          self.best_count_seed = None
+
+          self.on_returned(self.check_longest_run)  # (1)!
+
+      def check_longest_run(self, result):
+          count, seed = result
+          if self.best_count_seed is None or count > self.best_count_seed[0]:
+              self.best_count_seed = (count, seed)
+              self.emit(self.LONGEST_RUN, (count, seed))  # (2)!
+    ```
+
+    1. We can use the functional form of subscribing to `on_returned()` to
+       register a callback function that will be called when the task returns.
+       The callback function will be passed the return value of the task.
+    2. We can use `emit()` to emit the `LONGEST_RUN` event.
+       The callback functions will be passed the `(count, seed)`.
+
+=== "With types"
+
+    ```python hl_lines="11 13 14 15 16 17"
+    from byop.scheduling import Task, Event
+
+    class SeedTask(Task[[int], tuple[int, int]]):
+
+      LONGEST_RUN: Event[tuple[int, int]] = Event("longest-run")
+
+      def __init__(self, *args, **kwargs):
+          super().__init__(*args, **kwargs)
+          self.best_count_seed = None
+
+          self.on_returned(self.check_longest_run)  # (1)!
+
+      def check_longest_run(self, result: tuple[int, int]) -> None:
+          count, seed = result
+          if self.best_count_seed is None or count > self.best_count_seed[0]:
+              self.best_count_seed = (count, seed)
+              self.emit(self.LONGEST_RUN, (count, seed))  # (2)!
+    ```
+
+    1. We can use the functional form of subscribing to `on_returned()` to
+       register a callback function that will be called when the task returns.
+       The callback function will be passed the return value of the task.
+    2. We can use `emit()` to emit the `LONGEST_RUN` event.
+       The callback functions will be passed the `(count, seed)`.
+
+
+Now let's use this task! We'll start simply by just running it once on `scheduler.on_start`
+and printing the results.
+
+```python hl_lines="17 18 19 20 21 23 24 25 26 27"
+import random
+from byop.scheduling import Scheduler, Task, Event
+
+def random_task(seed: int) -> tuple[int, int]:
+    rng = random.Random(seed)
+    count = 0
+    while rng.uniform(0, 1) < 0.9:
+      count += 1
+
+    return count, seed
+
+scheduler = Scheduler.with_processes(4)
+task = SeedTask(random_task, scheduler)
+
+counts: dict[int, int] = {}
+
+@scheduler.on_start
+def on_start() -> None:
+    seed = len(counts)
+    counts[seed] = None
+    task(seed)
+
+@task.on_returned
+def on_returned(result):
+    count, seed = result
+    counts[seed] = count
+    print(count, seed)
+
+scheduler.run()
+
+print(task.best_count_seed)
+```
+
+Now with some careful though readers may have noticed we now have to implement something
+along the lines of `on_longest_run()` to be able to subscribe callbacks to the emitted event.
+This is rather a repetitive process when defining new tasks so we provide a convenience function
+for this, namely [`subscriber()`][byop.scheduling.Task.subscriber]. This allows us to conveniently
+make a [`Subscriber`][byop.events.Subscriber] which handles all of this for us.
+
+=== "No types"
+
+    ```python hl_lines="13 19"
+    from byop.scheduling import Scheduler, Task, Event
+
+    class SeedTask(Task):
+
+      LONGEST_RUN = Event("longest-run")
+
+      def __init__(self, *args, **kwargs):
+          super().__init__(*args, **kwargs)
+          self.best_count_seed = None
+
+          self.on_returned(self.check_longest_run)
+
+          self.on_longest_run = self.subscriber(self.LONGEST_RUN)
+
+      def check_longest_run(self, result):
+          count, seed = result
+          if self.best_count_seed is None or count > self.best_count_seed[0]:
+              self.best_count_seed = (count, seed)
+              self.on_longest_run.emit((count, seed))
+    ```
+
+    1. We can also use the [`Subscriber.emit()`][byop.events.Subscriber.emit] method
+       to automatically emit the corresponding event but this is only for convenience
+       and is up to you.
+
+=== "With types"
+
+    ```python hl_lines="13 19"
+    from byop.scheduling import Scheduler, Task, Event, Subscriber
+
+    class SeedTask(Task[[int], tuple[int, int]]):
+
+      LONGEST_RUN: Event[tuple[int, int]] = Event("longest-run")
+
+      def __init__(self, *args, **kwargs):
+          super().__init__(*args, **kwargs)
+          self.best_count_seed = None
+
+          self.on_returned(self.check_longest_run)
+
+          self.on_longest_run = self.subscriber(self.LONGEST_RUN)
+
+      def check_longest_run(self, result: tuple[int, int]) -> None:
+          count, seed = result
+          if self.best_count_seed is None or count > self.best_count_seed[0]:
+              self.best_count_seed = (count, seed)
+              self.on_longest_run.emit((count, seed))  # (1)!
+    ```
+
+
+    1. We can also use the [`Subscriber.emit()`][byop.events.Subscriber.emit] method
+       to automatically emit the corresponding event but this is only for convenience
+       and is up to you.
+
+Now we can use this task as before but now we can subscribe to the `on_longest_run` event.
+
+```python hl_lines="29 30 31 32"
+import random
+from byop.scheduling import Scheduler, Task, Event
+
+def random_task(seed):
+    rng = random.Random(seed)
+    count = 0
+    while rng.uniform(0, 1) < 0.9:
+      count += 1
+
+    return count, seed
+
+scheduler = Scheduler.with_processes(4)
+task = SeedTask(random_task, scheduler)
+
+counts = {}
+
+@scheduler.on_start
+def on_start():
+    seed = len(counts)
+    counts[seed] = None
+    task(seed)
+
+@task.on_returned
+def on_returned(result):
+    count, seed = result
+    counts[seed] = count
+    print(count, seed)
+
+@task.on_longest_run
+def on_longest_run(result):
+    count, seed = result
+    print("Longest run so far:", count, seed)
+
+scheduler.run()
+```
+
+This short demonstration showed you how to define your own `Task` and custom `Event`s
+and seamlessly hook them into the scheduler and event system. You may wish to check
+out [`Trial.Task`][byop.optimization.Trial.Task] for a more complete example of how we
+extended `Task` to implement the optimization part of AutoML-Toolkit. You may also wish to
+build off of [`CommTask`][byop.scheduling.CommTask] for defining tasks which communicate but
+that exercise is left to the reader.
+
+---
+
+This concludes the guide to how AutoML-Toolkit works. If you have any questions or
+comments please feel free to open an issue!

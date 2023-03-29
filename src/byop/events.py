@@ -204,6 +204,10 @@ class Subscriber(Generic[P]):
 
         return self.manager.remove(name, event=self.event)
 
+    def emit(self, *args: P.args, **kwargs: P.kwargs) -> None:
+        """Emit this subscribers event."""
+        self.manager.emit(self.event, *args, **kwargs)
+
 
 @dataclass
 class Handler(Generic[P]):
