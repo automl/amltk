@@ -191,7 +191,9 @@ def split(
     Returns:
         Split: Split component with your choices as possibilities
     """
-    return Split(name=name, paths=list(paths), item=item, space=space, config=config)
+    return Split(
+        name=name, paths=list(paths), item=item, search_space=space, config=config
+    )
 
 
 @overload
@@ -231,4 +233,4 @@ def searchable(
     Returns:
         Searchable component with your choices as possibilities
     """
-    return Searchable(name=name, space=space, config=config)
+    return Searchable(name=name, search_space=space, config=config)

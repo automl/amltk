@@ -162,7 +162,7 @@ def _process_step(
 
     if isinstance(step, Searchable):
         searchable: Searchable = step
-        if searchable.space is None:
+        if searchable.search_space is None:
             return {}
 
         subspace = searchable.search_space

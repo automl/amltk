@@ -118,14 +118,14 @@ def generate_configspace(
 
     # Process any searchables
     for name, searchable in pipeline.searchables.items():
-        if isinstance(searchable.space, dict):
-            space = ConfigurationSpace(searchable.space)
-        elif isinstance(searchable.space, Hyperparameter):
-            space = ConfigurationSpace({"hp": searchable.space})
-        elif isinstance(searchable.space, ConfigurationSpace):
-            space = searchable.space
+        if isinstance(searchable.search_space, dict):
+            space = ConfigurationSpace(searchable.search_space)
+        elif isinstance(searchable.search_space, Hyperparameter):
+            space = ConfigurationSpace({"hp": searchable.search_space})
+        elif isinstance(searchable.search_space, ConfigurationSpace):
+            space = searchable.search_space
         else:
-            raise ValueError(f"{searchable.space} is not a valid space")
+            raise ValueError(f"{searchable.search_space} is not a valid space")
 
         if searchable.config is not None:
             space = replace_constants(searchable.config, space)
