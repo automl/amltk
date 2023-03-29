@@ -1,5 +1,5 @@
 from byop.control import AskAndTell
-from byop.pipeline import Pipeline, choice, split, step
+from byop.pipeline import Pipeline, choice, searchable, split, step
 from byop.scheduling import (
     Comm,
     CommTask,
@@ -26,6 +26,7 @@ __all__ = [
     "split",
     "step",
     "choice",
+    "searchable",
     "Scheduler",
     "Comm",
     "CommTask",

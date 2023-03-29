@@ -221,6 +221,15 @@ class Step(ABC):
         """
         ...
 
+    @abstractmethod
+    def configured(self) -> bool:
+        """Whether this step is configured.
+
+        Returns:
+            bool: True if configured, else False
+        """
+        ...
+
     @classmethod
     def join(cls, *steps: Step | Iterable[Step]) -> Step:
         """Join together a collection of steps, returning the head.

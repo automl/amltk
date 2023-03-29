@@ -132,11 +132,11 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         if reported_cost is not None:
             cost = reported_cost
-        elif isinstance(crash_cost, float) and not isinstance(objectives, Sequence):
+        elif isinstance(crash_cost, float):
             cost = crash_cost
-        elif isinstance(crash_cost, float) and isinstance(objectives, Sequence):
+        elif isinstance(crash_cost, float):
             cost = [crash_cost for _ in range(len(objectives))]
-        elif isinstance(crash_cost, Sequence) and isinstance(objectives, Sequence):
+        elif isinstance(crash_cost, Sequence):
             cost = crash_cost
         else:
             raise ValueError(
@@ -144,9 +144,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 f" objective in `Scenario({objectives=}, ...)"
             )
 
-        if (isinstance(cost, Sequence) and isinstance(objectives, Sequence)) and (
-            len(cost) != len(objectives)
-        ):
+        if isinstance(cost, Sequence) and (len(cost) != len(objectives)):
             raise ValueError(
                 f"Length of crash cost ({len(cost)}) and objectives "
                 f"({len(objectives)}) must be equal"

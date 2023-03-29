@@ -7,6 +7,7 @@ api functions from `byop.pipeline`.
 from __future__ import annotations
 
 from itertools import chain
+import logging
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -15,14 +16,16 @@ from typing import (
     Iterator,
     Literal,
     Mapping,
+    Sequence,
     TypeVar,
     overload,
 )
 from uuid import uuid4
 
-from attrs import frozen
+from attrs import field, frozen
 from more_itertools import duplicates_everseen, first_true
 
+from byop.pipeline.components import Searchable
 from byop.pipeline.step import Step
 from byop.types import Config, Seed, Space
 
@@ -35,6 +38,8 @@ if TYPE_CHECKING:
     from byop.optuna.space import OptunaSearchSpace
     from byop.pipeline.components import Split
 
+logger = logging.getLogger(__name__)
+
 
 @frozen(kw_only=True)
 class Pipeline:
@@ -43,10 +48,13 @@ class Pipeline:
     Attributes:
         name: The name of the pipeline
         steps: The steps in the pipeline
+        modules: Additional modules to associate with the pipeline
     """
 
     name: str
     steps: list[Step]
+    modules: Mapping[str, Pipeline] = field(factory=dict)
+    searchables: Mapping[str, Searchable] = field(factory=dict)
 
     @property
     def head(self) -> Step:
@@ -164,7 +172,7 @@ class Pipeline:
         Returns:
             A new pipeline with the selected choices
         """
-        return Pipeline.create(
+        return self.create(
             self.head.select(choices),
             name=self.name if name is None else name,
         )
@@ -200,7 +208,7 @@ class Pipeline:
                 the current pipelines name
 
         Returns:
-            Pipeline: A new pipeline with the step appended
+            A new pipeline with the step appended
         """
         if isinstance(nxt, Pipeline):
             nxt = nxt.head
@@ -255,6 +263,49 @@ class Pipeline:
         # Check that we do not have any keys with the same Hash
         dupe_steps = list(duplicates_everseen(self.traverse()))
         assert not any(dupe_steps), f"Duplicates in pipeline {dupe_steps}"
+
+    def attach(
+        self,
+        *,
+        modules: Pipeline | Iterable[Pipeline | Step] | None = None,
+        searchables: Searchable | Sequence[Searchable] | None = None,
+    ) -> Pipeline:
+        """Attach modules to the pipeline.
+
+        Args:
+            modules: The modules to attach
+            searchables: The searchables to attach
+        """
+        if modules is None:
+            modules = []
+
+        if isinstance(modules, Pipeline):
+            modules = [modules]
+
+        if searchables is None:
+            searchables = []
+
+        if isinstance(searchables, Searchable):
+            searchables = [searchables]
+
+        return self.create(
+            self.head,
+            modules=[*self.modules.values(), *modules],
+            searchables=[*self.searchables.values(), *searchables],
+            name=self.name,
+        )
+
+    def configured(self) -> bool:
+        """Whether the pipeline has been configured.
+
+        Returns:
+            True if the pipeline has been configured, False otherwise
+        """
+        return (
+            all(step.configured() for step in self.traverse())
+            and all(module.configured() for module in self.modules.values())
+            and all(searchable.configured() for searchable in self.searchables.values())
+        )
 
     @overload
     def space(
@@ -383,10 +434,20 @@ class Pipeline:
 
         return build(self, builder=builder)
 
+    def copy(self, *, name: str | None = None) -> Pipeline:
+        """Copy the pipeline.
+
+        Returns:
+            A copy of the pipeline
+        """
+        return self.create(self, name=self.name if name is None else name)
+
     @classmethod
-    def create(
+    def create(  # noqa: C901
         cls,
         *steps: Step | Pipeline | Iterable[Step],
+        modules: Pipeline | Iterable[Pipeline | Step] | None = None,
+        searchables: Searchable | Iterable[Searchable] | None = None,
         name: str | None = None,
     ) -> Pipeline:
         """Create a pipeline from a sequence of steps.
@@ -394,6 +455,8 @@ class Pipeline:
         Args:
             *steps: The steps to create the pipeline from
             name (optional): The name of the pipeline. Defaults to a uuid
+            modules (optional): The modules to use for the pipeline
+            searchables (optional): The searchables to use for the pipeline
 
         Returns:
             Pipeline
@@ -402,7 +465,76 @@ class Pipeline:
         expanded = [s.steps if isinstance(s, Pipeline) else s for s in steps]
         step_sequence = list(Step.chain(*expanded))
 
-        if name is not None:
-            return cls(name=name, steps=step_sequence)
+        if name is None:
+            name = str(uuid4())
 
-        return Pipeline(name=str(uuid4()), steps=step_sequence)
+        if isinstance(modules, Pipeline):
+            modules = [modules]
+
+        if isinstance(searchables, Searchable):
+            searchables = [searchables]
+
+        # Collect all the modules, turning them into pipelines
+        # as required by the internal api
+        final_modules: dict[str, Pipeline] = {}
+        if modules is not None:
+            final_modules = {
+                module.name: module.copy()
+                if isinstance(module, Pipeline)
+                else Pipeline.create(module, name=module.name)
+                for module in modules
+            }
+
+        # If any of the steps are pipelines and contain modules, attach
+        # them to the final modules of this newly created pipeline
+        for step in steps:
+            if isinstance(step, Pipeline):
+                step_modules = {
+                    module_name: module.copy()
+                    for module_name, module in step.modules.items()
+                }
+
+                # If one of the subpipelines has a duplicate module name
+                # then we need to raise an error
+                duplicates = step_modules.keys() & final_modules.keys()
+                if any(duplicates):
+                    msg = (
+                        "Duplicate module(s) found during pipeline"
+                        f" creation {duplicates=}."
+                    )
+                    raise ValueError(msg)
+
+                final_modules.update(step_modules)
+
+        # Collect all the searchables, copying them over
+        final_searchables: dict[str, Searchable] = {}
+        if searchables is not None:
+            final_searchables = {
+                searchable.name: searchable.copy() for searchable in searchables
+            }
+
+        # If any of the steps are pipelines, make sure to grab their
+        # searchables too, as we will flatten all of these added pipelines
+        # to one single pipeline
+        for step in steps:
+            if isinstance(step, Pipeline):
+                step_searchables = {
+                    searchable.name: searchable.copy()
+                    for searchable in step.searchables.values()
+                }
+                duplicates = step_searchables.keys() & final_searchables.keys()
+                if any(duplicates):
+                    msg = (
+                        "Duplicate searchable(s) found during pipeline"
+                        f" creation {duplicates=}."
+                    )
+                    raise ValueError(msg)
+
+                final_searchables.update(step_searchables)
+
+        return cls(
+            name=name,
+            steps=step_sequence,
+            modules=final_modules,
+            searchables=final_searchables,
+        )

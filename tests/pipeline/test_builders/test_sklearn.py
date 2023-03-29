@@ -41,7 +41,7 @@ def test_split_with_choice():
                     "criterion": ["gini", "entropy", "log_loss"],
                 },
             ),
-            step("svm", SVC, config={"C": [0.1, 1, 10]}),
+            step("svm", SVC, space={"C": [0.1, 1, 10]}),
         ),
         name="test_pipeline_sklearn",
     )
@@ -55,3 +55,38 @@ def test_split_with_choice():
 
     sklearn_pipeline = sklearn_pipeline.fit(X, y)
     sklearn_pipeline.predict(X)
+
+
+def test_build_module():
+    # Defining a pipeline
+    pipeline = Pipeline.create(
+        choice(
+            "algorithm",
+            step(
+                "rf",
+                item=RandomForestClassifier,
+                space={
+                    "n_estimators": [10, 100],
+                    "criterion": ["gini", "entropy", "log_loss"],
+                },
+            ),
+            step("svm", SVC, space={"C": [0.1, 1, 10]}),
+        ),
+        name="test_pipeline_sklearn",
+    )
+    submodule_pipeline = pipeline.copy(name="sub")
+
+    pipeline = pipeline.attach(modules=submodule_pipeline)
+
+    space = pipeline.space(seed=1, parser="configspace")
+
+    config = space.sample_configuration()
+
+    configured_pipeline = pipeline.configure(config)
+
+    # Build the pipeline and module
+    built_pipeline = configured_pipeline.build()
+    built_sub_pipeline = configured_pipeline.modules["sub"].build()
+
+    assert isinstance(built_pipeline, SklearnPipeline)
+    assert isinstance(built_sub_pipeline, SklearnPipeline)

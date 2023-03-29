@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterable, Mapping, TypeVar, overload
 
-from byop.pipeline.components import Choice, Component, Split
+from byop.pipeline.components import Choice, Component, Searchable, Split
 from byop.pipeline.step import Step
 
 Space = TypeVar("Space")
@@ -192,3 +192,43 @@ def split(
         Split: Split component with your choices as possibilities
     """
     return Split(name=name, paths=list(paths), item=item, space=space, config=config)
+
+
+@overload
+def searchable(
+    name: str,
+    *,
+    space: None = None,
+    config: Mapping[str, Any] | None = ...,
+) -> Searchable[None]:
+    ...
+
+
+@overload
+def searchable(
+    name: str,
+    *,
+    space: Space,
+    config: Mapping[str, Any] | None = ...,
+) -> Searchable[Space]:
+    ...
+
+
+def searchable(
+    name: str,
+    *,
+    space: Space | None = None,
+    config: Mapping[str, Any] | None = None,
+) -> Searchable[Space] | Searchable[None]:
+    """Create a Searchable component, allowing data to flow multiple paths.
+
+    Args:
+        name: The unique name of this step
+        space: The space to search over
+        config: If any parameter here is also present in the space,
+            this will be removed from the space.
+
+    Returns:
+        Searchable component with your choices as possibilities
+    """
+    return Searchable(name=name, space=space, config=config)

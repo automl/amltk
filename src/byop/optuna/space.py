@@ -3,14 +3,13 @@
 ``python
 from byop.pipeline import Pipeline
 from byop.optuna_space import generate_optuna_search_space
-
-pipeline = Pipeline(...)
+ = Pipeline(...)
 configspace = generate_optuna_search_space(pipeline)
 ```
 """
 from __future__ import annotations
 
-from typing import Any, TypeAlias
+from typing import Any, Mapping, TypeAlias
 
 from optuna.distributions import (
     BaseDistribution,
@@ -19,8 +18,7 @@ from optuna.distributions import (
     IntDistribution,
 )
 
-from byop.parsing import ParseError
-from byop.pipeline import Choice, Component, Pipeline, Split, Step
+from byop.pipeline import Choice, Pipeline, Searchable, Split, Step
 
 HyperparameterType: TypeAlias = int | str | float
 OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
@@ -31,10 +29,10 @@ def _convert_hp_to_optuna_distribution(
 ) -> BaseDistribution:
     if isinstance(hp, tuple):
         if len(hp) != 2:  # noqa: PLR2004
-            raise ParseError(f"{name} must be (lower, upper) bound, got {hp}")
+            raise ValueError(f"{name} must be (lower, upper) bound, got {hp}")
         lower, upper = hp
         if type(lower) != type(upper):
-            raise ParseError(
+            raise ValueError(
                 f"Expected {name} to have same type for lower and upper bound,"
                 f"got lower: {type(lower)}, upper: {type(upper)}."
             )
@@ -48,7 +46,7 @@ def _convert_hp_to_optuna_distribution(
     # Lists are categoricals
     elif isinstance(hp, list):
         if len(hp) == 0:
-            raise ParseError(f"Can't have empty list for categorical {name}")
+            raise ValueError(f"Can't have empty list for categorical {name}")
 
         real_hp = CategoricalDistribution(hp)
 
@@ -56,7 +54,7 @@ def _convert_hp_to_optuna_distribution(
     elif isinstance(hp, HyperparameterType):  # type: ignore[misc, arg-type]
         real_hp = CategoricalDistribution([hp])
     else:
-        raise ParseError(
+        raise ValueError(
             f"Expected hyperparameter value for {name} to be one of "
             f"tuple | list | int | str | float, got {type(hp)}"
         )
@@ -64,7 +62,7 @@ def _convert_hp_to_optuna_distribution(
 
 
 def _extract_search_space(
-    space: dict[str, Any],
+    space: Mapping[str, Any],
     prefix: str,
     delimiter: str,
 ) -> OptunaSearchSpace:
@@ -101,11 +99,29 @@ def generate_optuna_search_space(
     Returns:
         OptunaSearchSpace
     """
+    # Process main pipeline
     search_space: OptunaSearchSpace = {}
     for splits, _, step in pipeline.walk():
         _splits = splits if splits is not None else []
         subspace = _process_step(_splits, step)
         search_space.update(subspace)
+
+    # Process modules
+    for module_name, module in pipeline.modules.items():
+        module_space = {
+            f"{module_name}:{k}": v
+            for k, v in generate_optuna_search_space(module).items()
+        }
+        search_space.update(module_space)
+
+    # Process searchables
+    for searchable_name, searchable in pipeline.searchables.items():
+        searchables_space = {
+            f"{searchable_name}:{k}": v
+            for k, v in _process_step(splits=[], step=searchable).items()
+        }
+        search_space.update(searchables_space)
+
     return search_space
 
 
@@ -125,7 +141,7 @@ def _process_step(
             the hyperparameter name. Defaults to ":".
 
     Raises:
-        ParseError: Raises a ParseError in case, it was not able to extract.
+        ValueError: Raises a ValueError in case, it was not able to extract.
 
     Returns:
         OptunaSearchSpace: Returns the subspace for the given step.
@@ -138,25 +154,29 @@ def _process_step(
 
     # In case this step is supposed to be conditioned on a choice.
     if any(choices):
-        raise ParseError("We currently do not support conditionals with Optuna.")
+        raise ValueError("We currently do not support conditionals with Optuna.")
 
     # In case this step is a choice.
     if isinstance(step, Choice):
-        raise ParseError("We currently do not support conditionals with Optuna.")
+        raise ValueError("We currently do not support conditionals with Optuna.")
 
-    if isinstance(step, (Component, Split)):
-        if step.space is not None:
-            subspace = step.space
+    if isinstance(step, Searchable):
+        searchable: Searchable = step
 
-            if step.config is not None:
-                subspace = {**subspace, **step.config}
-            subspace = _extract_search_space(
-                subspace, prefix=prefix, delimiter=delimiter
-            )
-        else:
-            subspace = {}
+        if searchable.space is None:
+            return {}
+
+        subspace = searchable.space
+
+        if not isinstance(subspace, Mapping):
+            raise ValueError(f"Expected space to be a mapping, got {type(subspace)}")
+
+        if searchable.config is not None:
+            subspace = {**subspace, **searchable.config}
+
+        subspace = _extract_search_space(subspace, prefix=prefix, delimiter=delimiter)
 
     else:
-        raise ParseError(f"Unknown type: {type(step)} of step: {step.name}")
+        raise ValueError(f"Unknown type: {type(step)} of step: {step.name}")
 
     return subspace
