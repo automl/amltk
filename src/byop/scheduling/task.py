@@ -331,6 +331,15 @@ class Task(Generic[P, R]):
 
         self.n_called += 1
         future = self.scheduler._submit(self.function, *args, **kwargs)
+        if future is None:
+            msg = (
+                f"Task {callstring(self.function, *args, **kwargs)} was not"
+                " able to be submitted. The scheduler is likely not started"
+                " or already shutdown."
+            )
+            logger.warning(msg)
+            return None
+
         self.queue.append(future)
 
         # Process the task once it's completed

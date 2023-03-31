@@ -221,8 +221,14 @@ class Scheduler:
         function: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> asyncio.Future[R]:
-        sync_future = self.executor.submit(function, *args, **kwargs)
+    ) -> asyncio.Future[R] | None:
+        try:
+            sync_future = self.executor.submit(function, *args, **kwargs)
+        except RuntimeError:
+            logger.warning(
+                "The executor is not running, cannot submit task %s", function
+            )
+            return None
         async_future = asyncio.wrap_future(sync_future)
         async_future.add_done_callback(self._register_complete)
         self.queue.append(async_future)

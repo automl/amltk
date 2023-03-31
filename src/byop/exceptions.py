@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import traceback
 from typing import Callable, Generic, ParamSpec, TypeVar
+from functools import wraps
 
 R = TypeVar("R")
 E = TypeVar("E")
@@ -40,6 +41,14 @@ class exception_wrap(Generic[P, R]):  # noqa: N801
             return self.f(*args, **kwargs)
         except Exception as e:  # noqa: BLE001
             raise attach_traceback(e) from e
+
+    def __repr__(self) -> str:
+        """Get the string representation of the decorator.
+
+        Returns:
+            The string representation of the decorator.
+        """
+        return self.f.__repr__()
 
 
 def attach_traceback(exception: E) -> E:

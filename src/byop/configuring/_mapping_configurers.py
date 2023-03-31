@@ -212,7 +212,7 @@ def _process(
         yield step.mutate(
             paths=paths,
             config=new_config if len(new_config) > 0 else None,
-            space=None,
+            search_space=None,
         )
 
     elif isinstance(step, Searchable):
@@ -225,7 +225,7 @@ def _process(
         new_config = {**predefined_config, **selected_config}
         yield step.mutate(
             config=new_config if len(new_config) > 0 else None,
-            space=None,
+            search_space=None,
         )
 
     else:
