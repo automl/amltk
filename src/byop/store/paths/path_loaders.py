@@ -228,6 +228,7 @@ class YAMLLoader(PathLoader[dict | list]):
     This loader supports the following file extensions:
 
     * `#!python ".yaml"`
+    * `#!python ".yml"`
 
     This loader supports the following types:
 
@@ -241,12 +242,12 @@ class YAMLLoader(PathLoader[dict | list]):
     @classmethod
     def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
         """See [`Loader.can_load`][byop.store.loader.Loader.can_load]."""
-        return path.suffix == ".yaml" and check in (dict, list, None)
+        return path.suffix in (".yaml", ".yml") and check in (dict, list, None)
 
     @classmethod
     def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][byop.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list)) and path.suffix == ".yaml"
+        return isinstance(obj, (dict, list)) and path.suffix in (".yaml", ".yml")
 
     @classmethod
     def load(cls, path: Path, /) -> dict | list:
