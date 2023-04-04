@@ -10,13 +10,15 @@ theme:
     repo: fontawesome/brands/github
   features:
     - content.code.annotate
-    - navigation.instant
-    - navigation.tracking
+    - content.code.copy
     - navigation.footer
     - navigation.tabs
     - navigation.tabs.sticky
     - toc.follow
     - header.autohide
+    - search.suggest
+    - search.highlight
+    - search.share
   font:
     text: Roboto
     code: Roboto Mono
