@@ -36,8 +36,14 @@ class Step(ABC):
     a convenient interface for interacting with the chain.
 
     See Also:
-        [`components`][byop.pipeline.api] for convenience methods
-        for creating the concrete implementations of this class.
+        For creating the concrete implementations of this class, you can use these
+        convenience methods.
+
+        * [`step()`][byop.pipeline.api.step]
+        * [`choice()`][byop.pipeline.api.choice]
+        * [`split()`][byop.pipeline.api.split]
+        * [`search()`][byop.pipeline.api.search]
+
 
     Attributes:
         name: Name of the step

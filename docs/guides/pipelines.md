@@ -798,7 +798,7 @@ implementation you are interested in.
 
     Notice above that we gave the first steps of each path, namely
     `#!python "categorical"` and `#!python "numerical"` to `#!python split(config={"numerical": ..., "categorical": ...})`.
-    This is how a [sklearn.pipeline.ColumnTransformer][] is built and nothing special that we do.
+    This is how a [sklearn.compose.ColumnTransformer][] is built and nothing special that we do.
 
 === "All in One"
 

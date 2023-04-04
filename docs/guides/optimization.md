@@ -660,6 +660,7 @@ a host of more useful options, such as:
 
 * Setting constraints on your evaluation function, such as memory, wall time and cpu time, concurrency limits
 and call limits. Please refer to the [Task guide](./tasks.md) for more information.
+* Stop the scheduler with whatever stopping criterion you wish. Please refer to the [Tasks guide](./tasks.md) for more information.
 * Optimize over complex pipelines. Please refer to the [Pipeline guide](./pipelines.md) for more information.
 * Using different parallelization strategies, such as [Dask](https://dask.org/), [Ray](https://ray.io/),
 [Slurm](https://slurm.schedmd.com/), and [Apache Airflow](https://airflow.apache.org/).
