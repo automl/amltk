@@ -45,6 +45,7 @@ class Trial(Generic[Info]):
         time: TimeInterval | None = None,
         timer: Timer | None = None,
         exception: Exception | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize the trial.
 
@@ -62,6 +63,7 @@ class Trial(Generic[Info]):
         self.time = time
         self.timer = timer
         self.exception = exception
+        self.seed = seed
 
     @contextmanager
     def begin(
