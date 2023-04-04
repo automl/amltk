@@ -112,7 +112,8 @@ class AbstractEnsemble(object):
             check_is_fitted_for = self.fitted_attributes
 
         check_is_fitted(self, ["le_", "classes_"] + check_is_fitted_for)
-        X = check_array(X)
+        # TODO: as for fit
+        X = check_array(X, dtype=None)
         bm_preds = self.base_models_predictions_for_ensemble_predict(X)
 
         ensemble_output = self.ensemble_predict(bm_preds)

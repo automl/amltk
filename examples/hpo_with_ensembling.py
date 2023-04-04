@@ -106,16 +106,22 @@ class FakedFittedAndValidatedBaseModel:
     config: dict
     val_probabilities: List[np.ndarray]
     val_score: float
+    test_probabilities: List[np.ndarray]
     le_: LabelEncoder
     classes_: np.ndarray
+    return_val_data: bool = True
+
+    @property
+    def probabilities(self):
+        if self.return_val_data:
+            return self.val_probabilities
+        return self.test_probabilities
 
     def predict(self, X):
-        # If we want to use such a fake base model at test time, we would need to return either predictions for test
-        # or validation data using this function based e.g. on the X's hash. (It would be better to just use models.)
-        return np.argmax(self.val_probabilities, axis=1)
+        return np.argmax(self.probabilities, axis=1)
 
     def predict_proba(self, X):
-        return self.val_probabilities
+        return self.probabilities
 
 
 def acc_loss(y_true, y_pred_proba):
@@ -132,12 +138,13 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
         if (match := re.match(pattern, key)) is not None
     ]
 
-    X_train, X_val, X_test, y_train, y_val = (
+    X_train, X_val, X_test, y_train, y_val, y_test = (
         bucket["X_train.csv"].load(),
         bucket["X_val.csv"].load(),
         bucket["X_test.csv"].load(),
         bucket["y_train.npy"].load(),
         bucket["y_val.npy"].load(),
+        bucket["y_test.npy"].load(),
     )
 
     # Store the classes seen during fit of base models (ask Lennart why, very specific edge case reason...)
@@ -152,6 +159,7 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
             bucket[f"trial_{name}_config.json"].load(),
             bucket[f"trial_{name}_val_probabilities.npy"].load(check=np.ndarray),
             bucket[f"trial_{name}_scores.json"].load()["validation_accuracy"],
+            bucket[f"trial_{name}_test_probabilities.npy"].load(check=np.ndarray),
             le_,
             classes_,
 
@@ -163,21 +171,20 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
     #  -> max_number_base_models=30 because we have 3 algorithms and thus each silo could have 10 at most
     base_models = prune_base_models(base_models, max_number_base_models=30, pruning_method="SiloTopN")
 
-    print()
-    # -- Greedy Ensemble Selection With Replacement
-    # ges = GreedyEnsembleSelection(base_models, n_iterations=n_iterations, loss_function=acc_loss,
-    #                               n_jobs=1, random_state=seed)
-    # ges.fit(X_val, y_val)
-    # ges.predict(X_test)  # Won't work because the faked base models don't return test predictions
-    # return ges
+    # - Ensemble
+    ens_base = EnsembleWeightingCMAES  # EnsembleWeightingCMAES, GreedyEnsembleSelection
+    ens = ens_base(base_models, n_iterations=n_iterations, loss_function=acc_loss, n_jobs=1, random_state=seed)
 
-    # -- Ensemble Weighting with CMA-ES
-    ew_cma = EnsembleWeightingCMAES(base_models, n_iterations=n_iterations, loss_function=acc_loss, n_jobs=1,
-                                    random_state=seed, normalize_weights="no", trim_weights="no",
-                                    normalize_predict_proba_output=False)
-    ew_cma.fit(X_val, y_val)
-    # ew_cma.predict(X_test)  # Won't work because the faked base models don't return test predictions
-    return ew_cma
+    # -- Greedy Ensemble Selection With Replacement
+    ens.fit(X_val, y_val)
+
+    # -- How to use at test time
+    # Switch to test data for fake models
+    for bm in base_models:
+        bm.return_val_data = False
+    print("Test score:", accuracy_score(y_test, ens.predict(X_test)))
+
+    return ens
 
 
 def target_function(
@@ -211,6 +218,7 @@ def target_function(
     test_predictions = sklearn_pipeline.predict(X_test)
 
     val_probabilites = sklearn_pipeline.predict_proba(X_val)
+    test_probabilites = sklearn_pipeline.predict_proba(X_test)
 
     # Save all of this to the file system
     scores = {
@@ -226,6 +234,7 @@ def target_function(
             f"trial_{trial.name}_val_predictions.npy": val_predictions,
             f"trial_{trial.name}_val_probabilities.npy": val_probabilites,
             f"trial_{trial.name}_test_predictions.npy": test_predictions,
+            f"trial_{trial.name}_test_probabilities.npy": test_probabilites
         }
     )
     val_accuracy = scores["validation_accuracy"]
