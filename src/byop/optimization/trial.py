@@ -45,6 +45,7 @@ class Trial(Generic[Info]):
         time: TimeInterval | None = None,
         timer: Timer | None = None,
         exception: Exception | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize the trial.
 
@@ -55,6 +56,7 @@ class Trial(Generic[Info]):
             time: The time taken by the trial.
             timer: The timer used to time the trial.
             exception: The exception raised by the trial, if any.
+            seed: The seed to use if suggested by the optimizer.
         """
         self.name = name
         self.config = config
@@ -62,6 +64,7 @@ class Trial(Generic[Info]):
         self.time = time
         self.timer = timer
         self.exception = exception
+        self.seed = seed
 
     @contextmanager
     def begin(
