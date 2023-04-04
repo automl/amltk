@@ -77,6 +77,7 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
         Task.SUBMITTED: 1,
         Task.DONE: 1,
         Task.EXCEPTION: 1,
+        Task.F_EXCEPTION: 1,
         Task.MEMORY_LIMIT_REACHED: 1,
     }
 
@@ -84,6 +85,7 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
         (Task.SUBMITTED, "big_memory_function"): 1,
         (Task.DONE, "big_memory_function"): 1,
         (Task.EXCEPTION, "big_memory_function"): 1,
+        (Task.F_EXCEPTION, "big_memory_function"): 1,
         (Task.MEMORY_LIMIT_REACHED, "big_memory_function"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
@@ -106,6 +108,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
         Task.SUBMITTED: 1,
         Task.DONE: 1,
         Task.EXCEPTION: 1,
+        Task.F_EXCEPTION: 1,
         Task.TIMEOUT: 1,
         Task.WALL_TIME_LIMIT_REACHED: 1,
     }
@@ -115,6 +118,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
         (Task.DONE, "time_wasting_function"): 1,
         (Task.TIMEOUT, "time_wasting_function"): 1,
         (Task.EXCEPTION, "time_wasting_function"): 1,
+        (Task.F_EXCEPTION, "time_wasting_function"): 1,
         (Task.WALL_TIME_LIMIT_REACHED, "time_wasting_function"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
@@ -138,6 +142,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
         Task.SUBMITTED: 1,
         Task.DONE: 1,
         Task.EXCEPTION: 1,
+        Task.F_EXCEPTION: 1,
         Task.TIMEOUT: 1,
         Task.CPU_TIME_LIMIT_REACHED: 1,
     }
@@ -146,6 +151,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
         (Task.SUBMITTED, "cpu_time_wasting_function"): 1,
         (Task.DONE, "cpu_time_wasting_function"): 1,
         (Task.EXCEPTION, "cpu_time_wasting_function"): 1,
+        (Task.F_EXCEPTION, "cpu_time_wasting_function"): 1,
         (Task.TIMEOUT, "cpu_time_wasting_function"): 1,
         (Task.CPU_TIME_LIMIT_REACHED, "cpu_time_wasting_function"): 1,
         Scheduler.STARTED: 1,
@@ -169,6 +175,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
         Task.SUBMITTED: 2,
         Task.DONE: 2,
         Task.RETURNED: 2,
+        Task.F_RETURNED: 2,
     }
 
     assert scheduler.counts == {
@@ -176,6 +183,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
         (Task.CONCURRENT_LIMIT_REACHED, "time_wasting_function"): 8,
         (Task.DONE, "time_wasting_function"): 2,
         (Task.RETURNED, "time_wasting_function"): 2,
+        (Task.F_RETURNED, "time_wasting_function"): 2,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
@@ -197,6 +205,7 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
         Task.SUBMITTED: 2,
         Task.DONE: 2,
         Task.RETURNED: 2,
+        Task.F_RETURNED: 2,
     }
 
     assert scheduler.counts == {
@@ -204,6 +213,7 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
         (Task.SUBMITTED, "time_wasting_function"): 2,
         (Task.DONE, "time_wasting_function"): 2,
         (Task.RETURNED, "time_wasting_function"): 2,
+        (Task.F_RETURNED, "time_wasting_function"): 2,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
