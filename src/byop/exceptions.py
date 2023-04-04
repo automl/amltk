@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import traceback
 from typing import Callable, Generic, ParamSpec, TypeVar
-from functools import wraps
 
 R = TypeVar("R")
 E = TypeVar("E")
