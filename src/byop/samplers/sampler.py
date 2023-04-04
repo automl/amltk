@@ -67,7 +67,7 @@ class Sampler(ABC, Generic[Space]):
         Returns:
             The sampler for the given space.
         """
-        from byop.samplers import DEFAULT_SAMPLERS
+        from byop.samplers.api import DEFAULT_SAMPLERS
 
         first_supported = first_true(
             DEFAULT_SAMPLERS,

@@ -31,6 +31,20 @@ if TYPE_CHECKING:
 class Step(ABC):
     """The core step class for the pipeline.
 
+    These are simple objects that are named and linked together to form
+    a chain. They are then wrapped in a `Pipeline` object to provide
+    a convenient interface for interacting with the chain.
+
+    See Also:
+        For creating the concrete implementations of this class, you can use these
+        convenience methods.
+
+        * [`step()`][byop.pipeline.api.step]
+        * [`choice()`][byop.pipeline.api.choice]
+        * [`split()`][byop.pipeline.api.split]
+        * [`search()`][byop.pipeline.api.search]
+
+
     Attributes:
         name: Name of the step
         prv: The previous step in the chain
@@ -87,9 +101,9 @@ class Step(ABC):
         """Iterate the linked-list of steps.
 
         Args:
-            backwards (optional): Traversal order. Defaults to False
-            include_self (optional): Whether to include self in iterator. Default True
-            to (optional): Stop iteration at this step. Defaults to None
+            backwards: Traversal order. Defaults to False
+            include_self: Whether to include self in iterator. Default True
+            to: Stop iteration at this step. Defaults to None
 
         Yields:
             Step[Key]: The steps in the chain
@@ -214,7 +228,7 @@ class Step(ABC):
         Subclasses should overwrite as required
 
         Args:
-            include_self (optional): Whether to include this step. Defaults to True
+            include_self: Whether to include this step. Defaults to True
 
         Returns:
             Iterator[Step[Key, O]]: The iterator over steps

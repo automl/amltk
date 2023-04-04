@@ -10,13 +10,15 @@ theme:
     repo: fontawesome/brands/github
   features:
     - content.code.annotate
-    - navigation.instant
-    - navigation.tracking
+    - content.code.copy
     - navigation.footer
     - navigation.tabs
     - navigation.tabs.sticky
     - toc.follow
     - header.autohide
+    - search.suggest
+    - search.highlight
+    - search.share
   font:
     text: Roboto
     code: Roboto Mono
@@ -58,6 +60,8 @@ watch:
 markdown_extensions:
   - admonition
   - tables
+  - attr_list
+  - md_in_html
   - toc:
       permalink: "#"
   - pymdownx.highlight:
@@ -72,11 +76,20 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.superfences:
       custom_fences:
       - name: mermaid
         class: mermaid
         format: !!python/name:pymdownx.superfences.fence_code_format
+      - name: python
+        class: python
+        validator: !!python/name:markdown_exec.validator
+        format: !!python/name:markdown_exec.formatter
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 plugins:
   - search
@@ -102,6 +115,8 @@ plugins:
             - 'https://numpy.org/doc/stable/objects.inv'
             - 'https://pandas.pydata.org/docs/objects.inv'
             - 'https://optuna.readthedocs.io/en/stable/objects.inv'
+            - 'https://scikit-learn.org/stable/objects.inv'
+            - 'https://pytorch.org/docs/stable/objects.inv'
               # base_url: https://optuna.readthedocs.io/en/stable/
           options:
             show_root_heading: false

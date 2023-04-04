@@ -55,7 +55,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
     task = Task(sleep_and_return, scheduler, name="sleep")
 
     @task.on_returned
-    def append_result(_, res: float) -> None:
+    def append_result(res: float) -> None:
         results.append(res)
 
     @scheduler.on_start
@@ -124,9 +124,9 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
     task_2 = Task(sleep_and_return, scheduler, name="second")
 
     # Feed the output of task_1 into task_2
-    task_1.on_returned(lambda _, res: task_2(sleep_time=res))
-    task_1.on_returned(lambda _, res: results.append(res))
-    task_2.on_returned(lambda _, res: results.append(res))
+    task_1.on_returned(lambda res: task_2(sleep_time=res))
+    task_1.on_returned(lambda res: results.append(res))
+    task_2.on_returned(lambda res: results.append(res))
 
     scheduler.on_start(lambda: task_1(sleep_time=0.1))
 

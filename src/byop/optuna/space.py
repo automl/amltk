@@ -162,11 +162,10 @@ def _process_step(
 
     if isinstance(step, Searchable):
         searchable: Searchable = step
-
-        if searchable.space is None:
+        if searchable.search_space is None:
             return {}
 
-        subspace = searchable.space
+        subspace = searchable.search_space
 
         if not isinstance(subspace, Mapping):
             raise ValueError(f"Expected space to be a mapping, got {type(subspace)}")

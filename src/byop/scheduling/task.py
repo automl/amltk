@@ -49,7 +49,7 @@ class Task(Generic[P, R]):
     has its `__call__` method called, the function will be dispatched to run
     by a [`Scheduler`][byop.scheduling.scheduler.Scheduler].
 
-    The scheduler will emit specific [events][byop.scheduling.events.TaskEvent]
+    The scheduler will emit specific events
     to this task which look like `(task.name, TaskEvent)`.
 
     To interact with the results of these tasks, you must subscribe to to these
@@ -67,12 +67,9 @@ class Task(Generic[P, R]):
     my_task: Task[[int], int] = scheduler.task("call_f", f)
 
     # Subscribe to events
-    my_task.on_return(lambda result: print(result)) # (1)!
-    my_task.on_noreturn(lambda error: print(error)) # (2)!
+    my_task.on_returned(lambda result: print(result))
+    my_task.on_exception(lambda error: print(error))
     ```
-
-    1. You could also do: `#!python my_task.on(task.RETURNED, lambda res: print(res))`
-    2. You could also do: `#!python my_task.on(task.EXCEPTION, lambda err: print(err))`
 
     Attributes:
         name: The name of the task.
@@ -91,10 +88,16 @@ class Task(Generic[P, R]):
     CANCELLED: Event[Future] = Event("task-cancelled")
     """A Task has been cancelled."""
 
-    RETURNED: Event[Future, Any] = Event("task-returned")
+    F_RETURNED: Event[Future, Any] = Event("task-future-returned")
+    """A Task has successfully returned a value. Comes with Future"""
+
+    RETURNED: Event[[Any]] = Event("task-returned")
     """A Task has successfully returned a value."""
 
-    EXCEPTION: Event[Future, BaseException] = Event("task-exception")
+    F_EXCEPTION: Event[Future, BaseException] = Event("task-future-exception")
+    """A Task failed to return anything but an exception. Comes with Future"""
+
+    EXCEPTION: Event[BaseException] = Event("task-exception")
     """A Task failed to return anything but an exception."""
 
     TIMEOUT: Event[Future, BaseException] = Event("task-timeout")
@@ -114,6 +117,18 @@ class Task(Generic[P, R]):
 
     CALL_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")
     """A Task was submitted but reached it's concurrency limit."""
+
+    TimeoutException = Pynisher.TimeoutException
+    """The exception that is raised when a task times out."""
+
+    MemoryLimitException = Pynisher.MemoryLimitException
+    """The exception that is raised when a task reaches it's memory limit."""
+
+    CpuTimeoutException = Pynisher.CpuTimeoutException
+    """The exception that is raised when a task reaches it's cpu time limit."""
+
+    WallTimeoutException = Pynisher.WallTimeoutException
+    """The exception that is raised when a task reaches it's wall time limit."""
 
     def __init__(
         self,
@@ -189,17 +204,23 @@ class Task(Generic[P, R]):
         self.on_cancelled: Subscriber[Future[R]]
         self.on_cancelled = self.subscriber(self.CANCELLED)
 
-        self.on_returned: Subscriber[Future[R], R]
+        self.on_f_returned: Subscriber[Future[R], R]
+        self.on_f_returned = self.subscriber(self.F_RETURNED)
+
+        self.on_f_exception: Subscriber[Future[R], BaseException]
+        self.on_f_exception = self.subscriber(self.F_EXCEPTION)
+
+        self.on_returned: Subscriber[R]
         self.on_returned = self.subscriber(self.RETURNED)
 
-        self.on_exception: Subscriber[Future[R], BaseException]
+        self.on_exception: Subscriber[BaseException]
         self.on_exception = self.subscriber(self.EXCEPTION)
 
         self.on_timeout: Subscriber[Future[R], BaseException]
         self.on_timeout = self.subscriber(self.TIMEOUT)
 
-        self.on_memory_limit: Subscriber[Future[R], BaseException]
-        self.on_memory_limit = self.subscriber(self.MEMORY_LIMIT_REACHED)
+        self.on_memory_limit_reached: Subscriber[Future[R], BaseException]
+        self.on_memory_limit_reached = self.subscriber(self.MEMORY_LIMIT_REACHED)
 
         self.on_cpu_time_limit_reached: Subscriber[Future[R], BaseException]
         self.on_cputime_limit_reached = self.subscriber(self.CPU_TIME_LIMIT_REACHED)
@@ -256,7 +277,7 @@ class Task(Generic[P, R]):
         _event = (event, self.name)
         return self.scheduler.event_manager.subscriber(_event)
 
-    def emit(self, event: Event, *args: Any, **kwargs: Any) -> None:
+    def emit(self, event: Event[P2], *args: P2.args, **kwargs: P2.kwargs) -> None:
         """Emit an event.
 
         Args:
@@ -275,6 +296,11 @@ class Task(Generic[P, R]):
             to: The event to forward to.
         """
         self.scheduler.event_manager.forward(frm, to)
+
+    @property
+    def n_running(self) -> int:
+        """Get the number of futures for this task that are currently running."""
+        return sum(1 for f in self.queue if not f.done())
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Future[R] | None:
         """Dispatch this task.
@@ -296,13 +322,24 @@ class Task(Generic[P, R]):
             self.emit(self.CALL_LIMIT_REACHED, *args, **kwargs)
             return None
 
-        n_running = sum(1 for f in self.queue if not f.done())
-        if self.concurrent_limit is not None and n_running >= self.concurrent_limit:
+        if (
+            self.concurrent_limit is not None
+            and self.n_running >= self.concurrent_limit
+        ):
             self.emit(self.CONCURRENT_LIMIT_REACHED, *args, **kwargs)
             return None
 
         self.n_called += 1
         future = self.scheduler._submit(self.function, *args, **kwargs)
+        if future is None:
+            msg = (
+                f"Task {callstring(self.function, *args, **kwargs)} was not"
+                " able to be submitted. The scheduler is likely not started"
+                " or already shutdown."
+            )
+            logger.warning(msg)
+            return None
+
         self.queue.append(future)
 
         # Process the task once it's completed
@@ -334,7 +371,8 @@ class Task(Generic[P, R]):
 
         exception = future.exception()
         if exception is not None:
-            self.emit(Task.EXCEPTION, future, exception)
+            self.emit(Task.F_EXCEPTION, future, exception)
+            self.emit(Task.EXCEPTION, exception)
 
             # If it was a limiting exception, emit it
             if isinstance(exception, Pynisher.TimeoutException):
@@ -347,7 +385,8 @@ class Task(Generic[P, R]):
                 self.emit(Task.CPU_TIME_LIMIT_REACHED, future, exception)
         else:
             result = future.result()
-            self.emit(Task.RETURNED, future, result)
+            self.emit(Task.F_RETURNED, future, result)
+            self.emit(Task.RETURNED, result)
 
     def __repr__(self) -> str:
         return f"Task(name={self.name})"

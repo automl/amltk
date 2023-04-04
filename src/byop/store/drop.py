@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import logging
 from typing import Any, Callable, Generic, TypeVar, overload
 
-from more_itertools import first
+from more_itertools.more import first
 
 from byop.functional import funcname
 from byop.store.loader import Loader

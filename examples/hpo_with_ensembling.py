@@ -5,11 +5,10 @@ import logging
 from pathlib import Path
 import re
 import shutil
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import openml
-from dask_jobqueue import SLURMCluster
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import VarianceThreshold
@@ -26,18 +25,22 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 from sklearn.svm import SVC
-from smac.runhistory.dataclasses import TrialInfo
-from byop.optimization.random_search import RandomSearch, RSResult, RandomSearchTrial
 
-from byop.control import AskAndTell
+# from dask_jobqueue import SLURMCluster
 from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
-from byop.optimization.smac.optimizer import SMAC
+from byop.optimization import Trial
 from byop.pipeline import Pipeline, choice, split, step
-from byop.scheduling import Scheduler
+from byop.scheduling import Scheduler, Task
+from byop.smac import SMACOptimizer
 from byop.store import PathBucket
 
+LEVEL = logging.INFO  # Change to DEBUG if you want the gory details shown
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+
+# TODO: Given documentation this should work, but it doesnt.
+# logging.basicConfig(level=logging.INFO)
+for name in logging.root.manager.loggerDict:
+    logging.getLogger(name).setLevel(LEVEL)
 
 pipeline = Pipeline.create(
     split(
@@ -119,24 +122,24 @@ def create_ensemble(
     size: int = 5,
     seed: int = 42,
 ) -> Ensemble:
-    trials: list[str] = [
+    pattern = r"trial_(?P<trial>.+)_val_probabilities.npy"
+    trial_names = [
         match.group("trial")
         for key in bucket
-        if (match := re.match(r"trial_(?P<trial>\d+)", key)) is not None
+        if (match := re.match(pattern, key)) is not None
     ]
-    validation_predictions: dict[str, np.ndarray] = {
-        trial: bucket[f"trial_{trial}_val_probabilities.npy"].load(check=np.ndarray)
-        for trial in trials
+    validation_predictions = {
+        name: bucket[f"trial_{name}_val_probabilities.npy"].load(check=np.ndarray)
+        for name in trial_names
     }
     targets = bucket["y_val.npy"].load()
-    metric: Callable[[np.ndarray, np.ndarray], float] = accuracy_score  # type: ignore
 
     trajectory: list[tuple[str, float]]
     weights, trajectory = weighted_ensemble_caruana(
         model_predictions=validation_predictions,
         targets=targets,
         size=size,
-        metric=metric,
+        metric=accuracy_score,
         select=max,  # type: ignore
         seed=seed,
         is_probabilities=True,
@@ -150,11 +153,11 @@ def create_ensemble(
 
 
 def target_function(
-    trial: RandomSearchTrial,
+    trial: Trial,
     /,
     bucket: PathBucket,
     pipeline: Pipeline,
-) -> RSResult:
+) -> Trial.Report:
     X_train, X_val, X_test, y_train, y_val, y_test = (
         bucket["X_train.csv"].load(),
         bucket["X_val.csv"].load(),
@@ -167,89 +170,87 @@ def target_function(
     pipeline = pipeline.configure(trial.config)
     sklearn_pipeline = pipeline.build()
 
+    # Begin the trial, the context block makes sure
     with trial.begin():
-        try:
-            sklearn_pipeline.fit(X_train, y_train)
-        except Exception as e:
-            return trial.fail(score=-np.inf, exception=e)
+        sklearn_pipeline.fit(X_train, y_train)
 
+    if trial.exception:
+        return trial.fail(cost=np.inf)
+
+    # Make our predictions with the model
     train_predictions = sklearn_pipeline.predict(X_train)
     val_predictions = sklearn_pipeline.predict(X_val)
-    val_probabilites = sklearn_pipeline.predict_proba(X_val)
     test_predictions = sklearn_pipeline.predict(X_test)
 
-    train_accuracy = accuracy_score(train_predictions, y_train)
-    val_accuracy = accuracy_score(val_predictions, y_val)
-    test_accuracy = accuracy_score(test_predictions, y_test)
+    val_probabilites = sklearn_pipeline.predict_proba(X_val)
 
     # Save all of this to the file system
     scores = {
-        "train_accuracy": train_accuracy,
-        "validation_accuracy": val_accuracy,
-        "test_accuracy": test_accuracy,
+        "train_accuracy": accuracy_score(train_predictions, y_train),
+        "validation_accuracy": accuracy_score(val_predictions, y_val),
+        "test_accuracy": accuracy_score(test_predictions, y_test),
     }
     bucket.update(
         {
-            f"{trial.name}_config.json": dict(trial.config),
-            f"{trial.name}_scores.json": scores,
-            f"{trial.name}.pkl": sklearn_pipeline,
-            f"{trial.name}_val_predictions.npy": val_predictions,
-            f"{trial.name}_val_probabilities.npy": val_probabilites,
-            f"{trial.name}_test_predictions.npy": test_predictions,
+            f"trial_{trial.name}_config.json": dict(trial.config),
+            f"trial_{trial.name}_scores.json": scores,
+            f"trial_{trial.name}.pkl": sklearn_pipeline,
+            f"trial_{trial.name}_val_predictions.npy": val_predictions,
+            f"trial_{trial.name}_val_probabilities.npy": val_probabilites,
+            f"trial_{trial.name}_test_predictions.npy": test_predictions,
         }
     )
-    assert isinstance(val_accuracy, float)
+    val_accuracy = scores["validation_accuracy"]
+    return trial.success(cost=1 - val_accuracy)
 
-    return trial.success(score=val_accuracy)
 
-
-if __name__ == "__main__":
-    seed = 42
-
-    space = pipeline.space(seed=seed, parser="configspace")
-
-    path = Path("results")
-    if path.exists():
-        shutil.rmtree(path)
-
-    bucket = PathBucket(path)
-
+def get_dataset() -> tuple[np.ndarray, ...]:
     dataset = openml.datasets.get_dataset(31)
     X, y, _, _ = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute
     )
-    print(X, y)
-    print(X.columns)  # type: ignore
-
+    y = LabelEncoder().fit_transform(y)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=seed, test_size=0.4
     )
     X_val, X_test, y_val, y_test = train_test_split(
         X_test, y_test, random_state=seed, test_size=0.5
     )
-    le = LabelEncoder().fit(y)
+    return X_train, X_val, X_test, y_train, y_val, y_test  # type: ignore
 
-# Save all of this to the file system
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    seed = 42
+
+    path = Path("results")
+    if path.exists():
+        shutil.rmtree(path)
+
+    # This bucket is just a convenient way to save and load data
+    bucket = PathBucket(path)
+    X_train, X_val, X_test, y_train, y_val, y_test = get_dataset()
+
+    # Save all of this to the file system
     bucket.update(
-    {
-        "X_train.csv": X_train,
-        "X_val.csv": X_val,
-        "X_test.csv": X_test,
-        "y_train.npy": le.transform(y_train),
-            "y_val.npy": le.transform(y_val),
-            "y_test.npy": le.transform(y_test),
+        {
+            "X_train.csv": X_train,
+            "X_val.csv": X_val,
+            "X_test.csv": X_test,
+            "y_train.npy": y_train,
+            "y_val.npy": y_val,
+            "y_test.npy": y_test,
         }
     )
 
-    space = pipeline.space(parser="auto")  # Your own space impl.
-    here = Path(__file__).absolute().parent
-    logs = here / "logs-test-dask-slurm"
-    logs.mkdir(exist_ok=True)
-
     # For testing out slurm
-    #n_workers = 256
-    #SLURMCluster.job_cls.submit_command = "sbatch --bosch"
-    #cluster = SLURMCluster(
+    # n_workers = 256
+    # here = Path(__file__).absolute().parent
+    # logs = here / "logs-test-dask-slurm"
+    # logs.mkdir(exist_ok=True)
+    #
+    # SLURMCluster.job_cls.submit_command = "sbatch --bosch"
+    # cluster = SLURMCluster(
     #    memory="2GB",
     #    processes=1,
     #    cores=1,
@@ -257,48 +258,85 @@ if __name__ == "__main__":
     #    log_directory=logs,
     #    queue="bosch_cpu-cascadelake",
     #    job_extra_directives=["--time 0-00:10:00"]
-    #)
-    #cluster.adapt(maximum_jobs=n_workers)
-    #executor = cluster.get_client().get_executor()
-    #scheduler = Scheduler(executor=executor)
+    # )
+    # cluster.adapt(maximum_jobs=n_workers)
+    # executor = cluster.get_client().get_executor()
+    # scheduler = Scheduler(executor=executor)
 
     # For local
     n_workers = 4
     scheduler = Scheduler.with_processes(n_workers)
-    rs = RandomSearch(space=space, sampler=ConfigSpaceSampler)
-    objective = AskAndTell.objective(target_function, bucket=bucket, pipeline=pipeline)
 
-    optimizer = ...  # Your own optimizer
-    scheduler = Scheduler(executor=...)  # Your own execution backend
-    objective = AskAndTell.objective(target_function, pipeline=pipeline)
+    # Set up the optimizer with our space
+    optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)
 
-    # Use a preset ask and tell controller, or implement your own
-    controller = AskAndTell(
-        objective=objective,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        max_trials=20,
-        concurrent_trials=n_workers - 1,
-    )
+    # This objective is essentially a `partial` but well typed.
+    objective = Trial.Objective(target_function, bucket=bucket, pipeline=pipeline)
 
-    val_results: list[float] = []
+    task = Trial.Task(objective, scheduler, concurrent_limit=n_workers)
+
+    # We only want on of these running at a time
+    ensemble_task = Task(create_ensemble, scheduler, concurrent_limit=1)
+
+    # Below we can define a bunch of callbacks to define how our system
+    # behaves. This could be done in some specialized class for your
+    # use case but it's all spelled out here as we can't anticipate
+    # every use case.
+    reports: list[Trial.SuccessReport] = []
     ensembles: list[Ensemble] = []
 
-    controller.trial.on_success(val_results.append)
-    controller.trial.on_error(logger.error)
+    @scheduler.on_start(repeat=n_workers)
+    def launch_initial_tasks() -> None:
+        """When we start, launch `n_workers` tasks."""
+        trial = optimizer.ask()
+        task(trial)
 
-    # Your ensembling method HERE
-    ensemble_task = scheduler.task(create_ensemble, name="ensembling")
-    ensemble_task.on_success(ensembles.append)
+    @task.on_report
+    def tell_optimizer(report: Trial.Report) -> None:
+        """When we get a report, tell the optimizer."""
+        optimizer.tell(report)
 
-    def maybe_launch_ensemble_task(_):
-        if not ensemble_task.running():
-            ensemble_task(bucket, size=10, seed=seed)
+    @task.on_report
+    def launch_another_task(_: Trial.Report) -> None:
+        """When we get a report, evaluate another trial."""
+        trial = optimizer.ask()
+        task(trial)
 
-    controller.trial.on_success(maybe_launch_ensemble_task)
-    scheduler.on_empty(lambda: ensemble_task(bucket, size=10, seed=seed))
-    controller.run()
+    @task.on_report
+    def log_report(report: Trial.Report) -> None:
+        """When we get a report, log it."""
+        logger.info(report)
 
-    print(scheduler.counts)
-    print(val_results)
-    print([e.trajectory[-1] for e in ensembles])
+    @task.on_success
+    def save_success(report: Trial.SuccessReport) -> None:
+        """When we get a report, save it."""
+        reports.append(report)
+
+    @task.on_success
+    def launch_ensemble_task(_: Trial.SuccessReport) -> None:
+        """When a task successfully completes, launch an ensemble task."""
+        ensemble_task(bucket)
+
+    @ensemble_task.on_returned
+    def save_ensemble(ensemble: Ensemble) -> None:
+        """When an ensemble task returns, save it."""
+        ensembles.append(ensemble)
+
+    @ensemble_task.on_exception
+    def log_ensemble_exception(exception: BaseException) -> None:
+        """When an ensemble task throws an exception, log it."""
+        logger.exception(exception)
+
+    @scheduler.on_timeout
+    def run_last_ensemble_task() -> None:
+        """When the scheduler is empty, run the last ensemble task."""
+        ensemble_task(bucket)
+
+    # We can specify a timeout of 60 seconds and tell it to wait
+    # for all tasks to finish before stopping
+    scheduler.run(timeout=5, wait=True)
+
+    best_ensemble = max(ensembles, key=lambda e: e.trajectory[-1])
+
+    print("Best ensemble:")
+    print(best_ensemble)

@@ -118,14 +118,14 @@ def generate_configspace(
 
     # Process any searchables
     for name, searchable in pipeline.searchables.items():
-        if isinstance(searchable.space, dict):
-            space = ConfigurationSpace(searchable.space)
-        elif isinstance(searchable.space, Hyperparameter):
-            space = ConfigurationSpace({"hp": searchable.space})
-        elif isinstance(searchable.space, ConfigurationSpace):
-            space = searchable.space
+        if isinstance(searchable.search_space, dict):
+            space = ConfigurationSpace(searchable.search_space)
+        elif isinstance(searchable.search_space, Hyperparameter):
+            space = ConfigurationSpace({"hp": searchable.search_space})
+        elif isinstance(searchable.search_space, ConfigurationSpace):
+            space = searchable.search_space
         else:
-            raise ValueError(f"{searchable.space} is not a valid space")
+            raise ValueError(f"{searchable.search_space} is not a valid space")
 
         if searchable.config is not None:
             space = replace_constants(searchable.config, space)
@@ -171,8 +171,8 @@ def _process_step(
     else:
         condition = None
 
-    if isinstance(step, (Component, Split)) and step.space is not None:
-        subspace = step.space
+    if isinstance(step, (Component, Split)) and step.search_space is not None:
+        subspace = step.search_space
         if isinstance(subspace, dict):
             subspace = ConfigurationSpace(subspace)
         elif isinstance(subspace, Hyperparameter):
@@ -193,7 +193,7 @@ def _process_step(
         )
 
     elif isinstance(step, Choice):
-        if step.space is not None:
+        if step.search_space is not None:
             raise ValueError(
                 f"Not currently supported to have a choice with a search space, {step=}"
             )

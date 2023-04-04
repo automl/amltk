@@ -22,18 +22,18 @@ class Searchable(Step, Generic[Space]):
 
     Attributes:
         name: The name of the searchable
-        space: The searchspace
+        search_space (optional): The searchspace
         config (optional): Any fixed parameters of the searchable.
     """
 
     name: str
 
-    space: Space | None = field(default=None, hash=False, repr=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
 
     def configured(self) -> bool:
         """Check if this searchable is configured."""
-        return self.space is None
+        return self.search_space is None
 
     def walk(
         self,
@@ -87,14 +87,14 @@ class Component(Searchable[Space], Generic[Item, Space]):
         name: The name of the component
         item: The item attached to this component
         config (optional): Any additional items to associate with this config
-        space (optional): A search space associated with this component
+        search_space (optional): A search space associated with this component
     """
 
     name: str
     item: Callable[..., Item] | Item = field(hash=False)
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    space: Space | None = field(default=None, hash=False, repr=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
 
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
@@ -125,7 +125,7 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
         paths: The paths that can be taken from this split
         item (optional): The item attached to this component
         config (optional): Any additional items to associate with this config
-        space (optional): A search space associated with this component
+        search_space (optional): A search space associated with this component
     """
 
     name: str
@@ -133,7 +133,7 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    space: Space | None = field(default=None, hash=False, repr=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
 
     def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """See `Step.traverse`."""
@@ -247,10 +247,10 @@ class Choice(Split[Item, Space]):
     Attributes:
         name: The name of the component
         paths: The paths that can be taken from this split
-        weights (optional): The weights associated with each path
+        weights: The weights associated with each path
         item (optional): The item attached to this component
         config (optional): Any additional items to associate with this config
-        space (optional): A search space associated with this component
+        search_space (optional): A search space associated with this component
     """
 
     name: str
@@ -260,7 +260,7 @@ class Choice(Split[Item, Space]):
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    space: Space | None = field(default=None, hash=False, repr=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
 
     def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""

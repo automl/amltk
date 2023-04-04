@@ -14,7 +14,7 @@ def test_step_component() -> None:
 def test_step_searchable() -> None:
     s = step("name", object(), space={"a": [1, 2]}, config={"b": 2})
     assert s.name == "name"
-    assert s.space == {"a": [1, 2]}
+    assert s.search_space == {"a": [1, 2]}
     assert s.config == {"b": 2}
     assert isinstance(s, Component)
 

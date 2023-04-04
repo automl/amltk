@@ -22,7 +22,7 @@ def space_required(step: Pipeline | Step | Component | Choice | Split) -> bool:
 
     return (
         isinstance(step, (Component, Split))
-        and step.space not in EMPTY_SPACE_INDICATORS
+        and step.search_space not in EMPTY_SPACE_INDICATORS
     )
 
 

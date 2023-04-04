@@ -60,15 +60,15 @@ def step(
     Args:
         name: The unique identifier for this step.
         item: The item for this step.
-        space (optional): A space with which this step can be searched over.
-        config (optional):
+        space: A space with which this step can be searched over.
+        config:
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
 
     Returns:
         The component describing this step
     """
-    return Component(name=name, item=item, config=config, space=space)
+    return Component(name=name, item=item, config=config, search_space=space)
 
 
 @overload
@@ -117,12 +117,12 @@ def choice(
     Args:
         name: The unique name of this step
         *choices: The choices that can be taken
-        weights (optional): Weights to assign to each choice
-        item (optional): The item for this step.
-        config (optional):
+        weights: Weights to assign to each choice
+        item: The item for this step.
+        config:
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
-        space (optional): A space with which this step can be searched over.
+        space: A space with which this step can be searched over.
 
     Returns:
         Choice: Choice component with your choices as possibilities
@@ -136,7 +136,7 @@ def choice(
         paths=list(choices),
         weights=weights,
         item=item,
-        space=space,
+        search_space=space,
         config=config,
     )
 
@@ -182,16 +182,18 @@ def split(
     Args:
         name (Key): The unique name of this step
         *paths (Step): The different paths
-        item (optional): The item for this step.
-        config (optional):
+        item: The item for this step.
+        config:
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
-        space (optional): A space with which this step can be searched over.
+        space: A space with which this step can be searched over.
 
     Returns:
         Split: Split component with your choices as possibilities
     """
-    return Split(name=name, paths=list(paths), item=item, space=space, config=config)
+    return Split(
+        name=name, paths=list(paths), item=item, search_space=space, config=config
+    )
 
 
 @overload
@@ -231,4 +233,4 @@ def searchable(
     Returns:
         Searchable component with your choices as possibilities
     """
-    return Searchable(name=name, space=space, config=config)
+    return Searchable(name=name, search_space=space, config=config)

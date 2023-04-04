@@ -21,6 +21,8 @@ T = TypeVar("T")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
 
+from byop.exceptions import exception_wrap
+
 
 def reverse_enumerate(
     seq: Sequence[T],
@@ -146,6 +148,9 @@ def funcname(func: Callable, default: str | None = None) -> str:
     Returns:
         The name of the function.
     """
+    if isinstance(func, exception_wrap):
+        func = func.f
+
     if isinstance(func, partial):
         return func.func.__name__
     if hasattr(func, "__qualname__"):
