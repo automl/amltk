@@ -1,3 +1,4 @@
 from byop.ensembling.ensemble_weighting.greedy_ensemble_selection_with_replacement import GreedyEnsembleSelection
+from byop.ensembling.ensemble_weighting.ensmeble_weighting_cmaes import EnsembleWeightingCMAES
 
-__all__ = ["GreedyEnsembleSelection"]
+__all__ = ["GreedyEnsembleSelection", "EnsembleWeightingCMAES"]

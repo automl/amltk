@@ -25,10 +25,11 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 from sklearn.svm import SVC
-from byop.ensembling.ensemble_weighting import GreedyEnsembleSelection
+from byop.ensembling.ensemble_weighting import GreedyEnsembleSelection, EnsembleWeightingCMAES
+from byop.ensembling.abstract_weighted_ensemble import AbstractWeightedEnsemble
+from byop.ensembling.ensemble_preprocessing import prune_base_models
 
 # from dask_jobqueue import SLURMCluster
-from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from byop.optimization import Trial
 from byop.pipeline import Pipeline, choice, split, step
 from byop.scheduling import Scheduler, Task
@@ -101,8 +102,10 @@ pipeline = Pipeline.create(
 
 @dataclass
 class FakedFittedAndValidatedBaseModel:
-    config: None
+    name: str
+    config: dict
     val_probabilities: List[np.ndarray]
+    val_score: float
     le_: LabelEncoder
     classes_: np.ndarray
 
@@ -114,11 +117,13 @@ class FakedFittedAndValidatedBaseModel:
     def predict_proba(self, X):
         return self.val_probabilities
 
+
 def acc_loss(y_true, y_pred_proba):
     y_pred = np.argmax(y_pred_proba, axis=1)
     return 1 - accuracy_score(y_true, y_pred)
 
-def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 42) -> GreedyEnsembleSelection:
+
+def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 42) -> AbstractWeightedEnsemble:
     # -- Get validation data and build base models
     pattern = r"trial_(?P<trial>.+)_val_probabilities.npy"
     trial_names = [
@@ -144,21 +149,35 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
     base_models = [
         FakedFittedAndValidatedBaseModel(
             name,
+            bucket[f"trial_{name}_config.json"].load(),
             bucket[f"trial_{name}_val_probabilities.npy"].load(check=np.ndarray),
+            bucket[f"trial_{name}_scores.json"].load()["validation_accuracy"],
             le_,
             classes_,
+
         )
         for name in trial_names
     ]
 
+    # -- Pruning (Preprocessing for Post Hoc Ensembling)
+    #  -> max_number_base_models=30 because we have 3 algorithms and thus each silo could have 10 at most
+    base_models = prune_base_models(base_models, max_number_base_models=30, pruning_method="SiloTopN")
 
-
-    ges = GreedyEnsembleSelection(base_models, n_iterations=n_iterations, loss_function=acc_loss,
-                                  n_jobs=1, random_state=seed)
-    ges.fit(X_val, y_val)
+    print()
+    # -- Greedy Ensemble Selection With Replacement
+    # ges = GreedyEnsembleSelection(base_models, n_iterations=n_iterations, loss_function=acc_loss,
+    #                               n_jobs=1, random_state=seed)
+    # ges.fit(X_val, y_val)
     # ges.predict(X_test)  # Won't work because the faked base models don't return test predictions
+    # return ges
 
-    return ges
+    # -- Ensemble Weighting with CMA-ES
+    ew_cma = EnsembleWeightingCMAES(base_models, n_iterations=n_iterations, loss_function=acc_loss, n_jobs=1,
+                                    random_state=seed, normalize_weights="no", trim_weights="no",
+                                    normalize_predict_proba_output=False)
+    ew_cma.fit(X_val, y_val)
+    # ew_cma.predict(X_test)  # Won't work because the faked base models don't return test predictions
+    return ew_cma
 
 
 def target_function(
@@ -333,10 +352,11 @@ if __name__ == "__main__":
 
     # We can specify a timeout of 60 seconds and tell it to wait
     # for all tasks to finish before stopping
-    scheduler.run(timeout=200, wait=True)
+    scheduler.run(timeout=60, wait=True)
 
     best_ensemble = min(ensembles, key=lambda e: e.validation_loss_)
 
-
     print("Best ensemble:")
-    print(best_ensemble, best_ensemble.trajectory_, best_ensemble.validation_loss_, best_ensemble.val_loss_over_iterations_)
+    print(best_ensemble,
+          best_ensemble.validation_loss_,
+          best_ensemble.val_loss_over_iterations_)
