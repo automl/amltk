@@ -1,7 +1,7 @@
 """
 Place to put code related to preprocessing for (post hoc) ensembling like
     * preselection/pruning of the pool of base models
-    * ?portability calibration?
+    * ?probability calibration?
     * ?threshold tuning?
 """
 
@@ -79,12 +79,15 @@ def prune_base_models(base_models: List[object], max_number_base_models: int = 2
     Parameters
     ----------
     base_models: List[base_model_object]
-        TODO define base model object to be used here
+        TODO define base model object to be used here or whatever we decide on later
         Base model object that includes validation score, validation predictions, and model config.
     max_number_base_models: int
         The final number of base models (at most).
     pruning_method: str in {"SiloTopN", "TopN"}, default="TopN"
         The method used to prune the base models.
+            * TopN: Prune to the top N models based on validation score.
+            * SiloTopN: Pruned to N, such that as many top-performing models of each algorithm family are kept.
+            * X: more method possible... would be cool to research this (with the AutoML toolkit)...
     """
 
     if pruning_method == "SiloTopN":
