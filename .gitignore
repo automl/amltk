@@ -8,4 +8,5 @@ __pycache__
 .uml
 site
 examples/results
+research/ensembles_with_tabpfn/base_model_data
 smac3_output
