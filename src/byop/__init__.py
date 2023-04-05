@@ -1,4 +1,3 @@
-from byop.control import AskAndTell
 from byop.pipeline import Pipeline, choice, searchable, split, step
 from byop.scheduling import (
     Comm,
