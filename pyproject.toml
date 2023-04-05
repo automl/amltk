@@ -8,6 +8,7 @@ dependencies = [
   "attrs",
   "pandas",
   "numpy",
+  "pynisher",
 ]
 requires-python = ">=3.8"
 authors = [{ name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com" }]
