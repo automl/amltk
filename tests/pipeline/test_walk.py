@@ -1,4 +1,6 @@
 """These tests are specifically traversal of steps and pipelines."""
+from __future__ import annotations
+
 from pytest_cases import parametrize
 
 from byop import Pipeline, step

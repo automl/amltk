@@ -1,11 +1,13 @@
-from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
-import logging
-from typing import Any, Iterator
-import warnings
+from __future__ import annotations
 
+import logging
+import warnings
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+from typing import Any, Iterator
+
+import pytest
 from dask.distributed import Client, LocalCluster
 from distributed.cfexecutor import ClientExecutor
-import pytest
 from pytest_cases import case, fixture, parametrize_with_cases
 
 from byop.scheduling import Comm, CommTask, Scheduler

@@ -7,22 +7,15 @@ from __future__ import annotations
 from asyncio import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import (
-    Any,
-    Callable,
-    Concatenate,
-    Generic,
-    Iterator,
-    Literal,
-    Mapping,
-    ParamSpec,
-    TypeVar,
-)
+from typing import Any, Callable, Generic, Iterator, Literal, Mapping, TypeVar
+from typing_extensions import Concatenate, ParamSpec
 
 from byop.events import Event, Subscriber
 from byop.exceptions import attach_traceback
-from byop.scheduling import Scheduler
-from byop.scheduling import Task as TaskBase
+from byop.scheduling import (
+    Scheduler,
+    Task as TaskBase,
+)
 from byop.timing import TimeInterval, TimeKind, Timer
 
 Info = TypeVar("Info")

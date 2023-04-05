@@ -6,15 +6,17 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal, Sequence
+from typing_extensions import Self
 
 from ConfigSpace import ConfigurationSpace
 from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, Scenario
 from smac.facade import AbstractFacade
-from smac.runhistory import StatusType
-from smac.runhistory import TrialInfo as SMACTrialInfo
-from smac.runhistory import TrialValue as SMACTrialValue
-from typing_extensions import Self
+from smac.runhistory import (
+    StatusType,
+    TrialInfo as SMACTrialInfo,
+    TrialValue as SMACTrialValue,
+)
 
 from byop.optimization import Optimizer, Trial
 from byop.randomness import as_int

@@ -1,11 +1,11 @@
 """Builds an sklearn.pipeline.Pipeline from a byop.pipeline.Pipeline."""
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Union
+from typing_extensions import TypeAlias
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
-from typing_extensions import TypeAlias
 
 from byop.pipeline.components import Component, Split
 from byop.pipeline.pipeline import Pipeline
@@ -24,7 +24,7 @@ COLUMN_TRANSFORMER_ARGS = [
 # However sklearn operates in a bit more of a general level so it would
 # require creating protocols to type this properly and work with sklearn's
 # duck-typing.
-SklearnItem: TypeAlias = Any | ColumnTransformer
+SklearnItem: TypeAlias = Union[Any, ColumnTransformer]
 
 
 def process_component(step: Component[SklearnItem, Any]) -> tuple[str, SklearnItem]:

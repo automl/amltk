@@ -4,7 +4,8 @@ any exception raised.
 from __future__ import annotations
 
 import traceback
-from typing import Callable, Generic, ParamSpec, TypeVar
+from typing import Callable, Generic, TypeVar
+from typing_extensions import ParamSpec
 
 R = TypeVar("R")
 E = TypeVar("E")

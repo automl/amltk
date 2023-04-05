@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import random
 
-from more_itertools import first, last
 import pytest
+from more_itertools import first, last
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from byop import Pipeline, choice, split, step

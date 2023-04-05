@@ -18,10 +18,10 @@ from typing import (
     Sequence,
     cast,
 )
+from typing_extensions import Self
 
 from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
-from typing_extensions import Self
 
 if TYPE_CHECKING:
     from byop.pipeline.components import Split

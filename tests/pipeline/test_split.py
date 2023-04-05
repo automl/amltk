@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from byop import split, step
 from byop.pipeline import Step
 

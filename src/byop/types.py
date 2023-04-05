@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from typing import Any, Iterator, Mapping, Protocol, TypeVar, Union
+from typing_extensions import TypeAlias
 
 import numpy as np
-from typing_extensions import TypeAlias
 
 Item = TypeVar("Item")
 """The type associated with components, splits and choices"""
