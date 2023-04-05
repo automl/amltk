@@ -317,7 +317,7 @@ class PickleLoader(PathLoader[Any]):
     def load(cls, path: Path, /) -> Any:
         """See [`Loader.load`][byop.store.loader.Loader.load]."""
         with path.open("rb") as f:
-            return pickle.load(f)
+            return pickle.load(f)  # noqa: S301
 
     @classmethod
     def save(cls, obj: Any, path: Path, /) -> None:
