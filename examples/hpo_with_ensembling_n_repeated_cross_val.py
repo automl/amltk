@@ -191,6 +191,27 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
     return ens
 
 
+def _agg_fold_model_predictions(oof_per_split, oof_template_generator):
+    # -- Avg oof
+    oof_out = oof_template_generator()
+    pred_count = np.full((oof_out.shape[0],), 0)  # could also just count it, but this is saver if some splits fail?
+    for oof in oof_per_split:
+        pred_count = pred_count + ~np.isnan(oof).any(axis=1)
+        # following https://stackoverflow.com/a/50642947
+        oof_out = np.where(
+            np.isnan(oof) & np.isnan(oof_out),
+            np.nan,
+            np.nansum(np.stack((oof, oof_out)), axis=0)
+        )
+
+    # - Get average
+    oof_out = oof_out / pred_count[:, None]
+    # - Normalize
+    oof_out = oof_out / oof_out.sum(axis=1)[:, None]
+
+    return oof_out
+
+
 def _predict_fit_repeated_cross_val_model(n, k, model, X_train, y_train, X_test, y_test,
                                           metric, metric_requires_proba: bool, classification=True):
     """ Code to for n-repeated k-fold cross-validation.
@@ -227,7 +248,7 @@ def _predict_fit_repeated_cross_val_model(n, k, model, X_train, y_train, X_test,
     oof_per_split = []  # type: List[np.ndarray]
     train_cv_scores = []  # type: List[float]
     val_cv_scores = []  # type: List[float]
-    test_cv_scores = []  # type: List[float]
+    test_predictions_per_fold_model = []  # type: List[np.ndarray]
 
     # -- Compute values for each split
     for train_index, test_index in cv:
@@ -237,7 +258,7 @@ def _predict_fit_repeated_cross_val_model(n, k, model, X_train, y_train, X_test,
 
         # -- Fit and predict with fold model
         # copy/clone to avoid anything that might be consistent across fits
-        #   TODO: determine what happens to the randomstate of the model here...
+        #  TODO: determine what happens to the randomstate of the model here...
         #       technically need to have a different one for each split or a random state for across splits...
         fold_model = clone(model)
         fold_model.fit(fold_X_train, fold_y_train)
@@ -260,11 +281,7 @@ def _predict_fit_repeated_cross_val_model(n, k, model, X_train, y_train, X_test,
         val_cv_scores.append(val_score)
 
         # -- Predict on outer test
-        if metric_requires_proba:
-            test_score = metric(y_test, fold_model.predict_proba(X_test))
-        else:
-            test_score = metric(y_test, fold_model.predict(X_test))
-        test_cv_scores.append(test_score)
+        test_predictions_per_fold_model.append(fold_model.predict_proba(X_test))
 
         # -- Get fold_y_pred_proba if needed
         if fold_y_pred_proba is None:
@@ -280,17 +297,21 @@ def _predict_fit_repeated_cross_val_model(n, k, model, X_train, y_train, X_test,
     val_score = mean(val_cv_scores)
     test_score = mean(test_cv_scores)
 
-    # -- Avg oof
-    oof_out = oof_template_generator()
-    for oof in oof_per_split:
-        # TODO: does not work; does not keep nans...
-        oof_out = np.nansum(np.dstack((oof_out, oof)), 2)
+    if classification:
+        # -- Val data
+        val_probabilities = _agg_fold_model_predictions(oof_per_split, oof_template_generator)
+        # TODO: technically ignores model specific threshold...
+        #   Would need to do a majority vote for label predictions otherwise...?
+        #   Do we really want to do that?
+        val_predictions = np.argmax(val_probabilities, axis=1)
 
-    # TODO: get mean per axis?
-    # oof_per_split.nanmean()
-    oof_out = oof_out / len(oof_per_split)
+        # -- Test data
 
-    return train_score, val_score, test_score, oof_out
+
+    else:
+        raise NotImplementedError
+
+    return train_score, val_score, test_score, val_probabilities, val_predictions
 
 
 def target_function(
@@ -311,30 +332,21 @@ def target_function(
 
     # Begin the trial, the context block makes sure
     with trial.begin():
-        train_score, val_score, test_score, val_data = _predict_fit_repeated_cross_val_model(8, 8, sklearn_pipeline,
-                                                                                             X_train, y_train,
-                                                                                             X_test, y_test,
-                                                                                             accuracy_score,
-                                                                                             metric_requires_proba=False)
-
-        sklearn_pipeline.fit(X_train, y_train)
+        train_score, val_score, test_score, val_probabilities, val_predictions \
+            = _predict_fit_repeated_cross_val_model(4, 4, sklearn_pipeline,
+                                                    X_train, y_train,
+                                                    X_test, y_test,
+                                                    accuracy_score,
+                                                    metric_requires_proba=False)
 
     if trial.exception:
         return trial.fail(cost=np.inf)
 
-    # Make our predictions with the model
-    train_predictions = sklearn_pipeline.predict(X_train)
-    val_predictions = sklearn_pipeline.predict(X_val)
-    test_predictions = sklearn_pipeline.predict(X_test)
-
-    val_probabilites = sklearn_pipeline.predict_proba(X_val)
-    test_probabilites = sklearn_pipeline.predict_proba(X_test)
-
     # Save all of this to the file system
     scores = {
-        "train_accuracy": accuracy_score(train_predictions, y_train),
-        "validation_accuracy": accuracy_score(val_predictions, y_val),
-        "test_accuracy": accuracy_score(test_predictions, y_test),
+        "train_accuracy": train_score,
+        "validation_accuracy": val_score,
+        "test_accuracy": test_score
     }
     bucket.update(
         {
@@ -342,7 +354,7 @@ def target_function(
             f"trial_{trial.name}_scores.json": scores,
             f"trial_{trial.name}.pkl": sklearn_pipeline,
             f"trial_{trial.name}_val_predictions.npy": val_predictions,
-            f"trial_{trial.name}_val_probabilities.npy": val_probabilites,
+            f"trial_{trial.name}_val_probabilities.npy": val_probabilities,
             f"trial_{trial.name}_test_predictions.npy": test_predictions,
             f"trial_{trial.name}_test_probabilities.npy": test_probabilites
         }

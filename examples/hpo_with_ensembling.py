@@ -47,8 +47,8 @@ for name in logging.root.manager.loggerDict:
 # --- Main content
 pipeline = Pipeline.create(
     # Preprocessing
-    split(
-        "feature_preprocessing",
+    split("feature_preprocessing",
+
         (step("categoricals", SimpleImputer, space={
             "strategy": ["most_frequent", "constant"],
             "fill_value": ["missing"],
@@ -162,7 +162,6 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
             bucket[f"trial_{name}_test_probabilities.npy"].load(check=np.ndarray),
             le_,
             classes_,
-
         )
         for name in trial_names
     ]
@@ -172,7 +171,7 @@ def create_ensemble(bucket: PathBucket, /, n_iterations: int = 50, seed: int = 4
     base_models = prune_base_models(base_models, max_number_base_models=30, pruning_method="SiloTopN")
 
     # - Ensemble
-    ens_base = EnsembleWeightingCMAES  # EnsembleWeightingCMAES, GreedyEnsembleSelection
+    ens_base = GreedyEnsembleSelection  # EnsembleWeightingCMAES, GreedyEnsembleSelection
     ens = ens_base(base_models, n_iterations=n_iterations, loss_function=acc_loss, n_jobs=1, random_state=seed)
 
     # -- Greedy Ensemble Selection With Replacement
