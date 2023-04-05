@@ -5,8 +5,7 @@ import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Iterator
 
-import pytest
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
@@ -60,7 +59,12 @@ def case_dask_executor() -> ClientExecutor:
     # we silence the warnings here.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        cluster = LocalCluster(n_workers=2, silence_logs=logging.ERROR, processes=False)
+        cluster = LocalCluster(
+            n_workers=2,
+            silence_logs=logging.ERROR,
+            worker_class=Worker,
+            processes=True,
+        )
 
     client = Client(cluster)
     executor = client.get_executor()
@@ -76,10 +80,6 @@ def scheduler(executor: Executor) -> Iterator[Scheduler]:
 
 def test_sending_worker(scheduler: Scheduler) -> None:
     """Test that the scheduler can receive replies."""
-    if isinstance(scheduler.executor, ClientExecutor):
-        # Dask doesn't seem to be able to handle this test.
-        pytest.skip("Dask seem to arbitrarily hang on this test. See issue #45.")
-
     replies = [1, 2, 3]
     results: list[int] = []
 
@@ -95,6 +95,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run()
 
+    logger.error(task.counts)
     task_counts = {
         CommTask.SUBMITTED: 1,
         CommTask.DONE: 1,

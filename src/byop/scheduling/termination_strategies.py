@@ -14,6 +14,7 @@ Note:
 from __future__ import annotations
 
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+from contextlib import suppress
 from typing import Callable, TypeVar
 
 import psutil
@@ -35,9 +36,17 @@ def _terminate_with_psutil(executor: ProcessPoolExecutor) -> None:
 
     worker_processes = [psutil.Process(p.pid) for p in executor._processes.values()]
     for worker_process in worker_processes:
-        for child_process in worker_process.children(recursive=True):
-            child_process.terminate()
-        worker_process.terminate()
+        try:
+            child_preocesses = worker_process.children(recursive=True)
+        except psutil.NoSuchProcess:
+            continue
+
+        for child_process in child_preocesses:
+            with suppress(psutil.NoSuchProcess):
+                child_process.terminate()
+
+        with suppress(psutil.NoSuchProcess):
+            worker_process.terminate()
 
 
 def termination_strategy(executor: _Executor) -> Callable[[_Executor], None] | None:

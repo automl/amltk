@@ -4,9 +4,10 @@ import logging
 import time
 import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+from typing import Hashable
 
 import pytest
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
@@ -37,7 +38,9 @@ def case_dask_executor() -> ClientExecutor:
     # we silence the warnings here.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        cluster = LocalCluster(n_workers=2, silence_logs=logging.ERROR, processes=False)
+        cluster = LocalCluster(
+            n_workers=2, silence_logs=logging.ERROR, worker_class=Worker, processes=True
+        )
 
     client = Client(cluster)
     return client.get_executor()
@@ -107,16 +110,29 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
     # No results collect as task cancelled
     assert results == []
 
-    assert task.counts == {Task.SUBMITTED: 1, Task.CANCELLED: 1}
+    # We have a termination strategy for ProcessPoolExecutor and we know it
+    # will raise an error for the tasks
+    if isinstance(scheduler.executor, ProcessPoolExecutor):
+        expected_task_counts = {
+            Task.SUBMITTED: 1,
+            Task.EXCEPTION: 1,
+            Task.F_EXCEPTION: 1,
+            Task.DONE: 1,
+        }
+    else:
+        expected_task_counts = {Task.SUBMITTED: 1, Task.CANCELLED: 1}
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "sleep"): 1,
-        (Task.CANCELLED, "sleep"): 1,
+    assert task.counts == expected_task_counts
+
+    expected_scheduler_counts: dict[Hashable, int] = {
+        **{(k, "sleep"): v for k, v in expected_task_counts.items()},
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
         Scheduler.TIMEOUT: 1,
     }
+
+    assert scheduler.counts == expected_scheduler_counts
     assert end_status == Scheduler.ExitCode.TIMEOUT
     assert scheduler.empty()
     assert not scheduler.running()

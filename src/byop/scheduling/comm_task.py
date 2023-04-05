@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from asyncio import Future
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from multiprocessing import Pipe
 from multiprocessing.connection import Connection
@@ -48,10 +48,20 @@ class Comm:
         Args:
             obj: The object to send.
         """
-        self.connection.send(obj)
+        try:
+            self.connection.send(obj)
+        except BrokenPipeError:
+            # It's possble that the connection was closed by the other end
+            # before we could send the message.
+            logger.warning("Broken pipe error while sending message {obj}")
 
-    def close(self) -> None:
-        """Close the connection."""
+    def close(self, *, wait_for_ack: bool = False) -> None:
+        """Close the connection.
+
+        Args:
+            wait_for_ack: If `True`, wait for an acknowledgement from the
+                other end before closing the connection.
+        """
         if not self.connection.closed:
             try:
                 self.connection.send(CommTask.CLOSE)
@@ -61,6 +71,12 @@ class Comm:
                 pass
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Error sending close signal: {type(e)}{e}")
+
+            if wait_for_ack:
+                try:
+                    self.connection.recv()
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"Error waiting for ACK: {type(e)}{e}")
 
             try:
                 self.connection.close()
@@ -300,12 +316,11 @@ class CommTask(Task[Concatenate[Comm, P], R]):
             wall_time_limit=wall_time_limit,
         )
 
-        # Holds the scheduler_comm, worker_comm, and communcation task
-        # repsonsible for the communication
         # NOTE: It's important to hold a reference to the worker_comm so
         # it doesn get garbage collected and closed from the main process
         # so that the child process can use it
-        self.comms: dict[Future, tuple[Comm, Comm, asyncio.Task]] = {}
+        self.worker_comms: dict[Future, Comm] = {}
+        self.communication_tasks: dict[Future, asyncio.Task] = {}
 
         self.on_request = self.subscriber(self.REQUEST)
         self.on_message = self.subscriber(self.MESSAGE)
@@ -337,17 +352,21 @@ class CommTask(Task[Concatenate[Comm, P], R]):
         if task_future is None:
             return None
 
-        communcation_task = asyncio.create_task(self._communicate(task_future))
-        self.comms[task_future] = (scheduler_comm, worker_comm, communcation_task)
+        communication_task = asyncio.create_task(
+            self._communicate(task_future, scheduler_comm)
+        )
+
+        self.worker_comms[task_future] = worker_comm
+        self.communication_tasks[task_future] = communication_task
+
         return task_future
 
-    async def _communicate(self, future: Future[R]) -> None:
+    async def _communicate(self, future: Future[R], comm: Comm) -> None:
         """Communicate with the task.
 
         This is a coroutine that will run until the scheduler is stopped or
         the comms have finished.
         """
-        comm, _, _ = self.comms[future]
         while True:
             try:
                 data = await comm.as_async.request()
@@ -365,9 +384,15 @@ class CommTask(Task[Concatenate[Comm, P], R]):
                     self.emit(CommTask.REQUEST, msg)
 
                 # When we recieve CLOSE, the task has signalled it's
-                # close and we emit a CLOSE event
+                # close and we emit a CLOSE event. This should break out
+                # of the loop as we expect no more signals after this point
                 elif data == CommTask.CLOSE:
                     self.emit(CommTask.CLOSE)
+
+                    # This is to acknowledge the worker can close its come
+                    ACK = True
+                    comm.send(ACK)
+                    break
 
                 # Otherwise it's just a simple `send` with some data we
                 # emit as a MESSAGE event
@@ -379,12 +404,17 @@ class CommTask(Task[Concatenate[Comm, P], R]):
                 logger.debug(f"{self.name}: closed connection")
                 break
 
-    def _process_future(self, future: Future[R]) -> None:
-        super()._process_future(future)
-        comm, worker_comm, communcation_task = self.comms.pop(future)
-        comm.close()
+        logger.debug(f"{self.name}: finished communication, closing comms")
+
+        # When the loop is finished, we can't communicate, close the comm
+        # We explicitly don't wait for any acknowledgment from the worker
+        comm.close(wait_for_ack=False)
+
+        # Remove the reference to the work comm so it gets garbarged
+        worker_comm = self.worker_comms.pop(future)
         worker_comm.close()
-        communcation_task.cancel()
+
+        logger.debug(f"{self.name}: closed comms")
 
     @dataclass
     class Msg(Generic[T]):

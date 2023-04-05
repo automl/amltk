@@ -11,7 +11,7 @@ be used for communication between the task and the main process.
 from __future__ import annotations
 
 import logging
-from asyncio import Future
+from concurrent.futures import Future
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Callable, Generic, Hashable, TypeVar
 from typing_extensions import ParamSpec

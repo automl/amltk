@@ -6,7 +6,7 @@ import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Iterator
 
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
@@ -29,7 +29,12 @@ def case_dask_executor() -> ClientExecutor:
     # we silence the warnings here.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        cluster = LocalCluster(n_workers=2, silence_logs=logging.ERROR, processes=False)
+        cluster = LocalCluster(
+            n_workers=2,
+            silence_logs=logging.ERROR,
+            worker_class=Worker,
+            processes=True,
+        )
 
     client = Client(cluster)
     executor = client.get_executor()
