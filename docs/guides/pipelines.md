@@ -16,20 +16,50 @@ that repesents the flow of data through your [`Pipeline`][byop.pipeline.Pipeline
 Here is one such example that by the end of this guide, you should be able
 to construct.
 
-![Pipeline Overview Img](../images/pipeline-guide-overview.excalidraw.svg)
+=== "Image"
 
-There are a few concrete flavours that each encode the different parts of
-this DAG with which we can then search over.
+    ![Pipeline Overview Img](../images/pipeline-guide-overview.excalidraw.svg)
 
-* [`Component`][byop.pipeline.Component]: An step of a pipeline with
-  an object attached and possibly some space attached to it.
-* [`Choice`][byop.pipeline.Choice]: A step which represents the a choice of which
-  step(s) is next.
-* [`Split`][byop.pipeline.Split]: A step which represents that the data flow
-  through a pipeline will be split between the following steps. This is
-  usually accompanied by some object that does the data splitting.
-* [`Option`][byop.pipeline.Option] : A step which indicates the following
-  step(s) are optionally included.
+=== "Code"
+
+    ```python
+    from byop.pipeline import Pipeline, step, split, choice
+
+    pipeline = Pipeline.create(
+        step("nan-imputer", SimpleImputer, config={"strategy": "most_frequent"}),
+        split(
+            "data-preprocessing",
+            step(
+                "one-hot-encoder",
+                OneHotEncoder,
+                space={
+                    "min_frequency": (0.01, 0.1),
+                    "handle_unknown": ["ignore", "infrequent_if_exist"],
+                },
+                config={"drop": "first"},
+            ),
+            step("scaler", StandardScaler),
+            item=ColumnTransformer,
+            config={
+                "one-hot-encoder": make_column_selector(dtype_include=object),
+                "scaler": make_column_selector(dtype_include=np.number),
+            },
+        ),
+        choice(
+            "algorithm",
+            step("svm", SVC, space={"C": (0.1, 10.0)}, config={"probability": True}),
+            step(
+                "random-forest",
+                RandomForestClassifier,
+                space={
+                    "n_estimators": [10, 100],
+                    "criterion": ["gini", "entropy", "log_loss"],
+                },
+            ),
+        ),
+    )
+    ```
+
 
 Once we have our pipeline definition, extracting a search space, configuring
 it and building it into something useful can be done with the methods,
@@ -38,21 +68,66 @@ it and building it into something useful can be done with the methods,
 [`pipeline.configure()`][byop.pipeline.Pipeline.configure],
 [`pipeline.build()`][byop.pipeline.Pipeline.build],
 
+
+!!! info "Building Blocks"
+
+    There are a few concrete flavours that each encode the different parts of
+    this DAG with which we can then search over.
+
+    * [`Component`][byop.pipeline.Component]: A step of a pipeline with an object attached
+    and possibly some space attached to it.
+
+    * [`Choice`][byop.pipeline.Choice]: A step which represents the a choice of which step(s) is next.
+
+    * [`Split`][byop.pipeline.Split]: A step which represents that the data flow through a
+      pipeline will be split between the following steps.
+      This is usually accompanied by some object that does the data splitting.
+
+    * [`Option`][byop.pipeline.Option]: A step which indicates the following
+        step(s) are optionally included.
+
+
+    There's also some _attachables_ you can
+    [`attach(searchables=..., modules=...)`][byop.pipeline.Pipeline.attach] to a
+    [`Pipeline`][byop.pipeline.Pipeline] for searching and configuring things that don't
+    necessarily follow the DAG dataflow of a pipeline, e.g. `batch_size` for
+    training Nerual Nets.
+
+    * [`Searchable`][byop.pipeline.Searchable]: We can't directly make this part of a DAG
+      because it doesn't represent any data flow. However sometimes there's extra parameters
+      we will want to search over.
+
+    * `modules`: For anything else which is a component, sub-pipeline, or anything else with
+      an implementation and not part of the main DAG pipeline, we can still attach
+      them to the main pipeline.
+
+
+
 ```python
 from byop.Pipeline imort Pipeline
 
 pipeline = Pipeline.create(...)
 
 # Get the space for the pipeline and sample a concrete pipeline
-space = pipeline.space()
-config = pipeline.sample(space)
+space = pipeline.space() # (1)!
+config = pipeline.sample(space) # (2)!
 
 # Configure the pipeline
-configured_pipeline = pipeline.config(config)
+configured_pipeline = pipeline.config(config) # (3)!
 
 # Build the pipeline
-built_pipeline = pipeline.build()
+built_pipeline = pipeline.build()  # (4)!
 ```
+
+1. We can export the entire search space using [`space()`][byop.pipeline.Pipeline.space].
+  This will be any space that supports expressing your pipeline.
+2. You can [`sample()`][byop.pipeline.Pipeline.sample] from the space using the pipeline.
+  This will work regardless of the implementation of the space you have.
+3. Once we have a [`Config`][byop.types.Config], we can easily _configure_ our pipeline,
+  removing all the _spaces_ and replacing them with concrete a configuration.
+4. Finally, with a _configured pipeline_, we can simply call
+[`build()`][byop.pipeline.Pipeline.build] on it to get a concrete object that you can use
+with no `amltk` components in there.
 
 By the end of this guide you should be able to understand each of these
 components, how to create them, modify it, and build your own
@@ -79,6 +154,7 @@ it.
 
 
 ### Defining a Component
+
 ```python
 from byop.pipeline import step, Component
 
@@ -114,8 +190,6 @@ from sklearn.ensemble import RandomForestclassifier
 component = step("rf", RandomForestClassifier, config={"n_estimators": 10})
 classifier = component.build()
 
-print(classifier)
-
 classifier.fit(...)
 classifier.predict(...)
 ```
@@ -133,115 +207,119 @@ this example, we will be using [`ConfigSpace`](../integrations/configspace.md) a
 it's syntax for defining a search space, but check out our built-in
 [integrations](integrations) for more.
 
-```python hl_lines="6 7"
-from byop.pipeline import step
-from sklearn.ensemble import RandomForestClassifier
+=== "Definition"
 
-component = step(
-    "rf",
-    RandomForestClassifier,
-    space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
-)
+    ```python hl_lines="6 7"
+    from byop.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
 
-print(component)
-```
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+    )
+    ```
 
-Here we've told `amltk` that we have a component that `RandomForestClassifier`
-has two hyperparameters we care about, some integer called `#!python "n_estimators"`
-between `#!python (10, 100)` and some choice `#!python "criterion"` from
-`#!python ["gini", "entropy"]`. For the specifics of what these hyperparameters
-mean, please [refer to the scikit-learn docs][sklearn.ensemble.RandomForestClassifier].
+    Here we've told `amltk` that we have a component that `RandomForestClassifier`
+    has two hyperparameters we care about, some integer called `#!python "n_estimators"`
+    between `#!python (10, 100)` and some choice `#!python "criterion"` from
+    `#!python ["gini", "entropy"]`. For the specifics of what these hyperparameters
+    mean, please [refer to the scikit-learn docs][sklearn.ensemble.RandomForestClassifier].
 
-We can retrieve a space from this component by calling [`space()`] on it.
+=== "Retrievinig the space"
 
-```python hl_lines="10"
-from byop.pipeline import step
-from sklearn.ensemble import RandomForestClassifier
+    ```python hl_lines="10"
+    from byop.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
 
-component = step(
-    "rf",
-    RandomForestClassifier,
-    space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
-)
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+    )
 
-space = component.space(seed=1)
+    space = component.space(seed=1)
+    ```
 
-print(space)
-```
+    We can retrieve a space from this component by calling [`space()`] on it.
 
-We can sample from this space, but first we will show how you can use
-[`configure()`][byop.pipeline.Component.configure] with a manually written
-config to configure the component.
+=== "Configuring (Manual)"
 
-```python hl_lines="11"
-from byop.pipeline import step
-from sklearn.ensemble import RandomForestClassifier
+    ```python hl_lines="10 11"
+    from byop.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
 
-component = step(
-    "rf",
-    RandomForestClassifier,
-    space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
-)
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+    )
 
-config = {"n_estimators": 15, "criterion": "gini"}
-configured_component = component.configure(config)
+    config = {"n_estimators": 15, "criterion": "gini"}
+    configured_component = component.configure(config)
+    ```
 
-print(configured_component)
-```
+    We can sample from this space, but first we will show how you can use
+    [`configure()`][byop.pipeline.Component.configure] with a manually written
+    config to configure the component.
 
-To piece theses together, we can sample from the space and then configure
-the component with this sampled config.
+=== "Configuring (Sampled)"
 
-```python hl_lines="10 11"
-from byop.pipeline import step
-from sklearn.ensemble import RandomForestClassifier
 
-component = step(
-    "rf",
-    RandomForestClassifier,
-    space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
-)
+    ```python hl_lines="10 11 13"
+    from byop.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
 
-space = component.space(seed=1)
-config = component.sample(space)
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+    )
 
-print(config)
+    space = component.space(seed=1)
+    config = component.sample(space)
 
-configured_component = component.configure(config)
+    configured_component = component.configure(config)
+    ```
 
-print(configured_component)
-```
+    To piece theses together, we can sample from the space and then configure
+    the component with this sampled config.
 
-Once we have a configured component, the last step is the most simple, and that
-is we can [`build()`][byop.pipeline.Component.build] into a useable object, i.e.
-the `RandomForestClassifier`.
+=== "Building"
 
-```python hl_lines="10 11"
-from byop.pipeline import step
-from sklearn.ensemble import RandomForestClassifier
+    ```python hl_lines="15"
+    from byop.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
 
-component = step(
-    "rf",
-    RandomForestClassifier,
-    space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
-)
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+    )
 
-space = component.space(seed=1)
-config = component.sample(space)
-configured_component = component.configure(config)
-random_forest = configured_component.build()
+    space = component.space(seed=1)
+    config = component.sample(space)
 
-print(random_forest)
-```
+    configured_component = component.configure(config)
 
-Some other small notable features:
+    random_forest = configured_component.build()
+    ```
 
-* You can also pass `#!python **kwargs` to `build()` which overwrites any
-  config options set.
-* If you set a key in `config`, this will remove the parameter from the search
-  space when calling `space()`.
-* We've used `RandomForestClassifier` throughout, but technically any function
-  that returns an object can be used.
+    Once we have a configured component, the last step is the most simple, and that
+    is we can [`build()`][byop.pipeline.Component.build] into a useable object, i.e.
+    the `RandomForestClassifier`.
+
+
+!!! info "Some other small notable features:"
+
+    * You can also pass `#!python **kwargs` to `build()` which overwrites any
+      config options set.
+    * If you set a key in `config`, this will remove the parameter from the search
+      space when calling `space()`.
+    * We've used `RandomForestClassifier` throughout, but technically any function
+      that returns an object can be used.
+
+---
 
 ## Pipeline
 Now that we know how to define a component, we can continue directly
@@ -255,48 +333,61 @@ A `Pipeline` is simply a wrapper around a **chained** set of steps,
 with convenience for constructing the entire space, configuring
 it and building it, much as we did for a `Component` built with `step`.
 
-To construct one, we will use the classmethod, [`Pipeline.create`][byop.pipeline.Pipeline.create],
+To construct one, we will use the classmethod, [`Pipeline.create()`][byop.pipeline.Pipeline.create],
 passing in the step we have above.
 
-```python hl_lines="10"
-from byop.pipeline import step, Pipeline
-from sklearn.svm import SVC
+=== "Embedded"
 
-component = step(
-    "rf",
-    SVC,
-    space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
-)
+    ```python
+    from byop.pipeline import step, Pipeline
+    from sklearn.ensemble import RandomForestClassifier
 
-pipeline = Pipeline.create(component, name="my-pipeline")  # (1)!
-```
+    pipeline = Pipeline.create(
+        step(
+            "rf",
+            RandomForestClassifier,
+            space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+        )
+    )
+    ```
 
-1. The name here is optional, if one is not given, a random [`uuid4`][uuid.uuid4]
-will be provided.
 
-In practice, we won't need a reference to the individual component so
-we will start defining them inside the `Pipeline.create` method itself
-from now on.
+=== "Seperate"
 
-```python
-from byop.pipeline import step, Pipeline
-from sklearn.ensemble import RandomForestClassifier
+    ```python
+    from byop.pipeline import step, Pipeline
+    from sklearn.svm import SVC
 
-pipeline = Pipeline.create(
-    step(
+    component = step(
         "rf",
-        RandomForestClassifier,
+        SVC,
         space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
     )
-)
-```
+
+    pipeline = Pipeline.create(component)
+    ```
+
+!!! tip "Name your pipeline"
+
+    You can name you pipeline with the `name=` parameter, otherwise a random [`uuid4`][uuid.uuid4]
+    will be provided.
+
+    ```python
+    from byop.pipeline import Pipeline
+
+    pipeline = Pipeline.create(..., name="my-named-pipeline")
+    ```
+
+In practice, we won't need a reference to the individual component so
+we will start defining them inside the [`Pipeline.create()`][byop.pipeline.Pipeline.create] method
+itself from now on.
 
 We can then query for the [`space()`][byop.pipeline.Pipeline.space],
 [`sample()`][byop.pipeline.Pipeline.sample],
 [`configure()`][byop.pipeline.Pipeline.configure]
 it just like we did with the single `Component`.
 
-```python hl_lines="12 13 14 15"
+```python hl_lines="12 13 14"
 from byop.pipeline import step, Pipeline
 from sklearn.svm import SVC
 
@@ -309,30 +400,44 @@ pipeline = Pipeline.create(
 )
 
 space = pipeline.space()
-print(space)
-
 config = pipeline.sample(space)
-print(config)
-
 configured_pipeline = pipeline.configure(config)
-print(configured_pipeline)
 ```
 
-The difference here is when we call [`build()`][byop.pipeline.Pipeline.build],
-we know longer just get a `SVM`, as we would when calling
-`build()` on the individual component, but instead
-an [sklearn.pipeline.Pipeline][]. AutoML-toolkit will attempt
-to identify the components in your pipeline and automatically
-produce a valid pipeline implementation out of it. If every
-step in the pipeline is a sklearn object, AutoML-toolkit
-produces a [`sklearn.pipeline.Pipeline`][]. Likewise,
-if we can detect every step in the pipeline is a [torch.nn.Module][]
-then a [torch.nn.Sequential][] will be produced for you. Check
-out our [integrations](../integrations) for more.
+!!! info inline end "Pipeline Implementations"
 
-If we don't provide a suitable pipeline implementation for you
-or your pipeline is rather complex, you can also provide your
-own `builder: Callable[[Pipeline], Any]` to [`build(builder=...)`][byop.pipeline.Pipeline.build].
+    === "Sklearn"
+
+        If every step in the pipeline is a sklearn object, AutoML-toolkit
+        will attempt to produce a [sklearn.pipeline.Pipeline][].
+
+        !!! note "Split"
+
+            We currently only support a [sklearn.compose.ColumnTransformer][]
+            for a split
+
+    === "Pytorch"
+
+        If we can detect every step in the pipeline is a [torch.nn.Module][]
+        then a [torch.nn.Sequential][] will be produced for you. We do a simple
+        forward from each component to the next.
+
+        !!! info "In progress"
+
+    === "Custom"
+
+        If you have a custom Pipeline implementation that you expect, take
+        a look at [`build(builder=...)`][byop.pipeline.Pipeline.build] for
+        how you can integrate your own.
+
+        !!! info "Doc needs to be improved"
+
+The difference here is when we call [`build()`][byop.pipeline.Pipeline.build],
+we no longer just get an `SVM`, as we would when calling
+`build()` on the individual component, but instead
+we get a usable object . AutoML-toolkit will attempt to identify
+the components in your pipeline and automatically
+produce a valid pipeline implementation out of it.
 
 There are also sometimes things you want to associate and search
 alongside with your pipeline but are not necessarily part of
@@ -346,112 +451,142 @@ Of course a single step is not a real pipeline, and so we now
 move onto chaining together steps that will be part of the pipeline.
 For this section, we will focus on an `SVM` with a
 [StandardScaler][sklearn.preprocessing.StandardScaler] on the input.
-For more complicated data-preprocessing, we will require the use of a
-[`Split`][byop.pipeline.Split] which we cover in the [section on splits](splits).
 
-![Simple Pipeline Image](../images/pipeline-guide-simple-pipeline.svg)
+=== "The `|` (pipe) operator"
 
-To join together two steps, we introduce the handy pipe operator `|`,
-inspired by the pipe operator from shell scripting.
-This will return the first step in the chain but with anything after
-that attached to it.
+    !!! info inline end
 
-```python
-from byop import step
+        To join together two steps, we introduce the handy pipe operator `|`,
+        inspired by the pipe operator from shell scripting.
+        This will return the first step in the chain but with anything after
+        that attached to it.
 
-head = step("one", 1) | step("two", 2)
+    ```python hl_lines="7"
+    from byop import step
 
-print(head)
-print(head.nxt)
-```
+    standard_scalaer = step("standard", StandardScaler)
 
-Using this `|` operator, we can tell our pipeline defintion that
-one step follows another. On the highlighted line below, you
-can see it in action.
+    svm = step("svm", SVC, space={"C": (0.1, 10.0)})
 
-```python hl_lines="6"
-from byop.pipeline import Pipeline
-from sklearn.svm import SVC
+    head = standard_scaler | svm
+    ```
 
-pipeline = Pipeline.create(
-    step("standard", StandardScaler)  # (1)!
-    | step(
-        "svm",
-        SVC,
-        space={"C": (0.1, 10.0)}
+
+=== "Joining two steps"
+
+    !!! info inline end
+
+        Using this `|` operator, we can tell our pipeline defintion that
+        one step follows another. On the highlighted line, you
+        can see it in action.
+
+    ```python hl_lines="10"
+    from byop.pipeline import Pipeline
+    from sklearn.svm import SVC
+    from sklearn.preprocessing import StandarScaler
+
+    pipeline = Pipeline.create(
+        step(
+          "standard",
+          StandardScaler
+        )
+        | step(
+            "svm",
+            SVC,
+            space={"C": (0.1, 10.0)}
+        )
     )
-)
-```
+    ```
 
-1. Note that we don't have to provide a space or config for all steps.
 
-Using the `|` operator, we can easily begin to extend and modify our pipeline defintion.
+=== "More steps"
 
-```python hl_lines="5 6 7 8 9 10 11"
-from byop.pipeline import Pipeline
-from sklearn.svm import SVC
+    !!! info inline end
 
-pipeline = Pipeline.create(
-    step(
-        "impute"
-        SimpleImputer,
-        space={
-            "strategy": ["most_frequent", "mean", "median"],
-        },
+        Using the `|` operator, we can easily begin to extend and modify
+        our pipeline defintion.
+
+    ```python hl_lines="7 8 9 10 11 12 13"
+    from byop.pipeline import Pipeline
+    from sklearn.svm import SVC
+    from sklearn.preprocessing import StandarScaler
+    from sklearn.impute import SimpleImputer
+
+    pipeline = Pipeline.create(
+        step(
+            "impute"
+            SimpleImputer,
+            space={
+                "strategy": ["most_frequent", "mean"],
+            },
+        )
+        | step("scaler", StandardScaler),
+        | step(
+            "svm",
+            SVC,
+            space={"C": (0.1, 10.0)}
+        )
     )
-    | step("scaler", StandardScaler),
-    | step(
-        "svm",
-        SVC,
-        space={"C": (0.1, 10.0)}
+    ```
+
+
+=== "Build"
+
+    !!! info inline end
+
+        The `space`, `config` and final pipeline implementation exported
+        with `build` include all the steps in the pipeline. In this case,
+        as all our components are from `sklearn`, we end up up with
+        a valid [sklearn.pipeline.Pipeline][].
+
+    ```python hl_lines="22 23 24"
+    from byop.pipeline import Pipeline
+    from sklearn.svm import SVC
+    from sklearn.preprocessing import StandarScaler
+    from sklearn.impute import SimpleImputer
+
+    pipeline = Pipeline.create(
+        step(
+            "impute"
+            SimpleImputer,
+            space={
+                "strategy": ["most_frequent", "mean"],
+            },
+        )
+        | step("scaler", StandardScaler),
+        | step(
+            "svm",
+            SVC,
+            space={"C": (0.1, 10.0)}
+        )
     )
-)
-```
 
-As expected, if we export using our typical workflow, we end
-up with a valid [sklearn.pipeline.Pipeline][].
+    space = pipeline.space()
+    config = pipeline.sample(space)
+    sklearn_pipeline = pipeline.configure(config).build()
+    ```
 
-```python hl_lines="20 21 22"
-from byop.pipeline import Pipeline
-from sklearn.svm import SVC
 
-pipeline = Pipeline.create(
-    step(
-        "impute"
-        SimpleImputer,
-        space={
-            "strategy": ["most_frequent", "mean", "median"],
-        },
-    )
-    | step("scaler", StandardScaler),
-    | step(
-        "svm",
-        SVC,
-        space={"C": (0.1, 10.0)}
-    )
-)
+---
 
-space = pipeline.space()
-config = pipeline.sample(space)
-sklearn_pipeline = pipeline.configure(config).build()
-```
+!!! note "Next steps"
 
-This marks the end for the basics of [`Pipeline`][byop.pipeline.Pipeline]
-but is by no means a complete introduction. We
-recommend checking out the following sections to learn more:
+    This marks the end for the basics of [`Pipeline`][byop.pipeline.Pipeline]
+    but is by no means a complete introduction. We
+    recommend checking out the following sections to learn more:
 
-* [Choices](choices) to create heirarchical definitions with choices.
-* [Splits](splits) to define components that split data into two parallel
-  subpipelines.
-* [Modules](modules) to define components that are required for the pipeline
-  usage but not necassarily part of its DAG structure, e.g. a trainer
-  for a neural network.
-* [Searchables](searchables) for hyperparameters associated with your pipeline
-  but don't necessarily have a concrete implementation associated with
-  them.
-* [Subpipelines](sub-pipelines) to build a pipeline in a more flexible manner.
-* [Operations](operations) supported by the pipeline for inspection
-  and modification of existing pipelines.
+    * [Choices](choices) to create heirarchical definitions with choices.
+    * [Splits](splits) to define components that split data into two parallel
+      subpipelines.
+    * [Modules](modules) to define components that are required for the pipeline
+      usage but not necassarily part of its DAG structure, e.g. a trainer
+      for a neural network.
+    * [Searchables](searchables) for hyperparameters associated with your pipeline
+      but don't necessarily have a concrete implementation associated with
+      them.
+    * [Subpipelines](sub-pipelines) to build a pipeline in a more flexible manner.
+    * [Operations](operations) supported by the pipeline for inspection
+      and modification of existing pipelines.
 
 
 ## Choices
@@ -496,7 +631,7 @@ classifier_choice = choice(
 To illustrate what the config looks like and what configuring does,
 we can create our own manual config.
 
-```python hl_lines="10 11 13"
+```python
 from byop.pipeline import step, choice
 from sklearn.ensemble import RandomForestClassfier
 from sklearn.svm import SVC
@@ -509,10 +644,8 @@ classifier_choice = choice(
 
 config = {"algorithm": "svm", "algorithm:svm:C": 0.3}  # (1)!
 configured_choice = classifier_choice.configure(config)
-print(configured_choice)
 
 classifier = configured_choice.build()
-print(classifier)
 ```
 
 1. Notice that `#!python "algorithm"` is used as a prefix as both `#!python "rf"`
@@ -550,115 +683,171 @@ we will use a [sklearn.compose.ColumnTransformer][] as the item for this example
 In practice, you can define your own object that splits the data for the pipeline
 implementation you are interested in.
 
-We'll start by defining how are categoricals should be treated, which uses a
-[sklearn.impute.SimpleImputer][] to impute missing values, followed by
-a [sklearn.preprocessing.OneHotEncoder][] to encode the varialbes numerically.
+=== "The `#!python "categorical"` path"
 
-```python
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder
+    ```python
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import OneHotEncoder
 
-from byop.pipeline import split
+    from byop.pipeline import split
 
-categoricals = (
-    step(
-        "categoricals",
-        SimpleImputer,
-        space={"strategy": ["most_frequent", "constant"]}
-        config={"fill_value": "missing"}
-    )
-    | step(
-        "one-hot-encoder"
-        OneHotEncoder,
-        space={"min_frequency": (0.01, 0.1), max_categories: (1, 10) },
-        config={"drop": "first", "handle_unknown": "infrequent_if_exist"},
-    ),
-)
-```
-
-Next we will define the numerical part of the preprocessing pipeline,
-again using a [`SimplerImputer`][sklearn.impute.SimpleImputer], followed
-by a choice of scalers from sklearn.
-
-```python
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler
-
-from byop.pipeline import split
-
-numerical = (
-    step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
-    | choice(
-        "scaler",
-        step("standard", StandardScaler),
-        step("minmax", MinMaxScaler),
-        step("robust", RobustScaler),
-        step("passthrough", FunctionTransformer),
-    )
-)
-```
-
-Now that we've defined the two flows for our pipeline, we can create a
-[`Split`][byop.pipeline.Split] with [`split()`][byop.pipeline.split].
-
-```python hl_lines="35 36 37 38 39"
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer, make_column_selector
-import numpy as np
-
-from byop.pipeline import step, split, Pipeline
-
-pipeline = Pipeline.create(
-    split(
-        "data_preprocessing",
-        (
-            step(
-                "categoricals",
-                SimpleImputer,
-                space={"strategy": ["most_frequent", "constant"]}
-                config={"fill_value": "missing"}
-            )
-            | step(
-                "one-hot-encoder"
-                OneHotEncoder,
-                space={"min_frequency": (0.01, 0.1), max_categories: (1, 10) },
-                config={"drop": "first", "handle_unknown": "infrequent_if_exist"},
-            ),
-        ),
-        (
-            step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
-            | choice(
-                "scaler",
-                step("standard", StandardScaler),
-                step("minmax", MinMaxScaler),
-                step("passthrough", FunctionTransformer),  # (3)!
-            )
+    categorical = (
+        step(
+            "categorical",
+            SimpleImputer,
+            space={"strategy": ["most_frequent", "constant"]}
+            config={"fill_value": "missing"}
         )
-        item=ColumnTransformer,
-        config={
-            "categoricals": make_column_selector(dtype_include=object),  # (1)!
-            "numericals": make_column_selector(dtype_include=np.number),  # (2)!
-        }
-)
-```
+        | step(
+            "one-hot-encoder"
+            OneHotEncoder,
+            space={"min_frequency": (0.01, 0.1), max_categories: (1, 10) },
+            config={"drop": "first", "handle_unknown": "infrequent_if_exist"},
+        ),
+    )
+    ```
 
-1. The [`make_column_selector`][sklearn.compose.make_column_selector] is how we select
-   columns from our data which are of `#!python dtype=object`. Notice
-   that we match `#!python "categoricals"` to the first step in the
-   path for handling categorical features. This is an artifact of
-   how we build the [sklearn.pipeline.Pipeline][].
-2. Much the same as the line above except we select all numerical
-   columns and send them to the `#!python "numericals"` path in the
-   split.
-3. This is how you implement a `#!python "passthrough"` in an sklearn
-   Pipeline, such that no transformation is applied.
+    We start by defining how are categoricals should be treated, which uses a
+    [sklearn.impute.SimpleImputer][] to impute missing values, followed by
+    a [sklearn.preprocessing.OneHotEncoder][] to encode the varialbes numerically.
 
+=== "The `#!python "numerical"` path"
+
+    ```python
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler
+
+    from byop.pipeline import split
+
+    numerical = (
+        step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
+        | choice(
+            "scaler",
+            step("standard", StandardScaler),
+            step("minmax", MinMaxScaler),
+            step("robust", RobustScaler),
+            step("passthrough", FunctionTransformer),
+        )
+    )
+    ```
+
+    Next we will define the numerical part of the preprocessing pipeline,
+    again using a [`SimplerImputer`][sklearn.impute.SimpleImputer], followed
+    by a choice of scalers from sklearn.
+
+
+=== "Creating the `Split`"
+
+    ```python hl_lines="35 36 37 38 39 40 41 42 43"
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler, OneHotEncoder
+    from sklearn.compose import ColumnTransformer, make_column_selector
+    import numpy as np
+
+    from byop.pipeline import step, split, Pipeline
+
+    numerical = (
+        step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
+        | choice(
+            "scaler",
+            step("standard", StandardScaler),
+            step("minmax", MinMaxScaler),
+            step("robust", RobustScaler),
+            step("passthrough", FunctionTransformer),
+        )
+    )
+
+    categorical = (
+        step(
+            "categorical",
+            SimpleImputer,
+            space={"strategy": ["most_frequent", "constant"]}
+            config={"fill_value": "missing"}
+        )
+        | step(
+            "one-hot-encoder"
+            OneHotEncoder,
+            space={"min_frequency": (0.01, 0.1), max_categories: (1, 10) },
+            config={"drop": "first", "handle_unknown": "infrequent_if_exist"},
+        ),
+    )
+
+    pipeline = Pipeline.create(
+        split(
+            "data_preprocessing",
+            categorical,
+            numerical,
+            item=ColumnTransformer,
+            config={
+                "categorical": make_column_selector(dtype_include=object),  # (1)!
+                "numerical": make_column_selector(dtype_include=np.number),  # (2)!
+            }
+    )
+    ```
+
+    1. The [`make_column_selector`][sklearn.compose.make_column_selector] is how we select
+       columns from our data which are of `#!python dtype=object`. Notice
+       that we match `#!python "categorical"` to the first step in the
+       path for handling categorical features. This is an artifact of
+       how we build the [sklearn.pipeline.Pipeline][].
+    2. Much the same as the line above except we select all numerical
+       columns and send them to the `#!python "numerical"` path in the
+       split.
+    3. This is how you implement a `#!python "passthrough"` in an sklearn
+       Pipeline, such that no transformation is applied.
+
+    Notice above that we gave the first steps of each path, namely
+    `#!python "categorical"` and `#!python "numerical"` to `#!python split(config={"numerical": ..., "categorical": ...})`.
+    This is how a [sklearn.compose.ColumnTransformer][] is built and nothing special that we do.
+
+=== "All in One"
+
+    ```python
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler, OneHotEncoder
+    from sklearn.compose import ColumnTransformer, make_column_selector
+    import numpy as np
+
+    from byop.pipeline import step, split, Pipeline
+
+    pipeline = Pipeline.create(
+        split(
+            "data_preprocessing",
+            (
+                step(
+                    "categorical",
+                    SimpleImputer,
+                    space={"strategy": ["most_frequent", "constant"]}
+                    config={"fill_value": "missing"}
+                )
+                | step(
+                    "one-hot-encoder"
+                    OneHotEncoder,
+                    space={"min_frequency": (0.01, 0.1), max_categories: (1, 10) },
+                    config={"drop": "first", "handle_unknown": "infrequent_if_exist"},
+                ),
+            ),
+            (
+                step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
+                | choice(
+                    "scaler",
+                    step("standard", StandardScaler),
+                    step("minmax", MinMaxScaler),
+                    step("passthrough", FunctionTransformer),  # (3)!
+                )
+            )
+            item=ColumnTransformer,
+            config={
+                "categorical": make_column_selector(dtype_include=object),  # (1)!
+                "numerical": make_column_selector(dtype_include=np.number),  # (2)!
+            }
+    )
+    ```
 
 ## Modules
 A pipeline is often not sufficient to represent everything surrounding the pipeline
 that you'd wish to associate with it. For that reason, we introduce the concept
-of [`module()`][byop.pipeline.module].
+of _module_.
 These are components or pipelines that you [`attach()`][byop.pipeline.Pipeline.attach]
 to your main pipeline, but are not directly part of the dataflow.
 
@@ -668,12 +857,12 @@ be trained but not actually how data should flow.
 Lets see how we might [`attach()`][byop.pipeline.Pipeline.attach] this to a `Pipeline`.
 
 ```python hl_lines="8"
-from byop.pipeline import Pipeline, module
+from byop.pipeline import Pipeline, step
 from lightning.pytorch import Trainer
 
 pipeline = Pipeline.create(...)
 
-trainer_module = module("trainer", Trainer)
+trainer_module = step("trainer", Trainer)
 
 pipeline = pipeline.attach(modules=trainer_module)  # (1)!
 ```
@@ -685,14 +874,14 @@ the modification.
 We can then easily access and build this as required.
 
 ```python
-from byop.pipeline import Pipeline, module
+from byop.pipeline import Pipeline, step
 from lightning.pytorch import Trainer
 
 pipeline = Pipeline.create(...)
 
-trainer_module = module("trainer", Trainer)
+trainer_module = step("trainer", Trainer)
 
-pipeline = pipeline.attach(modules=trainer_module)  # (1)!
+pipeline = pipeline.attach(modules=trainer_module)
 
 # ... later in the code
 
@@ -704,27 +893,24 @@ model = pipeline.build()
 
 Now this is not very useful by itself, but we can also define a `space` which
 is conveniently present in the `pipeline`'s space. This also means that
-we also configure the module when caliing `pipline.configure()`. Lastly,
+we also configure any modules when caliing `pipline.configure()`. Lastly,
 we can access the module using the `.modules` attribute with
 `#!python pipeline.modules["trainer"]` to call `build()` on it.
 
 ```python
-from byop.pipeline import Pipeline, module
+from byop.pipeline import Pipeline, step
 
 pipeline = Pipeline.create(...)
 
-trainer_module = module("trainer", Trainer, space={"precision": [16, 32, 64]})
+trainer_module = step("trainer", Trainer, space={"precision": [16, 32, 64]})
 
 pipeline.attach(modules=trainer_module)
 
 space = pipeline.space()  # (1)!
-print(space)
 
 config = pipeline.sample(space)
-print(config)
 
 configured_pipeline = pipeline.configure(config)  # (2)!
-print(configured_pipeline.modules["trainer"])
 
 model = pipeline.build()
 trainer = pipeline.modules["trainer"].build()  # (3)!

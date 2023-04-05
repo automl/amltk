@@ -5,6 +5,7 @@ import warnings
 
 from dask.distributed import Client, LocalCluster
 from distributed.cfexecutor import ClientExecutor
+import pytest
 from pytest_cases import case, fixture, parametrize_with_cases
 
 from byop.scheduling import Comm, CommTask, Scheduler
@@ -73,6 +74,10 @@ def scheduler(executor: Executor) -> Iterator[Scheduler]:
 
 def test_sending_worker(scheduler: Scheduler) -> None:
     """Test that the scheduler can receive replies."""
+    if isinstance(scheduler.executor, ClientExecutor):
+        # Dask doesn't seem to be able to handle this test.
+        pytest.skip("Dask seem to arbitrarily hang on this test. See issue #45.")
+
     replies = [1, 2, 3]
     results: list[int] = []
 
@@ -93,6 +98,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
         CommTask.DONE: 1,
         CommTask.RETURNED: 1,
         CommTask.MESSAGE: len(replies),
+        CommTask.F_RETURNED: 1,
         CommTask.CLOSE: 1,
     }
     assert task.counts == task_counts
@@ -104,6 +110,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
         (CommTask.RETURNED, "sending_worker"): 1,
         (CommTask.MESSAGE, "sending_worker"): len(replies),
         (CommTask.CLOSE, "sending_worker"): 1,
+        (CommTask.F_RETURNED, "sending_worker"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
@@ -140,6 +147,7 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
         CommTask.SUBMITTED: 1,
         CommTask.DONE: 1,
         CommTask.RETURNED: 1,
+        CommTask.F_RETURNED: 1,
         CommTask.MESSAGE: len(results),
         CommTask.REQUEST: len(requests),
         CommTask.CLOSE: 1,
@@ -149,6 +157,7 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
         (CommTask.SUBMITTED, "requesting_worker"): 1,
         (CommTask.DONE, "requesting_worker"): 1,
         (CommTask.RETURNED, "requesting_worker"): 1,
+        (CommTask.F_RETURNED, "requesting_worker"): 1,
         (CommTask.MESSAGE, "requesting_worker"): len(results),
         (CommTask.REQUEST, "requesting_worker"): len(requests),
         (CommTask.CLOSE, "requesting_worker"): 1,

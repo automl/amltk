@@ -69,12 +69,14 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
         Task.SUBMITTED: 1,
         Task.DONE: 1,
         Task.RETURNED: 1,
+        Task.F_RETURNED: 1,
     }
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "sleep"): 1,
         (Task.DONE, "sleep"): 1,
         (Task.RETURNED, "sleep"): 1,
+        (Task.F_RETURNED, "sleep"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
@@ -132,16 +134,24 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run(wait=True)
 
-    assert task_1.counts == {Task.SUBMITTED: 1, Task.DONE: 1, Task.RETURNED: 1}
-    assert task_2.counts == {Task.SUBMITTED: 1, Task.DONE: 1, Task.RETURNED: 1}
+    expected_counts = {
+        Task.SUBMITTED: 1,
+        Task.DONE: 1,
+        Task.RETURNED: 1,
+        Task.F_RETURNED: 1,
+    }
+    assert task_1.counts == expected_counts
+    assert task_2.counts == expected_counts
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "first"): 1,
         (Task.DONE, "first"): 1,
         (Task.RETURNED, "first"): 1,
+        (Task.F_RETURNED, "first"): 1,
         (Task.SUBMITTED, "second"): 1,
         (Task.DONE, "second"): 1,
         (Task.RETURNED, "second"): 1,
+        (Task.F_RETURNED, "second"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
@@ -167,12 +177,18 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run(timeout=3, end_on_empty=False)
 
-    assert task.counts == {Task.SUBMITTED: 1, Task.DONE: 1, Task.RETURNED: 1}
+    assert task.counts == {
+        Task.SUBMITTED: 1,
+        Task.DONE: 1,
+        Task.RETURNED: 1,
+        Task.F_RETURNED: 1,
+    }
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "sleep"): 1,
         (Task.DONE, "sleep"): 1,
         (Task.RETURNED, "sleep"): 1,
+        (Task.F_RETURNED, "sleep"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,

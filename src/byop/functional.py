@@ -17,6 +17,8 @@ from typing import (
     TypeVar,
 )
 
+from byop.exceptions import exception_wrap
+
 T = TypeVar("T")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
