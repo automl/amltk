@@ -1,11 +1,10 @@
 """Module for timing things."""
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from enum import Enum, auto
-import time
 from typing import ClassVar, Literal
-
 from typing_extensions import assert_never
 
 

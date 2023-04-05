@@ -3,8 +3,8 @@ is a reference to a resource.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any, Callable, Generic, TypeVar, overload
 
 from more_itertools.more import first

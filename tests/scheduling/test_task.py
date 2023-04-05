@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 import logging
 import time
-from typing import Iterator
 import warnings
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+from typing import Iterator
 
 from dask.distributed import Client, LocalCluster
 from distributed.cfexecutor import ClientExecutor

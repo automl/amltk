@@ -11,12 +11,12 @@ these loaders rely on checking the file extension of the path for
 """
 from __future__ import annotations
 
-from functools import partial
 import json
-from pathlib import Path
 import pickle
+from functools import partial
+from pathlib import Path
 from types import ModuleType
-from typing import Any, ClassVar, Literal, Protocol, TypeVar
+from typing import Any, ClassVar, Literal, Protocol, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -175,7 +175,7 @@ class PDLoader(PathLoader[pd.DataFrame]):
         save_method(obj, path)
 
 
-class JSONLoader(PathLoader[dict | list]):
+class JSONLoader(PathLoader[Union[dict, list]]):
     """A [`Loader`][byop.store.loader.Loader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to JSON.
 
@@ -221,7 +221,7 @@ class JSONLoader(PathLoader[dict | list]):
             json.dump(obj, f)
 
 
-class YAMLLoader(PathLoader[dict | list]):
+class YAMLLoader(PathLoader[Union[dict, list]]):
     """A [`Loader`][byop.store.loader.Loader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to YAML.
 
@@ -317,7 +317,7 @@ class PickleLoader(PathLoader[Any]):
     def load(cls, path: Path, /) -> Any:
         """See [`Loader.load`][byop.store.loader.Loader.load]."""
         with path.open("rb") as f:
-            return pickle.load(f)
+            return pickle.load(f)  # noqa: S301
 
     @classmethod
     def save(cls, obj: Any, path: Path, /) -> None:

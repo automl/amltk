@@ -14,14 +14,14 @@ from copy import copy
 from itertools import takewhile
 from typing import Any, Mapping
 
+import numpy as np
 from ConfigSpace import Categorical, ConfigurationSpace, Constant, EqualsCondition
 from ConfigSpace.hyperparameters import Hyperparameter
 from more_itertools import first, last
-import numpy as np
 
+import byop.randomness
 from byop.pipeline import Pipeline
 from byop.pipeline.components import Choice, Component, Split, Step
-import byop.randomness
 from byop.types import Seed
 
 

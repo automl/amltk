@@ -6,9 +6,9 @@ from __future__ import annotations
 from itertools import chain
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
+from typing_extensions import Self
 
 from more_itertools import ilen
-from typing_extensions import Self
 
 from byop.store.bucket import Bucket
 from byop.store.drop import Drop

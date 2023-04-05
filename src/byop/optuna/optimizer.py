@@ -5,12 +5,14 @@ TODO: More description and explanation with examples.
 from __future__ import annotations
 
 from typing import Any, Sequence
+from typing_extensions import Self
 
 import optuna
 from optuna.study import Study, StudyDirection
-from optuna.trial import Trial as OptunaTrial
-from optuna.trial import TrialState
-from typing_extensions import Self
+from optuna.trial import (
+    Trial as OptunaTrial,
+    TrialState,
+)
 
 from byop.optimization import Optimizer, Trial
 from byop.optuna.space import OptunaSearchSpace

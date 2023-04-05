@@ -10,18 +10,11 @@ be used for communication between the task and the main process.
 
 from __future__ import annotations
 
+import logging
 from asyncio import Future
 from itertools import chain
-import logging
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Generic,
-    Hashable,
-    ParamSpec,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Any, Callable, Generic, Hashable, TypeVar
+from typing_extensions import ParamSpec
 
 from pynisher import Pynisher
 
