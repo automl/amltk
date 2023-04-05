@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from concurrent.futures import Executor, ProcessPoolExecutor
+from concurrent.futures import (
+    Executor,
+    Future as SyncFuture,
+    ProcessPoolExecutor,
+    wait as wait_futures,
+)
 from enum import Enum, auto
 from multiprocessing.context import BaseContext
 from typing import Any, Callable, Hashable, TypeVar
@@ -106,6 +111,14 @@ class Scheduler:
             tasks will have to wait until all running tasks are finish
             before python can close.
 
+            It's likely `terminate` will trigger the `EXCEPTION` event for
+            any tasks that are running during the shutdown, **not***
+            a cancelled event. This is because we use a
+            [`Future`][concurrent.futures.Future]
+            under the hood and these can not be cancelled once running.
+            However there is no gaurantee of this and is up to how the
+            `Executor` handles this.
+
         Args:
             executor: The dispatcher to use for submitting tasks.
             terminate: Whether to call shutdown on the executor when
@@ -137,17 +150,17 @@ class Scheduler:
             self.event_manager = event_manager
 
         # The current state of things and references to them
-        self.queue: list[asyncio.Future] = []
+        self.queue: list[SyncFuture] = []
 
         # This can be triggered either by `scheduler.stop` in a callback
-        self._stop_event: asyncio.Event = asyncio.Event()
+        self._stop_event: asyncio.Event | None = None
 
         # This is a condition to make sure monitoring the queue will wait
         # properly
-        self._queue_has_items: asyncio.Event = asyncio.Event()
+        self._queue_has_items: asyncio.Event | None = None
 
         # This is triggered when run is called
-        self._running: asyncio.Event = asyncio.Event()
+        self._running: asyncio.Event | None = None
 
         self.on_start = self.event_manager.subscriber(self.STARTED)
         self.on_finishing = self.event_manager.subscriber(self.FINISHING)
@@ -191,6 +204,9 @@ class Scheduler:
         Returns:
             True if the scheduler is running and accepting tasks.
         """
+        if self._running is None:
+            return False
+
         return self._running.is_set()
 
     @property
@@ -214,39 +230,44 @@ class Scheduler:
         function: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> asyncio.Future[R] | None:
-        try:
-            sync_future = self.executor.submit(function, *args, **kwargs)
-        except RuntimeError:
-            logger.warning(
-                "The executor is not running, cannot submit task %s", function
-            )
-            return None
-        async_future = asyncio.wrap_future(sync_future)
-        async_future.add_done_callback(self._register_complete)
-        self.queue.append(async_future)
-        self._queue_has_items.set()
-        return async_future
+    ) -> SyncFuture[R] | None:
+        if self._queue_has_items is None:
+            raise RuntimeError("The scheduler is not running!")
 
-    def _register_complete(self, future: asyncio.Future) -> None:
+        try:
+            sync_future: SyncFuture = self.executor.submit(function, *args, **kwargs)
+        except RuntimeError:
+            logger.warning(f"Executor is not running, cannot submit task {function}")
+            return None
+
+        self.queue.append(sync_future)
+        sync_future.add_done_callback(self._register_complete)
+        self._queue_has_items.set()
+        return sync_future
+
+    def _register_complete(self, future: SyncFuture) -> None:
         try:
             self.queue.remove(future)
         except ValueError as e:
-            msg = f"{future=} was not found in the queue {self.queue}!"
-            raise ValueError(msg) from e
+            logger.error(f"{future=} was not found in the queue {self.queue}: {e}!")
 
     async def _stop_when_queue_empty(self) -> None:
         """Stop the scheduler when the queue is empty."""
         while self.queue:
-            await asyncio.wait(self.queue, return_when=asyncio.ALL_COMPLETED)
+            async_futures = [asyncio.wrap_future(f) for f in self.queue]
+            await asyncio.wait(async_futures, return_when=asyncio.ALL_COMPLETED)
 
         logger.debug("Scheduler queue is empty")
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
+        if self._queue_has_items is None:
+            raise RuntimeError("The scheduler is not running!")
+
         while True:
             while self.queue:
-                await asyncio.wait(self.queue, return_when=asyncio.ALL_COMPLETED)
+                async_futures = [asyncio.wrap_future(f) for f in self.queue]
+                await asyncio.wait(async_futures, return_when=asyncio.ALL_COMPLETED)
 
             # Signal that the queue is now empty
             self._queue_has_items.clear()
@@ -256,13 +277,17 @@ class Scheduler:
             await self._queue_has_items.wait()
             logger.debug("Queue has been filled again")
 
-    async def _stop_when_triggered(self) -> None:
+    async def _stop_when_triggered(self) -> bool:
         """Stop the scheduler when the stop event is set."""
+        if self._stop_event is None:
+            raise RuntimeError("The scheduler is not running!")
+
         await self._stop_event.wait()
 
         logger.debug("Stop event triggered, stopping scheduler")
+        return True
 
-    async def _run_scheduler(  # noqa: PLR0912, C901
+    async def _run_scheduler(  # noqa: PLR0912, C901, PLR0915
         self,
         *,
         timeout: float | None = None,
@@ -270,6 +295,11 @@ class Scheduler:
         wait: bool = True,
     ) -> ExitCode:
         self.executor.__enter__()
+
+        # Create all the private events in the current loop we're running int
+        self._stop_event = asyncio.Event()
+        self._queue_has_items = asyncio.Event()
+        self._running = asyncio.Event()
 
         # Declare we are running
         self._running.set()
@@ -300,7 +330,7 @@ class Scheduler:
         )
 
         # Determine the reason for stopping
-        if stop_triggered.done():
+        if stop_triggered.done() and self._stop_event.is_set():
             stop_reason = Scheduler.ExitCode.STOPPED
             self.event_manager.emit(Scheduler.STOP)
         elif queue_empty and queue_empty.done():
@@ -317,43 +347,55 @@ class Scheduler:
         if monitor_empty:
             monitor_empty.cancel()
 
-        # Cancel the stopping criterion
+        # Cancel the stopping criterion and await them
         for stopping_criteria in stop_criterion:
             stopping_criteria.cancel()
 
+        all_tasks = [*stop_criterion]
+        if monitor_empty is not None:
+            all_tasks.append(monitor_empty)
+        if queue_empty is not None:
+            all_tasks.append(queue_empty)
+
+        for task in all_tasks:
+            task.cancel()
+
+        await asyncio.wait(all_tasks, return_when=asyncio.ALL_COMPLETED)
+
         self.event_manager.emit(Scheduler.FINISHING)
 
-        if self.terminate:
-            logger.debug(f"Shutting down scheduler executor with {wait=}")
-            if wait:
-                logger.debug("Waiting for jobs to finish in executor shutdown")
-
-            self.executor.shutdown(wait=wait)
+        logger.debug(f"Shutting down scheduler executor with {wait=}")
 
         # The scheduler is now refusing jobs
         self._running.clear()
+        self._running = None
         logger.debug("Scheduler has shutdown and declared as no longer running")
 
-        # We do a manual `cancel_futures` here since it doesn't seem part of dask api
-        if (
-            stop_reason in (Scheduler.ExitCode.TIMEOUT, Scheduler.ExitCode.STOPPED)
-            and not wait
-        ):
-            for future in self.queue:
-                if not future.done():
+        if not wait:
+            if self.terminate is not None:
+                logger.debug(f"Terminating workers with {self.terminate}")
+                self.terminate(self.executor)
+            else:
+                # Just try to cancel the tasks. Will cancel pending tasks
+                # but executors like dask will even kill the job
+                for future in self.queue:
                     future.cancel()
         else:
-            logger.debug("Waiting for running tasks to finish and process...")
-            queue_empty = asyncio.create_task(self._stop_when_queue_empty())
-            await queue_empty
+            logger.debug("Waiting for currently running tasks to finish.")
 
-        # If we are meant to shut down the executor and terminate the workers
-        # we should do so.
-        if self.terminate:
-            self.terminate(self.executor)
+        # Here we wait, if we could terminate or cancel, then we wait for that
+        # to happen, otherwise we are just waiting as anticipated.
+        current_futures = self.queue[:]
+        wait_futures(current_futures)
+        self.executor.shutdown(wait=wait)
 
         self.event_manager.emit(Scheduler.FINISHED)
         logger.info(f"Scheduler finished with status {stop_reason}")
+
+        # Remove all the private events
+        self._stop_event = None
+        self._queue_has_items = None
+
         return stop_reason
 
     def run(
@@ -422,6 +464,9 @@ class Scheduler:
         """Stop the scheduler."""
         # NOTE: we allow args and kwargs to allow it to be easily
         # included in any callback.
+        if self._stop_event is None:
+            raise RuntimeError("Scheduler has not been started yet")
+
         self._stop_event.set()
 
     class ExitCode(Enum):

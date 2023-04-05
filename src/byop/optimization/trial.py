@@ -4,7 +4,7 @@ TODO: Populate more here.
 """
 from __future__ import annotations
 
-from asyncio import Future
+from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Generic, Iterator, Literal, Mapping, TypeVar
@@ -222,7 +222,7 @@ class Trial(Generic[Info]):
             """Call the objective."""
             return self.f(trial, *self.args, **self.kwargs)
 
-    class Task(TaskBase[["Trial[InfoInner]"], "Trial.Report[InfoInner]"]):
+    class Task(TaskBase):
         """A task that will run a target function and tell the optimizer the result."""
 
         SUCCESS: Event[Trial.SuccessReport] = Event("trial-success")
