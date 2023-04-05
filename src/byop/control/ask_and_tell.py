@@ -6,7 +6,8 @@ then tell the optimizer the result of the trial after each trial.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Generic, ParamSpec, TypeVar
+from typing import Any, Callable, Generic, TypeVar
+from typing_extensions import ParamSpec
 
 from byop.optimization import Optimizer, Trial
 from byop.scheduling import Scheduler

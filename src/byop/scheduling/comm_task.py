@@ -1,29 +1,20 @@
 """A module containing the CommTask class.
 
 ???+ note
+
     Please see the documentation for the [`Task`][byop.scheduling.task.Task]
     for basics of a task.
 """
 from __future__ import annotations
 
 import asyncio
+import logging
 from asyncio import Future
 from dataclasses import dataclass, field
-import logging
 from multiprocessing import Pipe
 from multiprocessing.connection import Connection
-from typing import (
-    Any,
-    Callable,
-    Concatenate,
-    Generic,
-    Literal,
-    ParamSpec,
-    TypeVar,
-    overload,
-)
-
-from typing_extensions import Self
+from typing import Any, Callable, Generic, Literal, TypeVar, overload
+from typing_extensions import Concatenate, ParamSpec, Self
 
 from byop.asyncm import AsyncConnection
 from byop.events import Event

@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, ParamSpec, TypeVar
+from typing import Callable, TypeVar
+from typing_extensions import ParamSpec
 
 from byop.optimization.optimizer import Optimizer, Trial
 from byop.samplers import Sampler

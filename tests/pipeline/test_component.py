@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from itertools import chain, combinations
 
 from pytest_cases import case, parametrize, parametrize_with_cases

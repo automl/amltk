@@ -9,7 +9,8 @@ configspace = generate_optuna_search_space(pipeline)
 """
 from __future__ import annotations
 
-from typing import Any, Mapping, TypeAlias
+from typing import Any, Dict, Mapping, Union
+from typing_extensions import TypeAlias
 
 from optuna.distributions import (
     BaseDistribution,
@@ -20,8 +21,8 @@ from optuna.distributions import (
 
 from byop.pipeline import Choice, Pipeline, Searchable, Split, Step
 
-HyperparameterType: TypeAlias = int | str | float
-OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
+HyperparameterType: TypeAlias = Union[int, str, float]
+OptunaSearchSpace: TypeAlias = Dict[str, BaseDistribution]
 
 
 def _convert_hp_to_optuna_distribution(

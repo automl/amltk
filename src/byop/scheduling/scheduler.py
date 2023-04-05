@@ -6,19 +6,12 @@ for when they complete.
 from __future__ import annotations
 
 import asyncio
+import logging
 from concurrent.futures import Executor, ProcessPoolExecutor
 from enum import Enum, auto
-import logging
 from multiprocessing.context import BaseContext
-from typing import (
-    Any,
-    Callable,
-    Hashable,
-    ParamSpec,
-    TypeVar,
-)
-
-from typing_extensions import Self
+from typing import Any, Callable, Hashable, TypeVar
+from typing_extensions import ParamSpec, Self
 
 from byop.events import Event, EventManager
 from byop.scheduling.termination_strategies import termination_strategy

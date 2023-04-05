@@ -8,6 +8,7 @@ dependencies = [
   "attrs",
   "pandas",
   "numpy",
+  "pynisher>=1.0.5",
 ]
 requires-python = ">=3.8"
 authors = [{ name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com" }]
@@ -197,7 +198,6 @@ exclude = [
     "ANN001",
     "ANN201",
     "D100",
-    "I002",
     "PLR2004",
     "PD901",  #  X is a bad variable name. (pandas)
 ]
@@ -210,14 +210,16 @@ exclude = [
 known-first-party = ["byop"]
 no-lines-before = ["future"]
 required-imports = ["from __future__ import annotations"]
-force-sort-within-sections = true
+combine-as-imports = true
+extra-standard-library = ["typing_extensions"]
+force-wrap-aliases = true
 
 [tool.ruff.pydocstyle]
 convention = "google"
 
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.8"
 
 show_error_codes = true
 

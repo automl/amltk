@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import operator
-from pathlib import Path
 import shutil
+from pathlib import Path
 from typing import Callable, Iterator, Literal, TypeVar
 
 import numpy as np

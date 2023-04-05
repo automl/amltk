@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import random
 
-from more_itertools import first, last
 import pytest
+from more_itertools import first, last
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from byop import Pipeline, choice, split, step
@@ -109,7 +111,7 @@ def test_find_not_present(pipeline: Pipeline) -> None:
 
 @parametrize_with_cases("pipeline", cases=".", has_tag="deep")
 def test_find_deep(pipeline: Pipeline) -> None:
-    selected_step = random.choice(list(pipeline.traverse()))
+    selected_step = random.choice(list(pipeline.traverse()))  # noqa: S311
     assert pipeline.find(selected_step.name) == selected_step
 
 

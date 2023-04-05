@@ -1,22 +1,23 @@
 """All code for allowing an event system."""
 from __future__ import annotations
 
+import logging
+import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from itertools import chain
-import logging
-import math
 from typing import (
     Any,
     Callable,
     Generic,
     Hashable,
     Iterator,
+    List,
     Mapping,
-    ParamSpec,
     TypeVar,
     overload,
 )
+from typing_extensions import ParamSpec
 
 from byop.fluid import ChainPredicate
 from byop.functional import callstring, funcname
@@ -241,7 +242,7 @@ class Handler(Generic[P]):
 
 
 @dataclass
-class EventHandler(Mapping[str, list[Callable[P, Any]]]):
+class EventHandler(Mapping[str, List[Callable[P, Any]]]):
     """An event handler."""
 
     callbacks: dict[str, list[Handler[P]]] = field(

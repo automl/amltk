@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Generic, ParamSpec, Protocol, TypeVar
+from typing import Callable, Generic, Protocol, TypeVar
+from typing_extensions import ParamSpec
 
 from byop.types import Comparable
 
