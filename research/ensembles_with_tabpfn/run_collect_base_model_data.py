@@ -20,6 +20,7 @@ from research.ensembles_with_tabpfn.base_model_code.experiment_pipeline_builder 
 from research.ensembles_with_tabpfn.base_model_code.data_handler import setup_data_bucket
 from research.ensembles_with_tabpfn.base_model_code.validation_procedure import predict_fit_repeated_cross_validation
 
+from research.ensembles_with_tabpfn.utils.config import METRIC_MAP
 
 def target_function(trial: Trial, /, bucket: PathBucket, pipeline: Pipeline, metric_data: dict) -> Trial.Report:
     X_train, X_test, y_train, y_test = (
@@ -71,6 +72,7 @@ def _run():  # to avoid global vars
     logging.basicConfig(level=logging.INFO)
     algorithm_name = "XT"  # {"MLP", "RF", "LM", "GBM", "KNN", "XT"}
     bucket_name = "debug"
+    metric_name = "balanced_accuracy"
 
     # TODO: decide on correct random state management for experiments
     seed = 42
@@ -78,15 +80,8 @@ def _run():  # to avoid global vars
     # TODO: decide on parallelization levels (at algorithm level, at validation level, at optimizer level?)
     # n_workers = 4
 
-    metric_data = {
-        "name": "balanced_accuracy",
-        "function": balanced_accuracy_score,
-        "requires_proba": False,
-        "to_loss_function": lambda x: 1 - x,
-        "task_type": "classification"
-    }
-
-    data_bucket = setup_data_bucket(seed, "./base_model_data/" + bucket_name + "_" + algorithm_name)
+    metric_data = METRIC_MAP[metric_name]
+    data_bucket = setup_data_bucket(seed, ".data_space/base_model_data/" + bucket_name + "_" + algorithm_name)
     pipeline = build_pipeline(algorithm_name)
 
     optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)

@@ -20,10 +20,8 @@ class AbstractNumericalSolverEnsemble(AbstractWeightedEnsemble):
     ----------
     base_models: List[Callable], List[sklearn estimators]
         The pool of fitted base models.
-    n_iterations: int
-        The number of iterations determines the number of evaluations. By default, number of evaluations
-        = n_iterations * n_base_models. So this parameter could also be understood as
-        "number of evaluations per base model".
+    n_metric_evals: int
+        The number of allowed function evaluations.
     loss_function: Callable
         TODO: implement this using a scorer (if possible)
         A function that maps (prediction_probabilities, labels) -> loss.
@@ -57,18 +55,17 @@ class AbstractNumericalSolverEnsemble(AbstractWeightedEnsemble):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, base_models: List[Callable], n_iterations: int, loss_function: Callable,
+    def __init__(self, base_models: List[Callable], n_metric_evals: int, loss_function: Callable,
                  batch_size: int, normalize_predict_proba_output: bool = False,
                  n_jobs=-1, normalize_weights: str = "no", trim_weights: str = "no", supports_mp=True,
                  random_state: Optional[Union[int, np.random.RandomState]] = None) -> None:
         super().__init__(base_models, "predict_proba")
 
-        self.n_iterations = n_iterations
+        self.n_evaluations = n_metric_evals
         self.n_base_models = len(base_models)
         self.batch_size = batch_size if batch_size > 0 else len(base_models)
         self.loss_function = loss_function
         self.random_state = check_random_state(random_state)
-        self.n_evaluations = self.n_iterations * self.n_base_models
         self.supports_mp = supports_mp
         self.normalize_predict_proba_output = normalize_predict_proba_output
 
@@ -91,7 +88,8 @@ class AbstractNumericalSolverEnsemble(AbstractWeightedEnsemble):
         self.normalize_weights = normalize_weights != "no"
         self.trim_weights = trim_weights
         self._normalize_weights = partial(self._normalize_weights_static, method=normalize_weights, trim=trim_weights,
-                                          n_iterations=self.n_iterations)
+                                          n_iterations=50 # simulated iterations for GES-like normalization
+                                          )
 
         if normalize_predict_proba_output and (not self.normalize_weights):
             self.normalize_predict_proba_ = True

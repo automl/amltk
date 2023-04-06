@@ -46,7 +46,7 @@ class EnsembleWeightingCMAES(AbstractNumericalSolverEnsemble):
             # Ask/tell
             solutions = es.ask()
             es.tell(solutions, self._evaluate_batch_of_solutions(solutions, predictions, labels))
-            es.disp(modulo=1)  # modulo=1 to print every iteration
+            # es.disp(modulo=1)  # modulo=1 to print every iteration
 
             # Iteration finalization
             val_loss_over_iterations.append(es.result.fbest)

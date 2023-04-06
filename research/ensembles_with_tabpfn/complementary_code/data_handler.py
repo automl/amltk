@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 import re
-from typing import List
+from typing import List, Tuple
 
 from byop.store import PathBucket
 
@@ -45,9 +45,12 @@ class FakedFittedAndValidatedClassificationBaseModel:
     def switch_to_test_simulation(self):
         self.return_val_data = False
 
+    def switch_to_val_simulation(self):
+        self.return_val_data = True
+
 
 def read_all_base_models(path_to_base_model_data: str, bucket_name: str, algorithms: List[str]) \
-        -> List[FakedFittedAndValidatedClassificationBaseModel]:
+        -> Tuple[List[FakedFittedAndValidatedClassificationBaseModel], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Read all base models as fake base model for our usage later on."""
     X_train, X_test, y_train, y_test = None, None, None, None
     le_, classes_ = None, None
@@ -107,4 +110,4 @@ def read_all_base_models(path_to_base_model_data: str, bucket_name: str, algorit
 
         base_models.extend(tmp_base_models)
 
-    return base_models
+    return base_models, X_train, X_test, y_train, y_test

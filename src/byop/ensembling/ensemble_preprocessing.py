@@ -10,19 +10,16 @@ import math
 
 
 # --- Pruning
-def _prune_to_top_n(base_models, n):
+def _prune_to_top_n(base_models, n, maximize_metric):
     """Prune to the top N models based on validation score."""
-    maximize_metric = True  # TODO: get this from the metric / outer scope / scorer
     base_models = sorted(base_models, key=lambda m: m.val_score, reverse=maximize_metric)
 
     return base_models[:n]
 
 
-def _prune_to_silo_top_n(base_models, n):
+def _prune_to_silo_top_n(base_models, n, maximize_metric):
     """Prune to the top N models per silo based on validation score. A silo represents an algorithm family."""
     # Code Taken from Lennart's (unpublished) version of Assembled (https://github.com/ISG-Siegen/assembled)
-
-    maximize_metric = True  # TODO: get this from the metric / outer scope / scorer
 
     # -- Get silos
     # algorithm family (af) to list of base models of this family
@@ -77,13 +74,14 @@ def _prune_to_silo_top_n(base_models, n):
     return sorted(base_models, key=lambda m: m.val_score, reverse=maximize_metric)
 
 
-def prune_base_models(base_models: List[object], max_number_base_models: int = 25, pruning_method: str = "TopN"):
+def prune_base_models(base_models: List[object], max_number_base_models: int = 25, pruning_method: str = "TopN",
+                      maximize_validation_score: bool = True) -> List[object]:
     """Prunes the base models to a maximum number of base models.
 
     Parameters
     ----------
     base_models: List[base_model_object]
-        TODO define base model object to be used here or whatever we decide on later
+        TODO define base model object to be used here or whatever we decide on later and update typing
         Base model object that includes validation score, validation predictions, and model config.
     max_number_base_models: int
         The final number of base models (at most).
@@ -92,15 +90,18 @@ def prune_base_models(base_models: List[object], max_number_base_models: int = 2
             * TopN: Prune to the top N models based on validation score.
             * SiloTopN: Pruned to N, such that as many top-performing models of each algorithm family are kept.
             * X: more method possible... would be cool to research this (with the AutoML toolkit)...
+    maximize_validation_score: bool, default=True
+        # TODO: maybe rename score to performance in bm object and here...
+        Whether the validation "score" stored in the base models should be maximized or minimized.
     """
     # Input Check
     if len(set([bm.name for bm in base_models])) != len([bm.name for bm in base_models]):
         raise ValueError("Base models have duplicate names. This is not supported!.")
 
     if pruning_method == "SiloTopN":
-        base_models = _prune_to_silo_top_n(base_models, max_number_base_models)
+        base_models = _prune_to_silo_top_n(base_models, max_number_base_models, maximize_validation_score)
     elif pruning_method == "TopN":
-        base_models = _prune_to_top_n(base_models, max_number_base_models)
+        base_models = _prune_to_top_n(base_models, max_number_base_models, maximize_validation_score)
     else:
         raise ValueError(f"Pruning method {pruning_method} not supported.")
 

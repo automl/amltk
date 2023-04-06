@@ -135,7 +135,8 @@ class AbstractEnsemble(object):
             Vector containing the class probabilities for each class for each sample.
         """
         check_is_fitted(self, ["le_", "classes_"])
-        X = check_array(X)
+        # TODO: as for fit
+        X = check_array(X, dtype=None)
         bm_preds = self.base_models_predictions_for_ensemble_predict(X, predict_for="predict_proba")
 
         ensemble_output = self.ensemble_predict_proba(bm_preds)
