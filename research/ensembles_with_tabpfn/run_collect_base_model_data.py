@@ -108,6 +108,8 @@ def _run():  # to avoid global vars
 
 
 if __name__ == "__main__":  # MP safeguard
-    # TODO: transform into a SLURM executable script that takes as arguments:
-    #   - algorithm name; dataset/task id; ...
+    # TODO:
+    #   - transform into a SLURM executable script that takes as arguments:
+    #       - algorithm name; dataset/task id; ...
+    #   - make this script and data paths work across datasets (change data paths mostly)
     _run()

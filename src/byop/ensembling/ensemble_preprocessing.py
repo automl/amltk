@@ -28,6 +28,10 @@ def _prune_to_silo_top_n(base_models, n):
     # algorithm family (af) to list of base models of this family
     af_to_model = {}  # type: Dict[str, List[Tuple[float, str, str]]]
     for bm in base_models:
+        if "algorithm" not in bm.config:
+            raise ValueError("Base model config does not contain 'algorithm' key, which is needed for SiloTopN. "
+                             "Got the following keys: {}".format(bm.config.keys()))
+
         algorithm_family = bm.config["algorithm"]
         if algorithm_family not in af_to_model:
             af_to_model[algorithm_family] = []
@@ -51,7 +55,7 @@ def _prune_to_silo_top_n(base_models, n):
             [base_model for af in too_large_silos for base_model in af_to_model[af]],
             key=lambda x: x[0],  # sort by validation score/loss
             reverse=maximize_metric  # determines if higher or lower is better
-        )[0]  # select the worst model (first element)
+        )[-1]  # select the worst model (first element)
         af_to_model[worst_model[-1]].remove(worst_model)
 
     if sum(len(base_models) for base_models in af_to_model.values()) > n:
@@ -89,6 +93,9 @@ def prune_base_models(base_models: List[object], max_number_base_models: int = 2
             * SiloTopN: Pruned to N, such that as many top-performing models of each algorithm family are kept.
             * X: more method possible... would be cool to research this (with the AutoML toolkit)...
     """
+    # Input Check
+    if len(set([bm.name for bm in base_models])) != len([bm.name for bm in base_models]):
+        raise ValueError("Base models have duplicate names. This is not supported!.")
 
     if pruning_method == "SiloTopN":
         base_models = _prune_to_silo_top_n(base_models, max_number_base_models)
@@ -96,5 +103,9 @@ def prune_base_models(base_models: List[object], max_number_base_models: int = 2
         base_models = _prune_to_top_n(base_models, max_number_base_models)
     else:
         raise ValueError(f"Pruning method {pruning_method} not supported.")
+
+    # Sanity Check
+    if len(base_models) > max_number_base_models:
+        raise ValueError(f"Pruning method {pruning_method} did not prune to {max_number_base_models} models.")
 
     return base_models
