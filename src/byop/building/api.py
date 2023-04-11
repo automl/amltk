@@ -2,12 +2,12 @@
 
 The `Builder` is responsble for taking a configured pipeline and
 assembling it into a runnable pipeline. By default, this will try
-"auto" which uses some rough heuristics to determine what to build
-from your configured [`Pipeline`][byop.pipeline.Pipeline].
+some rough heuristics to determine what to build from your
+configured [`Pipeline`][byop.pipeline.Pipeline].
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, TypeVar, overload
+from typing import Any, Callable, TypeVar, overload
 
 from more_itertools import first_true, seekable
 
@@ -25,12 +25,7 @@ class BuildError(Exception):
 
 
 @overload
-def build(pipeline: Pipeline) -> Any:
-    ...
-
-
-@overload
-def build(pipeline: Pipeline, builder: Literal["auto"]) -> Any:
+def build(pipeline: Pipeline, builder: None = None) -> Any:
     ...
 
 
@@ -44,13 +39,13 @@ def build(
 
 def build(
     pipeline: Pipeline,
-    builder: Literal["auto"] | Callable[[Pipeline], B] = "auto",
+    builder: Callable[[Pipeline], B] | None = None,
 ) -> B | Any:
     """Build a pipeline into a usable object.
 
     Args:
         pipeline: The pipeline to build
-        builder: The builder to use. Defaults to "auto" which will
+        builder: The builder to use. Defaults to `None` which will
             try to determine the best builder to use.
 
     Returns:
@@ -58,7 +53,7 @@ def build(
     """
     builders: list[Any]
 
-    if builder == "auto":
+    if builder is None:
         builders = DEFAULT_BUILDERS
 
     elif callable(builder):

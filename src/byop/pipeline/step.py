@@ -4,14 +4,17 @@ These objects act as a doubly linked list to connect steps into a chain which
 are then convenientyl wrapped in a `Pipeline` object. Their concrete implementations
 can be found in the `byop.pipeline.components` module.
 """
+# TODO: Something
+
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from copy import copy
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
+    ClassVar,
+    Generic,
     Iterable,
     Iterator,
     Mapping,
@@ -23,12 +26,15 @@ from typing_extensions import Self
 from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
 
+from byop.types import Seed, Space
+
 if TYPE_CHECKING:
     from byop.pipeline.components import Split
+    from byop.pipeline.parser import Parser
 
 
 @frozen(kw_only=True)
-class Step(ABC):
+class Step(Generic[Space]):
     """The core step class for the pipeline.
 
     These are simple objects that are named and linked together to form
@@ -52,8 +58,14 @@ class Step(ABC):
     """
 
     name: str
+
     prv: Step | None = field(default=None, eq=False, repr=False)
     nxt: Step | None = field(default=None, eq=False, repr=False)
+
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
+
+    DELIMITER: ClassVar[str] = ":"
 
     def __or__(self, nxt: Step) -> Step:
         """Append a step on this one, return the head of a new chain of steps.
@@ -124,6 +136,10 @@ class Step(ABC):
         elif self.nxt is not None:
             yield from self.nxt.iter(backwards=False, to=to)
 
+    def configured(self) -> bool:
+        """Check if this searchable is configured."""
+        return self.search_space is None and self.config is not None
+
     def head(self) -> Step:
         """Get the first step of this chain."""
         return last(self.iter(backwards=True))
@@ -156,7 +172,7 @@ class Step(ABC):
         #   *new* mutated step, we explicitly remove the "prv" and "nxt" attributes
         #   This is unlikely to be very useful for the base Step class other than
         #   to rename it.
-        return evolve(self, **{**kwargs, "prv": None, "nxt": None})
+        return evolve(self, **{**kwargs, "prv": None, "nxt": None})  # type: ignore
 
     def copy(self) -> Self:
         """Copy this step.
@@ -166,20 +182,6 @@ class Step(ABC):
         """
         return copy(self)
 
-    @abstractmethod
-    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
-        """Replace the current step with the chosen step if it's a choice.
-
-        Args:
-            choices: Mapping of choice names to the path to pick
-
-        Yields:
-            Step[Key]: The unmodified step if not a choice, else the chosen choice
-                if applicable
-        """
-        ...
-
-    @abstractmethod
     def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """Remove the given steps from this chain.
 
@@ -189,39 +191,25 @@ class Step(ABC):
         Yields:
             Step[Key]: The steps in the chain unless it was one to remove
         """
-        ...
+        if self.name not in keys:
+            yield self
 
-    @abstractmethod
+        if self.nxt is not None:
+            yield from self.nxt.remove(keys)
+
     def walk(
         self,
-        splits: Sequence[Split],
-        parents: Sequence[Step],
+        splits: Sequence[Split] | None = None,
+        parents: Sequence[Step] | None = None,
     ) -> Iterator[tuple[list[Split], list[Step], Step]]:
-        """Walk along the joined steps, yielding any splits and the parents.
+        """See `Step.walk`."""
+        splits = list(splits) if splits is not None else []
+        parents = list(parents) if parents is not None else []
+        yield splits, parents, self
 
-        Args:
-            splits: The splits of this step.
-            parents: The parents of this step.
+        if self.nxt is not None:
+            yield from self.nxt.walk(splits, [*parents, self])
 
-        Yields:
-            (splits, parents, step):
-                Splits to get to this node, direct parents and the current step
-        """
-        ...
-
-    @abstractmethod
-    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
-        """Replace the given step with a new one.
-
-        Args:
-            replacements: The steps to replace
-
-        Yields:
-            step: The steps in the chain, replaced if in replacements
-        """
-        ...
-
-    @abstractmethod
     def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
         """Traverse any sub-steps associated with this step.
 
@@ -233,16 +221,63 @@ class Step(ABC):
         Returns:
             Iterator[Step[Key, O]]: The iterator over steps
         """
-        ...
+        if include_self:
+            yield self
 
-    @abstractmethod
-    def configured(self) -> bool:
-        """Whether this step is configured.
+        if self.nxt is not None:
+            yield from self.nxt.traverse()
 
-        Returns:
-            bool: True if configured, else False
+    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
+        """Replace the given step with a new one.
+
+        Args:
+            replacements: The steps to replace
+
+        Yields:
+            step: The steps in the chain, replaced if in replacements
         """
-        ...
+        yield replacements.get(self.name, self)
+
+        if self.nxt is not None:
+            yield from self.nxt.replace(replacements=replacements)
+
+    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
+        """Replace the current step with the chosen step if it's a choice.
+
+        Args:
+            choices: Mapping of choice names to the path to pick
+
+        Yields:
+            Step[Key]: The unmodified step if not a choice, else the chosen choice
+                if applicable
+        """
+        yield self
+
+        if self.nxt is not None:
+            yield from self.nxt.select(choices)
+
+    def space(
+        self,
+        parser: Parser[Space] | None = None,
+        *,
+        seed: Seed | None = None,
+    ) -> Space | None:
+        """Get the search space for this step."""
+        if self.search_space is None:
+            return None
+
+        return Parser.try_parse(self, parser, seed=seed)
+
+    def build(self) -> Any:
+        """Build the step.
+
+        Subclasses should overwrite as required, by default for a Step,
+        this will raise an Error
+
+        Raises:
+            NotImplementedError: If not overwritten
+        """
+        raise NotImplementedError(f"`build()` is not implemented for {type(self)}")
 
     @classmethod
     def join(cls, *steps: Step | Iterable[Step]) -> Step:

@@ -75,7 +75,7 @@ in the [Pipeline guide](./pipelines.md).
     def poly(x):
         return (x**2 + 4*x + 3) / x
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})  # (1)!
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})  # (1)!
     ```
 
     1. Here we say that there is a collection of `#!python "parameters"`
@@ -89,7 +89,7 @@ in the [Pipeline guide](./pipelines.md).
     def poly(x: float) -> float:
         return (x**2 + 4*x + 3) / x
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})  # (1)!
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})  # (1)!
     ```
 
     1. Here we say that there is a collection of `#!python "parameters"`
@@ -110,7 +110,7 @@ for an optimal value for `#!python "x"` but later on we'll switch to using
     def poly(x):
         return (x**2 + 4*x + 3) / x
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
 
     space = s.space()
     random_search = RandomSearch(space=space, seed=42)
@@ -125,7 +125,7 @@ for an optimal value for `#!python "x"` but later on we'll switch to using
     def poly(x: float) -> float:
         return (x**2 + 4*x + 3) / x
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
 
     space = s.space()
     random_search = RandomSearch(space=space, seed=42)
@@ -199,7 +199,7 @@ the `Trial` and return the `Report`.
 
         trial.fail()  # (3)!
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
 
     space = s.space()
     random_search = RandomSearch(space=space, seed=42)
@@ -236,7 +236,7 @@ the `Trial` and return the `Report`.
 
         trial.fail()  # (3)!
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
 
     space = s.space()
     random_search = RandomSearch(space=space, seed=42)
@@ -293,7 +293,7 @@ and save results with `task.on_success`.
 
         trial.fail()
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
     space = s.space()
 
     random_search = RandomSearch(space=space, seed=42)
@@ -354,7 +354,7 @@ and save results with `task.on_success`.
 
         trial.fail()
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
     space = s.space()
 
     random_search = RandomSearch(space=space, seed=42)
@@ -572,7 +572,7 @@ and the number of processes in our `Scheduler`. That's it.
 
         trial.fail()
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
     space = s.space()
 
     random_search = RandomSearch(space=space, seed=42)
@@ -621,7 +621,7 @@ and the number of processes in our `Scheduler`. That's it.
 
         trial.fail()
 
-    s = Searchable("parameters", space={"x": (-10.0, 10.0)})
+    s = searchable("parameters", space={"x": (-10.0, 10.0)})
     space = s.space()
 
     random_search = RandomSearch(space=space, seed=42)

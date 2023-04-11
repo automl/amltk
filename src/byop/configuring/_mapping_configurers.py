@@ -37,12 +37,11 @@ or hyperparameter names.
 """
 from __future__ import annotations
 
-from itertools import chain
-from typing import Any, Iterable, Iterator, Mapping, TypeVar, cast
+from typing import Any, Iterable, Iterator, Mapping, TypeVar
 
 from more_itertools import first_true
 
-from byop.pipeline.components import Choice, Searchable, Split, Step
+from byop.pipeline.components import Choice, Split, Step
 from byop.pipeline.pipeline import Pipeline
 
 StepT = TypeVar("StepT", bound=Step)
@@ -53,10 +52,19 @@ def remove_prefix(key: str, prefix: str, delimiter: str) -> str:
     return key[prefix_len:]
 
 
-def _validate_names(pipeline: Pipeline, delimiter: str) -> None:
+def _validate_names(pipeline: Pipeline | Step, delimiter: str) -> None:
     """Recursively validate that the names of the steps in a pipeline
     do not contain the delimiter, including any modules attached to it.
     """
+    if isinstance(pipeline, Step):
+        if delimiter in pipeline.name:
+            raise ValueError(f"{delimiter=} is in step name: `{pipeline.name}`")
+        if pipeline.nxt is not None:
+            _validate_names(pipeline.nxt, delimiter=delimiter)
+
+        # TODO: Handle choices, splits
+        return
+
     for _, _, step in pipeline.walk():
         if delimiter in step.name:
             raise ValueError(f"{delimiter=} is in step name: `{step.name}`")
@@ -68,10 +76,6 @@ def _validate_names(pipeline: Pipeline, delimiter: str) -> None:
             _validate_names(module, delimiter=delimiter)
         except ValueError as e:
             raise ValueError(f"{module_name}: {e}") from e
-
-    for searchable in pipeline.searchables.values():
-        if delimiter in searchable.name:
-            raise ValueError(f"{delimiter=} is in searchable name: `{searchable.name}`")
 
 
 def find_config_with_key(
@@ -125,7 +129,15 @@ def str_mapping_configurer(
     _validate_names(pipeline, delimiter=delimiter)
 
     configured_pipeline_steps = _process(pipeline.head, config, delimiter=delimiter)
-    configured_modules = (
+
+    pipeline_modules: list[Pipeline] = [
+        m for m in pipeline.modules.values() if isinstance(m, Pipeline)
+    ]
+    step_modules: list[Step] = [
+        m for m in pipeline.modules.values() if not isinstance(m, Pipeline)
+    ]
+
+    configured_pipeline_modules = [
         str_mapping_configurer(
             pipeline=module,
             config=find_config_with_key(
@@ -133,18 +145,15 @@ def str_mapping_configurer(
             ),
             delimiter=delimiter,
         )
-        for module in pipeline.modules.values()
-    )
-
-    searchables = chain.from_iterable(
-        _process(searchable, config, delimiter=delimiter)
-        for searchable in pipeline.searchables.values()
-    )
+        for module in pipeline_modules
+    ]
+    configured_step_modules = [
+        Step.join(_process(m, config=config)) for m in step_modules
+    ]
 
     return Pipeline.create(
         configured_pipeline_steps,
-        modules=configured_modules,
-        searchables=cast(Iterable[Searchable], searchables),
+        modules=[*configured_step_modules, *configured_pipeline_modules],
         name=pipeline.name,
     )
 
@@ -215,7 +224,7 @@ def _process(
             search_space=None,
         )
 
-    elif isinstance(step, Searchable):
+    elif isinstance(step, Step):
         selected_config = {
             remove_prefix(k, step_key, delimiter): v
             for k, v in config.items()

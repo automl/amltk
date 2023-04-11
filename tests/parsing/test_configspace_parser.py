@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from byop.configspace import ConfigSpaceParser
+
 try:
     from ConfigSpace import (
         Categorical,
@@ -25,7 +27,7 @@ def test_configspace_parser_simple_definitions() -> None:
     )
     seed = 42
 
-    result = pipeline.space(parser="configspace", seed=seed)
+    result = pipeline.space(parser=ConfigSpaceParser(), seed=seed)
     expected = ConfigurationSpace(
         {
             "a:hp": [1, 2, 3],
@@ -45,7 +47,7 @@ def test_configspace_parser_single_hyperparameter_definitions() -> None:
         step("c", 1, space=Float("hp", bounds=(1.0, 10.0), distribution=Normal(5, 2))),
     )
 
-    result = pipeline.space(parser="configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
     assert result == ConfigurationSpace(
         {
             "a:hp": Categorical("a:hp", items=[1, 2, 3]),
@@ -58,14 +60,14 @@ def test_configspace_parser_single_hyperparameter_definitions() -> None:
 def test_configspace_parser_configspace_empty_steps() -> None:
     pipeline = Pipeline.create(step("a", 1))
 
-    result = pipeline.space("configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
     assert result == ConfigurationSpace()
 
 
 def test_configspace_parser_simple_step() -> None:
     pipeline = Pipeline.create(step("a", 1, space={"hp": [1, 2, 3]}))
 
-    result = pipeline.space("configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
     assert result == ConfigurationSpace({"a:hp": [1, 2, 3]})
 
 
@@ -75,7 +77,7 @@ def test_configspace_parser_two_steps() -> None:
         step("b", 2, space=ConfigurationSpace({"hp": [1, 2, 3]})),
     )
 
-    result = pipeline.space("configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
     assert result == ConfigurationSpace({"a:hp": [1, 2, 3], "b:hp": [1, 2, 3]})
 
 
@@ -87,7 +89,7 @@ def test_configspace_split() -> None:
             step("b", 2, space=ConfigurationSpace({"hp": [1, 2, 3]})),
         )
     )
-    result = pipeline.space("configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
 
     assert result == ConfigurationSpace(
         {"split:a:hp": [1, 2, 3], "split:b:hp": [1, 2, 3]}
@@ -102,7 +104,7 @@ def test_configspace_choice() -> None:
             step("b", 2, space=ConfigurationSpace({"hp": [1, 2, 3]})),
         )
     )
-    result = pipeline.space("configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
 
     expected = ConfigurationSpace(
         {
@@ -134,7 +136,7 @@ def test_configspace_nested_choice() -> None:
             step("c", 2, space=ConfigurationSpace({"hp": [1, 2]})),
         )
     )
-    result = pipeline.space("configspace")
+    result = pipeline.space(parser=ConfigSpaceParser())
 
     expected = ConfigurationSpace(
         {
@@ -185,7 +187,7 @@ def test_pipeline_with_2_pipeline_modules() -> None:
     assert len(pipeline) == 2
     assert len(pipeline.modules) == 2
 
-    space = pipeline.space(parser="configspace")
+    space = pipeline.space(parser=ConfigSpaceParser())
     assert isinstance(space, ConfigurationSpace)
 
     expected_space = {
@@ -217,9 +219,9 @@ def test_pipeline_with_searchables() -> None:
         step("2", 2, space={"b": [4, 5, 6]}),
     )
 
-    pipeline = pipeline.attach(searchables=searchable("extra", space={"c": [7, 8, 9]}))
+    pipeline = pipeline.attach(modules=searchable("extra", space={"c": [7, 8, 9]}))
 
-    space = pipeline.space(parser="configspace")
+    space = pipeline.space(parser=ConfigSpaceParser())
 
     expected_space = {
         "1:a": [1, 2, 3],

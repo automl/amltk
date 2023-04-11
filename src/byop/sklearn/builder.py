@@ -95,10 +95,10 @@ def process_from(
     Yields:
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
-    if isinstance(step, Component):
-        yield process_component(step)
-    elif isinstance(step, Split):
+    if isinstance(step, Split):
         yield process_split(step)
+    elif isinstance(step, Component):
+        yield process_component(step)
     else:
         raise NotImplementedError(f"Can't handle step: {step}")
 

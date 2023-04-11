@@ -8,7 +8,7 @@ the spaces from the pipeline steps.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import Callable
 from uuid import uuid4
 
 from more_itertools import first_true, seekable
@@ -18,13 +18,6 @@ from byop.exceptions import attach_traceback
 from byop.pipeline.pipeline import Pipeline
 from byop.types import Config
 
-if TYPE_CHECKING:
-    import ConfigSpace
-
-DEFAULT_CONFIGURERS: list[Callable[[Pipeline, Any], Pipeline]] = [
-    str_mapping_configurer,
-]
-
 
 class ConfiguringError(Exception):
     """Error when a pipeline could not be configured."""
@@ -32,9 +25,8 @@ class ConfiguringError(Exception):
 
 def configure(
     pipeline: Pipeline,
-    config: Config | ConfigSpace.Configuration,
+    config: Config,
     *,
-    configurer: (Literal["auto"] | Callable[[Pipeline, Config], Pipeline]) = "auto",
     rename: bool | str = False,
 ) -> Pipeline:
     """Configure a pipeline with a given config.
@@ -42,8 +34,6 @@ def configure(
     Args:
         pipeline: The pipeline to configure.
         config: The configuration to use.
-        configurer: The configurer to use. If "auto", will use the first
-            configurer that can handle the config.
         rename: Whether to rename the pipeline. Defaults to `False`.
             * If `True`, the pipeline will be renamed using a random uuid
             * If a Name is provided, the pipeline will be renamed to that name
@@ -51,12 +41,7 @@ def configure(
     Returns:
         The configured pipeline.
     """
-    if configurer == "auto":
-        configurers = DEFAULT_CONFIGURERS
-    elif callable(configurer):
-        configurers = [configurer]
-    else:
-        raise NotImplementedError(f"Configurer {configurer} not supported")
+    configurers = [str_mapping_configurer]
 
     def _configure(
         _configurer: Callable[[Pipeline, Config], Pipeline],

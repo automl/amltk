@@ -7,7 +7,14 @@ from __future__ import annotations
 
 from contextlib import suppress
 from itertools import chain, repeat
-from typing import Any, Callable, Generic, Iterator, Mapping, Sequence
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 
 from attrs import field, frozen
 from more_itertools import first_true
@@ -17,70 +24,7 @@ from byop.types import Item, Space
 
 
 @frozen(kw_only=True)
-class Searchable(Step, Generic[Space]):
-    """Something to search over in a pipeline but has no implementation.
-
-    Attributes:
-        name: The name of the searchable
-        search_space (optional): The searchspace
-        config (optional): Any fixed parameters of the searchable.
-    """
-
-    name: str
-
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-
-    def configured(self) -> bool:
-        """Check if this searchable is configured."""
-        return self.search_space is None
-
-    def walk(
-        self,
-        splits: Sequence[Split],
-        parents: Sequence[Step],
-    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
-        """See `Step.walk`."""
-        splits = list(splits)
-        parents = list(parents)
-        yield splits, parents, self
-
-        if self.nxt is not None:
-            yield from self.nxt.walk(splits, [*parents, self])
-
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
-        """See `Step.traverse`."""
-        if include_self:
-            yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.traverse()  # type: ignore
-
-    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
-        """See `Step.replace`."""
-        yield replacements.get(self.name, self)
-
-        if self.nxt is not None:
-            yield from self.nxt.replace(replacements=replacements)
-
-    def remove(self, keys: Sequence[str]) -> Iterator[Step]:
-        """See `Step.remove`."""
-        if self.name not in keys:
-            yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.remove(keys)
-
-    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
-        """See `Step.select`."""
-        yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.select(choices)
-
-
-@frozen(kw_only=True)
-class Component(Searchable[Space], Generic[Item, Space]):
+class Component(Step[Space], Generic[Item, Space]):
     """A Fixed component with an item attached.
 
     Attributes:
@@ -117,7 +61,7 @@ class Component(Searchable[Space], Generic[Item, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
+class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
     """A split in the pipeline.
 
     Attributes:
@@ -145,12 +89,12 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
 
     def walk(
         self,
-        splits: Sequence[Split],
-        parents: Sequence[Step],
+        splits: Sequence[Split] | None = None,
+        parents: Sequence[Step] | None = None,
     ) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """See `Step.walk`."""
-        splits = list(splits)
-        parents = list(parents)
+        splits = list(splits) if splits is not None else []
+        parents = list(parents) if parents is not None else []
         yield splits, parents, self
 
         for path in self.paths:

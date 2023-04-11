@@ -88,14 +88,10 @@ it and building it into something useful can be done with the methods,
 
 
     There's also some _attachables_ you can
-    [`attach(searchables=..., modules=...)`][byop.pipeline.Pipeline.attach] to a
+    [`attach(modules=...)`][byop.pipeline.Pipeline.attach] to a
     [`Pipeline`][byop.pipeline.Pipeline] for searching and configuring things that don't
     necessarily follow the DAG dataflow of a pipeline, e.g. `batch_size` for
     training Nerual Nets.
-
-    * [`Searchable`][byop.pipeline.Searchable]: We can't directly make this part of a DAG
-      because it doesn't represent any data flow. However sometimes there's extra parameters
-      we will want to search over.
 
     * `modules`: For anything else which is a component, sub-pipeline, or anything else with
       an implementation and not part of the main DAG pipeline, we can still attach
@@ -442,7 +438,7 @@ produce a valid pipeline implementation out of it.
 There are also sometimes things you want to associate and search
 alongside with your pipeline but are not necessarily part of
 the DAG structure of `Pipeline`. For this reason we also
-provide [`modules`](modules) and [`searchables`](searchables), which
+provide [`modules`](modules), which
 will be part of the space returned by `space()` and configured
 by `configure()` for you.
 
@@ -581,9 +577,6 @@ For this section, we will focus on an `SVM` with a
     * [Modules](modules) to define components that are required for the pipeline
       usage but not necassarily part of its DAG structure, e.g. a trainer
       for a neural network.
-    * [Searchables](searchables) for hyperparameters associated with your pipeline
-      but don't necessarily have a concrete implementation associated with
-      them.
     * [Subpipelines](sub-pipelines) to build a pipeline in a more flexible manner.
     * [Operations](operations) supported by the pipeline for inspection
       and modification of existing pipelines.
@@ -851,6 +844,33 @@ of _module_.
 These are components or pipelines that you [`attach()`][byop.pipeline.Pipeline.attach]
 to your main pipeline, but are not directly part of the dataflow.
 
+For example, we can create a simple `searchable` which we `attach()` to our pipeline.
+This will be included in the `space()` that it outputed from the `Pipeline` and also
+configured when `configure()` is called.
+
+```python
+from byop.pipeline import Pipeline, searchable
+
+pipeline = Pipeline.create(...)
+pipeline = pipeline.attach( # (1)!
+    modules=[
+        searchable("extra_params", space={"a": (1, 10), "b": ["apple", "frog"]}),
+        searchable("other_params", space={"c": (1.5, 1.8)}),
+    ]
+)
+
+space = pipeline.space()
+config = pipeline.sample(space)
+
+pipeline = pipeline.configure(config)
+pipeline.modules["extra_params"].config["a"]  # (2)!
+```
+
+1. Note here we need to assign the result of `attach`. In general,
+operations on a `Pipeline` are not in-place and return a copy with
+the modification.
+2. You can access it's set value from the `.modules` attrbitue of the pipeline.
+
 Lets take PyTorchLightning's trainers for example, they define how you network should
 be trained but not actually how data should flow.
 
@@ -922,31 +942,3 @@ trainer = pipeline.modules["trainer"].build()  # (3)!
  to the pipeline.
 3. As the module `#!python "trainer"` was configured along with the pipeline,
  it's `config` has been set and we can call `build()` on it.
-
-
-## Searchables
-Searchables are simply hyperparameters to include in the search space for the pipeline
-that are not necessarily attached to some object.
-
-```python
-from byop.pipeline import Pipeline, searchable
-
-pipeline = Pipeline.create()
-
-control_param = searchable("control_param", space={"A": [1,2,3]})
-pipeline = pipeline.attach(searchables=control_param)
-
-space = pipeline.space()  # (1)!
-config = pipeline.sample()  # (2)!
-configured_pipeline = pipeline.configure(config)  # (3)!
-
-configured_pipeline.searchables["control_param"].config["A"]  # (4)!
-```
-
-1. The searchable `#!python "control_param:A"` will be a part of the space.
-2. The searchable `#!python "control_param:A"` will be a part of the config.
-3. This will also configure `#!python "control_param:A"` and set it's value
-  according to what was sampled in the `config`.
-4. We can access the sampled value of `#!python "control_param:A"` using
-  the `.searchables` attribute.
-

@@ -157,7 +157,7 @@ def test_heirachical_str_with_searchables() -> None:
     )
 
     extra = searchable("searchables", space={"a": [1, 2, 3], "b": [4, 5, 6]})
-    pipeline = pipeline.attach(searchables=extra)
+    pipeline = pipeline.attach(modules=extra)
 
     config = {
         "1:a": 1,
@@ -173,6 +173,6 @@ def test_heirachical_str_with_searchables() -> None:
     )
     expected_extra = searchable("searchables", config={"a": 1, "b": 4})
 
-    expected = expected.attach(searchables=expected_extra)
+    expected = expected.attach(modules=expected_extra)
 
     assert expected == pipeline.configure(config)
