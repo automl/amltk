@@ -233,8 +233,12 @@ class Scheduler:
     ) -> SyncFuture[R] | None:
         """Submits a callable to be executed with the given arguments.
 
-        Schedules the callable to be executed as fn(*args, **kwargs) and returns a
-        Future instance representing the execution of the callable.
+        Args:
+            function (Callable[P, R]): The callable to be executed as
+                fn(*args, **kwargs) that returns a Future instance representing
+                the execution of the callable.
+            args: positional arguments to pass to the function
+            kwargs: keyword arguments to pass to the function
 
         Returns:
             A Future representing the given call.
