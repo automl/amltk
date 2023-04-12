@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from sklearn.metrics import balanced_accuracy_score
 
 from byop.optimization import Trial
 from byop.pipeline import Pipeline
@@ -19,8 +18,10 @@ for name in logging.root.manager.loggerDict:
 from research.ensembles_with_tabpfn.base_model_code.experiment_pipeline_builder import build_pipeline
 from research.ensembles_with_tabpfn.base_model_code.data_handler import setup_data_bucket
 from research.ensembles_with_tabpfn.base_model_code.validation_procedure import predict_fit_repeated_cross_validation
+from research.ensembles_with_tabpfn.utils.config import ALL_EXPERIMENT_RUNS
 
 from research.ensembles_with_tabpfn.utils.config import METRIC_MAP
+
 
 def target_function(trial: Trial, /, bucket: PathBucket, pipeline: Pipeline, metric_data: dict) -> Trial.Report:
     X_train, X_test, y_train, y_test = (
@@ -68,29 +69,25 @@ def target_function(trial: Trial, /, bucket: PathBucket, pipeline: Pipeline, met
     return trial.success(cost=metric_data["to_loss_function"](val_accuracy))
 
 
-def _run():  # to avoid global vars
-    logging.basicConfig(level=logging.INFO)
-    algorithm_name = "XT"  # {"MLP", "RF", "LM", "GBM", "KNN", "XT"}
-    bucket_name = "debug"
-    metric_name = "balanced_accuracy"
-
+def _run(algorithm_name, metric_name, data_sample_name, dataset_ref):
     # TODO: decide on correct random state management for experiments
     seed = 42
-
     # TODO: decide on parallelization levels (at algorithm level, at validation level, at optimizer level?)
     # n_workers = 4
 
+    # -- Setup Data and Optimizer
     metric_data = METRIC_MAP[metric_name]
-    data_bucket = setup_data_bucket(seed, ".data_space/base_model_data/" + bucket_name + "_" + algorithm_name)
+    data_bucket = setup_data_bucket(dataset_ref, data_sample_name, seed,
+                                    f"./data_space/base_model_data/{algorithm_name}/{dataset_ref}/{data_sample_name}")
     pipeline = build_pipeline(algorithm_name)
-
     optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)
     objective = Trial.Objective(target_function, bucket=data_bucket, pipeline=pipeline, metric_data=metric_data)
 
-    # -- ASK/TELL USAGE FOR DEBUGGING AND DEPENDING ON PARALLELIZATION APPROACH FOR EVER
-    logger.info("Run for algorithm: " + algorithm_name)
+    # -- ASK/TELL USAGE FOR DEBUGGING AND DEPENDING ON PARALLELIZATION APPROACH FOREVER
+    logger.info("Start optimization ...")
     for _ in range(10):
         # TODO: figure out if this produces duplicates and returns an error if everything has been already evaluated
+        # TODO: define this based on time or number of samples (samples must be better right...?)
         trial = optimizer.ask()
         report = objective(trial)
 
@@ -101,10 +98,19 @@ def _run():  # to avoid global vars
         optimizer.tell(report)
         logger.info(report)
 
+    logger.info("...finished!")
+
+
+def _run_wrapper():
+    # TODO:
+    #   - transform into a SLURM executable script that takes as cli arguments:
+    #       - algorithm name; dataset/task id; ...
+    logging.basicConfig(level=logging.INFO)
+
+    for algorithm_name, metric_name, fold_i, sample_i, dataset_ref in ALL_EXPERIMENT_RUNS:
+        logger.info(f"Start {algorithm_name} for {metric_name} on dataset {dataset_ref} (f{fold_i}_f{sample_i})")
+        _run(algorithm_name, metric_name, f"f{fold_i}_s{sample_i}", dataset_ref)
+
 
 if __name__ == "__main__":  # MP safeguard
-    # TODO:
-    #   - transform into a SLURM executable script that takes as arguments:
-    #       - algorithm name; dataset/task id; ...
-    #   - make this script and data paths work across datasets (change data paths mostly)
-    _run()
+    _run_wrapper()

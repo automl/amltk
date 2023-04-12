@@ -1,7 +1,6 @@
 from sklearn.metrics import balanced_accuracy_score
 import numpy as np
-
-ALGO_NAMES = {"MLP", "RF", "LM", "GBM", "KNN", "XT"}
+from itertools import product
 
 
 # -- Metrics to be pickleable
@@ -34,3 +33,12 @@ METRIC_MAP = {
         "task_type": "classification"
     }
 }
+
+# -- experiment configs
+ALGO_NAMES = {"MLP", "RF", "LM", "GBM", "KNN", "XT"}
+METRICS = set(METRIC_MAP.keys())
+FOLDS = list(range(2))
+SAMPLES = list(range(2))
+DATASET_REF = {31}
+
+ALL_EXPERIMENT_RUNS = list(product(ALGO_NAMES, METRICS, FOLDS, SAMPLES, DATASET_REF))
