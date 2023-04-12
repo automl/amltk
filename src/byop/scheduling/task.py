@@ -323,7 +323,7 @@ class Task(Generic[P, R]):
             return None
 
         self.n_called += 1
-        future = self.scheduler._submit(self.function, *args, **kwargs)
+        future = self.scheduler.submit(self.function, *args, **kwargs)
         if future is None:
             msg = (
                 f"Task {callstring(self.function, *args, **kwargs)} was not"
