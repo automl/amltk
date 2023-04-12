@@ -2,7 +2,10 @@ from research.ensembles_with_tabpfn.complementary_code.data_handler import read_
 from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRIC_MAP
 from research.ensembles_with_tabpfn.complementary_code.ensembling_performance_boost import \
     get_data_for_performance_increase_with_new_model
-from research.ensembles_with_tabpfn.complementary_code.complementary_analysis import correlation_analysis
+from research.ensembles_with_tabpfn.complementary_code.complementary_analysis.correlation_analysis import \
+    correlation_analysis
+from research.ensembles_with_tabpfn.complementary_code.complementary_analysis.ensemble_diversity_analysis import \
+    ensemble_diversity_analysis
 
 from byop.ensembling.ensemble_preprocessing import prune_base_models
 from byop.store import PathBucket
@@ -39,6 +42,10 @@ def _run():
     complement_model = [bm for bm in base_models if bm.config["algorithm"] == complement_model_name][0]
     base_models = [bm for bm in base_models if bm.config["algorithm"] != complement_model_name]
 
+    # -- Diversity analysis
+    bm_diversity, ens_bm_with_complement_diversity = ensemble_diversity_analysis(y_train, y_test, base_models,
+                                                                                 complement_model)
+
     # -- Performance analysis
     # As we are using cross-validation, X_val = X_train and y_val = y_train
     ens_bm_predictions, ens_bm_with_complement_predictions, score_bm, score_bm_with_complement = \
@@ -50,6 +57,7 @@ def _run():
     logger.info(
         f"Score of Ensemble - base models: {score_bm} | Score of Ensemble - base models with complement: {score_bm_with_complement}")
 
+    # -- Correlation analysis
     ens_prediction_correlation, all_base_models_correlation_df = \
         correlation_analysis(y_train, y_test, ens_bm_predictions, ens_bm_with_complement_predictions, base_models,
                              complement_model)
@@ -62,7 +70,9 @@ def _run():
     result_stats = {
         "test_score_standard_base_models": score_bm,
         "test_score_standard_base_models_with_complement": score_bm_with_complement,
-        "correlation_ensemble_predictions": ens_prediction_correlation
+        "correlation_ensemble_predictions": ens_prediction_correlation,
+        "sample_of_diversity_base_models": bm_diversity,
+        "sample_of_diversity_base_models_with_complement": ens_bm_with_complement_diversity
     }
 
     result_bucket.update(
