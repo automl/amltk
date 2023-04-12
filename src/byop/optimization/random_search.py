@@ -6,13 +6,15 @@ without doing anything with them.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, TypeVar
+from typing import TYPE_CHECKING, Callable, TypeVar
 from typing_extensions import ParamSpec
 
 from byop.optimization.optimizer import Optimizer, Trial
 from byop.pipeline.sampler import Sampler
 from byop.randomness import as_rng
-from byop.types import Config, Seed, Space
+
+if TYPE_CHECKING:
+    from byop.types import Config, Seed, Space
 
 P = ParamSpec("P")
 Q = ParamSpec("Q")
@@ -82,7 +84,7 @@ class RandomSearch(Optimizer[RSTrialInfo]):
             self.sample = sampler  # type: ignore
         else:
             raise ValueError(
-                f"Expected `sampler` to be a `Sampler` or `Callable`, got {sampler=}."
+                f"Expected `sampler` to be a `Sampler` or `Callable`, got {sampler=}.",
             )
 
     def ask(self) -> Trial[RSTrialInfo]:

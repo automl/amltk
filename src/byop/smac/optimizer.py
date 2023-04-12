@@ -4,14 +4,10 @@ TODO: More description and explanation with examples.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Literal, Sequence
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Literal, Sequence
 
-from ConfigSpace import ConfigurationSpace
 from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, Scenario
-from smac.facade import AbstractFacade
 from smac.runhistory import (
     StatusType,
     TrialInfo as SMACTrialInfo,
@@ -20,7 +16,15 @@ from smac.runhistory import (
 
 from byop.optimization import Optimizer, Trial
 from byop.randomness import as_int
-from byop.types import Seed
+
+if TYPE_CHECKING:
+    from pathlib import Path
+    from typing_extensions import Self
+
+    from ConfigSpace import ConfigurationSpace
+    from smac.facade import AbstractFacade
+
+    from byop.types import Seed
 
 
 class SMACOptimizer(Optimizer[SMACTrialInfo]):
@@ -89,7 +93,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             if "cost" not in report.results:
                 raise ValueError(
                     f"Report must have 'cost' if successful but got {report}."
-                    " Use `trial.success(cost=...)` to set the results of the trial."
+                    " Use `trial.success(cost=...)` to set the results of the trial.",
                 )
 
             trial_value = SMACTrialValue(
@@ -132,6 +136,8 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         crash_cost = self.facade.scenario.crash_cost
         objectives = self.facade.scenario.objectives
 
+        cost: float | list[float]
+
         if reported_cost is not None:
             cost = reported_cost
         elif isinstance(crash_cost, float):
@@ -139,17 +145,17 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         elif isinstance(crash_cost, float):
             cost = [crash_cost for _ in range(len(objectives))]
         elif isinstance(crash_cost, Sequence):
-            cost = crash_cost
+            cost = list(crash_cost)
         else:
             raise ValueError(
                 f"Multiple crash cost reported ({crash_cost}) for only a single"
-                f" objective in `Scenario({objectives=}, ...)"
+                f" objective in `Scenario({objectives=}, ...)",
             )
 
         if isinstance(cost, Sequence) and (len(cost) != len(objectives)):
             raise ValueError(
                 f"Length of crash cost ({len(cost)}) and objectives "
-                f"({len(objectives)}) must be equal"
+                f"({len(objectives)}) must be equal",
             )
 
         trial_value = SMACTrialValue(

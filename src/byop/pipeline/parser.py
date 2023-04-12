@@ -3,7 +3,15 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, Mapping, Sequence, overload
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    Mapping,
+    Sequence,
+    cast,
+    overload,
+)
 
 from more_itertools import first, first_true, seekable
 
@@ -15,7 +23,7 @@ from byop.types import Seed, Space
 logger = logging.getLogger(__name__)
 
 
-class Error(Exception):
+class ParserError(Exception):
     """Error for when a Parser fails to parse a Pipeline."""
 
     @overload
@@ -46,7 +54,7 @@ class Error(Exception):
         ):
             raise ValueError(
                 "If parser is a list, `error` must be a list of the same length."
-                f"Got {parser=} and {error=} ."
+                f"Got {parser=} and {error=} .",
             )
 
         self.parser = parser
@@ -69,31 +77,33 @@ class Error(Exception):
 
 
 class Parser(ABC, Generic[Space]):
-    """Parser.
+    """A parser to parse a Pipeline/Step's `search_space` into a Space.
 
     This class is a parser for a given Space type, providing functionality
     for the parsing algothim to run on a given search space. To implement
     a parser for a new search space, you must implement the abstract methods
     in this class.
 
-    These are:
+    !!! example "Abstract Methods"
 
-    * [`parse_space`][byop.pipeline.parser.Parser.parse_space]
-        Parse a search space into a space.
-    * [`empty`][byop.pipeline.parser.Parser.empty]
-        Get an empty space.
-    * [`insert`][byop.pipeline.parser.Parser.insert]
-        Insert a space into another space, with a possible prefix + delimiter.
-    * [`set_seed`][byop.pipeline.parser.Parser.set_seed]
-        (Optional) Set the seed of a space.
+        * [`parse_space`][byop.pipeline.parser.Parser.parse_space]:
+            Parse a search space into a space.
+        * [`empty`][byop.pipeline.parser.Parser.empty]:
+            Get an empty space.
+        * [`insert`][byop.pipeline.parser.Parser.insert]:
+            Insert a space into another space, with a possible prefix + delimiter.
+        * [`set_seed`][byop.pipeline.parser.Parser.set_seed]:
+            (Optional) Set the seed of a space.
 
-    If your space supports conditions, you must also implement:
+        !!! note
 
-    * [`condition`][byop.pipeline.parser.Parser.condition]
-        Condition a set of subspaces on their names, based on a hyperparameter
-        with which takes on values with these names. Must be encoded as a Space.
+            If your space supports conditions, you must also implement:
 
-    Please see the respective docstrings for more.
+            * [`condition`][byop.pipeline.parser.Parser.condition]:
+                Condition a set of subspaces on their names, based on a hyperparameter
+                with which takes on values with these names. Must be encoded as a Space.
+
+        Please see the respective docstrings for more.
 
     See Also:
         * [`SpaceAdapter`][byop.pipeline.space.SpaceAdapter]
@@ -101,7 +111,8 @@ class Parser(ABC, Generic[Space]):
             interface, this class provides a complete adapter for a given search space.
     """
 
-    Error: ClassVar = Error
+    ParserError: ClassVar[type[ParserError]] = ParserError
+    """The error to raise when parsing fails."""
 
     @classmethod
     def default_parsers(cls) -> list[Parser]:
@@ -132,7 +143,17 @@ class Parser(ABC, Generic[Space]):
         *,
         seed: Seed | None = None,
     ) -> Space:
-        """Attempt to parse a pipeline with the default parsers."""
+        """Attempt to parse a pipeline with the default parsers.
+
+        Args:
+            pipeline_or_step: The pipeline or step to parse.
+            parser: The parser to use. If `None`, will try all default parsers that
+                are installed.
+            seed: The seed to use for the parser.
+
+        Returns:
+            The parsed space.
+        """
         parsers = [parser] if parser is not None else Parser.default_parsers()
 
         if not any(parsers):
@@ -142,7 +163,7 @@ class Parser(ABC, Generic[Space]):
                 "\n* Optuna"
                 "\nPlease see the integration documentation for more info, especially"
                 "\nif using an optimizer which often requires a specific search space."
-                "\nUsually just installing the optimizer will work."
+                "\nUsually just installing the optimizer will work.",
             )
 
         def _parse(_parser: Parser[Space]) -> Space:
@@ -165,14 +186,21 @@ class Parser(ABC, Generic[Space]):
         # If we didn't get a succesful parse, raise the appropriate error
         if parsed_space is False:
             results_itr.seek(0)  # Reset to start of iterator
-            errors = list(results_itr)
-            raise Parser.Error(parser=parsers, error=errors)  # type: ignore
+            errors = cast(list[Exception], list(results_itr))
+            raise Parser.ParserError(parser=parsers, error=errors)
 
         assert not isinstance(parsed_space, (Exception, bool))
         return parsed_space
 
     def parse(self, step: Pipeline | Step | Split | Choice) -> Space:
-        """Parse a pipeline or step."""
+        """Parse a pipeline or step.
+
+        Args:
+            step: The pipeline or step to parse.
+
+        Returns:
+            The space representing the pipeline or step.
+        """
         if isinstance(step, Pipeline):
             return self.parse_pipeline(step)
 
@@ -297,6 +325,9 @@ class Parser(ABC, Generic[Space]):
         Args:
             space: The space to set the seed for.
             seed: The seed to set.
+
+        Returns:
+            The space with the seed set if applicable.
         """
         return space
 

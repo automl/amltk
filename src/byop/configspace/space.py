@@ -11,7 +11,7 @@ configspace = generate_configspace(pipeline)
 from __future__ import annotations
 
 from copy import copy, deepcopy
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, cast
 
 import numpy as np
 from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Constant
@@ -19,7 +19,9 @@ from ConfigSpace.hyperparameters import Hyperparameter
 
 from byop.pipeline.space import SpaceAdapter
 from byop.randomness import as_int
-from byop.types import Seed
+
+if TYPE_CHECKING:
+    from byop.types import Seed
 
 
 class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
@@ -118,7 +120,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         if n == 1:
             return [space.sample_configuration()]
 
-        return space.sample_configuration(n)  # type: ignore
+        return cast(list, space.sample_configuration(n))
 
     def copy(self, space: ConfigurationSpace) -> ConfigurationSpace:
         """Copy the space."""

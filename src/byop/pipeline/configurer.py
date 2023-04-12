@@ -31,9 +31,6 @@ config = {
     "choice:a": 6,
 }
 ```
-
-The `delimiter` ":" is arbitrary but should not be contained in step
-or hyperparameter names.
 """
 from __future__ import annotations
 
@@ -48,6 +45,17 @@ StepT = TypeVar("StepT", bound=Step)
 
 
 def remove_prefix(key: str, prefix: str, delimiter: str) -> str:
+    """Remove the prefix from the key, including the delimiter.
+
+    Args:
+        key: The key to remove the prefix from
+        prefix: The prefix to remove
+        delimiter: The delimiter to use to separate the names of the
+            hierarchy.
+
+    Returns:
+        The key with the prefix removed
+    """
     prefix_len = len(prefix) + len(delimiter)
     return key[prefix_len:]
 
@@ -55,6 +63,11 @@ def remove_prefix(key: str, prefix: str, delimiter: str) -> str:
 def _validate_names(pipeline: Pipeline | Step, delimiter: str) -> None:
     """Recursively validate that the names of the steps in a pipeline
     do not contain the delimiter, including any modules attached to it.
+
+    Args:
+        pipeline: The pipeline to validate
+        delimiter: The delimiter to use to separate the names of the
+            hierarchy.
     """
     if isinstance(pipeline, Step):
         if delimiter in pipeline.name:
@@ -109,11 +122,12 @@ def find_config_with_key(
     return {k: v for k, v in config.items() if k.startswith(key + delimiter)}
 
 
-def str_mapping_configurer(
+def configure(
     pipeline: Pipeline,
     config: Mapping[str, Any],
     *,
     delimiter: str = ":",
+    rename: str | bool = False,
 ) -> Pipeline:
     """Configure a pipeline using a mapping of strings to values.
 
@@ -122,6 +136,9 @@ def str_mapping_configurer(
         config: The config to use
         delimiter: The delimiter to use to separate the names of the
             hierarchy. Defaults to ":".
+        rename: Whether to rename the pipeline. Defaults to `False`.
+            * If `True`, the pipeline will be renamed using a random uuid
+            * If a Name is provided, the pipeline will be renamed to that name
 
     Returns:
         Pipeline: The configured pipeline
@@ -138,10 +155,13 @@ def str_mapping_configurer(
     ]
 
     configured_pipeline_modules = [
-        str_mapping_configurer(
+        configure(
             pipeline=module,
             config=find_config_with_key(
-                module.name, config, delimiter=delimiter, trim=True
+                module.name,
+                config,
+                delimiter=delimiter,
+                trim=True,
             ),
             delimiter=delimiter,
         )
@@ -151,10 +171,17 @@ def str_mapping_configurer(
         Step.join(_process(m, config=config)) for m in step_modules
     ]
 
+    if rename is False:
+        _rename = pipeline.name
+    elif rename is True:
+        _rename = None
+    else:
+        _rename = rename
+
     return Pipeline.create(
         configured_pipeline_steps,
         modules=[*configured_step_modules, *configured_pipeline_modules],
-        name=pipeline.name,
+        name=_rename,
     )
 
 

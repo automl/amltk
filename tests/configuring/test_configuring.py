@@ -144,7 +144,7 @@ def test_configuration_with_nested_submodules() -> None:
     expected_module2 = expected_module2.attach(modules=(expected_module3))
 
     expected_pipeline = expected_pipeline.attach(
-        modules=(expected_module1, expected_module2)
+        modules=(expected_module1, expected_module2),
     )
 
     assert expected_pipeline == pipeline.configure(config)

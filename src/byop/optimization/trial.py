@@ -4,10 +4,18 @@ TODO: Populate more here.
 """
 from __future__ import annotations
 
-from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, Iterator, Literal, Mapping, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Generic,
+    Iterator,
+    Literal,
+    Mapping,
+    TypeVar,
+)
 from typing_extensions import Concatenate, ParamSpec
 
 from byop.events import Event, Subscriber
@@ -17,6 +25,9 @@ from byop.scheduling import (
     Task as TaskBase,
 )
 from byop.timing import TimeInterval, TimeKind, Timer
+
+if TYPE_CHECKING:
+    from concurrent.futures import Future
 
 Info = TypeVar("Info")
 """The info associated with a trial"""
@@ -93,7 +104,7 @@ class Trial(Generic[Info]):
         if self.timer is None:
             raise RuntimeError(
                 "Cannot succeed a trial that has not been started."
-                " Please use `with trial.begin():` to start the trial."
+                " Please use `with trial.begin():` to start the trial.",
             )
 
         time = self.time if self.time is not None else self.timer.stop()
@@ -108,7 +119,7 @@ class Trial(Generic[Info]):
         if self.timer is None:
             raise RuntimeError(
                 "Cannot fail a trial that has not been started."
-                " Please use `with trial.begin():` to start the trial."
+                " Please use `with trial.begin():` to start the trial.",
             )
 
         time = self.time if self.time is not None else self.timer.stop()
@@ -138,7 +149,7 @@ class Trial(Generic[Info]):
             raise RuntimeError(
                 "Cannot generate a crash report without an exception."
                 " Please provide an exception or use `with trial.begin():` to start"
-                " the trial."
+                " the trial.",
             )
 
         exception = exception if exception else self.exception
@@ -263,7 +274,7 @@ class Trial(Generic[Info]):
                 cpu_time_limit=cpu_time_limit,
                 wall_time_limit=wall_time_limit,
             )
-            self.trial_lookup: dict[Future, Trial[InfoInner]] = {}
+            self.trial_lookup: dict[Future, Trial] = {}
 
             self.on_f_returned(self._emit_report)
             self.on_f_exception(self._emit_report)

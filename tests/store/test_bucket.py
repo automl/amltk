@@ -50,7 +50,8 @@ def data_numpy_array_npy(
     type[np.ndarray],
     Callable[[np.ndarray, np.ndarray], bool],
 ]:
-    array = np.random.rand(10, 10)
+    rng = np.random.default_rng()
+    array = rng.random((10, 10))
     return array, f"array.{extension}", np.ndarray, np.array_equal
 
 
@@ -64,7 +65,7 @@ def data_numpy_array_npy(
         "parquet",
         unsupported_format("xls"),
         unsupported_format("xlsx"),
-    )
+    ),
 )
 @parametrize(kind=(unsupported_format("series"), "frame"))
 @parametrize(index=("named", "unnamed"))
@@ -76,18 +77,19 @@ def data_pandas(
     if kind == "series" and extension in ("csv"):
         pytest.skip("Series not supported for this extension")
 
+    rng = np.random.default_rng()
     if kind == "series":
-        df = pd.Series(np.random.randint(0, 10, size=3), name="ABC")
+        df = pd.Series(rng.integers(0, 10, size=3), name="ABC")
         check = pd.Series
     else:
-        df = pd.DataFrame(np.random.randint(0, 10, size=(3, 3)), columns=list("ABC"))
+        df = pd.DataFrame(rng.integers(0, 10, size=(3, 3)), columns=list("ABC"))
         check = pd.DataFrame
 
     if index == "named":
         df.index.name = "index"
     else:
         df.index.name = None
-    return df, f"df.{extension}", check, pd.DataFrame.equals  # type: ignore
+    return df, f"df.{extension}", check, pd.DataFrame.equals
 
 
 def data_string() -> tuple[str, str, type[str], Callable[[str, str], bool]]:
@@ -96,7 +98,8 @@ def data_string() -> tuple[str, str, type[str], Callable[[str, str], bool]]:
 
 def data_bytes() -> tuple[bytes, str, type[bytes], Callable[[bytes, bytes], bool]]:
     pytest.xfail(
-        "bytes adds some werid prepeding" " see https://github.com/automl/byop/issues/4"
+        "bytes adds some werid prepeding"
+        " see https://github.com/automl/byop/issues/4",
     )
     return b"Hello World", "bytes.bin", bytes, operator.eq
 
@@ -146,7 +149,8 @@ def test_bucket(
     assert equal(item, retrieved)
 
     retrieved = bucket[key].get()
-    assert equal(item, retrieved)  # type: ignore
+    assert retrieved is not None
+    assert equal(item, retrieved)
 
     retrieved = bucket[key].get(check=check)
     assert equal(item, retrieved)

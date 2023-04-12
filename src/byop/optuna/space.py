@@ -10,9 +10,10 @@ configspace = generate_optuna_search_space(pipeline)
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Mapping, Sequence
-from typing_extensions import TypeAlias
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Sequence
 
+from byop.configspace.space import as_int
+from byop.pipeline.space import SpaceAdapter
 from optuna.distributions import (
     BaseDistribution,
     CategoricalDistribution,
@@ -21,9 +22,10 @@ from optuna.distributions import (
 )
 from optuna.samplers import RandomSampler
 
-from byop.configspace.space import as_int
-from byop.pipeline.space import SpaceAdapter
-from byop.types import Config, Seed
+if TYPE_CHECKING:
+    from typing_extensions import TypeAlias
+
+    from byop.types import Config, Seed
 
 OptunaSearchSpace: TypeAlias = Dict[str, BaseDistribution]
 
@@ -77,7 +79,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
         # TODO(eddiebergman): Might be possible to implement this but it requires some
         # toying around with options to various Samplers in the Optimizer used.
         raise NotImplementedError(
-            f"Conditions (from {choice_name}) not supported with Optuna"
+            f"Conditions (from {choice_name}) not supported with Optuna",
         )
 
     def empty(self) -> OptunaSearchSpace:
@@ -140,7 +142,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
             if type(lower) != type(upper):
                 raise ValueError(
                     f"Expected {name} to have same type for lower and upper bound,"
-                    f"got lower: {type(lower)}, upper: {type(upper)}."
+                    f"got lower: {type(lower)}, upper: {type(upper)}.",
                 )
 
             if isinstance(lower, float):
@@ -158,7 +160,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
         raise ValueError(
             f"Expected hyperparameter value for {name} to be one of "
             "tuple | list | int | str | float | Optuna.BaseDistribution,"
-            f" got {type(hp)}"
+            f" got {type(hp)}",
         )
 
     @classmethod

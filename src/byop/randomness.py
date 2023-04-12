@@ -1,9 +1,12 @@
 """Utilities for dealing with randomness."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from byop.types import Seed
+if TYPE_CHECKING:
+    from byop.types import Seed
 
 MAX_INT = np.iinfo(np.int32).max
 

@@ -47,11 +47,15 @@ def test_pipeline_with_2_pipeline_modules() -> None:
     expected.add_conditions(
         [
             EqualsCondition(
-                expected["module2:choice:6:e"], expected["module2:choice"], "6"
+                expected["module2:choice:6:e"],
+                expected["module2:choice"],
+                "6",
             ),
             EqualsCondition(
-                expected["module2:choice:7:f"], expected["module2:choice"], "7"
+                expected["module2:choice:7:f"],
+                expected["module2:choice"],
+                "7",
             ),
-        ]
+        ],
     )
     assert space == expected

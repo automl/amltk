@@ -9,19 +9,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from concurrent.futures import Future
 from dataclasses import dataclass, field
 from multiprocessing import Pipe
-from multiprocessing.connection import Connection
-from typing import Any, Callable, Generic, Literal, TypeVar, overload
-from typing_extensions import Concatenate, ParamSpec, Self
+from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, TypeVar, overload
+from typing_extensions import Concatenate, ParamSpec
 
 from byop.asyncm import AsyncConnection
 from byop.events import Event
-from byop.scheduling.scheduler import Scheduler
 from byop.scheduling.task import Task
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from concurrent.futures import Future
+    from multiprocessing.connection import Connection
+    from typing_extensions import Self
+
+    from byop.scheduling.scheduler import Scheduler
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -185,7 +189,10 @@ class AsyncComm:
 
     @overload
     async def request(
-        self, *, timeout: float, default: None = None
+        self,
+        *,
+        timeout: float,
+        default: None = None,
     ) -> CommTask.Msg | None:
         ...
 
@@ -302,11 +309,8 @@ class CommTask(Task[Concatenate[Comm, P], R]):
 
         See [`Task`][byop.scheduling.task.Task] for more details.
         """
-        # NOTE: Mypy seems to be incorrect here:
-        #   error: Argument 1 to "__init__" of "Task" has incompatible type
-        #       "Callable[[Comm, **P], R]"; expected "Callable[[Comm, **P], R]"
         super().__init__(
-            function,  # type: ignore
+            function,  # pyright: reportGeneralTypeIssues=false
             scheduler,
             name=name,
             call_limit=call_limit,
@@ -347,13 +351,13 @@ class CommTask(Task[Concatenate[Comm, P], R]):
         scheduler_comm, worker_comm = Comm.create(duplex=True)
 
         # NOTE: This works but not sure why pyright is complaining
-        args = (worker_comm, *args)  # type: ignore
-        task_future = super().__call__(*args, **kwargs)  # type: ignore
+        _args = (worker_comm, *args)
+        task_future = super().__call__(*_args, **kwargs)  # type: ignore
         if task_future is None:
             return None
 
         communication_task = asyncio.create_task(
-            self._communicate(task_future, scheduler_comm)
+            self._communicate(task_future, scheduler_comm),
         )
 
         self.worker_comms[task_future] = worker_comm

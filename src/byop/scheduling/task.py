@@ -11,7 +11,6 @@ be used for communication between the task and the main process.
 from __future__ import annotations
 
 import logging
-from concurrent.futures import Future
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Callable, Generic, Hashable, TypeVar
 from typing_extensions import ParamSpec
@@ -23,6 +22,8 @@ from byop.exceptions import exception_wrap
 from byop.functional import callstring, funcname
 
 if TYPE_CHECKING:
+    from concurrent.futures import Future
+
     from byop.scheduling.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
@@ -226,7 +227,7 @@ class Task(Generic[P, R]):
 
         self.on_concurrent_limit_reached: Subscriber[P]
         self.on_concurrent_limit_reached = self.subscriber(
-            self.CONCURRENT_LIMIT_REACHED
+            self.CONCURRENT_LIMIT_REACHED,
         )
 
     def futures(self) -> list[Future[R]]:

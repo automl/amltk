@@ -15,14 +15,20 @@ T = TypeVar("T")
 
 @overload
 def searchable(
-    name: str, *, space: None = None, config: Mapping[str, Any] | None = None
+    name: str,
+    *,
+    space: None = None,
+    config: Mapping[str, Any] | None = None,
 ) -> Step[None]:
     ...
 
 
 @overload
 def searchable(
-    name: str, *, space: Space, config: Mapping[str, Any] | None = None
+    name: str,
+    *,
+    space: Space,
+    config: Mapping[str, Any] | None = None,
 ) -> Step[Space]:
     ...
 
@@ -233,5 +239,9 @@ def split(
         Split: Split component with your choices as possibilities
     """
     return Split(
-        name=name, paths=list(paths), item=item, search_space=space, config=config
+        name=name,
+        paths=list(paths),
+        item=item,
+        search_space=space,
+        config=config,
     )

@@ -7,15 +7,17 @@ configured [`Pipeline`][byop.pipeline.Pipeline].
 """
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
 
 from more_itertools import first_true, seekable
 
 from byop.building._sklearn_builder import sklearn_builder
 from byop.exceptions import attach_traceback
-from byop.pipeline.pipeline import Pipeline
 
-B = TypeVar("B")
+if TYPE_CHECKING:
+    from byop.pipeline.pipeline import Pipeline
+
+    B = TypeVar("B")
 
 DEFAULT_BUILDERS: list[Callable[[Pipeline], Any]] = [sklearn_builder]
 

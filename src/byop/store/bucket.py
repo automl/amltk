@@ -9,13 +9,22 @@ types in a single location.
 """
 from __future__ import annotations
 
-from typing import Any, Hashable, Iterable, Iterator, Mapping, Protocol, TypeVar
-
-from byop.store.drop import Drop
-from byop.store.loader import Loader
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Hashable,
+    Iterable,
+    Iterator,
+    Mapping,
+    Protocol,
+    TypeVar,
+)
 
 T = TypeVar("T")
 
+if TYPE_CHECKING:
+    from byop.store.drop import Drop
+    from byop.store.loader import Loader
 
 DEFAULT_FILE_LOADERS: tuple[Loader, ...] = ()
 

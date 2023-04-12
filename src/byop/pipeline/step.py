@@ -4,8 +4,6 @@ These objects act as a doubly linked list to connect steps into a chain which
 are then convenientyl wrapped in a `Pipeline` object. Their concrete implementations
 can be found in the `byop.pipeline.components` module.
 """
-# TODO: Something
-
 from __future__ import annotations
 
 from copy import copy
@@ -20,17 +18,20 @@ from typing import (
     Mapping,
     Sequence,
     cast,
+    overload,
 )
-from typing_extensions import Self
 
 from attrs import evolve, field, frozen
 from more_itertools import consume, last, peekable, triplewise
 
-from byop.types import Seed, Space
+from byop.types import Config, Seed, Space
 
 if TYPE_CHECKING:
+    from typing_extensions import Self
+
     from byop.pipeline.components import Split
     from byop.pipeline.parser import Parser
+    from byop.pipeline.sampler import Sampler
 
 
 @frozen(kw_only=True)
@@ -256,17 +257,34 @@ class Step(Generic[Space]):
         if self.nxt is not None:
             yield from self.nxt.select(choices)
 
+    @overload
+    def space(
+        self,
+        parser: Parser[Space],
+        *,
+        seed: Seed | None = None,
+    ) -> Space:
+        ...
+
+    @overload
+    def space(
+        self,
+        parser: None = None,
+        *,
+        seed: Seed | None = None,
+    ) -> Any:
+        ...
+
     def space(
         self,
         parser: Parser[Space] | None = None,
         *,
         seed: Seed | None = None,
-    ) -> Space | None:
+    ) -> Space | Any:
         """Get the search space for this step."""
-        if self.search_space is None:
-            return None
+        from byop.pipeline.parser import Parser
 
-        return Parser.try_parse(self, parser, seed=seed)
+        return Parser.try_parse(self, parser=parser, seed=seed)
 
     def build(self) -> Any:
         """Build the step.
@@ -278,6 +296,54 @@ class Step(Generic[Space]):
             NotImplementedError: If not overwritten
         """
         raise NotImplementedError(f"`build()` is not implemented for {type(self)}")
+
+    @overload
+    def sample(
+        self,
+        space: Space,
+        *,
+        n: int,
+        sampler: Sampler[Space] | None = ...,
+        seed: Seed | None = ...,
+    ) -> list[Config]:
+        ...
+
+    @overload
+    def sample(
+        self,
+        space: Space,
+        *,
+        n: None = None,
+        sampler: Sampler[Space] | None = ...,
+        seed: Seed | None = ...,
+    ) -> Config:
+        ...
+
+    def sample(
+        self,
+        space: Space,
+        *,
+        n: int | None = None,
+        sampler: Sampler[Space] | None = None,
+        seed: Seed | None = None,
+    ) -> Config | list[Config]:
+        """Sample a configuration from the space of the pipeline.
+
+        Args:
+            space: The space to sample from
+            n: The number of configurations to sample. If `None`, a single
+                configuration will be sampled. If `n` is greater than 1, a list of
+                configurations will be returned.
+            sampler: The sampler to use. If `None`, a sampler will be automatically
+                chosen based on the type of space that is provided.
+            seed: The seed to seed the space with if applicable.
+
+        Returns:
+            A configuration sampled from the space of the pipeline
+        """
+        from byop.pipeline.sampler import Sampler
+
+        return Sampler.try_sample(space, sampler=sampler, n=n, seed=seed)
 
     @classmethod
     def join(cls, *steps: Step | Iterable[Step]) -> Step:
@@ -303,7 +369,9 @@ class Step(Generic[Space]):
 
     @classmethod
     def chain(
-        cls, *steps: Step | Iterable[Step], expand: bool = True
+        cls,
+        *steps: Step | Iterable[Step],
+        expand: bool = True,
     ) -> Iterator[Step]:
         """Chain together a collection of steps into an iterable.
 

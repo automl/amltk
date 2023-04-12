@@ -246,7 +246,7 @@ class EventHandler(Mapping[str, List[Callable[P, Any]]]):
     """An event handler."""
 
     callbacks: dict[str, list[Handler[P]]] = field(
-        default_factory=lambda: defaultdict(list)
+        default_factory=lambda: defaultdict(list),
     )
 
     def add(

@@ -15,20 +15,17 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from typing import (
-    Callable,
-    Hashable,
-    Iterable,
-    Mapping,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Callable, Hashable, Iterable, Mapping, TypeVar
 
 import numpy as np
-import numpy.typing as npt
 
 from byop.data.conversions import probabilities_to_classes
 from byop.randomness import as_rng
-from byop.types import Seed
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
+
+    from byop.types import Seed
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +85,7 @@ def weighted_ensemble_caruana(
     if np.issubdtype(dtype, np.integer):
         logger.warning(
             f"Predictions were {dtype=}, converting to np.float64 to"
-            " allow for weighted ensemble procedure."
+            " allow for weighted ensemble procedure.",
         )
         dtype = np.float64
 

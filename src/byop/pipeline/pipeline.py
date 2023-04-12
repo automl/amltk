@@ -24,14 +24,14 @@ from attrs import field, frozen
 from more_itertools import duplicates_everseen, first_true
 
 from byop.pipeline.components import Split, Step
-from byop.types import Config, Seed, Space
-
-T = TypeVar("T")  # Dummy typevar
-B = TypeVar("B")  # Built pipeline
 
 if TYPE_CHECKING:
     from byop.pipeline.parser import Parser
     from byop.pipeline.sampler import Sampler
+    from byop.types import Config, Seed, Space
+
+    T = TypeVar("T")  # Dummy typevar
+    B = TypeVar("B")  # Built pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,10 @@ class Pipeline:
 
     @overload
     def find(
-        self, key: str | Callable[[Step], bool], *, deep: bool = ...
+        self,
+        key: str | Callable[[Step], bool],
+        *,
+        deep: bool = ...,
     ) -> Step | None:
         ...
 
@@ -290,12 +293,30 @@ class Pipeline:
             module.configured() for module in self.modules.values()
         )
 
+    @overload
+    def space(
+        self,
+        parser: Parser[Space],
+        *,
+        seed: Seed | None = None,
+    ) -> Space:
+        ...
+
+    @overload
+    def space(
+        self,
+        parser: None = None,
+        *,
+        seed: Seed | None = None,
+    ) -> Any:
+        ...
+
     def space(
         self,
         parser: Parser[Space] | None = None,
         *,
         seed: Seed | None = None,
-    ) -> Space:
+    ) -> Space | Any:
         """Get the space for the pipeline.
 
         If there are any modules attached to this pipeline,
@@ -325,10 +346,10 @@ class Pipeline:
         self,
         space: Space,
         *,
-        n: int,
+        n: None = None,
         sampler: Sampler[Space] | None = ...,
         seed: Seed | None = ...,
-    ) -> list[Config]:
+    ) -> Config:
         ...
 
     @overload
@@ -336,10 +357,10 @@ class Pipeline:
         self,
         space: Space,
         *,
-        n: None = None,
+        n: int,
         sampler: Sampler[Space] | None = ...,
         seed: Seed | None = ...,
-    ) -> Config:
+    ) -> list[Config]:
         ...
 
     def sample(
@@ -398,7 +419,7 @@ class Pipeline:
         Returns:
             A new pipeline with the configuration applied
         """
-        from byop.configuring import configure  # Prevent circular imports
+        from byop.pipeline.configurer import configure  # Prevent circular imports
 
         return configure(self, config, rename=rename)
 

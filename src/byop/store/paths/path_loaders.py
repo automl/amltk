@@ -15,13 +15,15 @@ import json
 import pickle
 from functools import partial
 from pathlib import Path
-from types import ModuleType
-from typing import Any, ClassVar, Literal, Protocol, TypeVar, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeVar, Union
 
 import numpy as np
 import pandas as pd
 
 from byop.store.loader import Loader
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 # NOTE: Since we don't want to depend on yaml, we do a dynamic
 # import on it.
