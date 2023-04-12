@@ -45,10 +45,12 @@ def _run(algo_names, complement_model_name, metric_name, data_sample_name, datas
 
     # -- Performance analysis
     # As we are using cross-validation, X_val = X_train and y_val = y_train
-    ens_bm_predictions, ens_bm_with_complement_predictions, score_bm, score_bm_with_complement = \
+    ens_bm_predictions, ens_bm_with_complement_predictions, \
+        score_bm, score_bm_with_complement, val_score_bm, val_score_bm_with_complement = \
         get_data_for_performance_increase_with_new_model(base_models, complement_model,
                                                          metric_data["loss_function_proba_in"],
                                                          metric_data["function_proba_in"],
+                                                         metric_data["loss_to_score_function"],
                                                          seed, X_train, X_test, y_train, y_test)
 
     logger.info(
@@ -67,6 +69,8 @@ def _run(algo_names, complement_model_name, metric_name, data_sample_name, datas
     result_stats = {
         "test_score_standard_base_models": score_bm,
         "test_score_standard_base_models_with_complement": score_bm_with_complement,
+        "val_score_standard_base_models": val_score_bm,
+        "val_score_standard_base_models_with_complement": val_score_bm_with_complement,
         "correlation_ensemble_predictions": ens_prediction_correlation,
         "sample_of_diversity_base_models": bm_diversity,
         "sample_of_diversity_base_models_with_complement": ens_bm_with_complement_diversity

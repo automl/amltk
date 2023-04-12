@@ -29,7 +29,7 @@ METRIC_MAP = {
         "loss_function": bacc_loss,
         "loss_function_proba_in": bacc_loss_proba,
         "to_loss_function": lambda x: 1 - x,
-
+        "loss_to_score_function": lambda x:  1 - x,
         "task_type": "classification"
     }
 }
