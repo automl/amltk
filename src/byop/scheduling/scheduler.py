@@ -225,12 +225,24 @@ class Scheduler:
         """
         return dict(self.event_manager.counts)
 
-    def _submit(
+    def submit(
         self,
         function: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> SyncFuture[R] | None:
+        """Submits a callable to be executed with the given arguments.
+
+        Args:
+            function: The callable to be executed as
+                fn(*args, **kwargs) that returns a Future instance representing
+                the execution of the callable.
+            args: positional arguments to pass to the function
+            kwargs: keyword arguments to pass to the function
+
+        Returns:
+            A Future representing the given call.
+        """
         if self._queue_has_items is None:
             raise RuntimeError("The scheduler is not running!")
 
