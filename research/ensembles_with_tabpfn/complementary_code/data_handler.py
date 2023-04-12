@@ -49,7 +49,7 @@ class FakedFittedAndValidatedClassificationBaseModel:
         self.return_val_data = True
 
 
-def read_all_base_models(path_to_base_model_data: str, bucket_name: str, algorithms: List[str]) \
+def read_all_base_models(path_to_base_model_data: str, dataset_ref: str, data_sample_name: str, algorithms: List[str]) \
         -> Tuple[List[FakedFittedAndValidatedClassificationBaseModel], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Read all base models as fake base model for our usage later on."""
     X_train, X_test, y_train, y_test = None, None, None, None
@@ -57,7 +57,7 @@ def read_all_base_models(path_to_base_model_data: str, bucket_name: str, algorit
     base_models = []
 
     for algo_name in algorithms:
-        bm_data_bucket = PathBucket(path_to_base_model_data + f"/{bucket_name}_{algo_name}")
+        bm_data_bucket = PathBucket(path_to_base_model_data + f"/{algo_name}/{dataset_ref}/{data_sample_name}")
 
         # -- Obtain all base model paths for this algorithm
         pattern = r"trial_(?P<trial>.+)_val_probabilities.npy"

@@ -88,6 +88,8 @@ def _run(algorithm_name, metric_name, data_sample_name, dataset_ref):
     for _ in range(10):
         # TODO: figure out if this produces duplicates and returns an error if everything has been already evaluated
         # TODO: define this based on time or number of samples (samples must be better right...?)
+        # TODO: do we need to guarantee the same configs for each fold/sample? as we are not interested in the performance of the optimizer?
+        #   (I think the current code already does that as the seed is fixed... at least for the first few random samples)
         trial = optimizer.ask()
         report = objective(trial)
 
