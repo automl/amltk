@@ -19,8 +19,6 @@ def _get_transformed_labels(y_true):
 
 
 def _compute_loss_correlation(transformed_labels, proba_a, proba_b):
-
-
     proba_a_loss = 1 - (transformed_labels * proba_a).sum(axis=1)
     proba_b_loss = 1 - (transformed_labels * proba_b).sum(axis=1)
 
@@ -30,7 +28,8 @@ def _compute_loss_correlation(transformed_labels, proba_a, proba_b):
     return pearsonr(proba_a_loss, proba_b_loss)[0]
 
 
-def _compute_correlation_matrix(transformed_labels, base_models):
+def _compute_correlation_matrix(transformed_labels, base_models, complement_model):
+    base_models = sorted(base_models, key=lambda x: x.config["algorithm"]) + [complement_model]
 
     # TODO: decide if for test or val predictions?
     loss_per_bm = [1 - (transformed_labels * bm.val_probabilities).sum(axis=1) for bm in base_models]
@@ -43,10 +42,12 @@ def _compute_correlation_matrix(transformed_labels, base_models):
     return pd.DataFrame(corr_matrix, columns=algo_names, index=algo_names)
 
 
-def correlation_analysis(y_val, y_test, ens_bm_predictions, ens_bm_with_complement_predictions, base_models, complement_model):
+def correlation_analysis(y_val, y_test, ens_bm_predictions, ens_bm_with_complement_predictions, base_models,
+                         complement_model):
     ens_prediction_correlation = _compute_loss_correlation(_get_transformed_labels(y_test), ens_bm_predictions,
                                                            ens_bm_with_complement_predictions)
 
-    all_base_models_correlation_df = _compute_correlation_matrix(_get_transformed_labels(y_val), base_models + [complement_model])
+    all_base_models_correlation_df = _compute_correlation_matrix(_get_transformed_labels(y_val), base_models,
+                                                                 complement_model)
 
     return ens_prediction_correlation, all_base_models_correlation_df

@@ -20,8 +20,8 @@ for name in logging.root.manager.loggerDict:
 
 
 def _run(algo_names, complement_model_name, metric_name, data_sample_name, dataset_ref):
-    path_to_base_model_data = "./data_space/base_model_data"
-    path_to_analysis_data = "./data_space/analysis_data"
+    path_to_base_model_data = f"./data_space/base_model_data/{metric_name}"
+    path_to_analysis_data = f"./data_space/analysis_data/{metric_name}"
     metric_data = METRIC_MAP[metric_name]
 
     # TODO: fix random seed management
@@ -88,7 +88,7 @@ def _run_wrapper():
     logging.basicConfig(level=logging.INFO)
 
     for metric_name, fold_i, sample_i, dataset_ref in EXPERIMENT_RUNS_WO_ALGOS:
-        logger.info(f"Start {C_MODEL} analysis for {metric_name} on dataset {dataset_ref} (f{fold_i}_f{sample_i})")
+        logger.info(f"Start {C_MODEL} analysis for {metric_name} on dataset {dataset_ref} (f{fold_i}_s{sample_i})")
         _run(ALGO_NAMES, C_MODEL, metric_name, f"f{fold_i}_s{sample_i}", dataset_ref)
 
 

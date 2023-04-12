@@ -1,8 +1,23 @@
 from byop.store import PathBucket
 
+from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRICS, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL, DATASET_REF, FOLDS, SAMPLES
+from itertools import product
+
+import logging
+
+LEVEL = logging.INFO
+logger = logging.getLogger(__name__)
+
+for name in logging.root.manager.loggerDict:
+    logging.getLogger(name).setLevel(LEVEL)
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+
+import json
+
+from statistics import mean
 
 # Global font size update
 plt.rcParams['font.size'] = '16'
@@ -41,18 +56,51 @@ def _corr_matrix_plot(corr_matrix, complement_model_name):
     plt.show()
 
 
-def _run():
-    path_to_analysis_data = "./data_space/analysis_data"
-    bm_bucket_name = "debug"
+def _run(c_model, metric_name, dataset_ref, data_sample_names):
+    path_to_analysis_data = f"./data_space/analysis_data/{metric_name}/{dataset_ref}"
 
-    result_bucket = PathBucket(path_to_analysis_data + f"/{bm_bucket_name}")
-    result_stats = result_bucket["results_stats.json"].load()
-    all_base_models_correlation_df = result_bucket["correlation_matrix.csv"].load()
+    result_stats_list = []
+    corr_df_list = []
 
-    _corr_matrix_plot(all_base_models_correlation_df, "XT")
+    for data_sample_name in data_sample_names:
+        result_bucket = PathBucket(path_to_analysis_data + f"/{data_sample_name}")
+        result_stats_list.append(result_bucket["results_stats.json"].load())
+        corr_df_list.append(result_bucket["correlation_matrix.csv"].load())
 
-    print(result_stats)
+        # TODO: compute & save individual sample results here?
+
+    # -- Compute results over splits
+    avg_corr_df = None
+    sanity = None
+    for df in corr_df_list:
+        if avg_corr_df is None:
+            sanity = [list(df.index), list(df.columns)]
+            avg_corr_df = df
+        else:
+            assert list(df.index) == sanity[0]
+            assert list(df.columns) == sanity[1]
+            avg_corr_df += df
+    avg_corr_df /= len(corr_df_list)
+    avg_result_stats = {k: mean([ele[k] for ele in result_stats_list]) for k in result_stats_list[0].keys()}
+
+    # -- Analysis
+    _corr_matrix_plot(avg_corr_df, c_model)
+    print(json.dumps(avg_result_stats,sort_keys = True, indent = 4))
 
 
-if __name__ == "__main__":
-    _run()
+def _run_wrapper():
+    # TODO:
+    #   - decide on how to compute this (SLURM OR LOCAL GIVEN DATA)
+    logging.basicConfig(level=logging.INFO)
+
+
+    for metric_name in METRICS:
+        for dataset_ref in DATASET_REF:
+            logger.info(f"Plot for {C_MODEL} analysis for {metric_name} on dataset {dataset_ref}")
+            _run(C_MODEL, metric_name, dataset_ref,
+                 [f"f{fold_i}_s{sample_i}" for fold_i, sample_i in product(FOLDS, SAMPLES)])
+
+
+
+if __name__ == "__main__":  # MP safeguard
+    _run_wrapper()

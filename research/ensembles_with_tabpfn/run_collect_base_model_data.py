@@ -78,7 +78,7 @@ def _run(algorithm_name, metric_name, data_sample_name, dataset_ref):
     # -- Setup Data and Optimizer
     metric_data = METRIC_MAP[metric_name]
     data_bucket = setup_data_bucket(dataset_ref, data_sample_name, seed,
-                                    f"./data_space/base_model_data/{algorithm_name}/{dataset_ref}/{data_sample_name}")
+                                    f"./data_space/base_model_data/{metric_name}/{algorithm_name}/{dataset_ref}/{data_sample_name}")
     pipeline = build_pipeline(algorithm_name)
     optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)
     objective = Trial.Objective(target_function, bucket=data_bucket, pipeline=pipeline, metric_data=metric_data)
@@ -110,7 +110,7 @@ def _run_wrapper():
     logging.basicConfig(level=logging.INFO)
 
     for algorithm_name, metric_name, fold_i, sample_i, dataset_ref in ALL_EXPERIMENT_RUNS:
-        logger.info(f"Start {algorithm_name} for {metric_name} on dataset {dataset_ref} (f{fold_i}_f{sample_i})")
+        logger.info(f"Start {algorithm_name} for {metric_name} on dataset {dataset_ref} (f{fold_i}_s{sample_i})")
         _run(algorithm_name, metric_name, f"f{fold_i}_s{sample_i}", dataset_ref)
 
 
