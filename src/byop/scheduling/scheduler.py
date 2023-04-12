@@ -234,7 +234,7 @@ class Scheduler:
         """Submits a callable to be executed with the given arguments.
 
         Args:
-            function (Callable[P, R]): The callable to be executed as
+            function: The callable to be executed as
                 fn(*args, **kwargs) that returns a Future instance representing
                 the execution of the callable.
             args: positional arguments to pass to the function
