@@ -92,6 +92,8 @@ def _run(algorithm_name, metric_name, data_sample_name, dataset_ref):
         #   (I think the current code already does that as the seed is fixed... at least for the first few random samples)
         #   If we would not do this, then the expectation over different sources of randomness is wrong... or it could be correct
         #       as the optimizer is a source of randomness for the algorithm family...
+        #   actually, we might want to keep all models and only to random search to have a better distribution of
+        #       the hyperparameters' performances over the models... and only prune for performance boost analysis...
         trial = optimizer.ask()
         report = objective(trial)
 

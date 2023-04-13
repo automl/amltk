@@ -37,10 +37,10 @@ METRIC_MAP = {
 # -- experiment configs
 ALGO_NAMES = {"MLP", "RF", "LM", "GBM", "KNN", "XT"}
 METRICS = set(METRIC_MAP.keys())
-FOLDS = list(range(2))
-SAMPLES = list(range(2))
+FOLDS = list(range(10))
+SAMPLES = list(range(10))
 DATASET_REF = {31}
-C_MODEL = "XT"
+C_MODEL = "LM"
 
 ALL_EXPERIMENT_RUNS = list(product(ALGO_NAMES, METRICS, FOLDS, SAMPLES, DATASET_REF))
 EXPERIMENT_RUNS_WO_ALGOS = list(product(METRICS, FOLDS, SAMPLES, DATASET_REF))
