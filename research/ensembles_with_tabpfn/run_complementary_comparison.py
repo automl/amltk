@@ -1,5 +1,5 @@
 from research.ensembles_with_tabpfn.complementary_code.data_handler import read_all_base_models
-from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRIC_MAP, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL, \
+from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRIC_MAP, EXPERIMENT_RUNS_WO_ALGOS, C_ALGO, \
     EXPERIMENT_HIGH_LEVEL
 from research.ensembles_with_tabpfn.complementary_code.ensembling_performance_boost import \
     get_data_for_performance_increase_with_new_model
@@ -20,7 +20,34 @@ for name in logging.root.manager.loggerDict:
     logging.getLogger(name).setLevel(LEVEL)
 
 
-def _run(algo_names, complement_model_name, metric_name, data_sample_name, dataset_ref):
+def _performance_analysis(base_models, algo_names, complement_model_name, metric_data,
+                          seed, X_train, X_test, y_train, y_test):
+    # - Get the best model per algorithm (based on validation score)
+    # TODO: take best or X best? what is more appropriate for the analysis?
+    base_models = prune_base_models(base_models, max_number_base_models=len(algo_names), pruning_method="SiloTopN",
+                                    maximize_validation_score=metric_data["maximize"])
+
+    # - Split
+    complement_model = [bm for bm in base_models if bm.config["algorithm"] == complement_model_name][0]
+    base_models = [bm for bm in base_models if bm.config["algorithm"] != complement_model_name]
+
+    # -- Performance analysis
+    # As we are using cross-validation, X_val = X_train and y_val = y_train
+    ens_bm_predictions, ens_bm_with_complement_predictions, \
+        score_bm, score_bm_with_complement, val_score_bm, val_score_bm_with_complement = \
+        get_data_for_performance_increase_with_new_model(base_models, complement_model,
+                                                         metric_data["loss_function_proba_in"],
+                                                         metric_data["function_proba_in"],
+                                                         metric_data["loss_to_score_function"],
+                                                         seed, X_train, X_test, y_train, y_test)
+    logger.info(
+        f"Score of Ensemble - base models: {score_bm} | Score of Ensemble - base models with complement: {score_bm_with_complement}")
+
+    return ens_bm_predictions, ens_bm_with_complement_predictions, \
+        score_bm, score_bm_with_complement, val_score_bm, val_score_bm_with_complement
+
+
+def _run(algo_names, complement_algorithm_name, metric_name, data_sample_name, dataset_ref):
     path_to_base_model_data = f"./data_space/base_model_data/{metric_name}"
     path_to_analysis_data = f"./data_space/analysis_data/{metric_name}"
     metric_data = METRIC_MAP[metric_name]
@@ -32,38 +59,22 @@ def _run(algo_names, complement_model_name, metric_name, data_sample_name, datas
     base_models, X_train, X_test, y_train, y_test = read_all_base_models(path_to_base_model_data,
                                                                          dataset_ref, data_sample_name, algo_names)
 
-    # - Get the best model per algorithm (based on validation score)
-    base_models = prune_base_models(base_models, max_number_base_models=len(algo_names), pruning_method="SiloTopN",
-                                    maximize_validation_score=metric_data["maximize"])
-
-    # - Split
-    complement_model = [bm for bm in base_models if bm.config["algorithm"] == complement_model_name][0]
-    base_models = [bm for bm in base_models if bm.config["algorithm"] != complement_model_name]
-
-    # -- Diversity analysis
-    bm_diversity, ens_bm_with_complement_diversity = ensemble_diversity_analysis(y_train, y_test, base_models,
-                                                                                 complement_model)
-
-    # -- Performance analysis
-    # As we are using cross-validation, X_val = X_train and y_val = y_train
     ens_bm_predictions, ens_bm_with_complement_predictions, \
-        score_bm, score_bm_with_complement, val_score_bm, val_score_bm_with_complement = \
-        get_data_for_performance_increase_with_new_model(base_models, complement_model,
-                                                         metric_data["loss_function_proba_in"],
-                                                         metric_data["function_proba_in"],
-                                                         metric_data["loss_to_score_function"],
-                                                         seed, X_train, X_test, y_train, y_test)
+        score_bm, score_bm_with_complement, val_score_bm, val_score_bm_with_complement \
+        = _performance_analysis(base_models, algo_names, complement_algorithm_name, metric_data, seed,
+                                X_train, X_test, y_train, y_test)
 
-    logger.info(
-        f"Score of Ensemble - base models: {score_bm} | Score of Ensemble - base models with complement: {score_bm_with_complement}")
+    # -- Pruning for remaining analysis?
+    # FIXME: use this if we want to analyze w.r.t. good performing models only
+    # base_models = prune_base_models(base_models, max_number_base_models=5, pruning_method="SiloTopN",
+    #                                 maximize_validation_score=metric_data["maximize"])
 
-    # -- Correlation analysis
     ens_prediction_correlation, all_base_models_correlation_df = \
         correlation_analysis(y_train, y_test, ens_bm_predictions, ens_bm_with_complement_predictions, base_models,
-                             complement_model)
+                             complement_algorithm_name)
 
-    logger.info(f"Correlation of ensemble predictions: {ens_prediction_correlation}")
-    logger.info(f"Correlation of all base models predictions: {all_base_models_correlation_df}")
+    bm_diversity, ens_bm_with_complement_diversity = \
+        ensemble_diversity_analysis(y_train, y_test, base_models, complement_algorithm_name)
 
     # -- Save results for next step (analysis)
     result_bucket = PathBucket(path_to_analysis_data + f"/{dataset_ref}/{data_sample_name}")
@@ -86,7 +97,7 @@ def _run(algo_names, complement_model_name, metric_name, data_sample_name, datas
     )
 
     # -- Store data for disparity
-    for bm in base_models + [complement_model]:
+    for bm in base_models:
         algo_name = bm.config["algorithm"]
         pred_bucket = PathBucket(path_to_base_model_data + f"/{algo_name}/{dataset_ref}/base_models")
         pred_bucket.update({
@@ -134,12 +145,12 @@ def _run_wrapper():
     logging.basicConfig(level=logging.INFO)
 
     for metric_name, fold_i, sample_i, dataset_ref in EXPERIMENT_RUNS_WO_ALGOS:
-        logger.info(f"\n\nStart {C_MODEL} analysis for {metric_name} on dataset {dataset_ref} (f{fold_i}_s{sample_i})")
-        _run(ALGO_NAMES, C_MODEL, metric_name, f"f{fold_i}_s{sample_i}", dataset_ref)
+        logger.info(f"\n\nStart {C_ALGO} analysis for {metric_name} on dataset {dataset_ref} (f{fold_i}_s{sample_i})")
+        _run(ALGO_NAMES, C_ALGO, metric_name, f"f{fold_i}_s{sample_i}", dataset_ref)
 
     for metric_name, dataset_ref in EXPERIMENT_HIGH_LEVEL:
         logger.info(f"\n\nStart disparty analysis for {metric_name} on dataset {dataset_ref}")
-        _run_disparity_analysis(ALGO_NAMES, C_MODEL, metric_name, dataset_ref)
+        _run_disparity_analysis(ALGO_NAMES, C_ALGO, metric_name, dataset_ref)
 
 
 if __name__ == "__main__":  # MP safeguard

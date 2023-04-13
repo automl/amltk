@@ -40,7 +40,9 @@ METRICS = set(METRIC_MAP.keys())
 FOLDS = list(range(10))
 SAMPLES = list(range(10))
 DATASET_REF = {31}
-C_MODEL = "LM"
+C_ALGO = "LM"
+
+# TODO: think about making HPs its own experiment hyperparameter and parallelization level
 
 ALL_EXPERIMENT_RUNS = list(product(ALGO_NAMES, METRICS, FOLDS, SAMPLES, DATASET_REF))
 EXPERIMENT_RUNS_WO_ALGOS = list(product(METRICS, FOLDS, SAMPLES, DATASET_REF))

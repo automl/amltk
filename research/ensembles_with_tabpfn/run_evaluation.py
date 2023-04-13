@@ -1,6 +1,6 @@
 from byop.store import PathBucket
 
-from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRICS, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL, \
+from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRICS, EXPERIMENT_RUNS_WO_ALGOS, C_ALGO, \
     DATASET_REF, FOLDS, SAMPLES
 from itertools import product
 
@@ -100,7 +100,7 @@ def _run_wrapper():
 
     for metric_name in METRICS:
         for dataset_ref in DATASET_REF:
-            logger.info(f"Plot for {C_MODEL} analysis for {metric_name} on dataset {dataset_ref}")
+            logger.info(f"Plot for {C_ALGO} analysis for {metric_name} on dataset {dataset_ref}")
             _run("LM", metric_name, dataset_ref,
                  [f"f{fold_i}_s{sample_i}" for fold_i, sample_i in product(FOLDS, SAMPLES)])
 
