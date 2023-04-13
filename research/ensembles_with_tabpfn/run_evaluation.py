@@ -1,6 +1,7 @@
 from byop.store import PathBucket
 
-from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRICS, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL, DATASET_REF, FOLDS, SAMPLES
+from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRICS, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL, \
+    DATASET_REF, FOLDS, SAMPLES
 from itertools import product
 
 import logging
@@ -69,6 +70,9 @@ def _run(c_model, metric_name, dataset_ref, data_sample_names):
 
         # TODO: compute & save individual sample results here?
 
+    overall_result_bucket = PathBucket(path_to_analysis_data)
+    disp_res = overall_result_bucket["disparity_results.json"].load()
+
     # -- Compute results over splits
     avg_corr_df = None
     sanity = None
@@ -85,7 +89,8 @@ def _run(c_model, metric_name, dataset_ref, data_sample_names):
 
     # -- Analysis
     _corr_matrix_plot(avg_corr_df, c_model)
-    print(json.dumps(avg_result_stats,sort_keys = True, indent = 4))
+    print(json.dumps(avg_result_stats, sort_keys=True, indent=4))
+    print(json.dumps(disp_res, sort_keys=True, indent=4))
 
 
 def _run_wrapper():
@@ -93,13 +98,11 @@ def _run_wrapper():
     #   - decide on how to compute this (SLURM OR LOCAL GIVEN DATA)
     logging.basicConfig(level=logging.INFO)
 
-
     for metric_name in METRICS:
         for dataset_ref in DATASET_REF:
             logger.info(f"Plot for {C_MODEL} analysis for {metric_name} on dataset {dataset_ref}")
-            _run(C_MODEL, metric_name, dataset_ref,
+            _run("LM", metric_name, dataset_ref,
                  [f"f{fold_i}_s{sample_i}" for fold_i, sample_i in product(FOLDS, SAMPLES)])
-
 
 
 if __name__ == "__main__":  # MP safeguard
