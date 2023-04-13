@@ -97,11 +97,11 @@ def _run(algo_names, complement_algorithm_name, metric_name, data_sample_name, d
     )
 
     # -- Store data for disparity
-    for bm in base_models:
+    for bm_id, bm in enumerate(base_models):
         algo_name = bm.config["algorithm"]
         pred_bucket = PathBucket(path_to_base_model_data + f"/{algo_name}/{dataset_ref}/base_models")
         pred_bucket.update({
-            f"{data_sample_name}_pred.pkl": bm
+            f"{data_sample_name}_pred_{bm_id}.pkl": bm
         })
 
 

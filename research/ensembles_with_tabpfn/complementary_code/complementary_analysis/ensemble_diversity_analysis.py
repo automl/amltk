@@ -82,7 +82,7 @@ def compute_left_bergman_centroid(predictions_of_base_model):
         (for cross-entropy; for full length prediction probabilities)
     """
     return _normalized_geometric_mean(
-        [np.log(algo_bm_preds + EPS) for algo_bm_preds in predictions_of_base_model],
+        [algo_bm_preds + EPS for algo_bm_preds in predictions_of_base_model],
         normalize=False
     )
 
