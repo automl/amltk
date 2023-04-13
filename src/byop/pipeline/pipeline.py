@@ -14,30 +14,25 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
-    Literal,
     Mapping,
-    Sequence,
     TypeVar,
     overload,
 )
 from uuid import uuid4
 
 from attrs import field, frozen
-from more_itertools import duplicates_everseen, first_true
+from more_itertools import first_true
 
-from byop.pipeline.components import Searchable
-from byop.pipeline.step import Step
-from byop.types import Config, Seed, Space
+from byop.functional import mapping_select
+from byop.pipeline.components import Split, Step
+
+if TYPE_CHECKING:
+    from byop.pipeline.parser import Parser
+    from byop.pipeline.sampler import Sampler
+    from byop.types import Config, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 B = TypeVar("B")  # Built pipeline
-
-if TYPE_CHECKING:
-    from ConfigSpace import ConfigurationSpace
-
-    from byop.optuna.space import OptunaSearchSpace
-    from byop.pipeline.components import Split
-    from byop.samplers import Sampler
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +49,7 @@ class Pipeline:
 
     name: str
     steps: list[Step]
-    modules: Mapping[str, Pipeline] = field(factory=dict)
-    searchables: Mapping[str, Searchable] = field(factory=dict)
+    modules: Mapping[str, Step | Pipeline] = field(factory=dict)
 
     @property
     def head(self) -> Step:
@@ -128,7 +122,10 @@ class Pipeline:
 
     @overload
     def find(
-        self, key: str | Callable[[Step], bool], *, deep: bool = ...
+        self,
+        key: str | Callable[[Step], bool],
+        *,
+        deep: bool = ...,
     ) -> Step | None:
         ...
 
@@ -253,46 +250,25 @@ class Pipeline:
             name=self.name if name is None else name,
         )
 
-    def validate(self) -> None:
-        """Validate the pipeline for any invariants.
-
-        Intended for use as an opt-in during development
-
-        Raises:
-            AssertionError: If a duplicate name is found for a step in the pipeline
-        """
-        # Check that we do not have any keys with the same Hash
-        dupe_steps = list(duplicates_everseen(self.traverse()))
-        assert not any(dupe_steps), f"Duplicates in pipeline {dupe_steps}"
-
     def attach(
         self,
         *,
-        modules: Pipeline | Iterable[Pipeline | Step] | None = None,
-        searchables: Searchable | Sequence[Searchable] | None = None,
+        modules: Pipeline | Step | Iterable[Pipeline | Step] | None = None,
     ) -> Pipeline:
         """Attach modules to the pipeline.
 
         Args:
             modules: The modules to attach
-            searchables: The searchables to attach
         """
         if modules is None:
             modules = []
 
-        if isinstance(modules, Pipeline):
+        if isinstance(modules, (Step, Pipeline)):
             modules = [modules]
-
-        if searchables is None:
-            searchables = []
-
-        if isinstance(searchables, Searchable):
-            searchables = [searchables]
 
         return self.create(
             self.head,
             modules=[*self.modules.values(), *modules],
-            searchables=[*self.searchables.values(), *searchables],
             name=self.name,
         )
 
@@ -302,82 +278,79 @@ class Pipeline:
         Returns:
             True if the pipeline has been configured, False otherwise
         """
-        return (
-            all(step.configured() for step in self.traverse())
-            and all(module.configured() for module in self.modules.values())
-            and all(searchable.configured() for searchable in self.searchables.values())
+        return all(step.configured() for step in self.traverse()) and all(
+            module.configured() for module in self.modules.values()
         )
 
     @overload
     def space(
-        self, parser: Literal["auto"] = "auto", *, seed: Seed | None = ...
-    ) -> Any:
-        ...
-
-    @overload
-    def space(
         self,
-        parser: Literal["configspace"] | type[ConfigurationSpace],
+        parser: Parser[Space],
         *,
-        seed: Seed | None = ...,
-    ) -> ConfigurationSpace:
-        ...
-
-    @overload
-    def space(
-        self,
-        parser: Literal["optuna"],
-        *,
-        seed: Seed | None = ...,
-    ) -> OptunaSearchSpace:
-        ...
-
-    @overload
-    def space(
-        self,
-        parser: Callable[[Pipeline], Space] | Callable[[Pipeline, Seed | None], Space],
-        *,
-        seed: Seed | None = ...,
+        seed: Seed | None = None,
     ) -> Space:
         ...
 
+    @overload
     def space(
         self,
-        parser: (
-            Literal["auto"]
-            | Literal["configspace"]
-            | Literal["optuna"]
-            | type[ConfigurationSpace]
-            | Callable[[Pipeline], Space]
-            | Callable[[Pipeline, Seed | None], Space]
-        ) = "auto",
+        parser: None = None,
         *,
         seed: Seed | None = None,
-    ) -> Space | ConfigurationSpace | OptunaSearchSpace | Any:
+    ) -> Any:
+        ...
+
+    def space(
+        self,
+        parser: Parser[Space] | None = None,
+        *,
+        seed: Seed | None = None,
+    ) -> Space | Any:
         """Get the space for the pipeline.
 
-        If there are any modules or searchables attached to this pipeline,
+        If there are any modules attached to this pipeline,
         these will also be included in the space.
 
         Args:
-            parser: The parser to use for assembling the space. Default is `"auto"`.
-                * If `"auto"` is provided, the assembler will attempt to
+            parser: The parser to use for assembling the space. Default is `None`.
+                * If `None` is provided, the assembler will attempt to
                 automatically figure out the kind of Space to extract from the pipeline.
-                * If `"configspace"` is provided, a ConfigurationSpace will be attempted
-                to be extracted.
-                * If a `type` is provided, it will attempt to infer which parser to use.
-                * If `parser` is a parser type, we will attempt to use that.
-                * If `parser` is a callable, we will attempt to use that.
+                * Otherwise we will attempt to use the given Parser.
                 If there are other intuitive ways to indicate the type, please open
                 an issue on GitHub and we will consider it!
-            seed: The seed to seed the space with if applicable.
+            seed: The seed to use for the space if applicable.
+
+        Raises:
+            Parser.Error: If the parser fails to parse the space.
 
         Returns:
             The space for the pipeline
         """
-        from byop.parsing import parse  # Prevent circular imports
+        from byop.pipeline.parser import Parser  # Prevent circular imports
 
-        return parse(self, parser=parser, seed=seed)
+        return Parser.try_parse(pipeline_or_step=self, parser=parser, seed=seed)
+
+    @overload
+    def sample(
+        self,
+        space: Space,
+        *,
+        n: None = None,
+        sampler: Sampler[Space] | None = ...,
+        seed: Seed | None = ...,
+    ) -> Config:
+        ...
+
+    @overload
+    def sample(
+        self,
+        space: Space,
+        *,
+        n: int,
+        sampler: Sampler[Space] | None = ...,
+        seed: Seed | None = ...,
+    ) -> list[Config]:
+        ...
 
     def sample(
         self,
@@ -401,16 +374,16 @@ class Pipeline:
         Returns:
             A configuration sampled from the space of the pipeline
         """
-        from byop.samplers import sample
+        from byop.pipeline.sampler import Sampler
 
-        return sample(space, sampler=sampler, n=n, seed=seed)
+        return Sampler.try_sample(space, sampler=sampler, n=n, seed=seed)
 
     def configure(
         self,
         config: Config,
         *,
-        configurer: (Literal["auto"] | Callable[[Pipeline, Config], Pipeline]) = "auto",
         rename: bool | str = False,
+        prefixed_name: bool = False,
     ) -> Pipeline:
         """Configure the pipeline with the given configuration.
 
@@ -418,30 +391,45 @@ class Pipeline:
         configuration. For example, choosing selected steps and setting the `config`
         of steps with those present in the `config` object given to this function.
 
-        If there are any modules or searchables attached to this pipeline,
+        If there are any modules attached to this pipeline,
         these will also be configured for you.
 
         Args:
             config: The configuration to use
-            configurer: The configurer to use. Default is `"auto"`.
-                * If `"auto"` is provided, the assembler will attempt to automatically
-                    figure out how to configure the pipeline.
-                * If `configurer` is a callable, we will attempt to use that.
-                If there are other intuitive ways to indicate the type, please open an
-                issue on GitHub and we will consider it!
             rename: Whether to rename the pipeline. Defaults to `False`.
                 * If `True`, the pipeline will be renamed using a random uuid
-                * If a Name is provided, the pipeline will be renamed to that name
+                * If a name is provided, the pipeline will be renamed to that name
+                * If `False`, the pipeline will not be renamed
+            prefixed_name: Whether the configuration is prefixed with the name of the
+                pipeline. Defaults to `False`.
 
         Returns:
             A new pipeline with the configuration applied
         """
-        from byop.configuring import configure  # Prevent circular imports
+        this_config: Config
+        if prefixed_name:
+            this_config = mapping_select(config, f"{self.name}:")
+        else:
+            this_config = config
 
-        return configure(self, config, configurer=configurer, rename=rename)
+        new_head = self.head.configure(this_config, prefixed_name=True)
+
+        new_modules = [
+            module.configure(this_config, prefixed_name=True)
+            for module in self.modules.values()
+        ]
+
+        if rename is True:
+            _rename = None
+        elif rename is False:
+            _rename = self.name
+        else:
+            _rename = rename
+
+        return Pipeline.create(new_head, modules=new_modules, name=_rename)
 
     @overload
-    def build(self, builder: Literal["auto"] = "auto") -> Any:
+    def build(self, builder: None = None) -> Any:
         ...
 
     @overload
@@ -450,13 +438,13 @@ class Pipeline:
 
     def build(
         self,
-        builder: (Literal["auto"] | Callable[[Pipeline], B]) = "auto",
+        builder: Callable[[Pipeline], B] | None = None,
     ) -> B | Any:
         """Build the pipeline.
 
         Args:
-            builder: The builder to use. Default is `"auto"`.
-                * If `"auto"` is provided, the assembler will attempt to automatically
+            builder: The builder to use. Default is `None`.
+                * If `None` is provided, the assembler will attempt to automatically
                     figure out build the pipeline as it can.
                 * If `builder` is a callable, we will attempt to use that.
 
@@ -476,11 +464,10 @@ class Pipeline:
         return self.create(self, name=self.name if name is None else name)
 
     @classmethod
-    def create(  # noqa: C901
+    def create(
         cls,
         *steps: Step | Pipeline | Iterable[Step],
-        modules: Pipeline | Iterable[Pipeline | Step] | None = None,
-        searchables: Searchable | Iterable[Searchable] | None = None,
+        modules: Pipeline | Step | Iterable[Pipeline | Step] | None = None,
         name: str | None = None,
     ) -> Pipeline:
         """Create a pipeline from a sequence of steps.
@@ -489,7 +476,6 @@ class Pipeline:
             *steps: The steps to create the pipeline from
             name (optional): The name of the pipeline. Defaults to a uuid
             modules (optional): The modules to use for the pipeline
-            searchables (optional): The searchables to use for the pipeline
 
         Returns:
             Pipeline
@@ -501,19 +487,16 @@ class Pipeline:
         if name is None:
             name = str(uuid4())
 
-        if isinstance(modules, Pipeline):
+        if isinstance(modules, (Pipeline, Step)):
             modules = [modules]
-
-        if isinstance(searchables, Searchable):
-            searchables = [searchables]
 
         # Collect all the modules, turning them into pipelines
         # as required by the internal api
-        final_modules: dict[str, Pipeline] = {}
+        final_modules: dict[str, Pipeline | Step] = {}
         if modules is not None:
             final_modules = {
                 module.name: module.copy()
-                if isinstance(module, Pipeline)
+                if isinstance(module, (Pipeline, Step))
                 else Pipeline.create(module, name=module.name)
                 for module in modules
             }
@@ -539,35 +522,8 @@ class Pipeline:
 
                 final_modules.update(step_modules)
 
-        # Collect all the searchables, copying them over
-        final_searchables: dict[str, Searchable] = {}
-        if searchables is not None:
-            final_searchables = {
-                searchable.name: searchable.copy() for searchable in searchables
-            }
-
-        # If any of the steps are pipelines, make sure to grab their
-        # searchables too, as we will flatten all of these added pipelines
-        # to one single pipeline
-        for step in steps:
-            if isinstance(step, Pipeline):
-                step_searchables = {
-                    searchable.name: searchable.copy()
-                    for searchable in step.searchables.values()
-                }
-                duplicates = step_searchables.keys() & final_searchables.keys()
-                if any(duplicates):
-                    msg = (
-                        "Duplicate searchable(s) found during pipeline"
-                        f" creation {duplicates=}."
-                    )
-                    raise ValueError(msg)
-
-                final_searchables.update(step_searchables)
-
         return cls(
             name=name,
             steps=step_sequence,
             modules=final_modules,
-            searchables=final_searchables,
         )

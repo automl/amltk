@@ -5,14 +5,12 @@ from __future__ import annotations
 
 from itertools import chain
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
 
 from more_itertools import ilen
 
 from byop.store.bucket import Bucket
 from byop.store.drop import Drop
-from byop.store.loader import Loader
 from byop.store.paths.path_loaders import (
     ByteLoader,
     JSONLoader,
@@ -24,7 +22,11 @@ from byop.store.paths.path_loaders import (
     YAMLLoader,
 )
 
-# NOTE: Order is important
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
+    from byop.store.loader import Loader
+
 DEFAULT_LOADERS: tuple[PathLoader, ...] = (
     NPYLoader,
     PDLoader,

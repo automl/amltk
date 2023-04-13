@@ -14,17 +14,19 @@ from concurrent.futures import (
     wait as wait_futures,
 )
 from enum import Enum, auto
-from multiprocessing.context import BaseContext
-from typing import Any, Callable, Hashable, TypeVar
-from typing_extensions import ParamSpec, Self
+from typing import TYPE_CHECKING, Any, Callable, Hashable, TypeVar
 
 from byop.events import Event, EventManager
 from byop.scheduling.termination_strategies import termination_strategy
 
-P = ParamSpec("P")
-R = TypeVar("R")
+if TYPE_CHECKING:
+    from multiprocessing.context import BaseContext
+    from typing_extensions import ParamSpec, Self
 
-CallableT = TypeVar("CallableT", bound=Callable)
+    P = ParamSpec("P")
+    R = TypeVar("R")
+
+    CallableT = TypeVar("CallableT", bound=Callable)
 
 logger = logging.getLogger(__name__)
 
@@ -444,7 +446,7 @@ class Scheduler:
             asyncio.set_event_loop(loop)
 
         return loop.run_until_complete(
-            self._run_scheduler(timeout=timeout, end_on_empty=end_on_empty, wait=wait)
+            self._run_scheduler(timeout=timeout, end_on_empty=end_on_empty, wait=wait),
         )
 
     async def async_run(

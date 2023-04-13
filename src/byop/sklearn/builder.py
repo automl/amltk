@@ -1,15 +1,18 @@
 """Builds an sklearn.pipeline.Pipeline from a byop.pipeline.Pipeline."""
 from __future__ import annotations
 
-from typing import Iterable, Union
-from typing_extensions import TypeAlias
+from typing import TYPE_CHECKING, Iterable, Union
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from byop.pipeline.components import Component, Split
-from byop.pipeline.pipeline import Pipeline
 from byop.types import Any
+
+if TYPE_CHECKING:
+    from typing_extensions import TypeAlias
+
+    from byop.pipeline.pipeline import Pipeline
 
 COLUMN_TRANSFORMER_ARGS = [
     "remainder",
@@ -50,13 +53,13 @@ def process_split(step: Split[SklearnItem, Any]) -> tuple[str, SklearnItem]:
     """
     if step.item is None:
         raise NotImplementedError(
-            f"Can't handle split as it has no item attached: {step}"
+            f"Can't handle split as it has no item attached: {step}",
         )
 
     if any(path.name in COLUMN_TRANSFORMER_ARGS for path in step.paths):
         raise ValueError(
             f"Can't handle step as it has a path with a name that matches"
-            f" a known ColumnTransformer argument: {step}"
+            f" a known ColumnTransformer argument: {step}",
         )
 
     # We passthrough if there's no config associated with the split as we
@@ -85,7 +88,7 @@ def process_split(step: Split[SklearnItem, Any]) -> tuple[str, SklearnItem]:
 
 
 def process_from(
-    step: Component[SklearnItem, Any] | Split[SklearnItem, Any]
+    step: Component[SklearnItem, Any] | Split[SklearnItem, Any],
 ) -> Iterable[tuple[str, SklearnItem]]:
     """Process a chain of steps into tuples of (name, component) for sklearn.
 
@@ -95,10 +98,10 @@ def process_from(
     Yields:
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
-    if isinstance(step, Component):
-        yield process_component(step)
-    elif isinstance(step, Split):
+    if isinstance(step, Split):
         yield process_split(step)
+    elif isinstance(step, Component):
+        yield process_component(step)
     else:
         raise NotImplementedError(f"Can't handle step: {step}")
 

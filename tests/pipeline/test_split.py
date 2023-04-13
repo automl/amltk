@@ -32,9 +32,9 @@ def test_traverse_one_deep() -> None:
 def test_traverse_sequential_splits() -> None:
     s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), i) for i in range(1, 9))
     split1 = split("split1", s1, s2)
-    split2 = split("split1", s3, s4)
-    split3 = split("split1", s5, s6)
-    split4 = split("split1", s7, s8)
+    split2 = split("split2", s3, s4)
+    split3 = split("split3", s5, s6)
+    split4 = split("split4", s7, s8)
     steps = Step.join(split1, split2, split3, split4)
 
     expected = [split1, s1, s2, split2, s3, s4, split3, s5, s6, split4, s7, s8]
@@ -138,3 +138,46 @@ def test_split_on_head_of_path_does_not_remove_rest_of_path() -> None:
     s = split("split", step("1", 1) | step("2", 2))
     result = next(s.remove(["1"]))
     assert result == split("split", step("2", 2))
+
+
+def test_configure_single() -> None:
+    s1 = split(
+        "split",
+        step("1", 1, space={"a": [1, 2, 3]}) | step("2", 2, space={"b": [1, 2, 3]}),
+        step("3", 3, space={"c": [1, 2, 3]}),
+        item=object(),
+        space={"split_space": [1, 2, 3]},
+    )
+    configured_s1 = s1.configure({"split_space": 1, "1:a": 1, "2:b": 2, "3:c": 3})
+
+    expected_configs_by_name = {
+        "split": {"split_space": 1},
+        "1": {"a": 1},
+        "2": {"b": 2},
+        "3": {"c": 3},
+    }
+    for s in configured_s1.traverse():
+        assert s.config == expected_configs_by_name[s.name]
+        assert s.search_space is None
+
+
+def test_configure_chained() -> None:
+    head = (
+        split(
+            "split",
+            step("1", 2, space={"a": [1, 2, 3]}),
+        )
+        | step("2", 1, space={"b": [1, 2, 3]})
+        | step("3", 3, space={"c": [1, 2, 3]})
+    )
+    configured_head = head.configure({"split:1:a": 1, "2:b": 2, "3:c": 3})
+
+    expected_configs = {
+        "split": None,
+        "1": {"a": 1},
+        "2": {"b": 2},
+        "3": {"c": 3},
+    }
+    for s in configured_head.traverse():
+        assert s.config == expected_configs[s.name]
+        assert s.search_space is None

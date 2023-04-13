@@ -6,7 +6,7 @@ import pytest
 from more_itertools import first, last
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop import Pipeline, choice, split, step
+from byop.pipeline import Pipeline, Step, choice, split, step
 
 
 @case(tags="shallow")
@@ -182,11 +182,11 @@ def test_remove_deep(pipeline: Pipeline) -> None:
 
 
 @parametrize_with_cases("pipeline", cases=".")
-def test_validate(pipeline: Pipeline) -> None:
+def test_duplicate_name_error(pipeline: Pipeline) -> None:
     first_step = pipeline.head
-    new_pipeline = pipeline | step(first_step.name, object())
-    with pytest.raises(AssertionError):
-        new_pipeline.validate()
+    name = first_step.name
+    with pytest.raises(Step.DuplicateNameError):
+        pipeline | step(name, object())  # pyright: reportUnusedExpression=false
 
 
 @parametrize_with_cases("pipeline", cases=".")

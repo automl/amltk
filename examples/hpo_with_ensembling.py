@@ -134,6 +134,7 @@ def create_ensemble(
     }
     targets = bucket["y_val.npy"].load()
 
+    task = Trial.Task
     trajectory: list[tuple[str, float]]
     weights, trajectory = weighted_ensemble_caruana(
         model_predictions=validation_predictions,

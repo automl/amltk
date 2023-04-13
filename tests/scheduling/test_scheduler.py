@@ -39,7 +39,10 @@ def case_dask_executor() -> ClientExecutor:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         cluster = LocalCluster(
-            n_workers=2, silence_logs=logging.ERROR, worker_class=Worker, processes=True
+            n_workers=2,
+            silence_logs=logging.ERROR,
+            worker_class=Worker,
+            processes=True,
         )
 
     client = Client(cluster)
@@ -98,7 +101,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
             "There is no forcibul way to kill a thread, so this test will hang"
             " for the full `sleep_time`. While technically this will pass the"
             " test, we do not want this hanging behaviour. This should be"
-            " explicitly documented when using ThreadPoolExecutor."
+            " explicitly documented when using ThreadPoolExecutor.",
         )
 
     results: list[float] = []

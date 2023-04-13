@@ -1,4 +1,7 @@
 from byop.optuna.optimizer import OptunaOptimizer
-from byop.optuna.space import OptunaSearchSpace
+from byop.optuna.space import OptunaSpaceAdapter
 
-__all__ = ["OptunaSearchSpace", "OptunaOptimizer"]
+OptunaParser = OptunaSpaceAdapter
+OptunaSampler = OptunaSpaceAdapter
+
+__all__ = ["OptunaSpaceAdapter", "OptunaOptimizer", "OptunaParser", "OptunaSampler"]

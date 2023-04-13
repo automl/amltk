@@ -7,80 +7,24 @@ from __future__ import annotations
 
 from contextlib import suppress
 from itertools import chain, repeat
-from typing import Any, Callable, Generic, Iterator, Mapping, Sequence
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 
 from attrs import field, frozen
 from more_itertools import first_true
 
-from byop.pipeline.step import Step
-from byop.types import Item, Space
+from byop.pipeline.step import Step, mapping_select
+from byop.types import Config, Item, Space
 
 
 @frozen(kw_only=True)
-class Searchable(Step, Generic[Space]):
-    """Something to search over in a pipeline but has no implementation.
-
-    Attributes:
-        name: The name of the searchable
-        search_space (optional): The searchspace
-        config (optional): Any fixed parameters of the searchable.
-    """
-
-    name: str
-
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-
-    def configured(self) -> bool:
-        """Check if this searchable is configured."""
-        return self.search_space is None
-
-    def walk(
-        self,
-        splits: Sequence[Split],
-        parents: Sequence[Step],
-    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
-        """See `Step.walk`."""
-        splits = list(splits)
-        parents = list(parents)
-        yield splits, parents, self
-
-        if self.nxt is not None:
-            yield from self.nxt.walk(splits, [*parents, self])
-
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
-        """See `Step.traverse`."""
-        if include_self:
-            yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.traverse()  # type: ignore
-
-    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
-        """See `Step.replace`."""
-        yield replacements.get(self.name, self)
-
-        if self.nxt is not None:
-            yield from self.nxt.replace(replacements=replacements)
-
-    def remove(self, keys: Sequence[str]) -> Iterator[Step]:
-        """See `Step.remove`."""
-        if self.name not in keys:
-            yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.remove(keys)
-
-    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
-        """See `Step.select`."""
-        yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.select(choices)
-
-
-@frozen(kw_only=True)
-class Component(Searchable[Space], Generic[Item, Space]):
+class Component(Step[Space], Generic[Item, Space]):
     """A Fixed component with an item attached.
 
     Attributes:
@@ -117,7 +61,7 @@ class Component(Searchable[Space], Generic[Item, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
+class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
     """A split in the pipeline.
 
     Attributes:
@@ -145,12 +89,12 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
 
     def walk(
         self,
-        splits: Sequence[Split],
-        parents: Sequence[Step],
+        splits: Sequence[Split] | None = None,
+        parents: Sequence[Step] | None = None,
     ) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """See `Step.walk`."""
-        splits = list(splits)
-        parents = list(parents)
+        splits = list(splits) if splits is not None else []
+        parents = list(parents) if parents is not None else []
         yield splits, parents, self
 
         for path in self.paths:
@@ -217,6 +161,66 @@ class Split(Mapping[str, Step], Searchable[Space], Generic[Item, Space]):
     def __iter__(self) -> Iterator[str]:
         return iter(p.name for p in self.paths)
 
+    def configure(self, config: Config, *, prefixed_name: bool | None = None) -> Step:
+        """Configure this step and anything following it with the given config.
+
+        Args:
+            config: The configuration to apply
+            prefixed_name: Whether items in the config are prefixed by the names
+                of the steps.
+                * If `None`, the default, then `prefixed_name` will be assumed to
+                    be `True` if this step has a next step or if the config has
+                    keys that begin with this steps name.
+                * If `True`, then the config will be searched for items prefixed
+                    by the name of the step (and subsequent chained steps).
+                * If `False`, then the config will be searched for items without
+                    the prefix, i.e. the config keys are exactly those matching
+                    this steps search space.
+
+        Returns:
+            Step: The configured step
+        """
+        if prefixed_name is None:
+            if any(key.startswith(f"{self.name}:") for key in config):
+                prefixed_name = True
+            else:
+                prefixed_name = self.nxt is not None
+
+        nxt = (
+            self.nxt.configure(config, prefixed_name=prefixed_name)
+            if self.nxt
+            else None
+        )
+
+        # Configure all the paths, we assume all of these must
+        # have the prefixed name and hence use `mapping_select`
+        subconfig = mapping_select(config, f"{self.name}:") if prefixed_name else config
+
+        paths = [path.configure(subconfig, prefixed_name=True) for path in self.paths]
+
+        # The config for this step is anything that doesn't have
+        # another delimiter in it
+        this_config = subconfig if prefixed_name else config
+        this_config = {k: v for k, v in this_config.items() if ":" not in k}
+
+        if self.config is not None:
+            this_config = {**self.config, **this_config}
+
+        new_self = self.mutate(
+            paths=paths,
+            config=this_config if this_config else None,
+            nxt=nxt,
+            search_space=None,
+        )
+
+        if nxt is not None:
+            # HACK: This is a hack to to modify the fact `nxt` is a frozen
+            # object. Frozen objects do not allow setting attributes after
+            # instantiation.
+            object.__setattr__(nxt, "prv", new_self)
+
+        return new_self
+
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
@@ -281,3 +285,90 @@ class Choice(Split[Item, Space]):
 
         if self.nxt is not None:
             yield from self.nxt.select(choices)
+
+    def configure(self, config: Config, *, prefixed_name: bool | None = None) -> Step:
+        """Configure this step and anything following it with the given config.
+
+        Args:
+            config: The configuration to apply
+            prefixed_name: Whether items in the config are prefixed by the names
+                of the steps.
+                * If `None`, the default, then `prefixed_name` will be assumed to
+                    be `True` if this step has a next step or if the config has
+                    keys that begin with this steps name.
+                * If `True`, then the config will be searched for items prefixed
+                    by the name of the step (and subsequent chained steps).
+                * If `False`, then the config will be searched for items without
+                    the prefix, i.e. the config keys are exactly those matching
+                    this steps search space.
+
+        Returns:
+            Step: The configured step
+        """
+        if prefixed_name is None:
+            if any(key.startswith(self.name) for key in config):
+                prefixed_name = True
+            else:
+                prefixed_name = self.nxt is not None
+
+        nxt = (
+            self.nxt.configure(config, prefixed_name=prefixed_name)
+            if self.nxt
+            else None
+        )
+
+        # For a choice to be made, the config must have the a key
+        # for the name of this choice and the choice made.
+        chosen_path_name = config.get(self.name)
+
+        if chosen_path_name is not None:
+            chosen_path = first_true(
+                self.paths,
+                pred=lambda path: path.name == chosen_path_name,
+            )
+            if chosen_path is None:
+                raise Step.ConfigurationError(
+                    step=self,
+                    config=config,
+                    reason=f"Choice {self.name} has no path '{chosen_path_name}'",
+                )
+
+            # Configure the chosen path
+            subconfig = mapping_select(config, f"{self.name}:")
+            chosen_path = chosen_path.configure(subconfig, prefixed_name=prefixed_name)
+
+            if nxt is not None:
+                # HACK: This is a hack to to modify the fact `nxt` is a frozen
+                # object. Frozen objects do not allow setting attributes after
+                # instantiation.
+                object.__setattr__(nxt, "prv", chosen_path)
+                object.__setattr__(chosen_path, "nxt", nxt)
+
+            return chosen_path
+
+        # Otherwise there is no chosen path and we simply configure what we can
+        # of the choices and return that
+        subconfig = mapping_select(config, f"{self.name}:")
+        paths = [path.configure(subconfig, prefixed_name=True) for path in self.paths]
+
+        # The config for this step is anything that doesn't have
+        # another delimiter in it
+        config_for_this_choice = {k: v for k, v in subconfig.items() if ":" not in k}
+
+        if self.config is not None:
+            config_for_this_choice = {**self.config, **config_for_this_choice}
+
+        new_self = self.mutate(
+            paths=paths,
+            config=config_for_this_choice if config_for_this_choice else None,
+            nxt=nxt,
+            search_space=None,
+        )
+
+        if nxt is not None:
+            # HACK: This is a hack to to modify the fact `nxt` is a frozen
+            # object. Frozen objects do not allow setting attributes after
+            # instantiation.
+            object.__setattr__(nxt, "prv", new_self)
+
+        return new_self

@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from pytest_cases import parametrize
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.svm import SVC
 
-from byop import Pipeline, choice, split, step
+from byop.configspace import ConfigSpaceParser
+from byop.pipeline import Pipeline, SpaceAdapter, choice, split, step
 
 # Some toy data
 X = pd.DataFrame({"a": ["1", "0", "1", "dog"], "b": [4, 5, 6, 7], "c": [7, 8, 9, 10]})
 y = pd.Series([1, 0, 1, 1])
 
 
-def test_split_with_choice():
+@parametrize("adapter", [ConfigSpaceParser()])
+@parametrize("seed", range(10))
+def test_split_with_choice(adapter: SpaceAdapter, seed: int) -> None:
     # Defining a pipeline
     pipeline = Pipeline.create(
         split(
@@ -48,8 +52,8 @@ def test_split_with_choice():
         name="test_pipeline_sklearn",
     )
 
-    space = pipeline.space(seed=1)
-    config = space.sample_configuration()
+    space = pipeline.space(parser=adapter)
+    config = pipeline.sample(space, sampler=adapter, seed=seed)
     configured_pipeline = pipeline.configure(config)
 
     sklearn_pipeline = configured_pipeline.build()
@@ -59,7 +63,9 @@ def test_split_with_choice():
     sklearn_pipeline.predict(X)
 
 
-def test_build_module():
+@parametrize("adapter", [ConfigSpaceParser()])
+@parametrize("seed", range(10))
+def test_build_module(adapter: SpaceAdapter, seed: int) -> None:
     # Defining a pipeline
     pipeline = Pipeline.create(
         choice(
@@ -80,9 +86,9 @@ def test_build_module():
 
     pipeline = pipeline.attach(modules=submodule_pipeline)
 
-    space = pipeline.space(seed=1, parser="configspace")
+    space = pipeline.space(parser=adapter)
 
-    config = space.sample_configuration()
+    config = pipeline.sample(space, sampler=adapter, seed=seed)
 
     configured_pipeline = pipeline.configure(config)
 

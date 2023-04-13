@@ -3,6 +3,7 @@ from __future__ import annotations
 from ConfigSpace import ConfigurationSpace, EqualsCondition
 
 from byop import Pipeline, choice, step
+from byop.configspace import ConfigSpaceParser
 
 
 def test_pipeline_with_2_pipeline_modules() -> None:
@@ -30,7 +31,7 @@ def test_pipeline_with_2_pipeline_modules() -> None:
     assert len(pipeline) == 2
     assert len(pipeline.modules) == 2
 
-    space = pipeline.space(parser="configspace")
+    space = pipeline.space(parser=ConfigSpaceParser())
     assert isinstance(space, ConfigurationSpace)
 
     expected_space = {
@@ -46,11 +47,15 @@ def test_pipeline_with_2_pipeline_modules() -> None:
     expected.add_conditions(
         [
             EqualsCondition(
-                expected["module2:choice:6:e"], expected["module2:choice"], "6"
+                expected["module2:choice:6:e"],
+                expected["module2:choice"],
+                "6",
             ),
             EqualsCondition(
-                expected["module2:choice:7:f"], expected["module2:choice"], "7"
+                expected["module2:choice:7:f"],
+                expected["module2:choice"],
+                "7",
             ),
-        ]
+        ],
     )
     assert space == expected

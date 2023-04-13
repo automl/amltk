@@ -1,8 +1,12 @@
 """Conversions between different data repesentations and formats."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
-import numpy.typing as npt
+
+if TYPE_CHECKING:
+    import numpy.typing as npt
 
 
 # TODO: This is probably much cleaner to just have version for the different
@@ -26,8 +30,8 @@ def probabilities_to_classes(
     shape = np.shape(classes)
     if len(shape) == 1:
         n_outputs = 1
-        classes = [classes]  # type: ignore
-        probabilities = [probabilities]  # type: ignore
+        classes = classes.reshape(-1, 1)
+        probabilities = probabilities.reshape(-1, 1)
     elif len(shape) == 2:  # noqa: PLR2004
         n_outputs = len(classes)
     else:
@@ -37,5 +41,5 @@ def probabilities_to_classes(
         [
             classes[class_index][probabilities[class_index].argmax(axis=1)]
             for class_index in range(n_outputs)
-        ]
+        ],
     ).T

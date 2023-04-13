@@ -4,18 +4,20 @@ TODO: More description and explanation with examples.
 """
 from __future__ import annotations
 
-from typing import Any, Sequence
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Any, Sequence
 
 import optuna
+from byop.optimization import Optimizer, Trial
 from optuna.study import Study, StudyDirection
 from optuna.trial import (
     Trial as OptunaTrial,
     TrialState,
 )
 
-from byop.optimization import Optimizer, Trial
-from byop.optuna.space import OptunaSearchSpace
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
+    from byop.optuna.space import OptunaSearchSpace
 
 
 class OptunaOptimizer(Optimizer[OptunaTrial]):
@@ -98,13 +100,13 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         if "cost" in report.results and "values" in report.results:
             raise ValueError(
                 "Both 'cost' and 'values' were provided in the report. "
-                "Only one of them should be provided."
+                "Only one of them should be provided.",
             )
 
         if "cost" not in report.results and "values" not in report.results:
             raise ValueError(
                 "Neither 'cost' nor 'values' were provided in the report. "
-                "At least one of them should be provided."
+                "At least one of them should be provided.",
             )
 
         directions = self.study.directions
@@ -114,7 +116,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
             if not all(direct == StudyDirection.MINIMIZE for direct in directions):
                 raise ValueError(
                     "The study direction is not 'minimize',"
-                    " but 'cost' was provided in the report."
+                    " but 'cost' was provided in the report.",
                 )
             values = report.results["cost"]
         else:
@@ -128,7 +130,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
             )
         ):
             raise ValueError(
-                f"Reported {values=} should be float or a sequence of floats"
+                f"Reported {values=} should be float or a sequence of floats",
             )
 
         return values

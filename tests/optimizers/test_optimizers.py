@@ -5,7 +5,7 @@ import logging
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from byop.optimization import Optimizer, RandomSearch, Trial
-from byop.optuna import OptunaOptimizer
+from byop.optuna import OptunaOptimizer, OptunaParser
 from byop.pipeline import Pipeline, step
 from byop.smac import SMACOptimizer
 from byop.timing import TimeInterval, TimeKind
@@ -47,7 +47,8 @@ def opt_smac_hpo() -> SMACOptimizer:
 @case
 def opt_optuna() -> OptunaOptimizer:
     pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
-    return OptunaOptimizer.create(space=pipeline.space(parser="optuna"))
+    space = pipeline.space(parser=OptunaParser())
+    return OptunaOptimizer.create(space=space)
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")

@@ -6,13 +6,32 @@ from __future__ import annotations
 
 from functools import partial, reduce
 from itertools import count
-from typing import Any, Callable, Hashable, Iterator, Sequence, TypeVar
+from typing import Any, Callable, Hashable, Iterator, Mapping, Sequence, TypeVar
 
 from byop.exceptions import exception_wrap
 
 T = TypeVar("T")
+V = TypeVar("V")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
+
+
+def mapping_select(d: Mapping[str, V], prefix: str) -> dict[str, V]:
+    """Select a subset of a mapping.
+
+    ```python
+    d = {"a:b:c": 1, "a:b:d": 2, "c:elephant": 3}
+    mapping_select(d, "a:b:")  # {"c": 1, "d": 2}
+    ```
+
+    Args:
+        d: The mapping to select from.
+        prefix: The prefix to select.
+
+    Returns:
+        The selected subset of the mapping.
+    """
+    return {k[len(prefix) :]: v for k, v in d.items() if k.startswith(prefix)}
 
 
 def reverse_enumerate(

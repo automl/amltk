@@ -112,7 +112,7 @@ What you can use it for depends on what you want to do.
         ),
     )
 
-    space = pipeline.space(parser="auto")  # (4)!
+    space = pipeline.space()  # (4)!
     config = pipeline.sample(space) # (6)!
     configured_pipeline = pipeline.configure(config)  # (7)!
     sklearn_pipeline = pipeline.build()  # (5)!
@@ -124,9 +124,9 @@ What you can use it for depends on what you want to do.
     3. Want to quickly set something constant? Use the `config` argument to set a value and remove it from the space
      automatically.
     4. Parse out the search space for the pipeline, let `amltk` figure it out
-      or choose your own [`parse(parser=...)`][byop.parsing.api.parse].
+      or choose your own [`parse(parser=...)`](./integrations)
     5. Let `amltk` figure out what kind of pipeline you want, but you can also
-      specify your own [`build(builder=...)`][byop.building.api.build].
+      specify your own [`build(builder=...)`](./integrations)
     6. Sample a configuration from the search space.
     7. Configure the pipeline with a configuration.
 

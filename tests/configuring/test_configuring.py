@@ -45,13 +45,13 @@ def test_heirarchical_str_with_predefined_configs() -> None:
         step("one", 1, config={"v": 1}),
         split(
             "split",
-            step("x", 1, config=None),
+            step("x", 1),
             step("y", 1, space={"v": [4, 5, 6]}),
         ),
         choice(
             "choice",
-            step("a", 1, config=None),
-            step("b", 1, config=None),
+            step("a", 1),
+            step("b", 1),
         ),
     )
 
@@ -144,7 +144,7 @@ def test_configuration_with_nested_submodules() -> None:
     expected_module2 = expected_module2.attach(modules=(expected_module3))
 
     expected_pipeline = expected_pipeline.attach(
-        modules=(expected_module1, expected_module2)
+        modules=(expected_module1, expected_module2),
     )
 
     assert expected_pipeline == pipeline.configure(config)
@@ -157,7 +157,7 @@ def test_heirachical_str_with_searchables() -> None:
     )
 
     extra = searchable("searchables", space={"a": [1, 2, 3], "b": [4, 5, 6]})
-    pipeline = pipeline.attach(searchables=extra)
+    pipeline = pipeline.attach(modules=extra)
 
     config = {
         "1:a": 1,
@@ -173,6 +173,6 @@ def test_heirachical_str_with_searchables() -> None:
     )
     expected_extra = searchable("searchables", config={"a": 1, "b": 4})
 
-    expected = expected.attach(searchables=expected_extra)
+    expected = expected.attach(modules=expected_extra)
 
     assert expected == pipeline.configure(config)

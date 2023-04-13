@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, overload
 
 from more_itertools.more import first
 
 from byop.functional import funcname
-from byop.store.loader import Loader
+
+if TYPE_CHECKING:
+    from byop.store.loader import Loader
+
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +85,8 @@ class Drop(Generic[KeyT]):
             return
 
         loader = first(
-            (_l for _l in self.loaders if _l.can_save(obj, self.key)), default=None
+            (_l for _l in self.loaders if _l.can_save(obj, self.key)),
+            default=None,
         )
         if not loader:
             msg = (
@@ -127,7 +131,8 @@ class Drop(Generic[KeyT]):
             loader_name = funcname(how)
         else:
             loader = first(
-                (_l for _l in self.loaders if _l.can_load(self.key)), default=None
+                (_l for _l in self.loaders if _l.can_load(self.key)),
+                default=None,
             )
             if loader is None:
                 raise ValueError(f"Can't load {self.key=} from {self.loaders=}")

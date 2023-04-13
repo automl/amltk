@@ -42,5 +42,4 @@ __all__ = [
     "PickleLoader",
     "TxtLoader",
     "YAMLLoader",
-    "AskAndTell",
 ]
