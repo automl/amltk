@@ -90,6 +90,8 @@ def _run(algorithm_name, metric_name, data_sample_name, dataset_ref):
         # TODO: define this based on time or number of samples (samples must be better right...?)
         # TODO: do we need to guarantee the same configs for each fold/sample? as we are not interested in the performance of the optimizer?
         #   (I think the current code already does that as the seed is fixed... at least for the first few random samples)
+        #   If we would not do this, then the expectation over different sources of randomness is wrong... or it could be correct
+        #       as the optimizer is a source of randomness for the algorithm family...
         trial = optimizer.ask()
         report = objective(trial)
 

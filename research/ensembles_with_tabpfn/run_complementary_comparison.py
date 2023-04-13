@@ -1,11 +1,12 @@
 from research.ensembles_with_tabpfn.complementary_code.data_handler import read_all_base_models
-from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRIC_MAP, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL
+from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRIC_MAP, EXPERIMENT_RUNS_WO_ALGOS, C_MODEL, \
+    EXPERIMENT_HIGH_LEVEL
 from research.ensembles_with_tabpfn.complementary_code.ensembling_performance_boost import \
     get_data_for_performance_increase_with_new_model
 from research.ensembles_with_tabpfn.complementary_code.complementary_analysis.correlation_analysis import \
     correlation_analysis
 from research.ensembles_with_tabpfn.complementary_code.complementary_analysis.ensemble_diversity_analysis import \
-    ensemble_diversity_analysis
+    ensemble_diversity_analysis, ensemble_disparity_analysis, compute_left_bergman_centroid
 
 from byop.ensembling.ensemble_preprocessing import prune_base_models
 from byop.store import PathBucket
@@ -84,6 +85,47 @@ def _run(algo_names, complement_model_name, metric_name, data_sample_name, datas
         }
     )
 
+    # -- Store data for disparity
+    for bm in base_models + [complement_model]:
+        algo_name = bm.config["algorithm"]
+        pred_bucket = PathBucket(path_to_base_model_data + f"/{algo_name}/{dataset_ref}/base_models")
+        pred_bucket.update({
+            f"{data_sample_name}_pred.pkl": bm
+        })
+
+
+def _run_disparity_analysis(algo_names, complement_model_name, metric_name, dataset_ref):
+    path_to_base_model_data = f"./data_space/base_model_data/{metric_name}"
+    path_to_analysis_data = f"./data_space/analysis_data/{metric_name}"
+
+    # -- Get left bergman centroids for each algorithm
+    lbc_list = []
+    for algo_name in algo_names:
+        pred_bucket = PathBucket(path_to_base_model_data + f"/{algo_name}/{dataset_ref}/base_models")
+        algo_bms = [algo_bm.load() for algo_bm in pred_bucket.values()]
+
+        left_bergman_centroid = compute_left_bergman_centroid([algo_bm.val_probabilities for algo_bm in algo_bms])
+        lbc_list.append((algo_name, left_bergman_centroid))
+
+    # -- split
+    complement_model = [lbc for algo_name, lbc in lbc_list if algo_name == complement_model_name][0]
+    base_models = [lbc for algo_name, lbc in lbc_list if algo_name != complement_model_name]
+
+    bm_disp, bm_c_disp = ensemble_disparity_analysis(base_models, complement_model)
+
+    result_bucket = PathBucket(path_to_analysis_data + f"/{dataset_ref}")
+    result_stats = {
+        "disparity_standard_base_models": bm_disp,
+        "disparity_standard_base_models_with_complement": bm_c_disp,
+    }
+    result_bucket.update(
+        {
+            "disparity_results.json": result_stats,
+        }
+    )
+
+    return
+
 
 def _run_wrapper():
     # TODO:
@@ -92,8 +134,12 @@ def _run_wrapper():
     logging.basicConfig(level=logging.INFO)
 
     for metric_name, fold_i, sample_i, dataset_ref in EXPERIMENT_RUNS_WO_ALGOS:
-        logger.info(f"Start {C_MODEL} analysis for {metric_name} on dataset {dataset_ref} (f{fold_i}_s{sample_i})")
+        logger.info(f"\n\nStart {C_MODEL} analysis for {metric_name} on dataset {dataset_ref} (f{fold_i}_s{sample_i})")
         _run(ALGO_NAMES, C_MODEL, metric_name, f"f{fold_i}_s{sample_i}", dataset_ref)
+
+    for metric_name, dataset_ref in EXPERIMENT_HIGH_LEVEL:
+        logger.info(f"\n\nStart disparty analysis for {metric_name} on dataset {dataset_ref}")
+        _run_disparity_analysis(ALGO_NAMES, C_MODEL, metric_name, dataset_ref)
 
 
 if __name__ == "__main__":  # MP safeguard

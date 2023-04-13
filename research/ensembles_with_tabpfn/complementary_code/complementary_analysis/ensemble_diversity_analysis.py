@@ -31,10 +31,10 @@ def _kl_divergence(p, q):
     return np.mean(np.sum(p * np.log(p / q), axis=1))
 
 
-def _sample_of_diversity_cross_entropy(bm_prediction_probabilities):
+def _mean_kl_for_ngm_preds(bm_prediction_probabilities):
     # A sample of the diversity for cross-entropy over all instance for the predictions.
     # The result of this must be averaged over multiple samples of different sources of
-    #   randomness.
+    #   randomness for diversity (but not for disparity where the expectation is taken earlier).
 
     ensemble_combiner = _normalized_geometric_mean(bm_prediction_probabilities)
 
@@ -53,7 +53,34 @@ def ensemble_diversity_analysis(y_val, y_test, base_models: List[BaseModel], com
     bm_predictions = [bm.val_probabilities for bm in base_models]
 
     # Diversity (based on cross-entropy loss)
-    bm_div = _sample_of_diversity_cross_entropy(bm_predictions)
-    bm_c_div = _sample_of_diversity_cross_entropy(bm_predictions + [complement_model.val_probabilities])
+    bm_div = _mean_kl_for_ngm_preds(bm_predictions)
+    bm_c_div = _mean_kl_for_ngm_preds(bm_predictions + [complement_model.val_probabilities])
 
     return bm_div, bm_c_div
+
+
+def compute_left_bergman_centroid(predictions_of_base_model):
+    """Assumes as input the predictions of a base model over multiple sources of randomness (for cross-entropy)"""
+
+    mean_preds = np.zeros_like(predictions_of_base_model[0])
+
+    # Memory efficient
+    for algo_bm_preds in predictions_of_base_model:
+        np.add(mean_preds,
+               # EPS to avoid -inf
+               np.log(algo_bm_preds + EPS),
+               out=mean_preds)
+
+    mean_preds /= len(predictions_of_base_model)
+    mean_preds = np.exp(mean_preds)
+
+    return mean_preds / mean_preds.sum(axis=1)[:, None]
+
+
+def ensemble_disparity_analysis(lbc_base_models_predictions, lbc_complement_model_predictions):
+    """Analysis disparity for cross-entropy loss, following Wood et al. 2023"""
+
+    bm_disp = _mean_kl_for_ngm_preds(lbc_base_models_predictions)
+    bm_c_disp = _mean_kl_for_ngm_preds(lbc_base_models_predictions + [lbc_complement_model_predictions])
+
+    return bm_disp, bm_c_disp
