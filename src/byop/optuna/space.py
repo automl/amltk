@@ -1,11 +1,47 @@
-"""A module to help construct an optuna search space for a pipeline.
+"""A module for utilities for spaces defined by Optuna.
 
-``python
-from byop.pipeline import Pipeline
-from byop.optuna_space import generate_optuna_search_space
- = Pipeline(...)
-configspace = generate_optuna_search_space(pipeline)
+The notable class is [`OptunaSpaceAdapter`][byop.optuna.OptunaSpaceAdapter].
+
+
+```python hl_lines="8 9 10 13 15 16"
+from byop.pipeline import step
+from byop.optuna import OptunaSpaceAdapter
+
+item = step(
+    "name",
+    ...,
+    space={
+        "myint": (1, 10),  # (1)!
+        "myfloat": (1.0, 10.0)  # (2)!
+        "mycategorical": ["a", "b", "c"],  # (3)!
+    }
+)
+adapter = OptunaSpaceAdapter()  # (6)!
+
+optuna_space = item.space(parser=adapter)  # (4)!
+config = item.sample(sampler=adapter)  # (5)!
+
+configured_item = item.configure(config)
+configured_item.build()
 ```
+
+1. `myint` will be an integer between 1 and 10.
+2. `myfloat` will be a float between 1.0 and 10.0.
+3. `mycategorical` will be a categorical variable with values `a`, `b`, and `c`.
+4. Pass the `adapter` to [`space()`][byop.pipeline.Step.space] to get the optuna space.
+    It will be a dictionary mapping the name of the hyperparameter to the optuna
+    distribution.
+5. Pass the `adapter` to [`sample()`][byop.pipeline.Step.sample] to get a sample config.
+    It will be a dictionary mapping the name of the hyperparameter to the sampled value.
+6. Create an instance of [`OptunaSpaceAdapter`][byop.optuna.OptunaSpaceAdapter] which
+    will be used to parse the space and sample from it.
+
+    !!! note "Note"
+
+        The `OptunaSpaceAdapter` is a [`SpaceAdapter`][byop.pipeline.SpaceAdapter] which
+        means that it can be used to parse any space and sample from it. It implements
+        the [`Parser`][byop.pipeline.Parser] and [`Sampler`][byop.pipeline.Sampler]
+        interfaces.
 """
 from __future__ import annotations
 
@@ -38,7 +74,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
         space: Any,
         config: Mapping[str, Any] | None = None,
     ) -> OptunaSearchSpace:
-        """See [`Parser.parse_space`][byop.parsing.Parser.parse_space]."""
+        """See [`Parser.parse_space`][byop.pipeline.Parser.parse_space]."""
         if not isinstance(space, Mapping):
             raise ValueError("Can only parse mappings with Optuna but got {space=}")
 
@@ -58,7 +94,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
         *,
         prefix_delim: tuple[str, str] | None = None,
     ) -> OptunaSearchSpace:
-        """See [`Parser.insert`][byop.parsing.Parser.insert]."""
+        """See [`Parser.insert`][byop.pipeline.Parser.insert]."""
         if prefix_delim is None:
             prefix_delim = ("", "")
 
@@ -75,7 +111,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
         spaces: dict[str, OptunaSearchSpace],
         weights: Sequence[float] | None = None,
     ) -> OptunaSearchSpace:
-        """See [`Parser.condition`][byop.parsing.Parser.condition]."""
+        """See [`Parser.condition`][byop.pipeline.Parser.condition]."""
         # TODO(eddiebergman): Might be possible to implement this but it requires some
         # toying around with options to various Samplers in the Optimizer used.
         raise NotImplementedError(
@@ -166,7 +202,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
     @classmethod
     def supports_sampling(cls, space: Any) -> bool:
         """Supports sampling from a mapping where every value is a
-        [`BaseDistribution`][optuna.distributions.BaseDistribution].
+        [`BaseDistribution`][optuna.distributions].
 
         Args:
             space: The space to check.

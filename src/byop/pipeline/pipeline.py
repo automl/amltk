@@ -21,8 +21,9 @@ from typing import (
 from uuid import uuid4
 
 from attrs import field, frozen
-from more_itertools import duplicates_everseen, first_true
+from more_itertools import first_true
 
+from byop.functional import mapping_select
 from byop.pipeline.components import Split, Step
 
 if TYPE_CHECKING:
@@ -30,8 +31,8 @@ if TYPE_CHECKING:
     from byop.pipeline.sampler import Sampler
     from byop.types import Config, Seed, Space
 
-    T = TypeVar("T")  # Dummy typevar
-    B = TypeVar("B")  # Built pipeline
+T = TypeVar("T")  # Dummy typevar
+B = TypeVar("B")  # Built pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -249,18 +250,6 @@ class Pipeline:
             name=self.name if name is None else name,
         )
 
-    def validate(self) -> None:
-        """Validate the pipeline for any invariants.
-
-        Intended for use as an opt-in during development
-
-        Raises:
-            AssertionError: If a duplicate name is found for a step in the pipeline
-        """
-        # Check that we do not have any keys with the same Hash
-        dupe_steps = list(duplicates_everseen(self.traverse()))
-        assert not any(dupe_steps), f"Duplicates in pipeline {dupe_steps}"
-
     def attach(
         self,
         *,
@@ -394,6 +383,7 @@ class Pipeline:
         config: Config,
         *,
         rename: bool | str = False,
+        prefixed_name: bool = False,
     ) -> Pipeline:
         """Configure the pipeline with the given configuration.
 
@@ -406,22 +396,37 @@ class Pipeline:
 
         Args:
             config: The configuration to use
-            configurer: The configurer to use. Default is `None`.
-                * If `None` is provided, the assembler will attempt to automatically
-                    figure out how to configure the pipeline.
-                * If `configurer` is a callable, we will attempt to use that.
-                If there are other intuitive ways to indicate the type, please open an
-                issue on GitHub and we will consider it!
             rename: Whether to rename the pipeline. Defaults to `False`.
                 * If `True`, the pipeline will be renamed using a random uuid
-                * If a Name is provided, the pipeline will be renamed to that name
+                * If a name is provided, the pipeline will be renamed to that name
+                * If `False`, the pipeline will not be renamed
+            prefixed_name: Whether the configuration is prefixed with the name of the
+                pipeline. Defaults to `False`.
 
         Returns:
             A new pipeline with the configuration applied
         """
-        from byop.pipeline.configurer import configure  # Prevent circular imports
+        this_config: Config
+        if prefixed_name:
+            this_config = mapping_select(config, f"{self.name}:")
+        else:
+            this_config = config
 
-        return configure(self, config, rename=rename)
+        new_head = self.head.configure(this_config, prefixed_name=True)
+
+        new_modules = [
+            module.configure(this_config, prefixed_name=True)
+            for module in self.modules.values()
+        ]
+
+        if rename is True:
+            _rename = None
+        elif rename is False:
+            _rename = self.name
+        else:
+            _rename = rename
+
+        return Pipeline.create(new_head, modules=new_modules, name=_rename)
 
     @overload
     def build(self, builder: None = None) -> Any:

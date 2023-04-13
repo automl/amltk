@@ -80,7 +80,7 @@ class Sampler(ABC, Generic[Space]):
 
         * [`supports_sampling`][byop.pipeline.sampler.Sampler.supports_sampling]:
             Check if the sampler supports sampling from a given Space.
-        * [`_sample`][byop.pipeline.sampler.Sampler._sample]: Sample from the
+        * [`_sample`][byop.pipeline.Sampler._sample]: Sample from the
             given Space, given a specific seed and number of samples. Should
             ideally be deterministic given a pair `(seed, n)`.
             This is used in the [`sample`][byop.pipeline.sampler.Sampler.sample]

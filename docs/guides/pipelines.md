@@ -139,11 +139,11 @@ components, how to create them, modify it, and build your own
 We'll start by creating a simple `Component` for a
 a [`RandomForestClassifier`][sklearn.ensemble.RandomForestClassifier],
 along with its search space. We'll then
-[`configure`][byop.pipeline.Component.configure] it and
+[`configure`][byop.pipeline.Step.configure] it and
 [`build()`][byop.pipeline.Component.build] it into a standalone,
 useable sklearn object, showing how you can get its
-[`space()`][byop.pipeline.Component.space]
-and [`sample()`][byop.pipeline.Component.sample]
+[`space()`][byop.pipeline.Step.space]
+and [`sample()`][byop.pipeline.Step.sample]
 it.
 
 ![Component Flow](../images/pipeline-guide-component-flow.svg)
@@ -256,7 +256,7 @@ it's syntax for defining a search space, but check out our built-in
     ```
 
     We can sample from this space, but first we will show how you can use
-    [`configure()`][byop.pipeline.Component.configure] with a manually written
+    [`configure()`][byop.pipeline.Step.configure] with a manually written
     config to configure the component.
 
 === "Configuring (Sampled)"
@@ -646,16 +646,16 @@ and `#!python "svm"` are under the heirarchy of the choice.
 
 !!! Note
 
-    By calling [`configure()`][byop.pipeline.Choice.configure] on a `Choice` with
+    By calling [`configure()`][byop.pipeline.Split.configure] on a `Choice` with
     a valid configuration, you collapse the choice down to a single valid `Component`.
 
 ![Configuring a Choice](../images/pipeline-guide-choice-configure.excalidraw.svg)
 
 Lastly, you can still access the
-[`space()`][byop.pipeline.Choice.space],
-[`sample()`][byop.pipeline.Choice.sample],
-[`configure()`][byop.pipeline.Choice.configure],
-[`build()`][byop.pipeline.Choice.build],
+[`space()`][byop.pipeline.Step.space],
+[`sample()`][byop.pipeline.Step.sample],
+[`configure()`][byop.pipeline.Split.configure],
+[`build()`][byop.pipeline.Split.build],
 methods of a `Choice` in much the same way as mentioned for a `Component`.
 
 Some extra things to know about a [`Choice`][byop.pipeline.Choice] made

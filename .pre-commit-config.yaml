@@ -36,6 +36,8 @@ repos:
         args:
           - "--no-warn-return-any" # Disable this because it doesn't know about 3rd party imports
           - "--ignore-missing-imports"
+          - "--show-traceback"
+          - "--pdb"
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Iterator
+from typing import Any, Hashable, Iterator
 
 from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
@@ -95,8 +95,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run()
 
-    logger.error(task.counts)
-    task_counts = {
+    task_counts: dict[Hashable, int] = {
         CommTask.SUBMITTED: 1,
         CommTask.DONE: 1,
         CommTask.RETURNED: 1,

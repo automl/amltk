@@ -104,3 +104,29 @@ def test_append_chain() -> None:
     x = s1.append(s2 | s3)
 
     assert list(x.iter()) == [s1, s2, s3]
+
+
+def test_configure_single() -> None:
+    s1 = step("1", 1, space={"a": [1, 2, 3]})
+    configured_s1 = s1.configure({"a": 1})
+
+    assert configured_s1.config == {"a": 1}
+    assert configured_s1.search_space is None
+
+
+def test_configure_chain() -> None:
+    head = (
+        step("1", 1, space={"a": [1, 2, 3]})
+        | step("2", 2, space={"b": [1, 2, 3]})
+        | step("3", 3, space={"c": [1, 2, 3]})
+    )
+    configured_head = head.configure({"1:a": 1, "2:b": 2, "3:c": 3})
+
+    expected_configs = [
+        {"a": 1},
+        {"b": 2},
+        {"c": 3},
+    ]
+    for s, expected_config in zip(configured_head.iter(), expected_configs):
+        assert s.config == expected_config
+        assert s.search_space is None

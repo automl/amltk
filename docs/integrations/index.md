@@ -3,7 +3,7 @@ support.
 
 ## Search Spaces
 Each of these can be used to define a space and has an associated
-[Sampler][byop.samplers.Sampler] to sample from it.
+[Sampler][byop.pipeline.Sampler] to sample from it.
 
 weights from choice
 

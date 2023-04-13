@@ -32,7 +32,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         space: Any,
         config: Mapping[str, Any] | None = None,
     ) -> ConfigurationSpace:
-        """See [`Parser.parse_space`][byop.parsing.Parser.parse_space]."""
+        """See [`Parser.parse_space`][byop.pipeline.Parser.parse_space]."""
         if space is None:
             space = ConfigurationSpace()
         elif isinstance(space, dict):
@@ -66,7 +66,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         *,
         prefix_delim: tuple[str, str] | None = None,
     ) -> ConfigurationSpace:
-        """See [`Parser.insert`][byop.parsing.Parser.insert]."""
+        """See [`Parser.insert`][byop.pipeline.Parser.insert]."""
         if prefix_delim is None:
             prefix_delim = ("", "")
 
@@ -80,7 +80,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         return space
 
     def empty(self) -> ConfigurationSpace:
-        """See [`Parser.empty`][byop.parsing.Parser.empty]."""
+        """See [`Parser.empty`][byop.pipeline.Parser.empty]."""
         return ConfigurationSpace()
 
     def condition(
@@ -90,7 +90,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         spaces: dict[str, ConfigurationSpace],
         weights: Sequence[float] | None = None,
     ) -> ConfigurationSpace:
-        """Condition a space on a categorical hyperparameter."""
+        """See [`Parser.condition`][byop.pipeline.Parser.condition]."""
         space = ConfigurationSpace()
 
         items = list(spaces.keys())

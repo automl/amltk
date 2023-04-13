@@ -45,13 +45,13 @@ def test_heirarchical_str_with_predefined_configs() -> None:
         step("one", 1, config={"v": 1}),
         split(
             "split",
-            step("x", 1, config=None),
+            step("x", 1),
             step("y", 1, space={"v": [4, 5, 6]}),
         ),
         choice(
             "choice",
-            step("a", 1, config=None),
-            step("b", 1, config=None),
+            step("a", 1),
+            step("b", 1),
         ),
     )
 
