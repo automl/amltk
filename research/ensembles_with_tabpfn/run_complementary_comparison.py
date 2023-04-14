@@ -69,9 +69,9 @@ def _run(algo_names, complement_algorithm_name, metric_name, data_sample_name, d
     # base_models = prune_base_models(base_models, max_number_base_models=5, pruning_method="SiloTopN",
     #                                 maximize_validation_score=metric_data["maximize"])
 
-    ens_prediction_correlation, all_base_models_correlation_df = \
+    ens_prediction_correlation, all_base_models_correlation_df, context_predictive_performance_df = \
         correlation_analysis(y_train, y_test, ens_bm_predictions, ens_bm_with_complement_predictions, base_models,
-                             complement_algorithm_name)
+                             complement_algorithm_name, metric_data["function_proba_in"])
 
     bm_diversity, ens_bm_with_complement_diversity = \
         ensemble_diversity_analysis(y_train, y_test, base_models, complement_algorithm_name)
@@ -91,8 +91,8 @@ def _run(algo_names, complement_algorithm_name, metric_name, data_sample_name, d
     result_bucket.update(
         {
             "results_stats.json": result_stats,
-            "correlation_matrix.csv": all_base_models_correlation_df
-
+            "correlation_matrix.csv": all_base_models_correlation_df,
+            "context_predictive_performance.csv": context_predictive_performance_df
         }
     )
 

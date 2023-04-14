@@ -81,17 +81,18 @@ def compute_left_bergman_centroid(predictions_of_base_model):
     """Assumes as input the predictions of a base model over multiple sources of randomness
         (for cross-entropy; for full length prediction probabilities)
     """
+    # TODO: technically normalization is wrong... think about this
     return _normalized_geometric_mean(
         [algo_bm_preds + EPS for algo_bm_preds in predictions_of_base_model],
-        normalize=False
+        normalize=True
     )
 
 
 def ensemble_disparity_analysis(lbc_base_models_predictions, lbc_complement_model_predictions):
     """Analysis disparity for cross-entropy loss, following Wood et al. 2023"""
 
-    bm_disp = _mean_kl_for_ngm_preds(lbc_base_models_predictions, normalize=False)
+    bm_disp = _mean_kl_for_ngm_preds(lbc_base_models_predictions, normalize=True)
     bm_c_disp = _mean_kl_for_ngm_preds(lbc_base_models_predictions + [lbc_complement_model_predictions],
-                                       normalize=False)
+                                       normalize=True)
 
     return bm_disp, bm_c_disp

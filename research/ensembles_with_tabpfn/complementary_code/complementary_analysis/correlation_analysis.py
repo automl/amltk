@@ -58,17 +58,44 @@ def _compute_correlation_matrix(transformed_labels, base_models, complement_mode
     tmp_df = tmp_df.loc[sorted_index, sorted_index]
     corr_matrix = tmp_df.to_numpy()
     # Filter
+    # TODO: move this to eval for final tests
     corr_matrix[np.tril_indices_from(corr_matrix, k=-1)] = -1
 
     return pd.DataFrame(corr_matrix, columns=tmp_df.columns, index=tmp_df.index)
 
 
+def _get_context_predictive_performance(y_val, y_test, base_models, proba_to_score, complement_algorithm_name):
+    val_score_per_bm = np.array([proba_to_score(y_val, bm.val_probabilities) for bm in base_models])
+    test_score_per_bm = np.array([proba_to_score(y_test, bm.test_probabilities) for bm in base_models])
+
+    algo_names_list = [bm.config["algorithm"] for bm in base_models]
+    algo_names_u = list(set(algo_names_list))
+    algo_names_list = np.array(algo_names_list)
+
+    res_dict = {}
+
+    for algo_name in algo_names_u:
+        res_dict[algo_name] = {
+            "val_score": np.mean(val_score_per_bm[algo_names_list == algo_name]),
+            "test_score": np.mean(test_score_per_bm[algo_names_list == algo_name])
+        }
+
+
+    sorted_index = sorted(algo_names_u)
+    sorted_index.remove(complement_algorithm_name)
+    sorted_index += [complement_algorithm_name]
+
+    return pd.DataFrame(res_dict).loc[["val_score", "test_score"],sorted_index]
+
 def correlation_analysis(y_val, y_test, ens_bm_predictions, ens_bm_with_complement_predictions, base_models,
-                         complement_algorithm_name):
+                         complement_algorithm_name, proba_to_score):
     ens_prediction_correlation = _compute_loss_correlation(_get_transformed_labels(y_test), ens_bm_predictions,
                                                            ens_bm_with_complement_predictions)
 
     all_base_models_correlation_df = _compute_correlation_matrix(_get_transformed_labels(y_val), base_models,
                                                                  complement_algorithm_name)
 
-    return ens_prediction_correlation, all_base_models_correlation_df
+    context_predictive_performance_df = _get_context_predictive_performance(y_val, y_test, base_models, proba_to_score,
+                                                                         complement_algorithm_name)
+
+    return ens_prediction_correlation, all_base_models_correlation_df, context_predictive_performance_df

@@ -56,27 +56,10 @@ def _corr_matrix_plot(corr_matrix, complement_model_name):
 
     plt.show()
 
-
-def _run(c_model, metric_name, dataset_ref, data_sample_names):
-    path_to_analysis_data = f"./data_space/analysis_data/{metric_name}/{dataset_ref}"
-
-    result_stats_list = []
-    corr_df_list = []
-
-    for data_sample_name in data_sample_names:
-        result_bucket = PathBucket(path_to_analysis_data + f"/{data_sample_name}")
-        result_stats_list.append(result_bucket["results_stats.json"].load())
-        corr_df_list.append(result_bucket["correlation_matrix.csv"].load())
-
-        # TODO: compute & save individual sample results here?
-
-    overall_result_bucket = PathBucket(path_to_analysis_data)
-    disp_res = overall_result_bucket["disparity_results.json"].load()
-
-    # -- Compute results over splits
+def _aggregate_dfs(df_list):
     avg_corr_df = None
     sanity = None
-    for df in corr_df_list:
+    for df in df_list:
         if avg_corr_df is None:
             sanity = [list(df.index), list(df.columns)]
             avg_corr_df = df
@@ -84,11 +67,36 @@ def _run(c_model, metric_name, dataset_ref, data_sample_names):
             assert list(df.index) == sanity[0]
             assert list(df.columns) == sanity[1]
             avg_corr_df += df
-    avg_corr_df /= len(corr_df_list)
+    avg_corr_df /= len(df_list)
+
+    return avg_corr_df
+
+def _run(c_model, metric_name, dataset_ref, data_sample_names):
+    path_to_analysis_data = f"./data_space/analysis_data/{metric_name}/{dataset_ref}"
+
+    result_stats_list = []
+    corr_df_list = []
+    context_perf_list = []
+
+    for data_sample_name in data_sample_names:
+        result_bucket = PathBucket(path_to_analysis_data + f"/{data_sample_name}")
+        result_stats_list.append(result_bucket["results_stats.json"].load())
+        corr_df_list.append(result_bucket["correlation_matrix.csv"].load())
+        context_perf_list.append(result_bucket["context_predictive_performance.csv"].load())
+
+        # TODO: compute & save individual sample results here?
+
+    overall_result_bucket = PathBucket(path_to_analysis_data)
+    disp_res = overall_result_bucket["disparity_results.json"].load()
+
+    # -- Compute results over splits
+    avg_corr_df = _aggregate_dfs(corr_df_list)
+    avg_context_perf_df = _aggregate_dfs(context_perf_list)
     avg_result_stats = {k: mean([ele[k] for ele in result_stats_list]) for k in result_stats_list[0].keys()}
 
     # -- Analysis
     _corr_matrix_plot(avg_corr_df, c_model)
+    print(avg_context_perf_df)
     print(json.dumps(avg_result_stats, sort_keys=True, indent=4))
     print(json.dumps(disp_res, sort_keys=True, indent=4))
 
