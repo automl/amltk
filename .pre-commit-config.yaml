@@ -3,7 +3,8 @@ default_language_version:
 files: |
   (?x)^(
     src|
-    tests
+    tests |
+    examples
   )/.*\.py$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

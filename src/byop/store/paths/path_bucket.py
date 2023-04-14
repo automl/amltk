@@ -70,8 +70,8 @@ class PathBucket(Bucket[Path, str]):
     model = LinearRegression()
 
     # Store things
-    bucket["myarray.npy"] = array # !(1)
-    bucket["df.csv"] = dataframe  # !(2)
+    bucket["myarray.npy"] = array # (1)!
+    bucket["df.csv"] = dataframe  # (2)!
     bucket["model.pkl"].put(model)
 
     bucket["config.json"] = {"hello": "world"}
@@ -80,11 +80,11 @@ class PathBucket(Bucket[Path, str]):
 
     # Load things
     array = bucket["myarray.npy"].load()
-    maybe_df = bucket["df.csv"].get()  # !(3)
-    model: LinearRegression = bucket["model.pkl"].get(check=LinearRegression)  # !(4)
+    maybe_df = bucket["df.csv"].get()  # (3)!
+    model: LinearRegression = bucket["model.pkl"].get(check=LinearRegression)  # (4)!
 
     # Create subdirectories
-    model_bucket = bucket / "my_model" # !(5)
+    model_bucket = bucket / "my_model" # (5)!
     model_bucket["model.pkl"] = model
     model_bucket["predictions.npy"] = model.predict(X)
 

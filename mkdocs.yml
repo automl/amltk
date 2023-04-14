@@ -56,6 +56,7 @@ extra_css:
 watch:
   - src/byop
   - docs
+  - examples
 
 markdown_extensions:
   - admonition
@@ -102,6 +103,7 @@ plugins:
   - gen-files:
       scripts:
         - docs/api_generator.py
+        - docs/example_runner.py
   - literate-nav:
         nav_file: SUMMARY.md
   - mkdocstrings:
@@ -136,3 +138,11 @@ plugins:
             filters:
               - "!^_[^_]"
               - "_sample"  # Kind of a hack to have this render a private method
+
+nav:
+  - Home: "index.md"
+  - Guides: "guides/"
+  - Integrations: "integrations/"
+  - Examples: "examples/"  # Auto generated with docs/examples_runner.py
+  - API: "reference/"  # Auto generated with docs/api_generator.py
+  - Contributing: "contributing.md"

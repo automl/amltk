@@ -213,6 +213,66 @@ documentation generally not required for PRs.
 You can find a collection of features for custom documentation [here](https://squidfunk.github.io/mkdocs-material/reference/)
 as well as code reference documentation [here](https://mkdocstrings.github.io/usage/)
 
+### Examples
+The [`./examples`](./examples) folder is where you can find our runnable
+examples for AutoML-ToolKit.
+
+When generating the documentation locally, the `just docs` command will
+not run any examples, only render their code. You can control the running
+of examples with
+
+```bash
+ # Run no examples
+just docs
+just docs "None"
+
+# Run all examples
+just docs "all"
+
+# Run a single example called "Example Title"
+just docs "Example Title"
+
+# Run two examples called "Example1" and "Example2"
+just docs "Example1, Example2"
+```
+
+An example takes the form a `name`, `description` and `segments`.
+
+```python
+"""My Example Name
+
+Here's a short description.
+"""
+from x import a
+from y import b
+
+
+"""
+This is a commentary section. To see what can go in here,
+take a look at https://squidfunk.github.io/mkdocs-material/reference/
+
+Below we set some variables to some values.
+
+!!! note "Special note"
+
+    We use the variables p, q for fun.
+"""
+p = 2  # (1)!
+p = 3  # <!> (2)!
+
+print(p) # (3)!
+
+# 1. You can add annotations to lines, where the text to annotate goes at
+    the bottom of the code block, before the next commentary section.
+    https://squidfunk.github.io/mkdocs-material/reference/annotations/
+# 2. You can use <!> to highlight specific lines
+# 3. Anything printed out using `print` will be rendered
+"""
+This concludes this example, check out ./examples for examples on how
+to create ... examples.
+"""
+```
+
 
 ## Type Driven Development
 If you are unfamiliar with `types` in `python` then please consider

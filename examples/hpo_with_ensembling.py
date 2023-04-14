@@ -1,3 +1,7 @@
+"""Hello World.
+
+More
+"""
 from __future__ import annotations
 
 import logging
@@ -26,7 +30,6 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVC
 
-# from dask_jobqueue import SLURMCluster
 from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from byop.optimization import Trial
 from byop.pipeline import Pipeline, choice, split, step
@@ -38,7 +41,6 @@ LEVEL = logging.INFO  # Change to DEBUG if you want the gory details shown
 logger = logging.getLogger(__name__)
 
 # TODO: Given documentation this should work, but it doesnt.
-# logging.basicConfig(level=logging.INFO)
 for name in logging.root.manager.loggerDict:
     logging.getLogger(name).setLevel(LEVEL)
 
@@ -134,14 +136,13 @@ def create_ensemble(
     }
     targets = bucket["y_val.npy"].load()
 
-    task = Trial.Task
     trajectory: list[tuple[str, float]]
     weights, trajectory = weighted_ensemble_caruana(
         model_predictions=validation_predictions,
         targets=targets,
         size=size,
         metric=accuracy_score,
-        select=max,  # type: ignore
+        select=max,
         seed=seed,
         is_probabilities=True,
         classes=[0, 1],
@@ -199,7 +200,7 @@ def target_function(
             f"trial_{trial.name}_val_predictions.npy": val_predictions,
             f"trial_{trial.name}_val_probabilities.npy": val_probabilites,
             f"trial_{trial.name}_test_predictions.npy": test_predictions,
-        }
+        },
     )
     val_accuracy = scores["validation_accuracy"]
     return trial.success(cost=1 - val_accuracy)
@@ -208,16 +209,23 @@ def target_function(
 def get_dataset() -> tuple[np.ndarray, ...]:
     dataset = openml.datasets.get_dataset(31)
     X, y, _, _ = dataset.get_data(
-        dataset_format="dataframe", target=dataset.default_target_attribute
+        dataset_format="dataframe",
+        target=dataset.default_target_attribute,
     )
     y = LabelEncoder().fit_transform(y)
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, random_state=seed, test_size=0.4
+        X,
+        y,
+        random_state=seed,
+        test_size=0.4,
     )
     X_val, X_test, y_val, y_test = train_test_split(
-        X_test, y_test, random_state=seed, test_size=0.5
+        X_test,
+        y_test,
+        random_state=seed,
+        test_size=0.5,
     )
-    return X_train, X_val, X_test, y_train, y_val, y_test  # type: ignore
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
 
 if __name__ == "__main__":
@@ -241,28 +249,11 @@ if __name__ == "__main__":
             "y_train.npy": y_train,
             "y_val.npy": y_val,
             "y_test.npy": y_test,
-        }
+        },
     )
 
     # For testing out slurm
-    # n_workers = 256
-    # here = Path(__file__).absolute().parent
-    # logs = here / "logs-test-dask-slurm"
-    # logs.mkdir(exist_ok=True)
     #
-    # SLURMCluster.job_cls.submit_command = "sbatch --bosch"
-    # cluster = SLURMCluster(
-    #    memory="2GB",
-    #    processes=1,
-    #    cores=1,
-    #    local_directory=here,
-    #    log_directory=logs,
-    #    queue="bosch_cpu-cascadelake",
-    #    job_extra_directives=["--time 0-00:10:00"]
-    # )
-    # cluster.adapt(maximum_jobs=n_workers)
-    # executor = cluster.get_client().get_executor()
-    # scheduler = Scheduler(executor=executor)
 
     # For local
     n_workers = 4
@@ -341,3 +332,15 @@ if __name__ == "__main__":
 
     print("Best ensemble:")
     print(best_ensemble)
+
+"""
+problem
+"""
+
+x = 3
+
+"""
+other
+"""
+
+x = 2
