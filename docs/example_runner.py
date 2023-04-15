@@ -1,16 +1,15 @@
-"""Generate the code reference pages and navigation.
-
-# https://mkdocstrings.github.io/recipes/
-"""
+"""Generate the code reference pages and navigation https://mkdocstrings.github.io/recipes/."""
 from __future__ import annotations
 
 import logging
 import os
+import textwrap
 from dataclasses import dataclass
 from itertools import takewhile
 from pathlib import Path
 
 import mkdocs_gen_files
+from markdown_exec.formatters.python import _sessions
 from more_itertools import first, first_true, peekable
 
 logger = logging.getLogger(__name__)
@@ -27,19 +26,22 @@ class CodeSegment:
     exec: bool
 
     def code(self, code: list[str]) -> str:
-        print("should exec", self.exec)
         points_start = first_true(code, pred=lambda _l: _l.startswith("# 1."))
         if points_start is not None:
             points_start_index = code.index(points_start)
 
             points = [""]
-            points.extend([_l.lstrip("# ") for _l in code[points_start_index:]])
+            points.extend([_l.lstrip("#")[1:] for _l in code[points_start_index:]])
             points.append("")
 
             body = code[:points_start_index]
         else:
             points = []
             body = code
+
+        # Trim off any excess leading lines which only have whitespace
+        while body and body[0].strip() == "":
+            body.pop(0)
 
         hl_lines = []
         for i, line in enumerate(body):
@@ -50,7 +52,7 @@ class CodeSegment:
 
             for strip in ["# !", "#!", "#"]:
                 if _l.endswith(strip):
-                    _l = _l[:-len(strip)]
+                    _l = _l[: -len(strip)]
 
             body[i] = _l
 
@@ -63,6 +65,7 @@ class CodeSegment:
         # We generate two tabs if executing
         if self.exec:
             indented_body = "\n".join(f"    {_l}" for _l in body)
+
             code_annotations = " ".join(
                 [
                     "{",
@@ -83,6 +86,12 @@ class CodeSegment:
                     "",
                 ],
             )
+
+            # HACK(eddiebergman): to make `__name__` work
+            session_object = _sessions.setdefault(self.session, {})
+            if "__name__" not in session_object:
+                session_object["__name__"] = "__main__"
+
 
             run_annotations = " ".join(
                 [
@@ -130,21 +139,20 @@ class CommentSegment:
 @dataclass
 class Example:
     name: str
+    filepath: Path
     description: str
     segments: list[CodeSegment | CommentSegment]
 
     @classmethod
     def should_execute(cls, name: str) -> bool:
         env_var = os.environ.get(ENV_VAR, None)
-        print(env_var, name)
         if env_var is None:
             return False
         if env_var == "all":
             return True
 
         examples_to_exec = [
-            example.lstrip().rstrip() for example
-            in env_var.lower().split(",")
+            example.lstrip().rstrip() for example in env_var.lower().split(",")
         ]
         return name.lower() in examples_to_exec
 
@@ -190,13 +198,54 @@ class Example:
 
                 remaining.prepend('"""')  # Stick back in so we can find it next itr
 
-        return cls(name, description, segments)
+        return cls(name, path, description, segments)
 
     def header(self) -> str:
         return f"# {self.name}"
 
+    def description_header(self) -> str:
+        return "\n".join(
+            [
+                "## Description",
+                self.description,
+            ],
+        )
+
     def generate_doc(self) -> str:
-        return "\n".join([self.header(), self.description, *map(str, self.segments)])
+        return "\n".join(
+            [
+                self.header(),
+                self.copy_section(),
+                self.description_header(),
+                *map(str, self.segments),
+            ],
+        )
+
+    def copy_section(self) -> str:
+        body = "\n".join(
+            [
+                "```python",
+                *[
+                    "\n".join(segment.lines)
+                    for segment in self.segments
+                    if isinstance(segment, CodeSegment)
+                ],
+                "```",
+            ],
+        )
+        indented_body = textwrap.indent(body, " " * 4)
+        header = (
+            f'??? quote "Expand to copy'
+            f' `{self.filepath}` :material-content-copy: (top right)"'
+        )
+        return "\n".join(
+            [
+                header,
+                "",
+                indented_body,
+                "",
+            ],
+        )
 
 
 for path in sorted(Path("examples").rglob("*.py")):
@@ -207,12 +256,8 @@ for path in sorted(Path("examples").rglob("*.py")):
     parts = tuple(module_path.parts)
     filename = parts[-1]
 
-    if (
-        filename in ("__main__", "__version__", "__init__", "hpo_with_ensembling")
-        or filename.startswith("_")
-    ):
+    if filename.startswith("_"):
         continue
-
 
     example = Example.from_file(path)
     with mkdocs_gen_files.open(full_doc_path, "w") as f:

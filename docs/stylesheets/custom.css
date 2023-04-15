@@ -22,11 +22,6 @@ code.highlight.language-python span.kc {
   color: var(--md-code-hl-keyword-color);
 }
 
-/* Highlight None inside code blocks */
-code.highlight.language-python span.kc {
-  color: var(--md-code-hl-keyword-color);
-}
-
 
 h3.doc.doc-heading {
   border-top: 1px solid rgba(0, 0, 0, 0.2);

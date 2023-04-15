@@ -44,9 +44,9 @@ test = [
   "pytest-coverage",
   "pytest-cases",
   "distributed",
-  "scikit-learn",
   "openpyxl",
   "pyarrow",
+  "byop[smac, optuna, sklearn]",
 ]
 doc = [
   "mkdocs",
@@ -59,9 +59,17 @@ doc = [
   "mike",
   "pillow",
   "cairosvg",
+  "byop[smac, sklearn]",
 ]
-smac = ["smac>=2.0", "configspace"]
+docs-examples = [
+  "openml",
+  "byop[smac]"
+]
+
+sklearn = ["scikit-learn"]
+smac = ["smac>=2.0", "byop[configspace]"]
 optuna = ["optuna"]
+configspace = ["configspace"]
 
 [project.urls]
 documentation = "https://github.com/automl/byop/"
@@ -76,6 +84,9 @@ log_cli = false
 log_level = "DEBUG"
 xfail_strict = true
 addopts = "--durations=10 -vv"
+markers = [
+  "example: An example"
+]
 
 
 [tool.coverage.run]
@@ -173,8 +184,8 @@ ignore = [
   "S101",    # Use of assert detected.
   "W292",    # No newline at end of file
   "PLC1901", # "" can be simplified to be falsey
-  "TCH003", # Move stdlib import into TYPE_CHECKING
-            # These tend to be lighweight and confuse pyright
+  "TCH003",  # Move stdlib import into TYPE_CHECKING
+  # These tend to be lighweight and confuse pyright
 ]
 
 exclude = [
@@ -249,7 +260,6 @@ no_implicit_optional = true
 check_untyped_defs = true
 
 warn_return_any = true
-warn_unused_ignores = true
 
 
 [[tool.mypy.overrides]]
