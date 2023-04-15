@@ -124,7 +124,6 @@ granting us access to modify your PR will substantially help
 integration. To do so, please follow the instructions
 [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork#enabling-repository-maintainer-permissions-on-existing-pull-requests).
 
-
 ## Commits
 This library uses [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/#summary)
 as a way to write commits. This makes commit messages simpler and easier
@@ -145,6 +144,10 @@ Our testing for the library is done using [`pytest`](https://docs.pytest.org/),
 with some additional utilities from [`pytest-coverage`](https://pytest-cov.readthedocs.io/en/latest/)
 for code coverage and [`pytest-cases`](https://smarie.github.io/python-pytest-cases/)
 for test structure.
+
+!!! note "Just"
+
+    In general, you should prefer to run `just test`
 
 In general, writing a test and running `pytest` to test the whole library should be sufficient.
 If you need more fine grained control, such as only testing a particular test, please refer to [this
@@ -272,7 +275,6 @@ This concludes this example, check out ./examples for examples on how
 to create ... examples.
 """
 ```
-
 
 ## Type Driven Development
 If you are unfamiliar with `types` in `python` then please consider
@@ -621,7 +623,6 @@ There are many more cool typing concepts that could be covered, like `ParamSpec`
 `Literal`, `Callable`, `Sequence`, ... but please refer to
 the [python typing documentation](https://docs.python.org/3/library/typing.html) for more.
 
-
 ## Tips
 
 #### Easy virtual environments
@@ -707,7 +708,6 @@ In the case of staling PR's, these will likely need a forceful rebase
 from the `main` branch. This often has a negative impact on the commit
 history of a pull request but this will be removed by `squash-merge`.
 
-
 #### Workflows
 To keep things relatively uniform, we try support recommended workflows
 through the `justfile`. If there is a workflow that you prefer and is
@@ -731,7 +731,6 @@ and keeping to semvar versioning, using the commit history as a guide.
 Try to avoid using the `!` flag with a commit to indicate a major version
 bump unless concessus has been reached. Perhaps once we have released
 several major versions and stabalized API, we may utilize this more freely.
-
 
 #### Dependancies
 One of the hardest parts of maintenance for a mature library,
@@ -767,14 +766,12 @@ required dependancies and any error generated is considered user error and
 if possible guide them to the `pip install "amltk[optional_dep]"` that
 they require for the integration.
 
-
 #### Dependancy updates
 We have `dependabot` enabled in the repository using
 the `.github/dependabot.yml`. This bot will periodically
 make pull requests to the repository that update dependancies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
-
 
 #### Long Term Decisions
 Whenever faced with a long impacting decision, e.g. do we always
