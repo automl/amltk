@@ -27,7 +27,7 @@ def as_rng(seed: Seed | None = None) -> np.random.Generator:
         seed = seed.randint(0, MAX_INT)
 
     if seed is None or isinstance(seed, int):
-        return np.random.default_rng()
+        return np.random.default_rng(seed)
 
     raise ValueError(f"Can't use {seed=} to create a numpy.random.Generator instance")
 
