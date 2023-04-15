@@ -350,7 +350,7 @@ if __name__ == "__main__":
 
     X_train, X_val, X_test, y_train, y_val, y_test = get_dataset(seed)  # (1)!
 
-    path = Path("results")
+    path = Path("hpo_with_ensembling_results")
     if path.exists():
         shutil.rmtree(path)
 
