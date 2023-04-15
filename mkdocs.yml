@@ -57,6 +57,7 @@ watch:
   - src/byop
   - docs
   - examples
+  - CONTRIBUTING.md
 
 markdown_extensions:
   - admonition

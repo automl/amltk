@@ -5,8 +5,11 @@ Welcome to the AutoML-Toolkit framework docs.
     See the navigation links in the header or side-bars. Click the :octicons-three-bars-16: button (top left) on mobile.
 
 Check out the bottom of this page for a [quick start](#quick-start),
-or check out more [detailed examples](./examples). For a more thorough understanding of
+or for a more thorough understanding of
 all that AutoML-Toolkit has to offer, check out our [guides](./guides).
+
+You can also check out [examples](./examples) for copy-pastable
+snippets to start from.
 
 ## What is AutoML-Toolkit?
 

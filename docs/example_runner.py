@@ -1,4 +1,4 @@
-"""Generate the code reference pages and navigation https://mkdocstrings.github.io/recipes/."""
+"""Generates the examples pages."""
 from __future__ import annotations
 
 import logging

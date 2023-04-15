@@ -28,7 +28,7 @@ check-types:
 # Launch the docs server locally and open the webpage
 docs example="None":
   python -m webbrowser -t "http://127.0.0.1:8000/"
-  while true; do AMLTK_DOC_RENDER_EXAMPLES={{example}} mkdocs serve --watch-theme; done
+  AMLTK_DOC_RENDER_EXAMPLES={{example}} mkdocs serve --watch-theme
 
 # Bump the version and generate the changelog based off commit messages
 bump:

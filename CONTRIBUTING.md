@@ -145,21 +145,24 @@ with some additional utilities from [`pytest-coverage`](https://pytest-cov.readt
 for code coverage and [`pytest-cases`](https://smarie.github.io/python-pytest-cases/)
 for test structure.
 
-!!! note "Just"
-
-    In general, you should prefer to run `just test`
-
-In general, writing a test and running `pytest` to test the whole library should be sufficient.
+In general, writing a test and running `just test` to test the whole library should be sufficient.
 If you need more fine grained control, such as only testing a particular test, please refer to [this
 cheatsheet](https://gist.github.com/kwmiebach/3fd49612ef7a52b5ce3a).
+
 ```bash
-pytest  # Test whole library
-pytest -k "test_name_of_my_test"  # Test a particular test
-pytest --lf -x  # Run all tests but stop on first failed, beginning from the latest failure
+pytest                              # Test whole library and examples
+pytest "tests/path/to/testfile.py"  # Test a particular file
+pytest -k "test_name_of_my_test"    # Test a particular test
 ```
 
-We have automated testing that will happen so this will be seen during the PR. This note is
-here for completion and for contributing your own tests and testing them.
+> :warning: In general, you should prefer to run `just test` over `pytest` if new to testing.
+This will run all test until it hits it's first failure which allows for better incremental testing.
+It will also avoid running the examples which are often longer and saved for CI.
+
+### Testing examples
+If testing any added examples, please use the `just test-examples` command, which is
+a shortcut for `pytest "tests/test_examples.py" -x --lf`. There is unfortunatly no way
+to sub-select one.
 
 If you are not sure how to test your contribution or need some pointers to get started, please
 reach out in the PR comments and we will be happy to assist!
@@ -206,15 +209,16 @@ The documentation is handled by [`mkdocs-material`](https://squidfunk.github.io/
 with some additional plugins. This is a markdown based documentation generator which allows
 custom documentation and renders API documentation written in the code itself.
 
-You can live view documentation changes by running `just docs`,
-which will open your webbrowser and then run `mkdocs` to watch all files
-and live update any changes that occur.
-
 Where possible prefer to describe most of your documentation in code, with more custom
 documentation generally not required for PRs.
 
 You can find a collection of features for custom documentation [here](https://squidfunk.github.io/mkdocs-material/reference/)
 as well as code reference documentation [here](https://mkdocstrings.github.io/usage/)
+
+### Viewing Documentation
+You can live view documentation changes by running `just docs`,
+which will open your webbrowser and run `mkdocs --serve` to watch all files
+and live update any changes that occur.
 
 ### Examples
 The [`./examples`](./examples) folder is where you can find our runnable
@@ -239,7 +243,13 @@ just docs "Example Title"
 just docs "Example1, Example2"
 ```
 
-An example takes the form a `name`, `description` and `segments`.
+#### Example Syntax
+An example is just a python file, using the triple quote `"""`
+comments to switch between commentary and code blocks.
+
+The first `"""` block is special, in that the first line,
+in this case **My Example Name** is the name of the example,
+with anything following it being simple commentary.
 
 ```python
 """My Example Name
