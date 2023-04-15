@@ -83,8 +83,11 @@ it and building it into something useful can be done with the methods,
       pipeline will be split between the following steps.
       This is usually accompanied by some object that does the data splitting.
 
-    * [`Option`][byop.pipeline.Option]: A step which indicates the following
-        step(s) are optionally included.
+    * `Option`: A step which indicates the following step(s) are optionally included.
+
+        !!! note "TODO"
+
+            Please feel free to provide a contribution!
 
 
     There's also some _attachables_ you can

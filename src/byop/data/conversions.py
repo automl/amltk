@@ -30,8 +30,8 @@ def probabilities_to_classes(
     shape = np.shape(classes)
     if len(shape) == 1:
         n_outputs = 1
-        classes = classes.reshape(-1, 1)
-        probabilities = probabilities.reshape(-1, 1)
+        classes = np.asarray([classes])
+        probabilities = np.asarray([probabilities])
     elif len(shape) == 2:  # noqa: PLR2004
         n_outputs = len(classes)
     else:

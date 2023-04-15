@@ -194,10 +194,11 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
             ConfigurationSpace: A copy of the space with the hyperparameters replaced
         """
         for key, value in config.items():
-            hp = Constant(key, value)
             if key in space._hyperparameters:
                 space = cls.remove_hyperparameter(key, space)
 
-            space.add_hyperparameter(hp)
+            if not isinstance(value, bool):
+                hp = Constant(key, value)
+                space.add_hyperparameter(hp)
 
         return space

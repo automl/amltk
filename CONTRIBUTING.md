@@ -11,10 +11,10 @@ contributors and examples will be given where necessary.
 ## Setting up
 The core workflows of `amltk` are accessed through the [`justfile`](https://github.com/casey/just)
 in the root of the working directory. It is recommeneded to have this
-installed with their simple one liner on their repo. All of these were
-developed with bash in mind and your usage with other platforms may vary,
+installed with their [simple one liners on their repo](https://github.com/casey/just#installation).
+All of these were developed with bash in mind and your usage with other platforms
+may vary,
 please use the `justfile` as reference if this is the case.
-
 
 #### Forking
 If you are contributing from outside the `automl` org and under your own
@@ -49,6 +49,7 @@ For future convenience, see [Easy Virtual Environments](#easy-virtual-environmen
 
 #### Setting up code quality tools
 When you ran `just install`, the tool [`pre-commit`](https://pre-commit.com/) was installed.
+
 This is a framework that the repo has set up to run a set of code
 quality tools upon each commit, fixing up easy to fix issues, run some
 automatic formatting and run a static type checker on the code in the
@@ -67,7 +68,6 @@ in the Pull Request and we will help you solve them!
 To see a list of tools used and their purposes,
 please see the section on [Code Quality](#code-quality).
 
-
 #### Creating a new branch
 We follow a Pull Request into `main` workflow, which is essentially
 that any contributions to `amltk` should be done in a branch with
@@ -85,7 +85,6 @@ just pr-doc branchname   # Creates a branch doc-branchname
 just pr-fix branchname   # Creates a branch fix-branchname
 just pr-other branchname # Creates a branch other-branchname
 ```
-
 
 #### Submitting a PR
 If you are unfamiliar with creating a PR on github, please check
@@ -124,7 +123,6 @@ granting us access to modify your PR will substantially help
 integration. To do so, please follow the instructions
 [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork#enabling-repository-maintainer-permissions-on-existing-pull-requests).
 
-
 ## Commits
 This library uses [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/#summary)
 as a way to write commits. This makes commit messages simpler and easier
@@ -146,66 +144,72 @@ with some additional utilities from [`pytest-coverage`](https://pytest-cov.readt
 for code coverage and [`pytest-cases`](https://smarie.github.io/python-pytest-cases/)
 for test structure.
 
-In general, writing a test and running `pytest` to test the whole library should be sufficient.
+In general, writing a test and running `just test` to test the whole library should be sufficient.
 If you need more fine grained control, such as only testing a particular test, please refer to [this
 cheatsheet](https://gist.github.com/kwmiebach/3fd49612ef7a52b5ce3a).
+
 ```bash
-pytest  # Test whole library
-pytest -k "test_name_of_my_test"  # Test a particular test
-pytest --lf -x  # Run all tests but stop on first failed, beginning from the latest failure
+pytest                              # Test whole library and examples
+pytest "tests/path/to/testfile.py"  # Test a particular file
+pytest -k "test_name_of_my_test"    # Test a particular test
 ```
 
-We have automated testing that will happen so this will be seen during the PR. This note is
-here for completion and for contributing your own tests and testing them.
+> :warning: In general, you should prefer to run `just test` over `pytest` if new to testing.
+This will run all test until it hits it's first failure which allows for better incremental testing.
+It will also avoid running the examples which are often longer and saved for CI.
+
+### Testing examples
+If testing any added examples, please use the `just test-examples` command, which is
+a shortcut for `pytest "tests/test_examples.py" -x --lf`. There is unfortunatly no way
+to sub-select one.
 
 If you are not sure how to test your contribution or need some pointers to get started, please
 reach out in the PR comments and we will be happy to assist!
 
 ## Code Quality
-To ensure a consistent code quality and to reduce noise in the PR, there are a selection of code
-quality tools that run. These will be run automatically before a commit can be done with
+To ensure a consistent code quality and to reduce noise in the PR,
+there are a selection of code quality tools that run.
+
+### Pre-commit - Quality Enforcer
+These will be run automatically before a commit can be done with
 [`pre-commit`](https://pre-commit.com/). The configuration for this can be found in
 `.pre-commit-config.yaml`. All of these can be manually triggered using `just check`.
 
+### Ruff - Code Linting
 The primary linter we use is [`ruff`](https://github.com/charliermarsh/ruff), an amazingly fast
-python code linter which subsumes many previously used linters like, `pylint`, `flake8`, `pep8`,
-and even import sorters like `isort`. This also includes automatic fixes
-for many of the smaller problems that occur. The fixes can be done with `just fix`.
+python code linter which subsumes many previously used linters like,
+`pylint`, `flake8`, `pep8`, and even import sorters like `isort`.
+This also includes automatic fixes for many of the smaller problems that occur.
+The fixes can be done with `just fix`.
 
+### Mypy - Static Type Checking
 This codebase also relies heavily on pythons `typing` and [`mypy`](https://mypy.readthedocs.io/en/stable/)
 to ensure correctness across modules. Running this standalone on all files can take some time
 so we don't require you to run this, our automated testers will. If you wish to do so manually,
 then use `just check-types`.
-This is often an area of contention but typing alone means many redundant tests can be removed and
-ensures code is likely to remain working together even after being changed, letting you know if
-this is no longer the case. If any of the typing concepts are confusing, now is a good chance to learn
+
+If any of the typing concepts are confusing, now is a good chance to learn
 and we would be happy to assist in helping properly type your PR if things do not work. If all else
 fails, please feel free to introduce a `# type: ignore` to tell `mypy` to shut up **along with a
 description to why it is there**. This will help future contributors and maintainers understand the
 reasons behind these ignores. You can find a cheatsheet for basic mypy type hinting [here](https://mypy.readthedocs.io/en/stable/cheat_sheet_py3.html#cheat-sheet-py3).
 
+### Black - Code Formatiing
 Lastly, we use [`black`](https://github.com/psf/black) which is a python code formatter. This
 will not change any logical meaning of your python code but simply format it in a consistent
 manner so that the code is consistent and follows the same standards. This can be run with
 `just fix`.
 
 ## Git workflow
-We follow a _PR into trunk_ development cycle, in which all development is done in
-feature branches and the merged into `main`. The reason for feature branches is to
-allow multiple maintainers to actively work on `amltk` without interfering. Others
-familiar with a `main` and `development` branch may notice the lack of a `development`
-branch here. This is an intentional decision to reduce maintence overhead of constant
-merging of `main` and `development` to ensure they remain in-sync, allowing us to
-push changes faster.
+We follow a _PR into trunk_ development flow (whatever that's meant to be called),
+in which all development is done in feature branches and the merged into `main`.
+The reason for feature branches is to allow multiple maintainers to actively work on
+`amltk` without interfering.
 
 ## Documentation
 The documentation is handled by [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/)
 with some additional plugins. This is a markdown based documentation generator which allows
 custom documentation and renders API documentation written in the code itself.
-
-You can live view documentation changes by running `just docs`,
-which will open your webbrowser and then run `mkdocs` to watch all files
-and live update any changes that occur.
 
 Where possible prefer to describe most of your documentation in code, with more custom
 documentation generally not required for PRs.
@@ -213,8 +217,78 @@ documentation generally not required for PRs.
 You can find a collection of features for custom documentation [here](https://squidfunk.github.io/mkdocs-material/reference/)
 as well as code reference documentation [here](https://mkdocstrings.github.io/usage/)
 
+### Viewing Documentation
+You can live view documentation changes by running `just docs`,
+which will open your webbrowser and run `mkdocs --serve` to watch all files
+and live update any changes that occur.
 
-## Type Driven Development
+### Examples
+The [`./examples`](./examples) folder is where you can find our runnable
+examples for AutoML-ToolKit.
+
+When generating the documentation locally, the `just docs` command will
+not run any examples, only render their code. You can control the running
+of examples with
+
+```bash
+ # Run no examples
+just docs
+just docs "None"
+
+# Run all examples
+just docs "all"
+
+# Run a single example called "Example Title"
+just docs "Example Title"
+
+# Run two examples called "Example1" and "Example2"
+just docs "Example1, Example2"
+```
+
+#### Example Syntax
+An example is just a python file, using the triple quote `"""`
+comments to switch between commentary and code blocks.
+
+The first `"""` block is special, in that the first line,
+in this case **My Example Name** is the name of the example,
+with anything following it being simple commentary.
+
+```python
+"""My Example Name
+
+Here's a short description.
+"""
+from x import a
+from y import b
+
+
+"""
+This is a commentary section. To see what can go in here,
+take a look at https://squidfunk.github.io/mkdocs-material/reference/
+
+Below we set some variables to some values.
+
+!!! note "Special note"
+
+    We use the variables p, q for fun.
+"""
+p = 2  # (1)!
+p = 3  # <!> (2)!
+
+print(p) # (3)!
+
+# 1. You can add annotations to lines, where the text to annotate goes at
+    the bottom of the code block, before the next commentary section.
+    https://squidfunk.github.io/mkdocs-material/reference/annotations/
+# 2. You can use <!> to highlight specific lines
+# 3. Anything printed out using `print` will be rendered
+"""
+This concludes this example, check out ./examples for examples on how
+to create ... examples.
+"""
+```
+
+## Type Driven Development (Optional Read)
 If you are unfamiliar with `types` in `python` then please consider
 spending some time with the following section. `amltk` relies heavily
 on types to ensure code editors can be as smart as possible, helping
@@ -454,7 +528,6 @@ allows users to specify the `kind` of timer they want, i.e.
 information together. While it is by no means complete, it is quite
 extensible for the future without needing to break API.
 
-
 #### What Type is it? Generics
 The library relies extensively **composition** with limited places of
 _inheritance_ driven design. By asking a user to _inherit_ from a class
@@ -561,7 +634,6 @@ There are many more cool typing concepts that could be covered, like `ParamSpec`
 `Literal`, `Callable`, `Sequence`, ... but please refer to
 the [python typing documentation](https://docs.python.org/3/library/typing.html) for more.
 
-
 ## Tips
 
 #### Easy virtual environments
@@ -594,6 +666,7 @@ pyvenv () {
 # Activate a virtual environment in the current directory
 alias pyshell='source ./.venv/bin/activate'
 ```
+
 #### Editor Integrations
 This serves as a reference for properly setting up your editor to take
 advantage of all the types and [`code quality tools`](#code-quality) that `amltk` relies on. Please take
@@ -601,6 +674,7 @@ time to do so to get a much happier coding experience.
 
 ##### VSCode
 TODO
+
 ##### PyCharm
 TODO
 
@@ -647,7 +721,6 @@ In the case of staling PR's, these will likely need a forceful rebase
 from the `main` branch. This often has a negative impact on the commit
 history of a pull request but this will be removed by `squash-merge`.
 
-
 #### Workflows
 To keep things relatively uniform, we try support recommended workflows
 through the `justfile`. If there is a workflow that you prefer and is
@@ -671,7 +744,6 @@ and keeping to semvar versioning, using the commit history as a guide.
 Try to avoid using the `!` flag with a commit to indicate a major version
 bump unless concessus has been reached. Perhaps once we have released
 several major versions and stabalized API, we may utilize this more freely.
-
 
 #### Dependancies
 One of the hardest parts of maintenance for a mature library,
@@ -707,14 +779,12 @@ required dependancies and any error generated is considered user error and
 if possible guide them to the `pip install "amltk[optional_dep]"` that
 they require for the integration.
 
-
 #### Dependancy updates
 We have `dependabot` enabled in the repository using
 the `.github/dependabot.yml`. This bot will periodically
 make pull requests to the repository that update dependancies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
-
 
 #### Long Term Decisions
 Whenever faced with a long impacting decision, e.g. do we always

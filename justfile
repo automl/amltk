@@ -26,9 +26,9 @@ check-types:
   mypy src
 
 # Launch the docs server locally and open the webpage
-docs:
+docs example="None":
   python -m webbrowser -t "http://127.0.0.1:8000/"
-  while true; do mkdocs serve --watch-theme; done
+  AMLTK_DOC_RENDER_EXAMPLES={{example}} mkdocs serve --watch-theme
 
 # Bump the version and generate the changelog based off commit messages
 bump:
@@ -70,6 +70,9 @@ pr-other name:
   git checkout -b other-{{name}} main
   git push --set-upstream origin other-{{name}}
 
-# Run all tests, stopping on the first failure and continuing from the last failure
+# Run all tests, stopping on the first failure and continuing from the last failure and skipping examples
 test:
-  pytest -x --lf
+  pytest -x --lf -m "not example"
+
+test-examples:
+  pytest "tests/test_examples.py" -x --lf

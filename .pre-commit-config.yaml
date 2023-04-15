@@ -29,6 +29,7 @@ repos:
     rev: v1.2.0
     hooks:
       - id: mypy
+        exclude: "test_comm_task"  # Pre-commit mypy hates this one, crashes on (l106)
         additional_dependencies:
           - "attrs"
           - "types-pyyaml"
@@ -37,7 +38,6 @@ repos:
           - "--no-warn-return-any" # Disable this because it doesn't know about 3rd party imports
           - "--ignore-missing-imports"
           - "--show-traceback"
-          - "--pdb"
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
