@@ -11,10 +11,10 @@ contributors and examples will be given where necessary.
 ## Setting up
 The core workflows of `amltk` are accessed through the [`justfile`](https://github.com/casey/just)
 in the root of the working directory. It is recommeneded to have this
-installed with their simple one liner on their repo. All of these were
-developed with bash in mind and your usage with other platforms may vary,
+installed with their [simple one liners on their repo](https://github.com/casey/just#installation).
+All of these were developed with bash in mind and your usage with other platforms
+may vary,
 please use the `justfile` as reference if this is the case.
-
 
 #### Forking
 If you are contributing from outside the `automl` org and under your own
@@ -49,6 +49,7 @@ For future convenience, see [Easy Virtual Environments](#easy-virtual-environmen
 
 #### Setting up code quality tools
 When you ran `just install`, the tool [`pre-commit`](https://pre-commit.com/) was installed.
+
 This is a framework that the repo has set up to run a set of code
 quality tools upon each commit, fixing up easy to fix issues, run some
 automatic formatting and run a static type checker on the code in the
@@ -67,7 +68,6 @@ in the Pull Request and we will help you solve them!
 To see a list of tools used and their purposes,
 please see the section on [Code Quality](#code-quality).
 
-
 #### Creating a new branch
 We follow a Pull Request into `main` workflow, which is essentially
 that any contributions to `amltk` should be done in a branch with
@@ -85,7 +85,6 @@ just pr-doc branchname   # Creates a branch doc-branchname
 just pr-fix branchname   # Creates a branch fix-branchname
 just pr-other branchname # Creates a branch other-branchname
 ```
-
 
 #### Submitting a PR
 If you are unfamiliar with creating a PR on github, please check
@@ -168,41 +167,44 @@ If you are not sure how to test your contribution or need some pointers to get s
 reach out in the PR comments and we will be happy to assist!
 
 ## Code Quality
-To ensure a consistent code quality and to reduce noise in the PR, there are a selection of code
-quality tools that run. These will be run automatically before a commit can be done with
+To ensure a consistent code quality and to reduce noise in the PR,
+there are a selection of code quality tools that run.
+
+### Pre-commit - Quality Enforcer
+These will be run automatically before a commit can be done with
 [`pre-commit`](https://pre-commit.com/). The configuration for this can be found in
 `.pre-commit-config.yaml`. All of these can be manually triggered using `just check`.
 
+### Ruff - Code Linting
 The primary linter we use is [`ruff`](https://github.com/charliermarsh/ruff), an amazingly fast
-python code linter which subsumes many previously used linters like, `pylint`, `flake8`, `pep8`,
-and even import sorters like `isort`. This also includes automatic fixes
-for many of the smaller problems that occur. The fixes can be done with `just fix`.
+python code linter which subsumes many previously used linters like,
+`pylint`, `flake8`, `pep8`, and even import sorters like `isort`.
+This also includes automatic fixes for many of the smaller problems that occur.
+The fixes can be done with `just fix`.
 
+### Mypy - Static Type Checking
 This codebase also relies heavily on pythons `typing` and [`mypy`](https://mypy.readthedocs.io/en/stable/)
 to ensure correctness across modules. Running this standalone on all files can take some time
 so we don't require you to run this, our automated testers will. If you wish to do so manually,
 then use `just check-types`.
-This is often an area of contention but typing alone means many redundant tests can be removed and
-ensures code is likely to remain working together even after being changed, letting you know if
-this is no longer the case. If any of the typing concepts are confusing, now is a good chance to learn
+
+If any of the typing concepts are confusing, now is a good chance to learn
 and we would be happy to assist in helping properly type your PR if things do not work. If all else
 fails, please feel free to introduce a `# type: ignore` to tell `mypy` to shut up **along with a
 description to why it is there**. This will help future contributors and maintainers understand the
 reasons behind these ignores. You can find a cheatsheet for basic mypy type hinting [here](https://mypy.readthedocs.io/en/stable/cheat_sheet_py3.html#cheat-sheet-py3).
 
+### Black - Code Formatiing
 Lastly, we use [`black`](https://github.com/psf/black) which is a python code formatter. This
 will not change any logical meaning of your python code but simply format it in a consistent
 manner so that the code is consistent and follows the same standards. This can be run with
 `just fix`.
 
 ## Git workflow
-We follow a _PR into trunk_ development cycle, in which all development is done in
-feature branches and the merged into `main`. The reason for feature branches is to
-allow multiple maintainers to actively work on `amltk` without interfering. Others
-familiar with a `main` and `development` branch may notice the lack of a `development`
-branch here. This is an intentional decision to reduce maintence overhead of constant
-merging of `main` and `development` to ensure they remain in-sync, allowing us to
-push changes faster.
+We follow a _PR into trunk_ development flow (whatever that's meant to be called),
+in which all development is done in feature branches and the merged into `main`.
+The reason for feature branches is to allow multiple maintainers to actively work on
+`amltk` without interfering.
 
 ## Documentation
 The documentation is handled by [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/)
@@ -286,7 +288,7 @@ to create ... examples.
 """
 ```
 
-## Type Driven Development
+## Type Driven Development (Optional Read)
 If you are unfamiliar with `types` in `python` then please consider
 spending some time with the following section. `amltk` relies heavily
 on types to ensure code editors can be as smart as possible, helping
@@ -526,7 +528,6 @@ allows users to specify the `kind` of timer they want, i.e.
 information together. While it is by no means complete, it is quite
 extensible for the future without needing to break API.
 
-
 #### What Type is it? Generics
 The library relies extensively **composition** with limited places of
 _inheritance_ driven design. By asking a user to _inherit_ from a class
@@ -665,6 +666,7 @@ pyvenv () {
 # Activate a virtual environment in the current directory
 alias pyshell='source ./.venv/bin/activate'
 ```
+
 #### Editor Integrations
 This serves as a reference for properly setting up your editor to take
 advantage of all the types and [`code quality tools`](#code-quality) that `amltk` relies on. Please take
@@ -672,6 +674,7 @@ time to do so to get a much happier coding experience.
 
 ##### VSCode
 TODO
+
 ##### PyCharm
 TODO
 
