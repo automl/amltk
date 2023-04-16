@@ -17,6 +17,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, Hashable, TypeVar
 
 from byop.events import Event, EventManager
+from byop.scheduling.sequential_executor import SequentialExecutor
 from byop.scheduling.termination_strategies import termination_strategy
 
 if TYPE_CHECKING:
@@ -192,6 +193,15 @@ class Scheduler:
         )
         return cls(executor=executor)
 
+    @classmethod
+    def with_sequential(cls) -> Self:
+        """Create a Scheduler that runs sequentially.
+
+        This is useful for debugging and testing. Uses
+        a [`SequentialExecutor`][byop.scheduling.SequentialExecutor].
+        """
+        return cls(executor=SequentialExecutor())
+
     def empty(self) -> bool:
         """Check if the scheduler is empty.
 
@@ -346,15 +356,17 @@ class Scheduler:
         # Determine the reason for stopping
         if stop_triggered.done() and self._stop_event.is_set():
             stop_reason = Scheduler.ExitCode.STOPPED
+            logger.debug("Scheduler was told to `stop()`.")
             self.event_manager.emit(Scheduler.STOP)
         elif queue_empty and queue_empty.done():
+            logger.debug("Scheduler stopped due to being empty.")
             stop_reason = Scheduler.ExitCode.EXHAUSTED
         elif timeout is not None:
-            logger.debug(f"Timeout of {timeout} reached for scheduler")
+            logger.debug(f"Scheduler stopping as {timeout=} reached.")
             stop_reason = Scheduler.ExitCode.TIMEOUT
             self.event_manager.emit(Scheduler.TIMEOUT)
         else:
-            logger.warning("Scheduler stopped for unknown reason!")
+            logger.warning("Scheduler stopping for unknown reason!")
             stop_reason = Scheduler.ExitCode.UNKNOWN
 
         # Stop monitoring the queue to trigger an event
@@ -393,7 +405,9 @@ class Scheduler:
                 # Just try to cancel the tasks. Will cancel pending tasks
                 # but executors like dask will even kill the job
                 for future in self.queue:
-                    future.cancel()
+                    if not future.done():
+                        logger.debug(f"Cancelling {future=}")
+                        future.cancel()
         else:
             logger.debug("Waiting for currently running tasks to finish.")
 
