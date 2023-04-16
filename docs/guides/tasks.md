@@ -45,7 +45,6 @@ However the `Scheduler` is rather useless without some fuel.
 For this we present [`Tasks`][byop.scheduling.Task], the compute to actually
 perform with the `Scheduler` and start the system's gears turning.
 
-
 ## Events
 At the core of of AutoML-Toolkit is an [`EventManager`][byop.events.EventManager]
 whose sole purpose is to allow you to do two things:
@@ -183,6 +182,39 @@ run compute in a seperate process on the same machine.
     scheduler = Scheduler(executor=executor)
     ```
 
+??? tip "Debugging with the [`SequentialExecutor`][byop.scheduling.SequentialExecutor]"
+
+    Sometimes you'll need to debug what's going on and remove the noise
+    of processes and parallelism. For this, we have implemented a very basic
+    [`SequentialExecutor`][byop.scheduling.SequentialExecutor] to run everything
+    in a sequential manner!
+
+    === "Easy"
+
+        ```python
+        from byop.scheduling import Scheduler
+
+        scheduler = Scheduler.with_sequential()
+        ```
+
+    === "Explicit"
+
+        ```python
+        from byop.scheduling import Scheduler, SequetialExecutor
+
+        scheduler = Scheduler(executor=SequentialExecutor())
+        ```
+
+    ??? warning "Limitations"
+
+        Due to the fact this all runs in the same process, limitations
+        to [`Tasks`][byop.scheduling.Task] are likely to cause issues.
+        Notably, `memory_limit`, `cpu_time_limit` and `wall_time_limit`.
+        It's also likely to cause interferences with
+        [`CommTask`][byop.scheduling.CommTask].
+
+
+
 
 Some popular distributions frameworks which support the `Executor` interface:
 
@@ -220,6 +252,7 @@ Some popular distributions frameworks which support the `Executor` interface:
                 Python also defines a [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor]
                 but there are some known drawbacks to offloading heavy compute to threads. Notably,
                 there's no way in python to terminate a thread from the outside while it's running.
+
 ---
 
 -   :simple-dask: [`dask`](https://distributed.dask.org/en/stable/)
@@ -1191,7 +1224,6 @@ Below are all the events that can be subscribed to with the [`Task`][byop.schedu
 
     The task was submitted with a wall time limit but exceeded the limit.
     You can subscribe to this event with `on_cpu_time_limit_reached()`.
-
 
 ## Comm Tasks
 The [`CommTask`][byop.scheduling.CommTask] is a special type of task that is used

@@ -11,7 +11,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from byop.scheduling import Scheduler, Task
+from byop.scheduling import Scheduler, SequentialExecutor, Task
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +49,24 @@ def case_dask_executor() -> ClientExecutor:
     return client.get_executor()
 
 
+@case(tags=["executor"])
+def case_sequential_executor() -> SequentialExecutor:
+    return SequentialExecutor()
+
+
 @fixture()
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Scheduler:
-    # HACK: This is a hack, so we can yield and clean up
     return Scheduler(executor)
 
 
 def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None:
+    if isinstance(scheduler.executor, SequentialExecutor):
+        pytest.skip(
+            "SequentialExecutor will complete the task but the scheduler will"
+            " not realise it's a timeout.",
+        )
+
     results: list[float] = []
     sleep_time = 0.5
 
@@ -103,6 +113,9 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
             " test, we do not want this hanging behaviour. This should be"
             " explicitly documented when using ThreadPoolExecutor.",
         )
+
+    if isinstance(scheduler.executor, SequentialExecutor):
+        pytest.skip("SequentialExecutor can not be interupted while a task is running.")
 
     results: list[float] = []
     task = Task(sleep_and_return, scheduler, name="sleep")
