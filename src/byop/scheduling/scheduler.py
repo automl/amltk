@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from multiprocessing.context import BaseContext
     from typing_extensions import ParamSpec, Self
 
+    from byop.dask_jobqueue import DJQ_NAMES
+
     P = ParamSpec("P")
     R = TypeVar("R")
 
@@ -201,6 +203,165 @@ class Scheduler:
         a [`SequentialExecutor`][byop.scheduling.SequentialExecutor].
         """
         return cls(executor=SequentialExecutor())
+
+    @classmethod
+    def with_slurm(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a SLURM cluster.
+
+        This is useful for running on a SLURM cluster. Uses
+        a [`SlurmExecutor`][byop.scheduling.SlurmExecutor].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a SLURM cluster.
+        """
+        return cls.with_dask_jobqueue("slurm", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_pbs(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a PBS cluster.
+
+        This is useful for running on a PBS cluster. Uses
+        [dask_jobqueue.PBSCluster][].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a PBS cluster.
+        """
+        return cls.with_dask_jobqueue("pbs", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_sge(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a SGE cluster.
+
+        This is useful for running on a SGE cluster. Uses
+        [dask_jobqueue.SGECluster][].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a SGE cluster.
+        """
+        return cls.with_dask_jobqueue("sge", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_oar(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a OAR cluster.
+
+        This is useful for running on a OAR cluster. Uses
+        [dask_jobqueue.OARCluster][].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a OAR cluster.
+        """
+        return cls.with_dask_jobqueue("oar", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_moab(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a Moab cluster.
+
+        This is useful for running on a Moab cluster. Uses
+        [dask_jobqueue.MoabCluster][].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a Moab cluster.
+        """
+        return cls.with_dask_jobqueue("moab", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_lsf(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a LSF cluster.
+
+        This is useful for running on a LSF cluster. Uses
+        [dask_jobqueue.LSFCluster][].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a LSF cluster.
+        """
+        return cls.with_dask_jobqueue("lsf", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_htcondor(cls, *, n_workers: int, **kwargs: Any) -> Self:
+        """Create a Scheduler that runs on a HTCondor cluster.
+
+        This is useful for running on a HTCondor cluster. Uses
+        [dask_jobqueue.HTCondorCluster][].
+
+        Args:
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Returns:
+            A scheduler that will run on a HTCondor cluster.
+        """
+        return cls.with_dask_jobqueue("htcondor", n_workers=n_workers, **kwargs)
+
+    @classmethod
+    def with_dask_jobqueue(
+        cls,
+        name: DJQ_NAMES,
+        *,
+        n_workers: int,
+        **kwargs: Any,
+    ) -> Self:
+        """Create a Scheduler with using `dask-jobqueue`.
+
+        See [`dask_jobqueue`][dask_jobqueue] for more details.
+
+        [dask_jobqueue]: https://jobqueue.dask.org/en/latest/
+
+        Args:
+            name: The name of the jobqueue to use. This is the name of the
+                class in `dask_jobqueue` to use. For example, to use
+                `dask_jobqueue.SLURMCluster`, you would use `slurm`.
+            n_workers: The number of workers to start.
+            kwargs: Any additional keyword arguments to pass to the
+                `dask_jobqueue` class.
+
+        Raises:
+            ImportError: If `dask-jobqueue` is not installed.
+
+        Returns:
+            A new scheduler with a `dask_jobqueue` executor.
+        """
+        try:
+            from byop.dask_jobqueue import DaskJobqueueExecutor
+
+        except ImportError as e:
+            raise ImportError(
+                f"To use the {name} executor, you must install the "
+                "`dask-jobqueue` package.",
+            ) from e
+
+        executor = DaskJobqueueExecutor.from_str(name, n_workers=n_workers, **kwargs)
+        return cls(executor)
 
     def empty(self) -> bool:
         """Check if the scheduler is empty.
