@@ -21,4 +21,4 @@ weights from choice
 
 ## Scheduler Executors
 
-* DaskJobQueue
+* [DaskJobQueue](./dask-jobqueue.md)

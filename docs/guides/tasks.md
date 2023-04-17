@@ -160,144 +160,146 @@ Using just these, we can start to scaffold an entire event based framework which
 starts from the `Scheduler` and builds outwards to the cleaner abstraction, a [`Task`][byop.scheduling.Task].
 
 ### Creating a Scheduler
-We can create a simple `Scheduler` that uses the
-builtin [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor] to
-run compute in a seperate process on the same machine.
 
-=== "Easy"
+Some popular distributions frameworks which support the `Executor` interface
+or we provide an integration for.
 
-    ```python
-    from byop.scheduling import Scheduler
+If there's an executor background you wish to integrate, we would be happy
+to consider it and greatly appreciate a PR!
 
-    scheduler = Scheduler.with_processes(2)
-    ```
+####  :material-language-python: **Python**
+---
 
-=== "Explicit"
+Python supports the `Executor` interface natively with the
+[`concurrent.futures`][concurrent.futures] module for processes with the
+[`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor] and
+[`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor] for threads.
 
-    ```python
-    from concurrent.futures import ProcessPoolExecutor
-    from byop.scheduling import Scheduler
+??? example
 
-    executor = ProcessPoolExecutor(max_workers=2)
-    scheduler = Scheduler(executor=executor)
-    ```
-
-??? tip "Debugging with the [`SequentialExecutor`][byop.scheduling.SequentialExecutor]"
-
-    Sometimes you'll need to debug what's going on and remove the noise
-    of processes and parallelism. For this, we have implemented a very basic
-    [`SequentialExecutor`][byop.scheduling.SequentialExecutor] to run everything
-    in a sequential manner!
-
-    === "Easy"
+    === "Process Pool Executor"
 
         ```python
         from byop.scheduling import Scheduler
 
-        scheduler = Scheduler.with_sequential()
+        scheduler = Scheduler.with_processes(2)  # (1)!
         ```
 
-    === "Explicit"
-
-        ```python
-        from byop.scheduling import Scheduler, SequetialExecutor
-
-        scheduler = Scheduler(executor=SequentialExecutor())
-        ```
-
-    ??? warning "Limitations"
-
-        Due to the fact this all runs in the same process, limitations
-        to [`Tasks`][byop.scheduling.Task] are likely to cause issues.
-        Notably, `memory_limit`, `cpu_time_limit` and `wall_time_limit`.
-        It's also likely to cause interferences with
-        [`CommTask`][byop.scheduling.CommTask].
-
-
-
-
-Some popular distributions frameworks which support the `Executor` interface:
-
--   :material-language-python: **Python**
-
-    Python supports the `Executor` interface natively with the
-    [`concurrent.futures`][concurrent.futures] module for processes with the
-    [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor] and
-    [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor] for threads.
-
-    ??? example
-
-        === "Process Pool Executor"
-
-            ```python
+        1. Explicitly use the `with_processes` method to create a `Scheduler` with
+           a `ProcessPoolExecutor` with 2 workers.
+           ```python
             from concurrent.futures import ProcessPoolExecutor
             from byop.scheduling import Scheduler
 
             executor = ProcessPoolExecutor(max_workers=2)
             scheduler = Scheduler(executor=executor)
-            ```
+           ```
 
-        === "Thread Pool Executor"
+    === "Thread Pool Executor"
 
-            ```python
+        ```python
+        from byop.scheduling import Scheduler
+
+        scheduler = Scheduler.with_threads(2)  # (1)!
+        ```
+
+        1. Explicitly use the `with_threads` method to create a `Scheduler` with
+           a `ThreadPoolExecutor` with 2 workers.
+           ```python
             from concurrent.futures import ThreadPoolExecutor
             from byop.scheduling import Scheduler
 
             executor = ThreadPoolExecutor(max_workers=2)
             scheduler = Scheduler(executor=executor)
-            ```
+           ```
 
-            !!! danger "Why to not use threads"
+        !!! danger "Why to not use threads"
 
-                Python also defines a [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor]
-                but there are some known drawbacks to offloading heavy compute to threads. Notably,
-                there's no way in python to terminate a thread from the outside while it's running.
+            Python also defines a [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor]
+            but there are some known drawbacks to offloading heavy compute to threads. Notably,
+            there's no way in python to terminate a thread from the outside while it's running.
 
+#### :simple-dask: [`dask`](https://distributed.dask.org/en/stable/)
 ---
 
--   :simple-dask: [`dask`](https://distributed.dask.org/en/stable/)
+Dask and the supporting extension [`dask.distributed`](https://distributed.dask.org/en/stable/)
+provide a robust and flexible framework for scheduling compute across workers.
 
-    Dask and the supporting extension [`dask.distributed`](https://distributed.dask.org/en/stable/)
-    provide a robust and flexible framework for scheduling compute across workers.
+??? example
 
-    ??? example
+    ```python hl_lines="5"
+    from dask.distributed import Client
+    from byop.scheduling import Scheduler
 
-        ```python hl_lines="5"
-        from dask.distributed import Client
-        from byop.scheduling import Scheduler
+    client = Client(...)
+    executor = client.get_executor()
+    scheduler = Scheduler(executor=executor)
+    ```
 
-        client = Client(...)
-        executor = client.get_executor()
-        scheduler = Scheduler(executor=executor)
-        ```
+#### :simple-dask: [`dask-jobqueue`](https://jobqueue.dask.org/en/latest/)
 ---
 
--   :simple-dask: [`dask-jobqueue`](https://jobqueue.dask.org/en/latest/)
+A package for scheduling jobs across common clusters setups such as
+PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
 
-    A package for scheduling jobs across common clusters setups such as
-    PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
 
-    ??? example
+??? example
 
-        ```python hl_lines="16"
-        from dask_jobqueue import SLURMCluster
+    Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
+    In particular, we only control the parameter `#!python n_workers=` to
+    use the [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+    method, every other keyword is forwarded to the relative
+    [cluster implementation](https://jobqueue.dask.org/en/latest/api.html).
+
+    In general, you should specify the requirements of each individual worker and
+    and tune your load with the `#!python n_workers=` parameter.
+
+    If you have any tips, tricks, working setups, gotchas, please feel free
+    to leave a PR or simply an issue!
+
+    === "Slurm"
+
+        ```python hl_lines="3 4 5 6 7 8 9"
         from byop.scheduling import Scheduler
 
-        n_workers = 256
-
-        cluster = SLURMCluster(
-            memory="2GB",  # Memory per job
-            processes=1,  # Processes per job
-            cores=1,  # Cores per job
-            job_extra_directives=["--time 0-00:10:00"],  # Duration
-            queue="partition-name",
+        scheduler = Scheduler.with_slurm(
+            n_workers=10,  # (1)!
+            queue=...,
+            cores=4,
+            memory="6 GB",
+            walltime="00:10:00"
         )
-
-        cluster.adapt(maximum_jobs=256)  # Automatically scale up to 256 jobs
-
-        executor = cluster.get_client().get_executor()
-        scheduler = Scheduler(executor=executor)
         ```
+
+        1. The `n_workers` parameter is used to set the number of workers
+           to start with.
+           The [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+           method will be called on the cluster to dynamically scale the number of workers based on
+           the load.
+           The `with_slurm` method will create a [`SLURMCluster`][dask_jobqueue.SLURMCluster]
+           and pass it to the `Scheduler` constructor.
+           ```python hl_lines="10"
+           from dask_jobqueue import SLURMCluster
+           from byop.scheduling import Scheduler
+
+           cluster = SLURMCluster(
+               queue=...,
+               cores=4,
+               memory="6 GB",
+               walltime="00:10:00"
+           )
+           cluster.adapt(10)
+           executor = cluster.get_client().get_executor()
+           scheduler = Scheduler(executor=executor)
+           ```
+
+        !!! warning "Running the scheduler in a job"
+
+            If you're running the scheduler itself in a job, this will
+            not work. The scheduler itself is lightweight and can run on the
+            login node without issue. However you should make sure to offload
+            heavy computations to a worker.
+
 
         !!! info "Modifying the launch command"
 
@@ -305,42 +307,83 @@ Some popular distributions frameworks which support the `Executor` interface:
             You can use the following to do so:
 
             ```python
+            from dask_jobqueue import SLURMCluster
+
             SLURMCluster.job_cls.submit_command = "sbatch <extra-arguments>"
             ```
 
+    === "Others"
+
+        Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
+        and the following methods:
+
+        * [`Scheduler.with_pbs()`][byop.scheduling.Scheduler.with_pbs]
+        * [`Scheduler.with_lsf()`][byop.scheduling.Scheduler.with_lsf]
+        * [`Scheduler.with_moab()`][byop.scheduling.Scheduler.with_moab]
+        * [`Scheduler.with_sge()`][byop.scheduling.Scheduler.with_sge]
+        * [`Scheduler.with_htcondor()`][byop.scheduling.Scheduler.with_htcondor]
+
+#### :simple-ray: [`ray`](https://docs.ray.io/en/master/)
 ---
 
--   :simple-ray: [`ray`](https://docs.ray.io/en/master/)
+Ray is an open-source unified compute framework that makes it easy
+to scale AI and Python workloads
+— from reinforcement learning to deep learning to tuning,
+and model serving.
 
-    Ray is an open-source unified compute framework that makes it easy
-    to scale AI and Python workloads
-    — from reinforcement learning to deep learning to tuning,
-    and model serving.
+??? info "In progress"
 
-    ??? info "In progress"
+    Ray is currently in the works of supporting the Python
+    `Executor` interface. See this [PR](https://github.com/ray-project/ray/pull/30826)
+    for more info.
 
-        Ray is currently in the works of supporting the Python
-        `Executor` interface. See this [PR](https://github.com/ray-project/ray/pull/30826)
-        for more info.
+#### :simple-apacheairflow: [`airflow`](https://airflow.apache.org/)
+---
+
+Airflow is a platform created by the community to programmatically author,
+schedule and monitor workflows. Their list of integrations to platforms is endless
+but features compute platforms such as Kubernetes, AWS, Microsoft Azure and
+GCP.
+
+??? info "Planned"
+
+    We plan to support `airflow` in the future. If you'd like to help
+    out, please reach out to us!
 
 ---
 
--   :simple-apacheairflow: [`airflow`](https://airflow.apache.org/)
+#### :material-debug-step-over: Debugging
 
-    Airflow is a platform created by the community to programmatically author,
-    schedule and monitor workflows. Their list of integrations to platforms is endless
-    but features compute platforms such as Kubernetes, AWS, Microsoft Azure and
-    GCP.
+Sometimes you'll need to debug what's going on and remove the noise
+of processes and parallelism. For this, we have implemented a very basic
+[`SequentialExecutor`][byop.scheduling.SequentialExecutor] to run everything
+in a sequential manner!
 
-    ??? info "Planned"
+=== "Easy"
 
-        We plan to support `airflow` in the future. If you'd like to help
-        out, please reach out to us!
+    ```python
+    from byop.scheduling import Scheduler
 
----
+    scheduler = Scheduler.with_sequential()
+    ```
 
-If there's an executor background you wish to integrate, we would be happy
-to consider it and greatly appreciate a PR!
+=== "Explicit"
+
+    ```python
+    from byop.scheduling import Scheduler, SequetialExecutor
+
+    scheduler = Scheduler(executor=SequentialExecutor())
+    ```
+
+??? warning "Limitations"
+
+    Due to the fact this all runs in the same process, limitations
+    to [`Tasks`][byop.scheduling.Task] are likely to cause issues.
+    Notably, `memory_limit`, `cpu_time_limit` and `wall_time_limit`.
+    It's also likely to cause interferences with
+    [`CommTask`][byop.scheduling.CommTask].
+
+
 
 ### Subscribing to Scheduler Events
 
