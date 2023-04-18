@@ -250,3 +250,15 @@ def test_repeat_on_start(scheduler: Scheduler) -> None:
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     assert scheduler.empty()
     assert results == [1] * 10
+
+
+def test_end_on_exception_in_callback(scheduler: Scheduler) -> None:
+    class CustomError(Exception):
+        pass
+
+    @scheduler.on_start
+    def append_1() -> None:
+        raise CustomError("Test")
+
+    with pytest.raises(CustomError):
+        scheduler.run()

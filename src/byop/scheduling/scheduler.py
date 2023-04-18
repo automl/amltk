@@ -17,7 +17,9 @@ from enum import Enum, auto
 from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, Hashable, TypeVar
 
+from byop.asyncm import ContextEvent
 from byop.events import Event, EventManager
+from byop.functional import Flag
 from byop.scheduling.sequential_executor import SequentialExecutor
 from byop.scheduling.termination_strategies import termination_strategy
 
@@ -159,14 +161,17 @@ class Scheduler:
         self.queue: list[SyncFuture] = []
 
         # This can be triggered either by `scheduler.stop` in a callback
-        self._stop_event: asyncio.Event | None = None
+        self._stop_event = ContextEvent()
 
         # This is a condition to make sure monitoring the queue will wait
         # properly
-        self._queue_has_items: asyncio.Event | None = None
+        self._queue_has_items_event = asyncio.Event()
 
         # This is triggered when run is called
-        self._running: asyncio.Event | None = None
+        self._running_event = asyncio.Event()
+
+        # This is set once `run` is called
+        self._end_on_exception_flag = Flag(initial=False)
 
         # This is used to manage suequential queues, where we need a Thread
         # timer to ensure that we don't get caught in an endless loop waiting
@@ -500,10 +505,7 @@ class Scheduler:
         Returns:
             True if the scheduler is running and accepting tasks.
         """
-        if self._running is None:
-            return False
-
-        return self._running.is_set()
+        return self._running_event.is_set()
 
     @property
     def counts(self) -> dict[Hashable, int]:
@@ -539,7 +541,7 @@ class Scheduler:
         Returns:
             A Future representing the given call.
         """
-        if self._queue_has_items is None:
+        if not self.running():
             raise RuntimeError("The scheduler is not running!")
 
         if self._timeout_timer is not None and self._timeout_timer.finished.is_set():
@@ -560,8 +562,16 @@ class Scheduler:
     def _register_complete(self, future: SyncFuture) -> None:
         try:
             self.queue.remove(future)
+
         except ValueError as e:
             logger.error(f"{future=} was not found in the queue {self.queue}: {e}!")
+
+        if (
+            self._end_on_exception_flag
+            and future.done()
+            and (exception := future.exception())
+        ):
+            self.stop("Ending on first exception", exception)
 
     async def _stop_when_queue_empty(self) -> None:
         """Stop the scheduler when the queue is empty."""
@@ -573,7 +583,7 @@ class Scheduler:
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
-        if self._queue_has_items is None:
+        if not self.running():
             raise RuntimeError("The scheduler is not running!")
 
         while True:
@@ -582,16 +592,16 @@ class Scheduler:
                 await asyncio.wait(async_futures, return_when=asyncio.ALL_COMPLETED)
 
             # Signal that the queue is now empty
-            self._queue_has_items.clear()
+            self._queue_has_items_event.clear()
             self.event_manager.emit(Scheduler.EMPTY)
 
             # Wait for an item to be in the queue
-            await self._queue_has_items.wait()
+            await self._queue_has_items_event.wait()
             logger.debug("Queue has been filled again")
 
     async def _stop_when_triggered(self) -> bool:
         """Stop the scheduler when the stop event is set."""
-        if self._stop_event is None:
+        if not self.running():
             raise RuntimeError("The scheduler is not running!")
 
         await self._stop_event.wait()
@@ -605,16 +615,11 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-    ) -> ExitCode:
+    ) -> ExitCode | Exception:
         self.executor.__enter__()
 
-        # Create all the private events in the current loop we're running int
-        self._stop_event = asyncio.Event()
-        self._queue_has_items = asyncio.Event()
-        self._running = asyncio.Event()
-
         # Declare we are running
-        self._running.set()
+        self._running_event.set()
 
         # Start a Thread Timer as our timing mechanism.
         # HACK: This is required because the SequentialExecutor mode
@@ -652,7 +657,23 @@ class Scheduler:
         # Determine the reason for stopping
         if stop_triggered.done() and self._stop_event.is_set():
             stop_reason = Scheduler.ExitCode.STOPPED
-            logger.debug("Scheduler was told to `stop()`.")
+
+            msg, exception = self._stop_event.context
+            if msg and exception:
+                msg = "\n".join([msg, f"{type(exception)}: {exception}"])
+            elif msg and exception:
+                msg = f"Scheduler stopped with message:\n{msg}"
+            elif exception:
+                msg = "\n".join(
+                    [
+                        f"Scheduler stopped with exception {type(exception)}:",
+                        f"{exception}",
+                    ],
+                )
+            else:
+                msg = "Scheduler had `stop()` called on it."
+
+            logger.debug(msg)
             self.event_manager.emit(Scheduler.STOP)
         elif queue_empty and queue_empty.done():
             logger.debug("Scheduler stopped due to being empty.")
@@ -689,8 +710,7 @@ class Scheduler:
         logger.debug(f"Shutting down scheduler executor with {wait=}")
 
         # The scheduler is now refusing jobs
-        self._running.clear()
-        self._running = None
+        self._running_event.clear()
         logger.debug("Scheduler has shutdown and declared as no longer running")
 
         if not wait:
@@ -716,9 +736,9 @@ class Scheduler:
         self.event_manager.emit(Scheduler.FINISHED)
         logger.info(f"Scheduler finished with status {stop_reason}")
 
-        # Remove all the private events
-        self._stop_event = None
-        self._queue_has_items = None
+        # Clear all events
+        self._stop_event.clear()
+        self._queue_has_items_event.clear()
 
         return stop_reason
 
@@ -728,6 +748,7 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
+        end_on_exception: bool = False,
     ) -> ExitCode:
         """Run the scheduler.
 
@@ -738,6 +759,7 @@ class Scheduler:
             end_on_empty: Whether to end the scheduler when the
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
+            end_on_exception: Whether to end if an exception occurs.
 
         Returns:
             The reason for the scheduler ending.
@@ -755,9 +777,36 @@ class Scheduler:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        return loop.run_until_complete(
-            self._run_scheduler(timeout=timeout, end_on_empty=end_on_empty, wait=wait),
+        # Make sure the flag is set
+        self._end_on_exception_flag.set(value=end_on_exception)
+
+        # NOTE(eddiebergman): Code duplication with `async_run`.
+        #
+        #   We can't use the `async_run` method
+        #   above because once we encapsulate with `run_until_complete`
+        #   we can't get the exception back out of it. Hence, the code
+        #   duplication.
+        #
+        result = loop.run_until_complete(
+            self._run_scheduler(
+                timeout=timeout,
+                end_on_empty=end_on_empty,
+                wait=wait,
+            ),
         )
+
+        # Reset it back to its default
+        self._end_on_exception_flag.reset()
+
+        # If we were meant to end on an exception and the result
+        # we got back from the scheduler was an exception, raise it
+        if isinstance(result, Exception):
+            if end_on_exception:
+                raise result
+
+            return Scheduler.ExitCode.EXCEPTION
+
+        return result
 
     async def async_run(
         self,
@@ -765,6 +814,7 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
+        end_on_exception: bool = False,
     ) -> ExitCode:
         """Async version of `run`.
 
@@ -774,24 +824,41 @@ class Scheduler:
             end_on_empty: Whether to end the scheduler when the
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
+            end_on_exception: Whether to end if an exception occurs.
 
         Returns:
             The reason for the scheduler ending.
         """
-        return await self._run_scheduler(
+        # Make sure the flag is set
+        self._end_on_exception_flag.set(value=end_on_exception)
+
+        result = await self._run_scheduler(
             timeout=timeout,
             end_on_empty=end_on_empty,
             wait=wait,
         )
 
+        # Reset it back to its default
+        self._end_on_exception_flag.reset()
+
+        # If we were meant to end on an exception and the result
+        # we got back from the scheduler was an exception, raise it
+        if isinstance(result, Exception):
+            if end_on_exception:
+                raise result
+
+            return Scheduler.ExitCode.EXCEPTION
+
+        return result
+
     def stop(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         """Stop the scheduler."""
         # NOTE: we allow args and kwargs to allow it to be easily
         # included in any callback.
-        if self._stop_event is None:
+        if not self.running():
             raise RuntimeError("Scheduler has not been started yet")
 
-        self._stop_event.set()
+        self._stop_event.set(msg="stop() called")
 
     class ExitCode(Enum):
         """The reason the scheduler ended."""
@@ -807,3 +874,6 @@ class Scheduler:
 
         UNKNOWN = auto()
         """The scheduler finished for an unknown reason."""
+
+        EXCEPTION = auto()
+        """A submitted task encountered an exception."""
