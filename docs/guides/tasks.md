@@ -288,18 +288,23 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
                memory="6 GB",
                walltime="00:10:00"
            )
-           cluster.adapt(10)
+           cluster.adapt(max_workers=10) (1)!
            executor = cluster.get_client().get_executor()
            scheduler = Scheduler(executor=executor)
            ```
 
-        !!! warning "Running the scheduler in a job"
+           1. Note that we use the `n_workers` to simply execute
+           this command.
+
+        !!! warning "Running outside the login node"
 
             If you're running the scheduler itself in a job, this will
             not work. The scheduler itself is lightweight and can run on the
             login node without issue. However you should make sure to offload
             heavy computations to a worker.
 
+            If you get it to work, for example in an interactive job, please
+            let us know!
 
         !!! info "Modifying the launch command"
 
@@ -307,9 +312,9 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
             You can use the following to do so:
 
             ```python
-            from dask_jobqueue import SLURMCluster
+            from byop.scheduling import Scheduler
 
-            SLURMCluster.job_cls.submit_command = "sbatch <extra-arguments>"
+            scheduler = Scheduler.with_slurm(n_workers=..., submit_command="sbatch --extra"
             ```
 
     === "Others"
