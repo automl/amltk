@@ -205,7 +205,14 @@ class Scheduler:
         return cls(executor=SequentialExecutor())
 
     @classmethod
-    def with_slurm(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_slurm(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a SLURM cluster.
 
         This is useful for running on a SLURM cluster. Uses
@@ -213,16 +220,31 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a SLURM cluster.
         """
-        return cls.with_dask_jobqueue("slurm", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "slurm",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
-    def with_pbs(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_pbs(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a PBS cluster.
 
         This is useful for running on a PBS cluster. Uses
@@ -230,16 +252,31 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a PBS cluster.
         """
-        return cls.with_dask_jobqueue("pbs", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "pbs",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
-    def with_sge(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_sge(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a SGE cluster.
 
         This is useful for running on a SGE cluster. Uses
@@ -247,16 +284,31 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a SGE cluster.
         """
-        return cls.with_dask_jobqueue("sge", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "sge",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
-    def with_oar(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_oar(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a OAR cluster.
 
         This is useful for running on a OAR cluster. Uses
@@ -264,16 +316,31 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a OAR cluster.
         """
-        return cls.with_dask_jobqueue("oar", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "oar",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
-    def with_moab(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_moab(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a Moab cluster.
 
         This is useful for running on a Moab cluster. Uses
@@ -281,16 +348,31 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a Moab cluster.
         """
-        return cls.with_dask_jobqueue("moab", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "moab",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
-    def with_lsf(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_lsf(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a LSF cluster.
 
         This is useful for running on a LSF cluster. Uses
@@ -298,16 +380,31 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a LSF cluster.
         """
-        return cls.with_dask_jobqueue("lsf", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "lsf",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
-    def with_htcondor(cls, *, n_workers: int, **kwargs: Any) -> Self:
+    def with_htcondor(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> Self:
         """Create a Scheduler that runs on a HTCondor cluster.
 
         This is useful for running on a HTCondor cluster. Uses
@@ -315,19 +412,29 @@ class Scheduler:
 
         Args:
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
         Returns:
             A scheduler that will run on a HTCondor cluster.
         """
-        return cls.with_dask_jobqueue("htcondor", n_workers=n_workers, **kwargs)
+        return cls.with_dask_jobqueue(
+            "htcondor",
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
 
     @classmethod
     def with_dask_jobqueue(
         cls,
         name: DJQ_NAMES,
         *,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
         n_workers: int,
         **kwargs: Any,
     ) -> Self:
@@ -342,6 +449,8 @@ class Scheduler:
                 class in `dask_jobqueue` to use. For example, to use
                 `dask_jobqueue.SLURMCluster`, you would use `slurm`.
             n_workers: The number of workers to start.
+            submit_command: Overwrite the command to submit a worker if necessary.
+            cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
                 `dask_jobqueue` class.
 
@@ -360,7 +469,13 @@ class Scheduler:
                 "`dask-jobqueue` package.",
             ) from e
 
-        executor = DaskJobqueueExecutor.from_str(name, n_workers=n_workers, **kwargs)
+        executor = DaskJobqueueExecutor.from_str(
+            name,
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
         return cls(executor)
 
     def empty(self) -> bool:

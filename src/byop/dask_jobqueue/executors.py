@@ -16,6 +16,7 @@ jobqueue implementations and get access to their executors.
 # ruff: noqa: N802, E501
 from __future__ import annotations
 
+import pprint
 from concurrent.futures import Executor, Future
 from typing import (
     TYPE_CHECKING,
@@ -27,7 +28,7 @@ from typing import (
     Literal,
     TypeVar,
 )
-from typing_extensions import ParamSpec, TypeAlias
+from typing_extensions import ParamSpec, Self, TypeAlias
 
 from dask_jobqueue import (
     HTCondorCluster,
@@ -40,6 +41,8 @@ from dask_jobqueue import (
     SLURMCluster,
 )
 
+from byop.scheduling.comm_task import logging
+
 if TYPE_CHECKING:
     from distributed.cfexecutor import ClientExecutor
 
@@ -49,11 +52,20 @@ _JQC = TypeVar("_JQC", bound=JobQueueCluster)
 
 DJQ_NAMES: TypeAlias = Literal["slurm", "htcondor", "lsf", "oar", "pbs", "sge", "moab"]
 
+logger = logging.getLogger(__name__)
+
 
 class DaskJobqueueExecutor(Executor, Generic[_JQC]):
     """A concurrent.futures Executor that executes tasks on a dask_jobqueue cluster."""
 
-    def __init__(self, cluster: _JQC, n_workers: int):
+    def __init__(
+        self,
+        cluster: _JQC,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+    ):
         """Initialize a DaskJobqueueExecutor.
 
         This will specifically use the [dask_jobqueue.JobQueueCluster.adapt][] method to
@@ -74,11 +86,29 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         Args:
             cluster: The implementation of a [dask_jobqueue.JobQueueCluster][].
             n_workers: The number of workers to maximally adapt to on the cluster.
+            submit_command: To overwrite the submission command if necessary.
+            cancel_command: To overwrite the cancel command if necessary.
         """
         self.cluster = cluster
+        if submit_command:
+            self.cluster.job_cls.submit_command = submit_command
+
+        if cancel_command:
+            self.cluster.job_cls.cancel_command = cancel_command
+
         self.cluster.adapt(minimum=0, maximum=n_workers)
         self.n_workers = n_workers
         self.executor: ClientExecutor = self.cluster.get_client().get_executor()
+
+    def __enter__(self) -> Self:
+        configuration = {
+            "header": self.cluster.job_header,
+            "script": self.cluster.job_script(),
+            "job_name": self.cluster.job_name,
+        }
+        config_str = pprint.pformat(configuration)
+        logger.debug(f"Launching script with configuration:\n {config_str}")
+        return self
 
     def submit(
         self,
@@ -119,6 +149,8 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
         **kwargs: Any,
     ) -> DaskJobqueueExecutor[SLURMCluster]:
         """Create a DaskJobqueueExecutor for a SLURM cluster.
@@ -126,13 +158,20 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         See the [dask_jobqueue.SLURMCluster documentation][dask_jobqueue.SLURMCluster] for
         more information on the available keyword arguments.
         """
-        return cls(SLURMCluster(**kwargs), n_workers=n_workers)
+        return cls(
+            SLURMCluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
     def HTCondor(
         cls,
         *,
         n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
         **kwargs: Any,
     ) -> DaskJobqueueExecutor[HTCondorCluster]:
         """Create a DaskJobqueueExecutor for a HTCondor cluster.
@@ -140,49 +179,104 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         See the [dask_jobqueue.HTCondorCluster documentation][dask_jobqueue.HTCondorCluster] for
         more information on the available keyword arguments.
         """
-        return cls(HTCondorCluster(**kwargs), n_workers=n_workers)
+        return cls(
+            HTCondorCluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
-    def LSF(cls, *, n_workers: int, **kwargs: Any) -> DaskJobqueueExecutor[LSFCluster]:
+    def LSF(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> DaskJobqueueExecutor[LSFCluster]:
         """Create a DaskJobqueueExecutor for a LSF cluster.
 
         See the [dask_jobqueue.LSFCluster documentation][dask_jobqueue.LSFCluster] for
         more information on the available keyword arguments.
         """
-        return cls(LSFCluster(**kwargs), n_workers=n_workers)
+        return cls(
+            LSFCluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
-    def OAR(cls, *, n_workers: int, **kwargs: Any) -> DaskJobqueueExecutor[OARCluster]:
+    def OAR(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> DaskJobqueueExecutor[OARCluster]:
         """Create a DaskJobqueueExecutor for a OAR cluster.
 
         See the [dask_jobqueue.OARCluster documentation][dask_jobqueue.OARCluster] for
         more information on the available keyword arguments.
         """
-        return cls(OARCluster(**kwargs), n_workers=n_workers)
+        return cls(
+            OARCluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
-    def PBS(cls, *, n_workers: int, **kwargs: Any) -> DaskJobqueueExecutor[PBSCluster]:
+    def PBS(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> DaskJobqueueExecutor[PBSCluster]:
         """Create a DaskJobqueueExecutor for a PBS cluster.
 
         See the [dask_jobqueue.PBSCluster documentation][dask_jobqueue.PBSCluster] for
         more information on the available keyword arguments.
         """
-        return cls(PBSCluster(**kwargs), n_workers=n_workers)
+        return cls(
+            PBSCluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
-    def SGE(cls, *, n_workers: int, **kwargs: Any) -> DaskJobqueueExecutor[SGECluster]:
+    def SGE(
+        cls,
+        *,
+        n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
+        **kwargs: Any,
+    ) -> DaskJobqueueExecutor[SGECluster]:
         """Create a DaskJobqueueExecutor for a SGE cluster.
 
         See the [dask_jobqueue.SGECluster documentation][dask_jobqueue.SGECluster] for
         more information on the available keyword arguments.
         """
-        return cls(SGECluster(**kwargs), n_workers=n_workers)
+        return cls(
+            SGECluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
     def Moab(
         cls,
         *,
         n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
         **kwargs: Any,
     ) -> DaskJobqueueExecutor[MoabCluster]:
         """Create a DaskJobqueueExecutor for a Moab cluster.
@@ -190,7 +284,12 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         See the [dask_jobqueue.MoabCluster documentation][dask_jobqueue.MoabCluster] for
         more information on the available keyword arguments.
         """
-        return cls(MoabCluster(**kwargs), n_workers=n_workers)
+        return cls(
+            MoabCluster(**kwargs),
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            n_workers=n_workers,
+        )
 
     @classmethod
     def from_str(
@@ -198,6 +297,8 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         name: DJQ_NAMES,
         *,
         n_workers: int,
+        submit_command: str | None = None,
+        cancel_command: str | None = None,
         **kwargs: Any,
     ) -> DaskJobqueueExecutor:
         """Create a DaskJobqueueExecutor using a string lookup.
@@ -206,6 +307,8 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             name: The name of cluster to create, must be one of
                 ["slurm", "htcondor", "lsf", "oar", "pbs", "sge", "moab"].
             n_workers: The number of workers to maximally adapt to on the cluster.
+            submit_command: Overwrite the submit command of workers if necessary.
+            cancel_command: Overwrite the cancel command of workers if necessary.
             kwargs: The keyword arguments to pass to the cluster constructor.
 
         Raises:
@@ -229,4 +332,9 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
                 f"Unknown cluster name: {name}, must be from {list(methods)}",
             )
 
-        return method(n_workers=n_workers, **kwargs)
+        return method(
+            n_workers=n_workers,
+            submit_command=submit_command,
+            cancel_command=cancel_command,
+            **kwargs,
+        )
