@@ -1,4 +1,3 @@
-from byop.logging import easy_logging
 from byop.pipeline import Pipeline, choice, searchable, split, step
 from byop.scheduling import (
     Comm,
@@ -43,5 +42,4 @@ __all__ = [
     "PickleLoader",
     "TxtLoader",
     "YAMLLoader",
-    "easy_logging",
 ]
