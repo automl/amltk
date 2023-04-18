@@ -9,7 +9,6 @@ from itertools import takewhile
 from pathlib import Path
 
 import mkdocs_gen_files
-from markdown_exec.formatters.python import _sessions
 from more_itertools import first, first_true, peekable
 
 logger = logging.getLogger(__name__)
@@ -86,12 +85,6 @@ class CodeSegment:
                     "",
                 ],
             )
-
-            # HACK(eddiebergman): to make `__name__` work
-            session_object = _sessions.setdefault(self.session, {})
-            if "__name__" not in session_object:
-                session_object["__name__"] = "__main__"
-
 
             run_annotations = " ".join(
                 [
