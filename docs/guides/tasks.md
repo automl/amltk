@@ -274,7 +274,7 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
         1. The `n_workers` parameter is used to set the number of workers
            to start with.
            The [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
-           method will be called on the cluster to dynamically scale the number of workers based on
+           method will be called on the cluster to dynamically scale up to `#!python n_workers=` based on
            the load.
            The `with_slurm` method will create a [`SLURMCluster`][dask_jobqueue.SLURMCluster]
            and pass it to the `Scheduler` constructor.
@@ -288,13 +288,10 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
                memory="6 GB",
                walltime="00:10:00"
            )
-           cluster.adapt(max_workers=10) (1)!
+           cluster.adapt(max_workers=10)
            executor = cluster.get_client().get_executor()
            scheduler = Scheduler(executor=executor)
            ```
-
-           1. Note that we use the `n_workers` to simply execute
-           this command.
 
         !!! warning "Running outside the login node"
 
