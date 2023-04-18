@@ -120,7 +120,7 @@ plugins:
             - 'https://optuna.readthedocs.io/en/stable/objects.inv'
             - 'https://scikit-learn.org/stable/objects.inv'
             - 'https://pytorch.org/docs/stable/objects.inv'
-              # base_url: https://optuna.readthedocs.io/en/stable/
+            - 'https://jobqueue.dask.org/en/latest/objects.inv'
           options:
             show_root_heading: false
             show_root_toc_entry: false

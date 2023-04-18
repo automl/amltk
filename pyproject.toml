@@ -269,7 +269,7 @@ disallow_untyped_decorators = false # Test decorators are not properly typed
 disallow_incomplete_defs = false    # Sometimes we just want to ignore verbose types
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "ConfigSpace.*", "pandas.*", "more_itertools.*"]
+module = ["sklearn.*", "ConfigSpace.*", "pandas.*", "more_itertools.*", "dask_jobqueue.*"]
 ignore_missing_imports = true
 
 [tool.pyright]
