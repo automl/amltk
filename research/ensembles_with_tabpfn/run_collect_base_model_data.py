@@ -18,25 +18,26 @@ for name in logging.root.manager.loggerDict:
 from research.ensembles_with_tabpfn.base_model_code.experiment_pipeline_builder import build_pipeline
 from research.ensembles_with_tabpfn.base_model_code.data_handler import setup_data_bucket
 from research.ensembles_with_tabpfn.base_model_code.validation_procedure import predict_fit_repeated_cross_validation
-from research.ensembles_with_tabpfn.utils.config import ALL_EXPERIMENT_RUNS
-
-from research.ensembles_with_tabpfn.utils.config import METRIC_MAP
+from research.ensembles_with_tabpfn.utils.config import ALL_EXPERIMENT_RUNS, METRIC_MAP, init_metric_data
 
 
 def target_function(trial: Trial, /, bucket: PathBucket, pipeline: Pipeline, metric_data: dict) -> Trial.Report:
-    X_train, X_test, y_train, y_test = (
+    X_train, X_test, y_train, y_test, meta_data = (
         bucket["X_train.csv"].load(),
         bucket["X_test.csv"].load(),
         bucket["y_train.npy"].load(),
         bucket["y_test.npy"].load(),
+        bucket["meta_data.json"].load()
     )
 
     pipeline = pipeline.configure(trial.config)
     sklearn_pipeline = pipeline.build()
 
+    metric_data = init_metric_data(metric_data, meta_data)
+
     # Begin the trial, the context block makes sure
     with trial.begin():
-        train_score, val_score, test_score, val_probabilities, val_predictions, test_probabilities, test_predictions \
+        train_score, val_score, test_score, val_probabilities, val_predictions, test_probabilities, test_predictions, \
             = predict_fit_repeated_cross_validation(2, 5, sklearn_pipeline,
                                                     X_train, y_train,
                                                     X_test, y_test,

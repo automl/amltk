@@ -40,12 +40,14 @@ def _agg_fold_model_predictions(oof_per_split, oof_template_generator):
 
 
 def predict_fit_repeated_cross_validation(n: int, k: int, input_model: sklearn_Pipeline,
-                                         X_train: pd.DataFrame, y_train: np.array,
-                                         X_test: pd.DataFrame, y_test: np.array,
-                                         metric_data: dict):
+                                          X_train: pd.DataFrame, y_train: np.array,
+                                          X_test: pd.DataFrame, y_test: np.array,
+                                          metric_data: dict):
     """ Code to for n-repeated k-fold cross-validation.
         -> Computes validation data (average-over-repeats OOF), validation score, and test predictions.
 
+        Note:
+            - we assume y to be encoded (with a label encoder)
 
         TODO:
             - we likely want to parallelize this as well or only parallelize the model's training...
@@ -78,6 +80,11 @@ def predict_fit_repeated_cross_validation(n: int, k: int, input_model: sklearn_P
     if is_classification:
         n_classes = np.unique(np.concatenate([np.unique(y_train), np.unique(y_test)])).shape[0]
         oof_template_generator = lambda: np.full((X_train.shape[0], n_classes), np.nan)
+
+        if metric_data["requires_proba"]:
+            metric = metric_data["function_proba_in"]
+        else:
+            metric = metric_data["function"]
     else:
         # oof_template_generator = lambda: np.full((X_train.shape[0],), np.nan)
         raise NotImplementedError("Regression not yet implemented")
@@ -87,7 +94,6 @@ def predict_fit_repeated_cross_validation(n: int, k: int, input_model: sklearn_P
     train_cv_scores = []  # type: List[float]
     val_cv_scores = []  # type: List[float]
     test_predictions_per_fold_model = []  # type: List[np.ndarray]
-    metric = metric_data["function"]
 
     # -- Compute values for each split
     for train_index, test_index in cv:
@@ -163,3 +169,4 @@ def predict_fit_repeated_cross_validation(n: int, k: int, input_model: sklearn_P
         raise NotImplementedError
 
     return train_score, val_score, test_score, val_probabilities, val_predictions, test_probabilities, test_predictions
+

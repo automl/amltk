@@ -61,7 +61,8 @@ def setup_data_bucket(openml_dataset_id: int, data_sample_name: str, seed: int, 
 
     # -- Blanket non-pipeline specific preprocessing
     # - Encode Classes as numbers
-    y = LabelEncoder().fit_transform(y)
+    le = LabelEncoder()
+    y = le.fit_transform(y)
     # - Drop duplicated columns
     X = X.loc[:, ~X.columns.duplicated()].copy()
     # - Drop duplicated rows
@@ -69,6 +70,10 @@ def setup_data_bucket(openml_dataset_id: int, data_sample_name: str, seed: int, 
 
     # -- Split data
     X_train, X_test, y_train, y_test = _obtain_data_sample(data_sample_name, X, y)
+
+    meta_data = dict(
+        n_classes = len(le.classes_),
+    )
 
     # -- Setup Data Bucket
     path = Path(bucket_name)
@@ -84,6 +89,7 @@ def setup_data_bucket(openml_dataset_id: int, data_sample_name: str, seed: int, 
             "X_test.csv": X_test,
             "y_train.npy": y_train,
             "y_test.npy": y_test,
+            "meta_data.json": meta_data,
         }
     )
 

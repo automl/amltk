@@ -1,6 +1,6 @@
 from research.ensembles_with_tabpfn.complementary_code.data_handler import read_all_base_models
 from research.ensembles_with_tabpfn.utils.config import ALGO_NAMES, METRIC_MAP, EXPERIMENT_RUNS_WO_ALGOS, C_ALGO, \
-    EXPERIMENT_HIGH_LEVEL
+    EXPERIMENT_HIGH_LEVEL, init_metric_data
 from research.ensembles_with_tabpfn.complementary_code.ensembling_performance_boost import \
     get_data_for_performance_increase_with_new_model
 from research.ensembles_with_tabpfn.complementary_code.complementary_analysis.correlation_analysis import \
@@ -56,8 +56,11 @@ def _run(algo_names, complement_algorithm_name, metric_name, data_sample_name, d
     seed = 41124
 
     # -- Get all base models
-    base_models, X_train, X_test, y_train, y_test = read_all_base_models(path_to_base_model_data,
-                                                                         dataset_ref, data_sample_name, algo_names)
+    base_models, X_train, X_test, y_train, y_test, meta_data = read_all_base_models(path_to_base_model_data,
+                                                                                    dataset_ref, data_sample_name,
+                                                                                    algo_names)
+
+    metric_data = init_metric_data(metric_data, meta_data)
 
     ens_bm_predictions, ens_bm_with_complement_predictions, \
         score_bm, score_bm_with_complement, val_score_bm, val_score_bm_with_complement \
@@ -134,8 +137,6 @@ def _run_disparity_analysis(algo_names, complement_model_name, metric_name, data
             "disparity_results.json": result_stats,
         }
     )
-
-    return
 
 
 def _run_wrapper():

@@ -50,10 +50,10 @@ class FakedFittedAndValidatedClassificationBaseModel:
 
 
 def read_all_base_models(path_to_base_model_data: str, dataset_ref: str, data_sample_name: str, algorithms: List[str]) \
-        -> Tuple[List[FakedFittedAndValidatedClassificationBaseModel], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        -> Tuple[List[FakedFittedAndValidatedClassificationBaseModel], np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
     """Read all base models as fake base model for our usage later on."""
     X_train, X_test, y_train, y_test = None, None, None, None
-    le_, classes_ = None, None
+    le_, classes_, meta_data = None, None, None
     base_models = []
 
     for algo_name in algorithms:
@@ -67,11 +67,12 @@ def read_all_base_models(path_to_base_model_data: str, dataset_ref: str, data_sa
             if (match := re.match(pattern, key)) is not None
         ]
 
-        tmp_X_train, tmp_X_test, tmp_y_train, tmp_y_test = (
+        tmp_X_train, tmp_X_test, tmp_y_train, tmp_y_test, tmp_meta_data = (
             bm_data_bucket["X_train.csv"].load(),
             bm_data_bucket["X_test.csv"].load(),
             bm_data_bucket["y_train.npy"].load(),
             bm_data_bucket["y_test.npy"].load(),
+            bm_data_bucket["meta_data.json"].load()
         )
 
         if X_train is None:
@@ -80,12 +81,14 @@ def read_all_base_models(path_to_base_model_data: str, dataset_ref: str, data_sa
             # Store the classes seen during fit of base models (ask Lennart why, very specific edge case reason...)
             le_ = LabelEncoder().fit(y_train)
             classes_ = le_.classes_
+            meta_data = tmp_meta_data
         else:
             # Sanity Check: original data must be equal for all algorithms!
             pd.testing.assert_frame_equal(X_train, tmp_X_train)
             pd.testing.assert_frame_equal(X_test, tmp_X_test)
             assert_array_equal(y_train, tmp_y_train)
             assert_array_equal(y_test, tmp_y_test)
+            assert meta_data == tmp_meta_data
 
         # -- Obtain all base model data for this algorithm
         val_score_key = [k for k in bm_data_bucket[f"trial_{trial_names[0]}_scores.json"].load().keys()
@@ -110,4 +113,4 @@ def read_all_base_models(path_to_base_model_data: str, dataset_ref: str, data_sa
 
         base_models.extend(tmp_base_models)
 
-    return base_models, X_train, X_test, y_train, y_test
+    return base_models, X_train, X_test, y_train, y_test, meta_data
