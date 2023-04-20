@@ -96,6 +96,8 @@ def init_metric_data(metric_data, meta_data):
     return metric_data
 
 # -- experiment configs
+# TODO @LennartPurucker: Probably need to update the AlgoNames
+# ALGORITHM_NAMES = Literal["RF", "LM", "GBM", "lightgbm", "XGB", "CatBoost", "KNN", "XT", "MLP", "LR"]
 ALGO_NAMES = {"MLP", "RF", "LM", "GBM", "KNN", "XT"}
 METRICS = set(METRIC_MAP.keys())  #  ["balanced_accuracy"]
 FOLDS = list(range(10))

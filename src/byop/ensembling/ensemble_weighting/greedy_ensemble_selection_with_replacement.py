@@ -163,8 +163,15 @@ class GreedyEnsembleSelection(AbstractWeightedEnsemble):
 
         self.weights_ = weights
 
+
     # TODO: the MP implementation below was the most memory and time efficient implementation (on linux) that I found.
     #   This can certainly be improved in terms of readability but will likely decrease memory efficiency.
+    # NOTE(eddiebergmane): Technically each process inherits everything when this is run, including all
+    # the imports and their imports. One solution to speed it up even more is essentially to either have the computation function
+    # in a standalone file. You could also look at `forkserver` where you can control what's preloaded with undocumented functionality
+    # https://bnikolic.co.uk/blog/python/parallelism/2019/11/13/python-forkserver-preload.html
+    # You could also try mapped memory with numpy loading
+    # * https://stackoverflow.com/a/55545731/5332072
     def _compute_losses_mp(self, weighted_ensemble_prediction, labels, predictions, s):
         # -- Process Iteration Solutions
         func_args = (weighted_ensemble_prediction, labels, s, self.loss_function, predictions)
