@@ -57,7 +57,7 @@ class Comm:
         except BrokenPipeError:
             # It's possble that the connection was closed by the other end
             # before we could send the message.
-            logger.warning("Broken pipe error while sending message {obj}")
+            logger.warning(f"Broken pipe error while sending message {obj}")
 
     def close(self, *, wait_for_ack: bool = False) -> None:
         """Close the connection.
@@ -78,7 +78,9 @@ class Comm:
 
             if wait_for_ack:
                 try:
+                    logger.debug("Waiting for ACK")
                     self.connection.recv()
+                    logger.debug("Recieved ACK")
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Error waiting for ACK: {type(e)}{e}")
 
@@ -178,7 +180,7 @@ class Comm:
         return self
 
     def __exit__(self, *_: Any) -> None:
-        self.close()
+        self.close(wait_for_ack=False)
 
 
 @dataclass
@@ -394,8 +396,6 @@ class CommTask(Task[Concatenate[Comm, P], R]):
                     self.emit(CommTask.CLOSE)
 
                     # This is to acknowledge the worker can close its come
-                    ACK = True
-                    comm.send(ACK)
                     break
 
                 # Otherwise it's just a simple `send` with some data we

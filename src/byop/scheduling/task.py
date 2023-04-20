@@ -282,6 +282,35 @@ class Task(Generic[P, R]):
         task_event = (event, self.name)
         self.scheduler.event_manager.emit(task_event, *args, **kwargs)
 
+    def emit_many(
+        self,
+        events: dict[Hashable, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
+    ) -> None:
+        """Emit many events at once.
+
+        This is useful for cases where you don't want to favour one callback
+        over another, and so uses the time a callback was registered to call
+        the callback instead.
+
+        ```python
+        task.emit_many({
+            "event1": ((1, 2, 3), {"x": 4, "y": 5}), # (1)!
+            "event2": (("hello", "world"), None), # (2)!
+            "event3": (None, None),  # (3)!
+        ```
+        1. Pass the positional and keyword arguments as a tuple and a dictionary
+        2. Specify None for the keyword arguments if you don't want to pass any.
+        3. Specify None for both if you don't want to pass any arguments to the event
+
+        Args:
+            events: A dictionary of events to emit. The keys are the events
+                to emit, and the values are tuples of the positional and
+                keyword arguments to pass to the event handlers.
+        """
+        self.scheduler.event_manager.emit_many(
+            {(event, self.name): params for event, params in events.items()},
+        )
+
     def forward_event(self, frm: Hashable, to: Hashable) -> None:
         """Forward an event to another event.
 
@@ -328,10 +357,9 @@ class Task(Generic[P, R]):
         if future is None:
             msg = (
                 f"Task {callstring(self.function, *args, **kwargs)} was not"
-                " able to be submitted. The scheduler is likely not started"
-                " or already shutdown."
+                " able to be submitted. The scheduler is likely already finished."
             )
-            logger.warning(msg)
+            logger.info(msg)
             return None
 
         self.queue.append(future)
@@ -365,8 +393,12 @@ class Task(Generic[P, R]):
 
         exception = future.exception()
         if exception is not None:
-            self.emit(Task.F_EXCEPTION, future, exception)
-            self.emit(Task.EXCEPTION, exception)
+            self.emit_many(
+                {
+                    Task.F_EXCEPTION: ((future, exception), None),
+                    Task.EXCEPTION: ((exception,), None),
+                },
+            )
 
             # If it was a limiting exception, emit it
             if isinstance(exception, Pynisher.TimeoutException):
@@ -379,8 +411,12 @@ class Task(Generic[P, R]):
                 self.emit(Task.CPU_TIME_LIMIT_REACHED, future, exception)
         else:
             result = future.result()
-            self.emit(Task.F_RETURNED, future, result)
-            self.emit(Task.RETURNED, result)
+            self.emit_many(
+                {
+                    Task.F_RETURNED: ((future, result), None),
+                    Task.RETURNED: ((result,), None),
+                },
+            )
 
     def __repr__(self) -> str:
         return f"Task(name={self.name})"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from itertools import chain
@@ -11,6 +12,7 @@ from typing import (
     Callable,
     Generic,
     Hashable,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -29,8 +31,32 @@ R = TypeVar("R")
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class RegisteredTimeCallOrderStrategy:
+    """A calling strategy that calls callbacks in the order they were registered."""
+
+    @classmethod
+    def execute(
+        cls,
+        events: Iterable[
+            tuple[EventHandler[P], tuple[Any, ...] | None, dict[str, Any] | None]
+        ],
+    ) -> None:
+        """Call all events in the scheduler."""
+        handlers = []
+        for event_handler, args, kwargs in events:
+            handlers += [
+                (handler, args or (), kwargs or {})
+                for handler in event_handler.handlers
+            ]
+
+        sorted_handlers = sorted(handlers, key=lambda item: item[0].registered_at)
+        for handler, args, kwargs in sorted_handlers:
+            handler(*args, **kwargs)
+
+
 @dataclass(frozen=True)
-class Event(Generic[P]):
+class Event(Hashable, Generic[P]):
     """An event that can be emitted."""
 
     name: str
@@ -223,6 +249,7 @@ class Handler(Generic[P]):
     n_called: int = 0
     limit: int | None = None
     repeat: int = 1
+    registered_at: int = field(default_factory=time.time_ns)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
         """Call the callback if the predicate is satisfied.
@@ -280,6 +307,11 @@ class EventHandler(Mapping[str, List[Callable[P, Any]]]):
 
     def __delitem__(self, key: str) -> None:
         self.callbacks.__delitem__(key)
+
+    @property
+    def handlers(self) -> Iterable[Handler[P]]:
+        """Return the handlers sorted by registration time."""
+        return chain.from_iterable(self.callbacks.values())  # type: ignore
 
 
 class EventManager(Mapping[Hashable, EventHandler[Any]]):
@@ -385,6 +417,8 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
 
         Args:
             event: The event to emit.
+                If passing a list, then the handlers for all events will be called,
+                regardless of the order
             *args: The positional arguments to pass to the handlers.
             **kwargs: The keyword arguments to pass to the handlers.
 
@@ -392,6 +426,7 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
             A list of the results from the handlers.
         """
         logger.debug(f"{self.name}: Emitting {event} with {args=} and {kwargs=}")
+
         self.counts[event] += 1
 
         handler = self.handlers.get(event)
@@ -404,6 +439,39 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
             for fwd in fwds:
                 logger.debug(f"Forwarding {event} to {fwd}")
                 self.emit(fwd, *args, **kwargs)
+
+    def emit_many(
+        self,
+        events: dict[Hashable, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
+    ) -> None:
+        """Emit multiple events.
+
+        This is useful for cases where you don't want to favour one callback
+        over another, and so uses the time a callback was registered to call
+        the callback instead.
+
+        Args:
+            events: A mapping of event keys to a tuple of positional
+                arguments and keyword arguments to pass to the handlers.
+        """
+        for event in events:
+            self.counts[event] += 1
+
+        items = [
+            (event_handler, args, kwargs)
+            for name, (args, kwargs) in events.items()
+            if (event_handler := self.get(name)) is not None
+        ]
+
+        header = f"{self.name}: Emitting many events"
+        body = [
+            f"Emitting {name}: {args=} {kwargs=}"
+            for name, (args, kwargs) in events.items()
+        ]
+        logger.debug(header)
+        for line in body:
+            logger.debug(line)
+        RegisteredTimeCallOrderStrategy.execute(items)
 
     def __getitem__(self, event: Hashable) -> EventHandler:
         return self.handlers[event]

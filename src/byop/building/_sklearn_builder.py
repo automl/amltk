@@ -4,9 +4,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sklearn.pipeline import Pipeline as SklearnPipeline
-
     from byop.pipeline import Pipeline
+    from sklearn.pipeline import Pipeline as SklearnPipeline
 
 
 def sklearn_builder(pipeline: Pipeline) -> SklearnPipeline:
