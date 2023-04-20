@@ -224,7 +224,7 @@ class Scheduler:
         """Create a Scheduler that runs on a SLURM cluster.
 
         This is useful for running on a SLURM cluster. Uses
-        a [`SlurmExecutor`][byop.scheduling.SlurmExecutor].
+        [dask_jobqueue.SLURMCluster][].
 
         Args:
             n_workers: The number of workers to start.

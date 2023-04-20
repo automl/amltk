@@ -68,8 +68,9 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
     ):
         """Initialize a DaskJobqueueExecutor.
 
-        This will specifically use the [dask_jobqueue.JobQueueCluster.adapt][] method to
-        dynamically scale the cluster to the number of workers specified.
+        This will specifically use the
+        [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+        method to dynamically scale the cluster to the number of workers specified.
 
         !!! note "Implementations"
 
@@ -84,7 +85,8 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             * [`DaskJobqueueExecutor.Moab()`][byop.dask_jobqueue.DaskJobqueueExecutor.Moab]
 
         Args:
-            cluster: The implementation of a [dask_jobqueue.JobQueueCluster][].
+            cluster: The implementation of a
+                [dask_jobqueue.JobQueueCluster](https://jobqueue.dask.org/en/latest/api.html).
             n_workers: The number of workers to maximally adapt to on the cluster.
             submit_command: To overwrite the submission command if necessary.
             cancel_command: To overwrite the cancel command if necessary.
