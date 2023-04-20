@@ -35,7 +35,6 @@ You can skip the imports sections and go straight to the
 """
 from __future__ import annotations
 
-import logging
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,12 +66,6 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVC
 
-LEVEL = logging.INFO  # Change to DEBUG if you want the gory details shown
-logger = logging.getLogger(__name__)
-
-# TODO: Given documentation this should work, but it doesn't.
-for name in logging.root.manager.loggerDict:
-    logging.getLogger(name).setLevel(LEVEL)
 
 """
 Below is just a small function to help us get the dataset from OpenML
@@ -184,6 +177,7 @@ pipeline = Pipeline.create(
 )
 
 print(pipeline)
+print(pipeline.space())
 
 # 1. Here we define a choice of algorithms to use where each entry is a possible
 #   algorithm to use. Each algorithm is defined by a step, which is a
@@ -342,8 +336,8 @@ def create_ensemble(
 #   The keys of the returned dictionary are the trial names and the values
 #   are the [`Drop`][byop.store.Drop] objects holding the predictions.
 """
-## Main `__main__`
-Finally we come to the main function to run everything.
+## Main
+Finally we come to the main script that runs everything.
 """
 seed = 42
 
@@ -404,9 +398,9 @@ def launch_another_task(_: Trial.Report) -> None:
     task(trial)
 
 @task.on_report
-def log_report(report: Trial.Report) -> None:
-    """When we get a report, log it."""
-    logger.info(report)
+def print_report(report: Trial.Report) -> None:
+    """When we get a report, print it."""
+    print(report)
 
 @task.on_success
 def save_success(report: Trial.SuccessReport) -> None:
@@ -420,9 +414,9 @@ def save_ensemble(ensemble: Ensemble) -> None:
     ensembles.append(ensemble)
 
 @ensemble_task.on_exception
-def log_ensemble_exception(exception: BaseException) -> None:
+def print_ensemble_exception(exception: BaseException) -> None:
     """When an ensemble task throws an exception, log it."""
-    logger.exception(exception)
+    print(exception)
 
 @scheduler.on_timeout
 def run_last_ensemble_task() -> None:
