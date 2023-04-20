@@ -5,9 +5,9 @@ from itertools import chain
 from typing import TYPE_CHECKING, Sequence
 
 from more_itertools import distribute, last
-from sklearn.model_selection import train_test_split
 
 from byop.randomness import as_int
+from sklearn.model_selection import train_test_split
 
 if TYPE_CHECKING:
     from byop.types import Seed

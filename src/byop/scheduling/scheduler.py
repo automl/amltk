@@ -14,6 +14,7 @@ from concurrent.futures import (
     wait as wait_futures,
 )
 from enum import Enum, auto
+from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, Hashable, TypeVar
 
 from byop.events import Event, EventManager
@@ -167,6 +168,13 @@ class Scheduler:
         # This is triggered when run is called
         self._running: asyncio.Event | None = None
 
+        # This is used to manage suequential queues, where we need a Thread
+        # timer to ensure that we don't get caught in an endless loop waiting
+        # for the `timeout` in `_run_scheduler` to trigger. This won't trigger
+        # because the sync code of submit could possibly keep calling itself
+        # endlessly, preventing any of the async code from running.
+        self._timeout_timer: Timer | None = None
+
         self.on_start = self.event_manager.subscriber(self.STARTED)
         self.on_finishing = self.event_manager.subscriber(self.FINISHING)
         self.on_finished = self.event_manager.subscriber(self.FINISHED)
@@ -216,7 +224,7 @@ class Scheduler:
         """Create a Scheduler that runs on a SLURM cluster.
 
         This is useful for running on a SLURM cluster. Uses
-        a [`SlurmExecutor`][byop.scheduling.SlurmExecutor].
+        [dask_jobqueue.SLURMCluster][].
 
         Args:
             n_workers: The number of workers to start.
@@ -534,6 +542,10 @@ class Scheduler:
         if self._queue_has_items is None:
             raise RuntimeError("The scheduler is not running!")
 
+        if self._timeout_timer is not None and self._timeout_timer.finished.is_set():
+            logger.info(f"Timeout has elapsed, cannot submit task {function}")
+            return None
+
         try:
             sync_future: SyncFuture = self.executor.submit(function, *args, **kwargs)
         except RuntimeError:
@@ -541,8 +553,8 @@ class Scheduler:
             return None
 
         self.queue.append(sync_future)
-        sync_future.add_done_callback(self._register_complete)
         self._queue_has_items.set()
+        sync_future.add_done_callback(self._register_complete)
         return sync_future
 
     def _register_complete(self, future: SyncFuture) -> None:
@@ -603,6 +615,14 @@ class Scheduler:
 
         # Declare we are running
         self._running.set()
+
+        # Start a Thread Timer as our timing mechanism.
+        # HACK: This is required because the SequentialExecutor mode
+        # will not allow the async loop to run, meaning we can't update
+        # any internal state.
+        if timeout is not None:
+            self._timeout_timer = Timer(timeout, lambda: None)
+            self._timeout_timer.start()
 
         self.event_manager.emit(Scheduler.STARTED)
 

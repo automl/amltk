@@ -3,14 +3,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from pytest_cases import parametrize
+
+from byop.configspace import ConfigSpaceParser
+from byop.pipeline import Pipeline, SpaceAdapter, choice, split, step
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.svm import SVC
-
-from byop.configspace import ConfigSpaceParser
-from byop.pipeline import Pipeline, SpaceAdapter, choice, split, step
 
 # Some toy data
 X = pd.DataFrame({"a": ["1", "0", "1", "dog"], "b": [4, 5, 6, 7], "c": [7, 8, 9, 10]})

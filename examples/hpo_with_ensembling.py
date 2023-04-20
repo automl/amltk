@@ -35,7 +35,6 @@ You can skip the imports sections and go straight to the
 """
 from __future__ import annotations
 
-import logging
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +42,14 @@ from typing import Any, Callable
 
 import numpy as np
 import openml
+
+from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
+from byop.optimization import Trial
+from byop.pipeline import Pipeline, choice, split, step
+from byop.scheduling import Scheduler, Task
+from byop.sklearn.data import split_data
+from byop.smac import SMACOptimizer
+from byop.store import PathBucket
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import VarianceThreshold
@@ -59,20 +66,6 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVC
 
-from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
-from byop.optimization import Trial
-from byop.pipeline import Pipeline, choice, split, step
-from byop.scheduling import Scheduler, Task
-from byop.sklearn.data import split_data
-from byop.smac import SMACOptimizer
-from byop.store import PathBucket
-
-LEVEL = logging.INFO  # Change to DEBUG if you want the gory details shown
-logger = logging.getLogger(__name__)
-
-# TODO: Given documentation this should work, but it doesn't.
-for name in logging.root.manager.loggerDict:
-    logging.getLogger(name).setLevel(LEVEL)
 
 """
 Below is just a small function to help us get the dataset from OpenML
@@ -89,7 +82,7 @@ def get_dataset(seed: int) -> tuple[np.ndarray, ...]:
     _y = LabelEncoder().fit_transform(y)
     splits = split_data(  # <!> (1)!
         X,  # <!>
-        _y, # <!>
+        _y,  # <!>
         splits={"train": 0.6, "val": 0.2, "test": 0.2},  # <!>
         seed=seed,  # <!>
     )  # <!>
@@ -184,6 +177,7 @@ pipeline = Pipeline.create(
 )
 
 print(pipeline)
+print(pipeline.space())
 
 # 1. Here we define a choice of algorithms to use where each entry is a possible
 #   algorithm to use. Each algorithm is defined by a step, which is a
@@ -342,106 +336,107 @@ def create_ensemble(
 #   The keys of the returned dictionary are the trial names and the values
 #   are the [`Drop`][byop.store.Drop] objects holding the predictions.
 """
-## Main `__main__`
-Finally we come to the main function to run everything.
+## Main
+Finally we come to the main script that runs everything.
 """
-if __name__ == "__main__":
-    seed = 42
+seed = 42
 
-    X_train, X_val, X_test, y_train, y_val, y_test = get_dataset(seed)  # (1)!
+X_train, X_val, X_test, y_train, y_val, y_test = get_dataset(seed)  # (1)!
 
-    path = Path("hpo_with_ensembling_results")
-    if path.exists():
-        shutil.rmtree(path)
+path = Path("hpo_with_ensembling_results")
+if path.exists():
+    shutil.rmtree(path)
 
-    bucket = PathBucket(path)
-    bucket.update(  # (2)!
-        {
-            "X_train.csv": X_train,
-            "X_val.csv": X_val,
-            "X_test.csv": X_test,
-            "y_train.npy": y_train,
-            "y_val.npy": y_val,
-            "y_test.npy": y_test,
-        },
-    )
+bucket = PathBucket(path)
+bucket.update(  # (2)!
+    {
+        "X_train.csv": X_train,
+        "X_val.csv": X_val,
+        "X_test.csv": X_test,
+        "y_train.npy": y_train,
+        "y_val.npy": y_val,
+        "y_test.npy": y_test,
+    },
+)
 
-    n_workers = 4
-    scheduler = Scheduler.with_processes(n_workers)  # (3)!
-    optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)  # (4)!
+scheduler = Scheduler.with_sequential()  # (3)!
+optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)  # (4)!
 
-    objective = Trial.Objective(  # (5)!
-        target_function,
-        bucket=bucket,
-        pipeline=pipeline,
-    )
+objective = Trial.Objective(  # (5)!
+    target_function,
+    bucket=bucket,
+    pipeline=pipeline,
+)
 
-    task = Trial.Task(objective, scheduler, concurrent_limit=n_workers)  # (6)!
-    ensemble_task = Task(create_ensemble, scheduler, concurrent_limit=1)  # (7)!
+task = Trial.Task(objective, scheduler)  # (6)!
+ensemble_task = Task(create_ensemble, scheduler)  # (7)!
 
-    reports: list[Trial.SuccessReport] = []
-    ensembles: list[Ensemble] = []
+reports: list[Trial.SuccessReport] = []
+ensembles: list[Ensemble] = []
 
-    @scheduler.on_start(repeat=n_workers)  # (8)!
-    def launch_initial_tasks() -> None:
-        """When we start, launch `n_workers` tasks."""
-        trial = optimizer.ask()
-        task(trial)
+@scheduler.on_start(repeat=2)  # (8)!
+def launch_initial_tasks() -> None:
+    """When we start, launch `n_workers` tasks."""
+    trial = optimizer.ask()
+    task(trial)
 
-    @task.on_report
-    def tell_optimizer(report: Trial.Report) -> None:
-        """When we get a report, tell the optimizer."""
-        optimizer.tell(report)
 
-    @task.on_report
-    def launch_another_task(_: Trial.Report) -> None:
-        """When we get a report, evaluate another trial."""
-        trial = optimizer.ask()
-        task(trial)
+@task.on_report
+def tell_optimizer(report: Trial.Report) -> None:
+    """When we get a report, tell the optimizer."""
+    optimizer.tell(report)
 
-    @task.on_report
-    def log_report(report: Trial.Report) -> None:
-        """When we get a report, log it."""
-        logger.info(report)
+@task.on_success
+def launch_ensemble_task(_: Trial.SuccessReport) -> None:
+    """When a task successfully completes, launch an ensemble task."""
+    ensemble_task(bucket)
 
-    @task.on_success
-    def save_success(report: Trial.SuccessReport) -> None:
-        """When we get a report, save it."""
-        reports.append(report)
+@task.on_report
+def launch_another_task(_: Trial.Report) -> None:
+    """When we get a report, evaluate another trial."""
+    trial = optimizer.ask()
+    task(trial)
 
-    @task.on_success
-    def launch_ensemble_task(_: Trial.SuccessReport) -> None:
-        """When a task successfully completes, launch an ensemble task."""
-        ensemble_task(bucket)
+@task.on_report
+def print_report(report: Trial.Report) -> None:
+    """When we get a report, print it."""
+    print(report)
 
-    @ensemble_task.on_returned
-    def save_ensemble(ensemble: Ensemble) -> None:
-        """When an ensemble task returns, save it."""
-        ensembles.append(ensemble)
+@task.on_success
+def save_success(report: Trial.SuccessReport) -> None:
+    """When we get a report, save it."""
+    reports.append(report)
 
-    @ensemble_task.on_exception
-    def log_ensemble_exception(exception: BaseException) -> None:
-        """When an ensemble task throws an exception, log it."""
-        logger.exception(exception)
 
-    @scheduler.on_timeout
-    def run_last_ensemble_task() -> None:
-        """When the scheduler is empty, run the last ensemble task."""
-        ensemble_task(bucket)
+@ensemble_task.on_returned
+def save_ensemble(ensemble: Ensemble) -> None:
+    """When an ensemble task returns, save it."""
+    ensembles.append(ensemble)
 
-    scheduler.run(timeout=5, wait=True)  # (9)!
+@ensemble_task.on_exception
+def print_ensemble_exception(exception: BaseException) -> None:
+    """When an ensemble task throws an exception, log it."""
+    print(exception)
 
-    best_ensemble = max(ensembles, key=lambda e: e.trajectory[-1])
+@scheduler.on_timeout
+def run_last_ensemble_task() -> None:
+    """When the scheduler is empty, run the last ensemble task."""
+    ensemble_task(bucket)
 
-    print("Best ensemble:")
-    print(best_ensemble)
+scheduler.run(timeout=5, wait=True)  # (9)!
+
+best_ensemble = max(ensembles, key=lambda e: e.trajectory[-1])
+
+print("Best ensemble:")
+print(best_ensemble)
 
 # 1. We use `#!python get_dataset()` defined earlier to load the
 #  dataset.
 # 2. We use [`update()`][byop.store.Bucket.update] to store the data in the bucket, just
 #   as if it was a regular dictionary.
-# 3. We use [`Scheduler.with_processes()`][byop.scheduling.Scheduler.with_processes] to
-#  create a [`Scheduler`][byop.scheduling.Scheduler] that uses 4 parallel processes.
+# 3. We use [`Scheduler.with_sequential()`][byop.scheduling.Scheduler.with_sequential]
+#  create a [`Scheduler`][byop.scheduling.Scheduler] that runs everything
+#  sequentially. You can of course use a different backend if you want.
 # 4. We use [`SMACOptimizer.HPO()`][byop.smac.SMACOptimizer.HPO] to create a
 #  [`SMACOptimizer`][byop.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
@@ -456,12 +451,9 @@ if __name__ == "__main__":
 #
 # 6. We use [`Trial.Task()`][byop.optimization.Trial.Task] to on our objective
 #   to create a [`Task`][byop.scheduling.Task] that will run our objective.
-#   We also set a `concurrent_limit` of `#!python n_workers = 4` to limit the number of
-#   concurrent tasks running at one time. This shouldn't happen here but it's a nice
-#   guarantee.
 # 7. We use [`Task()`][byop.scheduling.Task] to create a [`Task`][byop.scheduling.Task]
 #   for the `create_ensemble` method above. This will also run in parallel with the hpo
-#   trials.
+#   trials if using a non-sequential scheduling mode.
 # 8. We use `Scheduler.on_start()` hook to register a
 #  callback that will be called when the scheduler starts. We use the `repeat` argument
 #  to make sure it's called `#!python n_workers = 4` times.

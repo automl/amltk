@@ -319,14 +319,20 @@ class Trial(Generic[Info]):
             if isinstance(report, BaseException):
                 report = self.trial_lookup[future].crashed(report)
 
-            self.emit(self.REPORT, report)
+            emit_items: dict[Event, Any] = {
+                self.REPORT: ((report,), None),
+            }
 
             # Emit the specific type of report
+            event: Event
             if isinstance(report, Trial.SuccessReport):
-                self.emit(self.SUCCESS, report)
+                event = self.SUCCESS
             elif isinstance(report, Trial.FailReport):
-                self.emit(self.FAILURE, report)
+                event = self.FAILURE
             elif isinstance(report, Trial.CrashReport):
-                self.emit(self.CRASHED, report)
+                event = self.CRASHED
             else:
                 raise TypeError(f"Unexpected report type: {type(report)}")
+
+            emit_items[event] = ((report,), None)
+            self.emit_many(emit_items)  # type: ignore

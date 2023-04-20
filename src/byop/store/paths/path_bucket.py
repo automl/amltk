@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import shutil
 from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
@@ -112,6 +113,7 @@ class PathBucket(Bucket[Path, str]):
         *,
         loaders: Sequence[Loader[Path, Any]] | None = None,
         create: bool = True,
+        clean: bool = False,
     ) -> None:
         """Create a new PathBucket.
 
@@ -122,6 +124,7 @@ class PathBucket(Bucket[Path, str]):
                 to be used first.
             create: If True, the base path will be created if it does not
                 exist.
+            clean: If True, the base path will be deleted if it exists.
         """
         _loaders = DEFAULT_LOADERS
         if loaders is not None:
@@ -129,6 +132,12 @@ class PathBucket(Bucket[Path, str]):
 
         if isinstance(path, str):
             path = Path(path)
+
+        if clean:
+            if path.exists():
+                raise FileExistsError(f"File/Directory already exists at {path}")
+
+            shutil.rmtree(path, ignore_errors=True)
 
         if create:
             path.mkdir(parents=True, exist_ok=True)

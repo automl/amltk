@@ -4,6 +4,7 @@ TODO: More description and explanation with examples.
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Literal, Sequence
 
 from pynisher import MemoryLimitException, TimeoutException
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
     from smac.facade import AbstractFacade
 
     from byop.types import Seed
+
+
+logger = logging.getLogger(__name__)
 
 
 class SMACOptimizer(Optimizer[SMACTrialInfo]):
@@ -80,7 +84,10 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}_{instance=}_{seed=}_{budget=}"
-        return Trial(name=unique_name, config=config, info=smac_trial_info, seed=seed)
+        trial = Trial(name=unique_name, config=config, info=smac_trial_info, seed=seed)
+        logger.info(f"Asked for trial {trial.name}")
+        logger.debug(f"{trial=}")
+        return trial
 
     def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:
         """Tell the optimizer the result of the sampled config.
@@ -88,6 +95,8 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         Args:
             report: The report of the trial.
         """
+        logger.info(f"Telling report for trial {report.trial.name}")
+        logger.debug(f"{report=}")
         # If we're successful, get the cost and times and report them
         if isinstance(report, Trial.SuccessReport):
             if "cost" not in report.results:
@@ -104,6 +113,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 status=StatusType.SUCCESS,
                 additional_info=report.results.get("additional_info", {}),
             )
+            self.facade.tell(info=report.trial.info, value=trial_value, save=True)
             return
 
         if isinstance(report, Trial.FailReport):
