@@ -19,7 +19,7 @@ from sklearn.preprocessing import (
     StandardScaler,
     OrdinalEncoder,
 )
-from lightgbm import LGBMClassifier, early_stopping
+from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 
@@ -180,20 +180,16 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
         algo_step = step(
             algorithm_name, GradientBoostingClassifier,
             space={
-                "n_estimators": [10, 100],
+                "n_estimators": (10, 1_000),
                 "learning_rate": Float("learning_rate", bounds=(0.01, 1.0), default=0.1, log=True),
                 "min_samples_leaf": Integer("min_samples_leaf", bounds=(1, 200), default=20, log=True),
                 "max_leaf_nodes": Integer("max_leaf_nodes", bounds=(3, 2047), default=31, log=True),
                 "criterion": ["friedman_mse", "squared_error"],
-                "l2_regularization": Float("l2_regularization", bounds=(1e-10, 1.0), default=1e-10, log=True),
-                "early_stopping": Categorical("early_stopping", [True, False], default=False),
             },
             config={
-                "loss": "auto",
                 "max_depth": None,
-                "max_bins": 255,
+                # "max_bins": 255,  TODO @LennartPurucker: This is not in the newest sklearn but seems to be in autosklearn.
                 "tol": 1e-7,
-                "scoring": "loss",
             }
         )
 
@@ -211,7 +207,7 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
             space={
                 "num_leaves": (5, 10),
                 "max_depth": (3, 20),
-                "learning_rate": Float("learning_rate", bounds=(-3, math.log(1)), log=True),
+                "learning_rate": Float("learning_rate", bounds=(1e-3, 1), log=True),
                 "n_estimators": (50, 2000),
                 "min_child_weight": [1e-5, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4],
                 "subsample": (0.2, 0.8),
@@ -240,19 +236,20 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
         #   time budgets than the search space by Shwartz-Ziv and Armon (2022).
 
         # TODO @LennartPurucker: `random_state` taken in by "XGB"
+        _exp = math.exp
         algo_step = step(
             algorithm_name,
             XGBClassifier,
             space={
-                "learning_rate": Float("learning_rate", bounds=(-7, math.log(1))),
+                "learning_rate": Float("learning_rate", bounds=(1e-4, 1), log=True),
                 "max_depth": (1, 10),
                 "subsample": (0.2, 1.0),
                 "colsample_bytree": (0.2, 1.0),
                 "colsample_bylevel": (0.2, 1.0),
-                "min_child_weight": Float("min_child_weight", bounds=(-16.0, 5.0), log=True),
-                "alpha": Float("alpha", bounds=(-16, 2), log=True),
-                "lambda": Float("lambda", bounds=(-16, 2), log=True),
-                "gamma": Float("gamma", bounds=(-16, 2), log=True),
+                "min_child_weight": Float("min_child_weight", bounds=(_exp(-16), _exp(5)), log=True),
+                "alpha": Float("alpha", bounds=(_exp(-16), _exp(2)), log=True),
+                "lambda": Float("lambda", bounds=(_exp(-16), _exp(2)), log=True),
+                "gamma": Float("gamma", bounds=(_exp(-16), _exp(2)), log=True),
                 "n_estimators": (100, 4_000),
             },
             config = {
@@ -270,13 +267,14 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
         #   * https://github.com/automl/TabPFN/blob/889fad7070ded19ac3b247daf47d94b2538695cb/tabpfn/scripts/tabular_baselines.py#L88-L89
 
         # TODO @LennartPurucker: `random_seed` taken in by "CatBoost"
+        _exp = math.exp
         algo_step = step(
             algorithm_name,
             CatBoostClassifier,
             space={
-                "learning_rate": Float("learning_rate", bounds=(math.log(math.pow(math.e, -5)), math.log(1)), log=True),
+                "learning_rate": Float("learning_rate", bounds=(_exp(-5), 1), log=True),
                 "random_strength": (1, 20),
-                "l2_leaf_reg": Float("l2_leaf_reg", bounds=(math.log(1), math.log(10)), log=True),
+                "l2_leaf_reg": Float("l2_leaf_reg", bounds=(1, 10), log=True),
                 "bagging_temperature": (0.0, 0.1),
                 "leaf_estimation_iterations": (1, 20),
                 "iterations": (100, 4_000),
@@ -355,7 +353,7 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
                 "num_nodes_per_layer": Integer("num_nodes_per_layer", bounds=(16, 264), log=True, default=32),
                 "activation": Categorical("activation", ["tanh", "relu"], default="relu"),
                 "alpha": Float("alpha", bounds=(1e-7, 1e-1), default=1e-4, log=True),
-                "learning_rate_init": Categorical("learning_rate_init", bounds=(1e-4, 0.5), default=1.3, log=True),
+                "learning_rate_init": Float("learning_rate_init", bounds=(1e-4, 0.5), default=1e-3, log=True),
                 "early_stopping": Categorical("early_stopping", [True, False], default=True),
                 "learning_rate": ["constant", "invscaling", "adaptive"],
             },
@@ -390,6 +388,7 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
         #   In the TabPFN code, they specifically only use a MinMaxScaler but I think it's fine how we have it now.
 
         # TODO @LennartPurucker: `random_state` taken for "LR".
+        _exp = math.exp
         algo_step = step(
             algorithm_name, LogisticRegression,
             space={
@@ -397,7 +396,7 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
                                                   # ConfigSpace can't handle None in it's categoricals :'(
                 "max_iter": (50, 500),
                 "fit_intercept": [True, False],
-                "C": Float("C", bounds=(-5, math.log(5.0)), log=True)
+                "C": Float("C", bounds=(_exp(-5), 5), log=True)
             },
             config = {
                 "solver": "saga",
@@ -429,3 +428,35 @@ def build_pipeline(algorithm_name: ALGORITHM_NAMES) -> Pipeline:
     algorithm_step = _get_algorithm_step(algorithm_name)
 
     return Pipeline.create(preprocessing_step | algorithm_step)
+
+
+def reconfigure_mlp(step):
+    """Reconfigures the MLP step due to the fact we can't encode tuples in ConfigSpace.
+
+    Parameters
+    ----------
+    step: Step
+        The mlp step
+    """
+    config = step.config
+    num_nodes_per_layer = config.pop("num_nodes_per_layer")
+    hidden_layer_depth = config.pop("hidden_layer_depth")
+
+    config["hidden_layer_sizes"] = tuple(
+        num_nodes_per_layer for _ in range(hidden_layer_depth)
+    )
+
+if __name__ == "__main__":
+    SAMPLES_TO_TEST = 1_000
+    # Run this file to quickly test things
+    for name in ["GBM", "MLP", "RF", "LM", "lightgbm", "XGB", "CatBoost", "KNN", "XT", "LR"]:
+        pipeline = build_pipeline(name)
+        space = pipeline.space()
+        configs = pipeline.sample(space, n=SAMPLES_TO_TEST)
+        for config in configs:
+            configured_pipeline = pipeline.configure(config)
+
+            if (mlpstep := configured_pipeline.find("MLP")) is not None:
+                reconfigure_mlp(mlpstep)
+
+            configured_pipeline.build()

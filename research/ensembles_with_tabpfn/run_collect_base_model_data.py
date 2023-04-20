@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 for name in logging.root.manager.loggerDict:
     logging.getLogger(name).setLevel(LEVEL)
 
-from research.ensembles_with_tabpfn.base_model_code.experiment_pipeline_builder import build_pipeline
+from research.ensembles_with_tabpfn.base_model_code.experiment_pipeline_builder import build_pipeline, reconfigure_mlp
 from research.ensembles_with_tabpfn.base_model_code.data_handler import setup_data_bucket
 from research.ensembles_with_tabpfn.base_model_code.validation_procedure import predict_fit_repeated_cross_validation
 from research.ensembles_with_tabpfn.utils.config import ALL_EXPERIMENT_RUNS, METRIC_MAP, init_metric_data
@@ -31,6 +31,13 @@ def target_function(trial: Trial, /, bucket: PathBucket, pipeline: Pipeline, met
     )
 
     pipeline = pipeline.configure(trial.config)
+
+    # NOTE: Due to the fact we can't encode tuples in a config space,
+    # we encode other information for building the mlp and do a post
+    # hoc step to set it's paramters here
+    if (mlpstep := pipeline.find("MLP")) is not None:
+        reconfigure_mlp(mlpstep)
+
     sklearn_pipeline = pipeline.build()
 
     metric_data = init_metric_data(metric_data, meta_data)
