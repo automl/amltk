@@ -25,7 +25,7 @@ from catboost import CatBoostClassifier
 
 from byop.pipeline import Pipeline, choice, split, step, Step
 
-from ConfigSpace import Constant, Float, Int, Categorical
+from ConfigSpace import Float, Integer, Categorical
 
 ALGORITHM_NAMES = Literal["RF", "LM", "GBM", "lightgbm", "XGB", "CatBoost", "KNN", "XT", "MLP", "LR"]
 
@@ -118,8 +118,8 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
                 "n_estimators": [10, 100],
                 "criterion": ["gini", "entropy"],
                 "max_features": max_features,
-                "min_samples_split": Int("min_samples_split", bounds=(2, 20), default=2),
-                "min_samples_leaf": Int("min_samples_leaf", bounds=(1, 20), default=1),
+                "min_samples_split": Integer("min_samples_split", bounds=(2, 20), default=2),
+                "min_samples_leaf": Integer("min_samples_leaf", bounds=(1, 20), default=1),
                 "bootstrap": Categorical("bootstrap", [True, False], default=True)
 
             },
@@ -182,8 +182,8 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
             space={
                 "n_estimators": [10, 100],
                 "learning_rate": Float("learning_rate", bounds=(0.01, 1.0), default=0.1, log=True),
-                "min_samples_leaf": Int("min_samples_leaf", bounds=(1, 200), default=20, log=True),
-                "max_leaf_nodes": Int("max_leaf_nodes", bounds=(3, 2047), default=31, log=True),
+                "min_samples_leaf": Integer("min_samples_leaf", bounds=(1, 200), default=20, log=True),
+                "max_leaf_nodes": Integer("max_leaf_nodes", bounds=(3, 2047), default=31, log=True),
                 "criterion": ["friedman_mse", "squared_error"],
                 "l2_regularization": Float("l2_regularization", bounds=(1e-10, 1.0), default=1e-10, log=True),
                 "early_stopping": Categorical("early_stopping", [True, False], default=False),
@@ -222,7 +222,7 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
             config = {
                 # "feature_fraction": 0.8,
                 # "subsample": 0.2,
-               "use_missing": True
+               "use_missing": True,
                 "n_jobs": N_JOBS
             }
         )
@@ -249,10 +249,10 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
                 "subsample": (0.2, 1.0),
                 "colsample_bytree": (0.2, 1.0),
                 "colsample_bylevel": (0.2, 1.0),
-                "min_child_weight": Float("min_child_weight" bounds=(-16, 5), log=True),
-                "alpha": Float("alpha" bounds=(-16, 2), log=True),
-                "lambda": Float("lambda" bounds=(-16, 2), log=True),
-                "gamma": Float("gamme" bounds=(-16, 2), log=True),
+                "min_child_weight": Float("min_child_weight", bounds=(-16.0, 5.0), log=True),
+                "alpha": Float("alpha", bounds=(-16, 2), log=True),
+                "lambda": Float("lambda", bounds=(-16, 2), log=True),
+                "gamma": Float("gamma", bounds=(-16, 2), log=True),
                 "n_estimators": (100, 4_000),
             },
             config = {
@@ -299,7 +299,7 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
         algo_step = step(
             algorithm_name, KNeighborsClassifier,
             space={
-                "n_neighbors": Int("n_neighbors", bounds=(1, 100), log=True, default=1),
+                "n_neighbors": Integer("n_neighbors", bounds=(1, 100), log=True, default=1),
                 "weights": ["uniform", "distance"],
                 "p": Categorical("p", [1, 2], default=2),
             },
@@ -327,8 +327,8 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
             space={
                 "n_estimators": [10, 100],
                 "criterion": ["gini", "entropy"],
-                "min_samples_split": Int("min_samples_split", bounds=(2, 20), default=2),
-                "min_samples_leaf": Int("min_samples_leaf", bounds=(1, 20), default=1),
+                "min_samples_split": Integer("min_samples_split", bounds=(2, 20), default=2),
+                "min_samples_leaf": Integer("min_samples_leaf", bounds=(1, 20), default=1),
                 "bootstrap": [True, False],
             },
             config = {
@@ -351,8 +351,8 @@ def _get_algorithm_step(algorithm_name: str) -> Step:
         algo_step = step(
             algorithm_name, MLPClassifier,
             space={
-                "hidden_layer_depth": Int("hidden_layer_depth", bounds=(1, 3), default=1),
-                "num_nodes_per_layer": Int("num_nodes_per_layer", bounds=(16, 264), log=True, default=32),
+                "hidden_layer_depth": Integer("hidden_layer_depth", bounds=(1, 3), default=1),
+                "num_nodes_per_layer": Integer("num_nodes_per_layer", bounds=(16, 264), log=True, default=32),
                 "activation": Categorical("activation", ["tanh", "relu"], default="relu"),
                 "alpha": Float("alpha", bounds=(1e-7, 1e-1), default=1e-4, log=True),
                 "learning_rate_init": Categorical("learning_rate_init", bounds=(1e-4, 0.5), default=1.3, log=True),
