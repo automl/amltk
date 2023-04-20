@@ -30,7 +30,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
     def parse_space(
         self,
         space: Any,
-        config: Mapping[str, Any] | None = None,
+        config: Mapping[str, Any] | None = None,  # noqa: ARG002
     ) -> ConfigurationSpace:
         """See [`Parser.parse_space`][byop.pipeline.Parser.parse_space]."""
         if space is None:
@@ -43,9 +43,6 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
             space = space
         else:
             TypeError(f"{space} is not parsable as a space")
-
-        if config is not None:
-            space = self.replace_constants(config, space)
 
         return space
 
