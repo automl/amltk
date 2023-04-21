@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable, Union
 
-from byop.pipeline.components import Component, Split
-from byop.types import Any
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
+
+from byop.pipeline.components import Component, Split
+from byop.types import Any
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias

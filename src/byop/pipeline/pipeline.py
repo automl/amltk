@@ -364,7 +364,7 @@ class Pipeline:
         sampler: type[Sampler[Space]] | Sampler[Space] | None = None,
         seed: Seed | None = None,
         duplicates: bool | Iterable[Config] = False,
-        max_attempts: int | None = 3,
+        max_attempts: int | None = 10,
     ) -> Config | list[Config]:
         """Sample a configuration from the space of the pipeline.
 
