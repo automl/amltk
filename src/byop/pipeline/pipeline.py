@@ -377,8 +377,8 @@ class Pipeline:
                 chosen based on the type of space that is provided.
             seed: The seed to seed the space with if applicable.
             duplicates: If True, allow duplicate samples. If False, make
-                sure all samples are unique. If a container, make sure all
-                samples are unique and not in the container.
+                sure all samples are unique. If an Iterable, make sure all
+                samples are unique and not in the Iterable.
             max_attempts: The number of times to attempt sampling unique
                 configurations before giving up. If `None` will keep
                 sampling forever until satisfied.
