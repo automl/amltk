@@ -70,8 +70,12 @@ pr-other name:
   git checkout -b other-{{name}} main
   git push --set-upstream origin other-{{name}}
 
-# Run all tests, stopping on the first failure and continuing from the last failure and skipping examples
+# Run all tests but stop on the first failure
 test:
+  pytest -x -m "not example"
+
+# Run all tests, stopping on the first failure and continuing from the last failure and skipping examples
+test-iter:
   pytest -x --lf -m "not example"
 
 test-examples:

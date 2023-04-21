@@ -114,6 +114,7 @@ class PathBucket(Bucket[Path, str]):
         loaders: Sequence[Loader[Path, Any]] | None = None,
         create: bool = True,
         clean: bool = False,
+        exists_ok: bool = True,
     ) -> None:
         """Create a new PathBucket.
 
@@ -125,6 +126,8 @@ class PathBucket(Bucket[Path, str]):
             create: If True, the base path will be created if it does not
                 exist.
             clean: If True, the base path will be deleted if it exists.
+            exists_ok: If False, an error will be raised if the base path
+                already exists.
         """
         _loaders = DEFAULT_LOADERS
         if loaders is not None:
@@ -133,11 +136,11 @@ class PathBucket(Bucket[Path, str]):
         if isinstance(path, str):
             path = Path(path)
 
-        if clean:
-            if path.exists():
-                raise FileExistsError(f"File/Directory already exists at {path}")
-
+        if clean and path.exists():
             shutil.rmtree(path, ignore_errors=True)
+
+        if not exists_ok and path.exists():
+            raise FileExistsError(f"File/Directory already exists at {path}")
 
         if create:
             path.mkdir(parents=True, exist_ok=True)
