@@ -361,6 +361,8 @@ class Step(Generic[Space]):
         n: int,
         sampler: Sampler[Space] | None = ...,
         seed: Seed | None = ...,
+        duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
     ) -> list[Config]:
         ...
 
@@ -372,6 +374,8 @@ class Step(Generic[Space]):
         n: None = None,
         sampler: Sampler[Space] | None = ...,
         seed: Seed | None = ...,
+        duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
     ) -> Config:
         ...
 
@@ -382,6 +386,8 @@ class Step(Generic[Space]):
         n: int | None = None,
         sampler: Sampler[Space] | None = None,
         seed: Seed | None = None,
+        duplicates: bool | Iterable[Config] = False,
+        max_attempts: int | None = 3,
     ) -> Config | list[Config]:
         """Sample a configuration from the space of the pipeline.
 
@@ -393,13 +399,26 @@ class Step(Generic[Space]):
             sampler: The sampler to use. If `None`, a sampler will be automatically
                 chosen based on the type of space that is provided.
             seed: The seed to seed the space with if applicable.
+            duplicates: If True, allow duplicate samples. If False, make
+                sure all samples are unique. If a Iterable, make sure all
+                samples are unique and not in the Iterable.
+            max_attempts: The number of times to attempt sampling unique
+                configurations before giving up. If `None` will keep
+                sampling forever until satisfied.
 
         Returns:
             A configuration sampled from the space of the pipeline
         """
         from byop.pipeline.sampler import Sampler
 
-        return Sampler.try_sample(space, sampler=sampler, n=n, seed=seed)
+        return Sampler.try_sample(
+            space,
+            sampler=sampler,
+            n=n,
+            seed=seed,
+            duplicates=duplicates,
+            max_attempts=max_attempts,
+        )
 
     @classmethod
     def join(cls, *steps: Step | Iterable[Step]) -> Step:
