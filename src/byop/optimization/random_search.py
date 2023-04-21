@@ -50,9 +50,11 @@ class RandomSearch(Optimizer[RSTrialInfo]):
             | type[Sampler[Space]]
             | Callable[[Space], Config]
             | Callable[[Space, int], Config]
+            | Callable[[Space, int, list[Config]], Config]
             | None
         ) = None,
         seed: Seed | None = None,
+        duplicates: bool = False,
     ):
         """Initialize the optimizer.
 
@@ -63,14 +65,26 @@ class RandomSearch(Optimizer[RSTrialInfo]):
                 * If a `Sampler` is provided, it will be used to sample from the
                     space.
                 * If a `Callable` is provided, it will be used to sample from the
-                    space. If providing a `seed`, the `Callable` must accept a
+                    space.
+
+                    If providing a `seed`, the `Callable` must accept a
                     keyword argument `seed: int` which will be given an integer
                     generated from the seed given in the `__init__`.
+
+                    If not providing `duplicate=True`, the `Callable` must also
+                    accept a keyword argument `duplicates: list[Config]` which
+                    is a list of configs already seen and should not be included
+                    in the returned samples.
+
             seed: The seed to use for the sampler.
+            duplicates: Whether to allow duplicate configurations.
         """
         self.space = space
         self.trial_count = 0
         self.seed = as_rng(seed) if seed is not None else None
+
+        # We store any configs we've seen to prevent duplicates
+        self._configs_seen: list[Config] | None = [] if duplicates else None
 
         if sampler is None:
             sampler = Sampler.find(space)
@@ -94,8 +108,23 @@ class RandomSearch(Optimizer[RSTrialInfo]):
         # in the init and with the docstring. Any errors
         # that occur from here are considered user error
         if self.seed is None:
-            config = self.sample_f(self.space)  # type: ignore
-        else:
+            if self._configs_seen is None:
+                config = self.sample_f(self.space)  # type: ignore
+            else:
+                try:
+                    config = self.sample_f(
+                        self.space,
+                        duplicates=self._configs_seen,  # type: ignore
+                    )
+                except TypeError as e:
+                    msg = (
+                        f"Expected `sampler={self.sample_f}` to accept a `duplicates`"
+                        " keyword argument when using `duplicates=False`."
+                        f" {e}"
+                    )
+                    raise TypeError(msg) from e
+
+        elif self._configs_seen is None:
             try:
                 seed_int = self.seed.integers(MAX_INT)
                 config = self.sample_f(self.space, seed=seed_int)  # type: ignore
@@ -105,6 +134,23 @@ class RandomSearch(Optimizer[RSTrialInfo]):
                     f" keyword argument: {e}"
                 )
                 raise TypeError(msg) from e
+        else:
+            try:
+                seed_int = self.seed.integers(MAX_INT)
+                config = self.sample_f(
+                    self.space,
+                    seed=seed_int,  # type: ignore
+                    duplicates=self._configs_seen,  # type: ignore
+                )
+            except TypeError as e:
+                msg = (
+                    f"Expected `sampler={self.sample_f}` to accept a `seed`"
+                    f" and `duplicates` keyword argument: {e}"
+                )
+                raise TypeError(msg) from e
+
+        if self._configs_seen is not None:
+            self._configs_seen.append(config)
 
         info = RSTrialInfo(name, self.trial_count, config)
         trial = Trial(name=name, config=config, info=info)

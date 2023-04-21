@@ -6,14 +6,19 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, cast, overload
+from typing import Any, ClassVar, Generic, Iterable, cast, overload
 
 from more_itertools import first, first_true, seekable
 
 from byop.exceptions import safe_map
+from byop.randomness import as_rng
 from byop.types import Config, Seed, Space
 
 logger = logging.getLogger(__name__)
+
+
+class SampleUniqueConfigError(Exception):
+    """Error when a Sampler fails to sample a unique configuration."""
 
 
 class SamplerError(Exception):
@@ -61,7 +66,7 @@ class SamplerError(Exception):
             )
         else:
             msg = (
-                f"Failed to parse with {self.sampler}:"
+                f"Failed to sample with {self.sampler}:"
                 + "\n"
                 + f"{self.error.__class__.__name__}: {self.error}"
             )
@@ -243,6 +248,7 @@ class Sampler(ABC, Generic[Space]):
         *,
         seed: Seed | None = None,
         n: None = None,
+        duplicates: bool | Iterable[Config] = ...,
     ) -> Config:
         ...
 
@@ -253,6 +259,7 @@ class Sampler(ABC, Generic[Space]):
         *,
         seed: Seed | None = None,
         n: int,
+        duplicates: bool | Iterable[Config] = ...,
     ) -> list[Config]:
         ...
 
@@ -262,6 +269,8 @@ class Sampler(ABC, Generic[Space]):
         *,
         seed: Seed | None = None,
         n: int | None = None,
+        duplicates: bool | Iterable[Config] = False,
+        max_attempts: int = 3,
     ) -> Config | list[Config]:
         """Sample a configuration from the given space.
 
@@ -269,13 +278,46 @@ class Sampler(ABC, Generic[Space]):
             space: The space to sample from.
             seed: The seed to use for sampling.
             n: The number of configurations to sample.
+            duplicates: If True, allow duplicate samples. If False, make
+                sure all samples are unique. If a container, make sure all
+                samples are unique and not in the container.
+            max_attempts: The number of times to attempt sampling unique
+                configurations before giving up.
 
         Returns:
             A single sample if `n` is None, otherwise a list of samples.
+            If `duplicates` is not True and we fail to sample.
         """
-        n = 1 if n is None else n
-        samples = self._sample(space=space, n=n, seed=seed)
-        return samples[0] if n == 1 else samples
+        _n = 1 if n is None else n
+        rng = as_rng(seed)
+
+        if duplicates is True:
+            samples = self._sample(space=space, n=_n, seed=rng)
+            return samples[0] if n is None else samples
+
+        # NOTE: We use a list here as Config's could be a dict
+        #   which are not hashable. We rely on equality checks
+        _duplicates = list(duplicates) if isinstance(duplicates, Iterable) else []
+        is_duplicate = lambda _sample: any(_sample == d for d in _duplicates)
+
+        samples = []
+        for _ in range(max_attempts):
+            _samples = self._sample(space=space, n=_n - len(samples), seed=rng)
+            uniques = [s for s in _samples if not is_duplicate(s)]
+
+            _duplicates.extend(uniques)
+            samples.extend(uniques)
+
+            if len(samples) >= _n:
+                break
+
+        if len(samples) == 0:
+            raise SampleUniqueConfigError(
+                f"Could not find {n=} unique configs after {max_attempts=}"
+                f" attempts with {duplicates=}.",
+            )
+
+        return samples[0] if n is None else samples[:n]
 
     @classmethod
     @abstractmethod
