@@ -285,7 +285,7 @@ class Pipeline:
     @overload
     def space(
         self,
-        parser: Parser[Space],
+        parser: type[Parser[Space]] | Parser[Space],
         *,
         seed: Seed | None = None,
     ) -> Space:
@@ -302,7 +302,7 @@ class Pipeline:
 
     def space(
         self,
-        parser: Parser[Space] | None = None,
+        parser: type[Parser[Space]] | Parser[Space] | None = None,
         *,
         seed: Seed | None = None,
     ) -> Space | Any:
@@ -336,7 +336,7 @@ class Pipeline:
         space: Space,
         *,
         n: None = None,
-        sampler: Sampler[Space] | None = ...,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         seed: Seed | None = ...,
     ) -> Config:
         ...
@@ -347,7 +347,7 @@ class Pipeline:
         space: Space,
         *,
         n: int,
-        sampler: Sampler[Space] | None = ...,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         seed: Seed | None = ...,
     ) -> list[Config]:
         ...
@@ -357,7 +357,7 @@ class Pipeline:
         space: Space,
         *,
         n: int | None = None,
-        sampler: Sampler[Space] | None = None,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = None,
         seed: Seed | None = None,
     ) -> Config | list[Config]:
         """Sample a configuration from the space of the pipeline.

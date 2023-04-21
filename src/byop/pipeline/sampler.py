@@ -93,7 +93,7 @@ class Sampler(ABC, Generic[Space]):
 
     See Also:
         * [`SpaceAdapter`][byop.pipeline.space.SpaceAdapter]
-            Together with implementing the [`Sampler`][byop.pipeline.sampler.Sampler]
+            Together with implementing the [`Parser`][byop.pipeline.Parser]
             interface, this class provides a complete adapter for a given search space.
     """
 
@@ -154,7 +154,7 @@ class Sampler(ABC, Generic[Space]):
     def try_sample(
         cls,
         space: Space,
-        sampler: Sampler[Space] | None = ...,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         *,
         n: None = None,
         seed: Seed | None = ...,
@@ -166,7 +166,7 @@ class Sampler(ABC, Generic[Space]):
     def try_sample(
         cls,
         space: Space,
-        sampler: Sampler[Space] | None = ...,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         *,
         n: int,
         seed: Seed | None = ...,
@@ -177,7 +177,7 @@ class Sampler(ABC, Generic[Space]):
     def try_sample(
         cls,
         space: Space,
-        sampler: Sampler[Space] | None = None,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = None,
         *,
         n: int | None = None,
         seed: Seed | None = None,
@@ -195,7 +195,12 @@ class Sampler(ABC, Generic[Space]):
         Returns:
             A single sample if `n` is None, otherwise a list of samples.
         """
-        samplers = [sampler] if sampler is not None else Sampler.default_samplers(space)
+        if sampler is None:
+            samplers = cls.default_samplers(space)
+        elif isinstance(sampler, Sampler):
+            samplers = [sampler]
+        else:
+            samplers = [sampler()]
 
         if not any(samplers):
             raise RuntimeError(

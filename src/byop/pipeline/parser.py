@@ -13,7 +13,7 @@ from typing import (
     overload,
 )
 
-from more_itertools import first, first_true, seekable
+from more_itertools import first_true, seekable
 
 from byop.exceptions import safe_map
 from byop.pipeline.components import Choice, Split, Step
@@ -93,7 +93,7 @@ class Parser(ABC, Generic[Space]):
         * [`insert`][byop.pipeline.parser.Parser.insert]:
             Insert a space into another space, with a possible prefix + delimiter.
         * [`set_seed`][byop.pipeline.parser.Parser.set_seed]:
-            (Optional) Set the seed of a space.
+            _(Optional)_ Set the seed of a space.
 
         !!! note
 
@@ -139,7 +139,7 @@ class Parser(ABC, Generic[Space]):
     def try_parse(
         cls,
         pipeline_or_step: Pipeline | Step,
-        parser: Parser[Space] | None = None,
+        parser: type[Parser[Space]] | Parser[Space] | None = None,
         *,
         seed: Seed | None = None,
     ) -> Space:
@@ -154,7 +154,12 @@ class Parser(ABC, Generic[Space]):
         Returns:
             The parsed space.
         """
-        parsers = [parser] if parser is not None else Parser.default_parsers()
+        if parser is None:
+            parsers = cls.default_parsers()
+        elif isinstance(parser, Parser):
+            parsers = [parser]
+        else:
+            parsers = [parser()]
 
         if not any(parsers):
             raise RuntimeError(
@@ -167,6 +172,9 @@ class Parser(ABC, Generic[Space]):
             )
 
         def _parse(_parser: Parser[Space]) -> Space:
+            if pipeline_or_step is None:
+                raise ValueError("Whut?")
+
             _parsed_space = _parser.parse(pipeline_or_step)
             if seed is not None:
                 _parser.set_seed(_parsed_space, seed)
@@ -192,11 +200,13 @@ class Parser(ABC, Generic[Space]):
         assert not isinstance(parsed_space, (Exception, bool))
         return parsed_space
 
-    def parse(self, step: Pipeline | Step | Split | Choice) -> Space:
-        """Parse a pipeline or step.
+    def parse(self, step: Pipeline | Step | Split | Choice | Any) -> Space:
+        """Parse a pipeline, step or something resembling a Space.
 
         Args:
-            step: The pipeline or step to parse.
+            step: The pipeline or step to parse. If it is not
+                a Pipeline object, it will be treated as a
+                search space and attempt to be parsed as such.
 
         Returns:
             The space representing the pipeline or step.
@@ -210,7 +220,10 @@ class Parser(ABC, Generic[Space]):
         if isinstance(step, Split):
             return self.parse_split(step)
 
-        return self.parse_step(step)
+        if isinstance(step, Step):
+            return self.parse_step(step)
+
+        return self.parse_space(step)
 
     def parse_pipeline(self, pipeline: Pipeline) -> Space:
         """Parse a pipeline into a space.
@@ -360,21 +373,34 @@ class Parser(ABC, Generic[Space]):
         """
         ...
 
-    def merge(self, spaces: list[Space]) -> Space:
+    def merge(self, *spaces: Space) -> Space:
         """Merge a list of spaces into a single space.
+
+
+        ```python exec="true" source="material-block" result="python" title="Merging spaces"
+        # Note, relies on ConfigSpace being installed `pip install ConfigSpace`
+        from byop.configspace import ConfigSpaceAdapter
+
+        adapter = ConfigSpaceAdapter()
+
+        space_1 = adapter.parse({ "a": (1, 10) })
+        space_2 = adapter.parse({ "b": (10.5, 100.5) })
+        space_3 = adapter.parse({ "c": ["apple", "banana", "carrot"] })
+
+        space = adapter.merge(space_1, space_2, space_3)
+
+        print(space)
+        ```
 
         Args:
             spaces: The spaces to merge.
 
         Returns:
             The merged space.
-        """
-        _spaces = iter(spaces)
-        space = first(_spaces, default=None)
-        if space is None:
-            raise ValueError("No spaces to merge")
+        """  # noqa: E501
+        space = self.empty()
 
-        for _space in _spaces:
+        for _space in spaces:
             space = self.insert(space, _space)
 
         return space
