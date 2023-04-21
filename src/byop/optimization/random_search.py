@@ -71,7 +71,7 @@ class RandomSearch(Optimizer[RSTrialInfo]):
                     keyword argument `seed: int` which will be given an integer
                     generated from the seed given in the `__init__`.
 
-                    If not providing `duplicate=True`, the `Callable` must also
+                    If providing `duplicate=False` (default), the `Callable` must also
                     accept a keyword argument `duplicates: list[Config]` which
                     is a list of configs already seen and should not be included
                     in the returned samples.
