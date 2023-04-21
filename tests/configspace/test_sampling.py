@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from more_itertools import all_unique
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from byop.configspace import ConfigSpaceAdapter
@@ -205,3 +206,46 @@ def test_sample_with_seed_returns_same_results(
     configs_2 = item.sample(space, sampler=ConfigSpaceAdapter(), seed=1, n=n)
 
     assert configs_1 == configs_2
+
+
+def test_sampling_no_duplicates() -> None:
+    values = list(range(10))
+    n = len(values)
+
+    item = step("x", object(), space={"a": values})
+
+    adapter = ConfigSpaceAdapter()
+    item.space(parser=adapter)
+
+    configs = item.sample(
+        item.space(adapter),
+        sampler=adapter,
+        n=n,
+        duplicates=False,
+        seed=42,
+    )
+
+    assert all_unique(configs)
+
+
+def test_sampling_no_duplicates_with_seen_values() -> None:
+    values = list(range(10))
+    n = len(values)
+
+    item = step("x", object(), space={"a": values})
+
+    adapter = ConfigSpaceAdapter()
+    space = item.space(parser=adapter)
+
+    seen_config = item.sample(space, sampler=adapter, seed=42)
+
+    configs = item.sample(
+        item.space(adapter),
+        sampler=adapter,
+        n=n - 1,
+        duplicates=[seen_config],
+        seed=42,
+    )
+
+    assert all_unique(configs)
+    assert seen_config not in configs

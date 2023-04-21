@@ -163,6 +163,8 @@ class Sampler(ABC, Generic[Space]):
         *,
         n: None = None,
         seed: Seed | None = ...,
+        duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
     ) -> Config:
         ...
 
@@ -175,6 +177,8 @@ class Sampler(ABC, Generic[Space]):
         *,
         n: int,
         seed: Seed | None = ...,
+        duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
     ) -> list[Config]:
         ...
 
@@ -186,6 +190,8 @@ class Sampler(ABC, Generic[Space]):
         *,
         n: int | None = None,
         seed: Seed | None = None,
+        duplicates: bool | Iterable[Config] = False,
+        max_attempts: int | None = 3,
     ) -> Config | list[Config]:
         """Attempt to sample a pipeline with the default samplers.
 
@@ -196,6 +202,12 @@ class Sampler(ABC, Generic[Space]):
             n: The number of samples to return. If None, a single sample will
                 be returned.
             seed: The seed to use for sampling.
+            duplicates: If True, allow duplicate samples. If False, make
+                sure all samples are unique. If a container, make sure all
+                samples are unique and not in the container.
+            max_attempts: The number of times to attempt sampling unique
+                configurations before giving up. If `None` will keep
+                sampling forever until satisfied.
 
         Returns:
             A single sample if `n` is None, otherwise a list of samples.
@@ -219,7 +231,13 @@ class Sampler(ABC, Generic[Space]):
 
         def _sample(_sampler: Sampler[Space]) -> Config | list[Config]:
             _space = _sampler.copy(space)
-            return _sampler.sample(space=_space, n=n, seed=seed)
+            return _sampler.sample(
+                space=_space,
+                n=n,
+                seed=seed,
+                duplicates=duplicates,
+                max_attempts=max_attempts,
+            )
 
         # Wrap in seekable so we don't evaluate all of them, only as
         # far as we need to get a succesful parse.
@@ -249,6 +267,7 @@ class Sampler(ABC, Generic[Space]):
         seed: Seed | None = None,
         n: None = None,
         duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
     ) -> Config:
         ...
 
@@ -260,6 +279,7 @@ class Sampler(ABC, Generic[Space]):
         seed: Seed | None = None,
         n: int,
         duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
     ) -> list[Config]:
         ...
 
@@ -270,7 +290,7 @@ class Sampler(ABC, Generic[Space]):
         seed: Seed | None = None,
         n: int | None = None,
         duplicates: bool | Iterable[Config] = False,
-        max_attempts: int = 3,
+        max_attempts: int | None = 3,
     ) -> Config | list[Config]:
         """Sample a configuration from the given space.
 
@@ -282,7 +302,8 @@ class Sampler(ABC, Generic[Space]):
                 sure all samples are unique. If a container, make sure all
                 samples are unique and not in the container.
             max_attempts: The number of times to attempt sampling unique
-                configurations before giving up.
+                configurations before giving up. If `None` will keep
+                sampling forever until satisfied.
 
         Returns:
             A single sample if `n` is None, otherwise a list of samples.
@@ -298,15 +319,17 @@ class Sampler(ABC, Generic[Space]):
         # NOTE: We use a list here as Config's could be a dict
         #   which are not hashable. We rely on equality checks
         _duplicates = list(duplicates) if isinstance(duplicates, Iterable) else []
-        is_duplicate = lambda _sample: any(_sample == d for d in _duplicates)
 
         samples = []
-        for _ in range(max_attempts):
+        _max_attempts: int = max_attempts if max_attempts is not None else 2**32
+        for _ in range(_max_attempts):
             _samples = self._sample(space=space, n=_n - len(samples), seed=rng)
-            uniques = [s for s in _samples if not is_duplicate(s)]
 
-            _duplicates.extend(uniques)
-            samples.extend(uniques)
+            for s in _samples:
+                if s in _duplicates:
+                    continue
+                samples.append(s)
+                _duplicates.append(s)
 
             if len(samples) >= _n:
                 break
