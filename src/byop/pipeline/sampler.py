@@ -334,7 +334,7 @@ class Sampler(ABC, Generic[Space]):
             if len(samples) >= _n:
                 break
 
-        if len(samples) == 0:
+        if len(samples) != _n:
             raise SampleUniqueConfigError(
                 f"Could not find {n=} unique configs after {max_attempts=}"
                 f" attempts with {duplicates=}.",
