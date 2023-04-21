@@ -82,7 +82,10 @@ def attach_traceback(exception: E) -> E:
     if err_type is KeyError:
         err_msg = _KeyErrorMessage(err_msg)
 
-    return err_type(err_msg)  # type: ignore
+    try:
+        return err_type(err_msg)  # type: ignore
+    except Exception:  # noqa: BLE001
+        return exception
 
 
 def safe_map(

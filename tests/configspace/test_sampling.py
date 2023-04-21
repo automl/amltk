@@ -202,8 +202,20 @@ def test_sample_with_seed_returns_same_results(
 ) -> None:
     space = item.space(parser=ConfigSpaceAdapter())
 
-    configs_1 = item.sample(space, sampler=ConfigSpaceAdapter(), seed=1, n=n)
-    configs_2 = item.sample(space, sampler=ConfigSpaceAdapter(), seed=1, n=n)
+    configs_1 = item.sample(
+        space,
+        sampler=ConfigSpaceAdapter(),
+        seed=1,
+        n=n,
+        duplicates=True,
+    )
+    configs_2 = item.sample(
+        space,
+        sampler=ConfigSpaceAdapter(),
+        seed=1,
+        n=n,
+        duplicates=True,
+    )
 
     assert configs_1 == configs_2
 

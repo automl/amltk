@@ -20,6 +20,29 @@ logger = logging.getLogger(__name__)
 class SampleUniqueConfigError(Exception):
     """Error when a Sampler fails to sample a unique configuration."""
 
+    def __init__(self, n: int, max_attempts: int, seen: list[Config]):
+        """Create a new sample unique config error.
+
+        Args:
+            n: The number of unique configs that were to sample.
+            max_attempts: The maximum number of attempts made to sample
+                `n` unique configurations.
+            seen: The configs seen during sampling.
+        """
+        self.n = n
+        self.max_attempts = max_attempts
+        self.seen = seen
+
+    def __str__(self) -> str:
+        n = self.n
+        max_attempts = self.max_attempts
+        seen = self.seen
+        return (
+            f"Could not find {n=} unique configs after {max_attempts=}"
+            f" attempts with {len(seen)} seen . You could try increasing the"
+            f" `max_attempts=` parameter.\n({seen=})"
+        )
+
 
 class SamplerError(Exception):
     """Error for when a Sampler fails to sample from a Space."""
@@ -191,7 +214,7 @@ class Sampler(ABC, Generic[Space]):
         n: int | None = None,
         seed: Seed | None = None,
         duplicates: bool | Iterable[Config] = False,
-        max_attempts: int | None = 3,
+        max_attempts: int | None = 10,
     ) -> Config | list[Config]:
         """Attempt to sample a pipeline with the default samplers.
 
@@ -290,7 +313,7 @@ class Sampler(ABC, Generic[Space]):
         seed: Seed | None = None,
         n: int | None = None,
         duplicates: bool | Iterable[Config] = False,
-        max_attempts: int | None = 3,
+        max_attempts: int | None = 10,
     ) -> Config | list[Config]:
         """Sample a configuration from the given space.
 
@@ -318,27 +341,24 @@ class Sampler(ABC, Generic[Space]):
 
         # NOTE: We use a list here as Config's could be a dict
         #   which are not hashable. We rely on equality checks
-        _duplicates = list(duplicates) if isinstance(duplicates, Iterable) else []
+        seen = list(duplicates) if isinstance(duplicates, Iterable) else []
 
         samples = []
         _max_attempts: int = max_attempts if max_attempts is not None else 2**32
         for _ in range(_max_attempts):
-            _samples = self._sample(space=space, n=_n - len(samples), seed=rng)
+            _samples = self._sample(space=space, n=_n, seed=rng)
 
             for s in _samples:
-                if s in _duplicates:
+                if s in seen:
                     continue
                 samples.append(s)
-                _duplicates.append(s)
+                seen.append(s)
 
             if len(samples) >= _n:
                 break
 
         if len(samples) != _n:
-            raise SampleUniqueConfigError(
-                f"Could not find {n=} unique configs after {max_attempts=}"
-                f" attempts with {duplicates=}.",
-            )
+            raise SampleUniqueConfigError(n=_n, max_attempts=_max_attempts, seen=seen)
 
         return samples[0] if n is None else samples[:n]
 

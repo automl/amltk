@@ -316,9 +316,9 @@ class Step(Generic[Space]):
     @overload
     def space(
         self,
-        parser: Parser[Space],
+        parser: type[Parser[Space]] | Parser[Space],
         *,
-        seed: Seed | None = None,
+        seed: Seed | None = ...,
     ) -> Space:
         ...
 
@@ -327,13 +327,13 @@ class Step(Generic[Space]):
         self,
         parser: None = None,
         *,
-        seed: Seed | None = None,
+        seed: Seed | None = ...,
     ) -> Any:
         ...
 
     def space(
         self,
-        parser: Parser[Space] | None = None,
+        parser: type[Parser[Space]] | Parser[Space] | None = None,
         *,
         seed: Seed | None = None,
     ) -> Space | Any:
@@ -387,7 +387,7 @@ class Step(Generic[Space]):
         sampler: Sampler[Space] | None = None,
         seed: Seed | None = None,
         duplicates: bool | Iterable[Config] = False,
-        max_attempts: int | None = 3,
+        max_attempts: int | None = 10,
     ) -> Config | list[Config]:
         """Sample a configuration from the space of the pipeline.
 
