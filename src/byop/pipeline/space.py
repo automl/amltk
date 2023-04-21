@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 class SpaceAdapter(Parser[Space], Sampler[Space]):
     """Space adapter.
 
-    This class is a parser and sampler for a given Space type. It
-    is a combination of the [`Parser`][byop.pipeline.parser.Parser] and
+    This interfaces combines the utility to parse and sample from a given
+    type of Space.
+    It is a combination of the [`Parser`][byop.pipeline.parser.Parser] and
     [`Sampler`][byop.pipeline.sampler.Sampler] interfaces, such that
     we can perform operations on a Space without knowing its type.
 
@@ -25,16 +26,13 @@ class SpaceAdapter(Parser[Space], Sampler[Space]):
     !!! example "Example Adapaters"
 
         We have integrated adapters for the following libraries which
-        you can use as reference.
+        you can use as full reference guide.
 
         * [`OptunaSpaceAdapter`][byop.optuna.space.OptunaSpaceAdapter] for
-            [Optuna][https://optuna.org/]
+            [Optuna](https://optuna.org/)
         * [`ConfigSpaceAdapter`][byop.configspace.space.ConfigSpaceAdapter]
-            for [ConfigSpace][https://automl.github.io/ConfigSpace/master/]
+            for [ConfigSpace](https://automl.github.io/ConfigSpace/master/)
 
-    See Also:
-        * [`Parser`][byop.pipeline.parser.Parser]
-        * [`Sampler`][byop.pipeline.sampler.Sampler]
     """
 
     @classmethod

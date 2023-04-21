@@ -1,13 +1,4 @@
-"""A module to help construct a configuration space for a pipeline.
-
-``python
-from byop.pipeline import Pipeline
-from byop.spaces.configspace import generate_configspace
-
-pipeline = Pipeline(...)
-configspace = generate_configspace(pipeline)
-```
-"""
+"""A module to interact with ConfigSpace."""
 from __future__ import annotations
 
 from copy import copy, deepcopy
@@ -25,14 +16,35 @@ if TYPE_CHECKING:
 
 
 class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
-    """A sampler for a search space."""
+    """An adapter following the [`SpaceAdapter`][byop.pipeline.SpaceAdapter] interface
+    for interacting with ConfigSpace spaces.
+
+    This includes parsing ConfigSpace spaces following the
+    [`Parser`][byop.pipeline.Parser] interface and sampling from them with
+    the [`Sampler`][byop.pipeline.Sampler] interface.
+    """
 
     def parse_space(
         self,
         space: Any,
         config: Mapping[str, Any] | None = None,  # noqa: ARG002
     ) -> ConfigurationSpace:
-        """See [`Parser.parse_space`][byop.pipeline.Parser.parse_space]."""
+        """See [`Parser.parse_space`][byop.pipeline.Parser.parse_space].
+
+        ```python exec="true" source="material-block" result="python" title="A simple space"
+        from byop.configspace import ConfigSpaceAdapter
+
+        search_space = {
+            "a": (1, 10),
+            "b": (0.5, 9.0),
+            "c": ["apple", "banana", "carrot"],
+        }
+
+        adapter = ConfigSpaceAdapter()
+        space = adapter.parse(search_space)
+        print(space)
+        ```
+        """  # noqa: E501
         if space is None:
             space = ConfigurationSpace()
         elif isinstance(space, dict):
@@ -49,10 +61,22 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
     def set_seed(self, space: ConfigurationSpace, seed: Seed) -> ConfigurationSpace:
         """Set the seed for the space.
 
+        ```python exec="true" source="material-block" result="python" title="Setting the seed"
+        from byop.configspace import ConfigSpaceAdapter
+
+        adapter = ConfigSpaceAdapter()
+
+        space = adapter.parse({ "a": (1, 10) })
+        adapter.set_seed(space, seed=42)
+
+        seeded_value_for_a = adapter.sample(space)
+        print(seeded_value_for_a)
+        ```
+
         Args:
             space: The space to set the seed for.
             seed: The seed to set.
-        """
+        """  # noqa: E501
         space.seed(seed)
         return space
 
@@ -63,7 +87,25 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         *,
         prefix_delim: tuple[str, str] | None = None,
     ) -> ConfigurationSpace:
-        """See [`Parser.insert`][byop.pipeline.Parser.insert]."""
+        """See [`Parser.insert`][byop.pipeline.Parser.insert].
+
+        ```python exec="true" source="material-block" result="python" title="Inserting one space into another"
+        from byop.configspace import ConfigSpaceAdapter
+
+        adapter = ConfigSpaceAdapter()
+
+        space_1 = adapter.parse({ "a": (1, 10) })
+        space_2 = adapter.parse({ "b": (10.5, 100.5) })
+        space_3 = adapter.parse({ "c": ["apple", "banana", "carrot"] })
+
+        space = adapter.empty()
+        adapter.insert(space, space_1)
+        adapter.insert(space, space_2)
+        adapter.insert(space, space_3, prefix_delim=("fruit", ":"))
+
+        print(space)
+        ```
+        """  # noqa: E501
         if prefix_delim is None:
             prefix_delim = ("", "")
 
@@ -77,7 +119,16 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         return space
 
     def empty(self) -> ConfigurationSpace:
-        """See [`Parser.empty`][byop.pipeline.Parser.empty]."""
+        """See [`Parser.empty`][byop.pipeline.Parser.empty].
+
+        ```python exec="true" source="material-block" result="python" title="Getting an empty space"
+        from byop.configspace import ConfigSpaceAdapter
+
+        adapter = ConfigSpaceAdapter()
+        empty_space = adapter.empty()
+        print(empty_space)
+        ```
+        """  # noqa: E501
         return ConfigurationSpace()
 
     def condition(
@@ -87,7 +138,24 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         spaces: dict[str, ConfigurationSpace],
         weights: Sequence[float] | None = None,
     ) -> ConfigurationSpace:
-        """See [`Parser.condition`][byop.pipeline.Parser.condition]."""
+        """See [`Parser.condition`][byop.pipeline.Parser.condition].
+
+        ```python exec="true" source="material-block" result="python" title="Conditioning a space"
+        from byop.configspace import ConfigSpaceAdapter
+
+        adapter = ConfigSpaceAdapter()
+
+        space_a = adapter.parse({ "a": (1, 10) })
+        space_b = adapter.parse({ "b": (200, 300) })
+
+        space = adapter.condition(
+            choice_name="letter",
+            delim=":",
+            spaces={ "a": space_a, "b": space_b }
+        )
+        print(space)
+        ```
+        """  # noqa: E501
         space = ConfigurationSpace()
 
         items = list(spaces.keys())
@@ -109,7 +177,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         n: int = 1,
         seed: Seed | None = None,
     ) -> list[Configuration]:
-        """Sample a configuration from the given space."""
+        """See [`Sampler._sample`][byop.pipeline.Sampler._sample]."""
         if seed:
             seed_int = as_int(seed)
             self.set_seed(space, seed_int)
@@ -120,12 +188,24 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         return cast(list, space.sample_configuration(n))
 
     def copy(self, space: ConfigurationSpace) -> ConfigurationSpace:
-        """Copy the space."""
+        """See [`Sampler.copy`][byop.pipeline.Sampler.copy].
+
+        ```python exec="true" source="material-block" result="python" title="Copying a space"
+        from byop.configspace import ConfigSpaceAdapter
+
+        adapter = ConfigSpaceAdapter()
+
+        space_original = adapter.parse({ "a": (1, 10) })
+        space_copy = adapter.copy(space_original)
+
+        print(space_copy)
+        ```
+        """  # noqa: E501
         return deepcopy(space)
 
     @classmethod
     def supports_sampling(cls, space: Any) -> bool:
-        """Check if the space is a ConfigurationSpace.
+        """See [`Sampler.supports_sampling`][byop.pipeline.Sampler.supports_sampling].
 
         Args:
             space: The space to check.

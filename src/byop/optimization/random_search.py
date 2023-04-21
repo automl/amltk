@@ -74,14 +74,13 @@ class RandomSearch(Optimizer[RSTrialInfo]):
 
         if sampler is None:
             sampler = Sampler.find(space)
+        elif isinstance(sampler, type) and issubclass(sampler, Sampler):
+            sampler = sampler()
 
-        if isinstance(sampler, Sampler) or (
-            isinstance(sampler, type) and issubclass(sampler, Sampler)
-        ):
-            self.sample = sampler.sample
-
+        if isinstance(sampler, Sampler):
+            self.sample_f = sampler.sample
         elif callable(sampler):
-            self.sample = sampler  # type: ignore
+            self.sample_f = sampler  # type: ignore
         else:
             raise ValueError(
                 f"Expected `sampler` to be a `Sampler` or `Callable`, got {sampler=}.",
@@ -95,13 +94,16 @@ class RandomSearch(Optimizer[RSTrialInfo]):
         # in the init and with the docstring. Any errors
         # that occur from here are considered user error
         if self.seed is None:
-            config = self.sample(self.space)  # type: ignore
+            config = self.sample_f(self.space)  # type: ignore
         else:
             try:
                 seed_int = self.seed.integers(MAX_INT)
-                config = self.sample(self.space, seed=seed_int)  # type: ignore
+                config = self.sample_f(self.space, seed=seed_int)  # type: ignore
             except TypeError as e:
-                msg = f"Expected `sampler` to accept a `seed` keyword argument, got {e}"
+                msg = (
+                    f"Expected `sampler={self.sample_f}` to accept a `seed`"
+                    f" keyword argument: {e}"
+                )
                 raise TypeError(msg) from e
 
         info = RSTrialInfo(name, self.trial_count, config)

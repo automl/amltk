@@ -26,6 +26,9 @@ def as_rng(seed: Seed | None = None) -> np.random.Generator:
     if isinstance(seed, np.random.RandomState):
         seed = seed.randint(0, MAX_INT)
 
+    if isinstance(seed, np.integer):
+        seed = int(seed)
+
     if seed is None or isinstance(seed, int):
         return np.random.default_rng(seed)
 
@@ -41,8 +44,8 @@ def as_int(seed: Seed | None = None) -> int:
     Returns:
         A valid integer to use as a seed
     """
-    if isinstance(seed, int):
-        return seed
+    if isinstance(seed, (int, np.integer)):
+        return int(seed)
 
     if seed is None:
         return np.random.default_rng().integers(0, MAX_INT)

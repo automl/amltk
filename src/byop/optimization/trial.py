@@ -37,38 +37,27 @@ InfoInner = TypeVar("InfoInner")
 P = ParamSpec("P")
 
 
+@dataclass
 class Trial(Generic[Info]):
-    """A trial context manager."""
+    """A trial context manager.
 
-    def __init__(
-        self,
-        *,
-        name: str,
-        config: Mapping[str, Any],
-        info: Info,
-        time: TimeInterval | None = None,
-        timer: Timer | None = None,
-        exception: Exception | None = None,
-        seed: int | None = None,
-    ) -> None:
-        """Initialize the trial.
+    Attributes:
+        name: The name of the trial.
+        config: The config for the trial.
+        info: The info of the trial.
+        time: The time taken by the trial.
+        timer: The timer used to time the trial.
+        exception: The exception raised by the trial, if any.
+        seed: The seed to use if suggested by the optimizer.
+    """
 
-        Args:
-            name: The name of the trial.
-            config: The config for the trial.
-            info: The info of the trial.
-            time: The time taken by the trial.
-            timer: The timer used to time the trial.
-            exception: The exception raised by the trial, if any.
-            seed: The seed to use if suggested by the optimizer.
-        """
-        self.name = name
-        self.config = config
-        self.info = info
-        self.time = time
-        self.timer = timer
-        self.exception = exception
-        self.seed = seed
+    name: str
+    config: Mapping[str, Any]
+    info: Info = field(repr=False)
+    time: TimeInterval | None = None
+    timer: Timer | None = None
+    exception: Exception | None = None
+    seed: int | None = None
 
     @contextmanager
     def begin(

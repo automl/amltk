@@ -1,6 +1,8 @@
 """A module for utilities for spaces defined by Optuna.
 
 The notable class is [`OptunaSpaceAdapter`][byop.optuna.OptunaSpaceAdapter].
+It implements the [`SpaceAdapter`][byop.pipeline.SpaceAdapter] interface
+to provide utility to parse and sample from an Optuna space.
 
 
 ```python hl_lines="8 9 10 13 15 16"
