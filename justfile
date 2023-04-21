@@ -26,9 +26,12 @@ check-types:
   mypy src
 
 # Launch the docs server locally and open the webpage
-docs example="None":
+docs exec_doc_code="true" example="None" offline="false":
   python -m webbrowser -t "http://127.0.0.1:8000/"
-  AMLTK_DOC_RENDER_EXAMPLES={{example}} mkdocs serve --watch-theme
+  AMLTK_DOC_RENDER_EXAMPLES={{example}} \
+    AMLTK_DOCS_OFFLINNE={{offline}} \
+    AMLTK_EXEC_DOCS={{exec_doc_code}} mkdocs serve --watch-theme
+  # https://github.com/pawamoy/markdown-exec/issues/19
 
 # Bump the version and generate the changelog based off commit messages
 bump:

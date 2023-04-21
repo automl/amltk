@@ -54,9 +54,9 @@ class Trial(Generic[Info]):
     name: str
     config: Mapping[str, Any]
     info: Info = field(repr=False)
-    time: TimeInterval | None = None
-    timer: Timer | None = None
-    exception: Exception | None = None
+    time: TimeInterval | None = field(repr=False, default=None)
+    timer: Timer | None = field(repr=False, default=None)
+    exception: Exception | None = field(repr=False, default=None)
     seed: int | None = None
 
     @contextmanager

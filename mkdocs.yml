@@ -85,10 +85,6 @@ markdown_extensions:
       - name: mermaid
         class: mermaid
         format: !!python/name:pymdownx.superfences.fence_code_format
-      - name: python
-        class: python
-        validator: !!python/name:markdown_exec.validator
-        format: !!python/name:markdown_exec.formatter
   - pymdownx.emoji:
       emoji_index: !!python/name:materialx.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
@@ -96,6 +92,9 @@ markdown_extensions:
 plugins:
   - search
   - autorefs
+  - offline:
+      enabled: !ENV [AMLTK_DOCS_OFFLINE, false]
+  - markdown-exec
   - mike:
       version_selector: true
       css_dir: css

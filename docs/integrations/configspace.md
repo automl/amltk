@@ -24,7 +24,7 @@ Check out the [API doc][byop.configspace.ConfigSpaceAdapter] for more info.
     Check out its documentation for implementing your own.
 
 
-## Parsing Spaces
+## Parser
 In general, you should consult the
 [ConfigSpace documentation](https://automl.github.io/ConfigSpace/master/).
 Anything you can insert into a `ConfigurationSpace` object is valid.
@@ -92,7 +92,7 @@ from byop.pipeline import step, choice, Pipeline
 my_pipeline = Pipeline.create(
     choice(
         "algorithm",
-        step("A", item=object(), space={"C": (0.0, 1.0), "initial": [1, 10]}),
+        step("A", item=object(), space={"C": (0.0, 1.0), "initial": (1, 10)}),
         step("B", item=object(), space={"lr": Float("lr", (1e-5, 1), log=True)}),
     )
 )
@@ -103,7 +103,7 @@ space = adapter.parse(my_pipeline)
 print(space)
 ```
 
-## Sampling Spaces
+## Sampler
 As [ConfigSpaceAdapter][byop.configspace.ConfigSpaceAdapter] implements the
 [Sampler][byop.pipeline.Sampler] interface, you can also [`sample()`][byop.pipeline.Sampler.sample]
 from these spaces.
@@ -200,5 +200,14 @@ random_search_optimizer = RandomSearch(
 for i in range(3):
     trial = random_search_optimizer.ask()
     print(trial)
+
+    with trial.begin():
+        # Run experiment here
+        pass
+
+    report = trial.success(cost=1)
+    print(report)
+
+    random_search_optimizer.tell(report)
 ```
 
