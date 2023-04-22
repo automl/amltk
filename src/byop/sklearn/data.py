@@ -4,7 +4,7 @@ from __future__ import annotations
 from itertools import chain
 from typing import TYPE_CHECKING, Sequence
 
-from more_itertools import distribute, last
+from more_itertools import last
 from sklearn.model_selection import train_test_split
 
 from byop.randomness import as_int
@@ -156,6 +156,4 @@ def train_val_test_split(
         shuffle=shuffle,
         stratify=stratify,
     )
-    n = len(items)
-    result_items = chain(results["train"], results["val"], results["test"])
-    return tuple(chain.from_iterable(distribute(n, result_items)))
+    return tuple(chain(results["train"], results["val"], results["test"]))
