@@ -71,7 +71,7 @@ def split_data(
     for name, split_percentage in list(splits.items())[0:-1]:
         # If we stratify, make sure to also include it in the splitting so
         # further splits can be stratified correctly.
-        to_split = remaining if stratify is None else [remaining, stratify]
+        to_split = remaining if stratify is None else [*remaining, stratify]
 
         # Calculate the percentage of the remaining data to split
         percentage = split_percentage / remaining_percentage
