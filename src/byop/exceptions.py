@@ -132,3 +132,15 @@ def safe_starmap(
             yield f(*arg)
         except Exception as e:  # noqa: BLE001
             yield attach_traceback(e) if attached_tb else e
+
+
+class IntegrationNotFoundError(Exception):
+    """An exception raised when no integration is found."""
+
+    def __init__(self, name: str) -> None:
+        """Initialize the exception.
+
+        Args:
+            name: The name of the integration that was not found.
+        """
+        super().__init__(f"No integration found for {name}.")

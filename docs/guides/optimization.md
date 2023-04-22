@@ -133,45 +133,151 @@ for an optimal value for `#!python "x"` but later on we'll switch to using
 
 Some of the integrated optimizers:
 
----
 
-- __Random Search__
+### Random Search
 
-    A custom implementation of Random Search which randomly selects
-    configurations from the `space` to evaluate.
+A custom implementation of Random Search which randomly selects
+configurations from the `space` to evaluate.
 
----
+??? note "Usage"
 
--   [__SMAC__](https://github.com/automl/SMAC3)
+    You can use [`RandomSearch`][byop.optimization.RandomSearch]
+    by simply passing in the `space` and optionally a `seed` which
+    will be used for sampling.
 
-    SMAC is a collection of methods from [automl.org](https://www.automl.org) for hyperparameter optimization.
-    Notably the library focuses on many Bayesian Optimization methods with highly
-    configurable spaces.
+    ```python exec="true" source="material-block" result="python" title="RandomSearch Construction"
+    from byop.optimization import RandomSearch
+    from byop.pipeline import searchable
 
----
+    my_searchable = searchable("myspace", space={"x": (-10.0, 10.0)})
+    space = my_searchable.space()
 
--   [__Optuna__](https://optuna.org/)
+    random_search = RandomSearch(space=space, seed=42)
 
-    A hyperparameter optimization library which focuses on Tree-Parzan Estimators (TPE)
-    for finding optimal configurations. There are some currentl limitations, such as
-    heirarchical spaces but is widely used and popular.
+    trial = random_search.ask()
+    print(trial)
+    ```
 
----
+    By default, [`RandomSearch`][byop.optimization.RandomSearch]
+    does not allow duplicates. If it can't sample a unique config
+    in `max_samples_attempts=` (default: `#!python 50`), then
+    it will deem that there are no more unique configs and raise
+    a [`RandomSearch.ExhaustedError`][byop.optimization.RandomSearch.ExhaustedError].
 
--   [__NEPS__](https://automl.github.io/neps/0.8.3/)
+    ```python exec="true" source="tabbed-left" result="python" returncode="1" title="RandomSearch Exhausted" tabs="Source | Error"
+    import traceback
+    from byop.optimization import RandomSearch
+    from byop.pipeline import searchable
 
-    An optimization framework from [automl.org](https://www.automl.org) focusing
-    on optimizing Neural Architectures.
+    my_searchable = searchable("myspace", space={"x": ["apple", "pear"]})
+    space = my_searchable.space()
 
-    !!! info "Planned"
+    random_search = RandomSearch(space=space, seed=42)
 
----
+    random_search.ask()  # Fine
+    random_search.ask()  # Fine
 
--   [__HEBO__](https://github.com/huawei-noah/HEBO)
+    try:
+        random_search.ask()  # ...Error
+    except RandomSearch.ExhaustedError as e:
+        print(traceback.format_exc())
+    ```
 
-    !!! info "Planned"
+    If you allow for duplicates in your sampling, simply set `duplicates=True`.
 
----
+    If you want to use a particular [`Sampler`][byop.pipeline.Sampler]
+    you can pass it in as well.
+
+    ```python exec="true" source="material-block" result="python" title="RandomSearch Specific Sampler"
+    from byop.optimization import RandomSearch
+    from byop.pipeline import searchable
+    from byop.configspace import ConfigSpaceSampler
+
+    my_searchable = searchable("myspace", space={"x": (-10.0, 10.0)})
+    space = my_searchable.space()
+
+    random_search = RandomSearch(space=space, seed=42, sampler=ConfigSpaceSampler)
+
+    trial = random_search.ask()
+    print(trial)
+    ```
+
+    Or you can even pass in your own custom sampling function.
+
+    ```python exec="true" source="material-block" result="python" title="RandomSearch Custom Sample Function" hl_lines="9 10 11 12 13 14 15 16 21"
+    import numpy as np
+    from byop.optimization import RandomSearch
+
+    search_space = {
+        "x": (-10.0, 10.0),
+        "y": ["cat", "dog", "fish"]
+    }
+
+    def my_sampler(space, seed: int):
+        rng = np.random.RandomState(seed)
+
+        xlow, xhigh = space["x"]
+        x = rng.uniform(xlow, xhigh)
+        y = np.random.choice(space["y"])
+
+        return {"x": x, "y": y}
+
+    random_search = RandomSearch(
+        space=search_space,
+        seed=42,
+        sampler=my_sampler
+    )
+
+    trial = random_search.ask()
+    print(trial)
+    ```
+
+    !!! warning "Must accept `seed=` keyword argument"
+
+        Given the same `int` seed integer, your sampling function
+        should return the same set of configurations.
+
+
+
+### SMAC
+
+[SMAC](https://github.com/automl/SMAC3) is a collection of methods from
+[automl.org](https://www.automl.org) for hyperparameter optimization.
+Notably the library focuses on many Bayesian Optimization methods with highly
+configurable spaces.
+
+!!! example "Integration"
+
+    Check out the [SMAC integration page](../../integrations/smac)
+
+    Install with `pip install smac`
+
+### Optuna
+
+[Optuna](https://optuna.org/) is a hyperparameter optimization library which focuses on
+Tree-Parzan Estimators (TPE) for finding optimal configurations.
+There are some currentl limitations, such as heirarchical spaces but
+is widely used and popular.
+
+!!! example "Integration"
+
+    Check out the [Optuna integration page](../../integrations/optuna#optimizer).
+
+    Install with `pip install optuna`
+
+### NePS
+
+[NePS](https://automl.github.io/neps/latest/)
+is an optimization framework from [automl.org](https://www.automl.org) focusing
+on optimizing Neural Architectures.
+
+!!! info "Planned"
+
+### HEBO
+
+[HEBO](https://github.com/huawei-noah/HEBO)
+
+!!! info "Planned"
 
 We note that [integrating in your own optimizer is fairly straightforward](#integrating-your-own-optimizer).
 If there is an optimizer you would like integrated, please let us know!
@@ -400,7 +506,7 @@ and save results with `task.on_success`.
     [`Trial.Task`][byop.optimization.Trial]. There are other backends than
     processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
 
-!!! tip "Events of a `Trial.Task`"
+??? tip "What Events you can subscribe to for a `Trial.Task`"
 
     The `scheduler.on_start`, `task.on_report` and `task.on_success` methods
     define how our system runs. These are part of the event system of AutoML-Toolkit which
