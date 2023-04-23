@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, Iterable, cast, overload
+from typing import Any, Generic, Iterable, cast, overload
 
 from more_itertools import first, first_true, seekable
 
@@ -15,86 +15,6 @@ from byop.randomness import as_rng
 from byop.types import Config, Seed, Space
 
 logger = logging.getLogger(__name__)
-
-
-class SampleUniqueConfigError(Exception):
-    """Error when a Sampler fails to sample a unique configuration."""
-
-    def __init__(self, n: int, max_attempts: int, seen: list[Config]):
-        """Create a new sample unique config error.
-
-        Args:
-            n: The number of unique configs that were to sample.
-            max_attempts: The maximum number of attempts made to sample
-                `n` unique configurations.
-            seen: The configs seen during sampling.
-        """
-        self.n = n
-        self.max_attempts = max_attempts
-        self.seen = seen
-
-    def __str__(self) -> str:
-        n = self.n
-        max_attempts = self.max_attempts
-        seen = self.seen
-        return (
-            f"Could not find {n=} unique configs after {max_attempts=}"
-            f" attempts with {len(seen)} seen . You could try increasing the"
-            f" `max_attempts=` parameter.\n({seen=})"
-        )
-
-
-class SamplerError(Exception):
-    """Error for when a Sampler fails to sample from a Space."""
-
-    @overload
-    def __init__(self, sampler: Sampler, error: Exception):
-        ...
-
-    @overload
-    def __init__(self, sampler: list[Sampler], error: list[Exception]):
-        ...
-
-    def __init__(
-        self,
-        sampler: Sampler | list[Sampler],
-        error: Exception | list[Exception],
-    ):
-        """Create a new sampler error.
-
-        Args:
-            sampler: The sampler(s) that failed.
-            error: The error(s) that was raised.
-
-        Raises:
-            ValueError: If sampler is a list, exception must be a list of the
-                same length.
-        """
-        if isinstance(sampler, list) and (
-            not (isinstance(error, list) and len(sampler) == len(error))
-        ):
-            raise ValueError(
-                "If sampler is a list, `error` must be a list of the same length."
-                f"Got {sampler=} and {error=} .",
-            )
-
-        self.sampler = sampler
-        self.error = error
-
-    def __str__(self) -> str:
-        if isinstance(self.sampler, list):
-            msg = "\n\n".join(
-                f"Failed to sample with {p}:" + "\n " + f"{e.__class__.__name__}: {e}"
-                for p, e in zip(self.sampler, self.error)  # type: ignore
-            )
-        else:
-            msg = (
-                f"Failed to sample with {self.sampler}:"
-                + "\n"
-                + f"{self.error.__class__.__name__}: {self.error}"
-            )
-
-        return msg
 
 
 class Sampler(ABC, Generic[Space]):
@@ -124,9 +44,6 @@ class Sampler(ABC, Generic[Space]):
             Together with implementing the [`Parser`][byop.pipeline.Parser]
             interface, this class provides a complete adapter for a given search space.
     """
-
-    SamplerError: ClassVar[type[SamplerError]] = SamplerError
-    """The error to raise when a sampler fails to sample from a Space."""
 
     @classmethod
     def default_samplers(cls, space: Any) -> list[Sampler]:
@@ -175,7 +92,14 @@ class Sampler(ABC, Generic[Space]):
             The first sampler that supports the given space, or None if no
             sampler supports the given space.
         """
-        return first(Sampler.default_samplers(space), default=None)
+        return first(
+            (
+                sampler
+                for sampler in Sampler.default_samplers(space)
+                if sampler.supports_sampling(space)
+            ),
+            default=None,
+        )
 
     @overload
     @classmethod
@@ -277,7 +201,7 @@ class Sampler(ABC, Generic[Space]):
         if samples is False:
             results_itr.seek(0)  # Reset to start of iterator
             errors = cast(list[Exception], list(results_itr))
-            raise Sampler.SamplerError(sampler=samplers, error=errors)
+            raise Sampler.FailedSamplingError(sampler=samplers, error=errors)
 
         assert not isinstance(samples, (Exception, bool))
         return samples
@@ -358,7 +282,11 @@ class Sampler(ABC, Generic[Space]):
                 break
 
         if len(samples) != _n:
-            raise SampleUniqueConfigError(n=_n, max_attempts=_max_attempts, seen=seen)
+            raise Sampler.GenerateUniqueConfigError(
+                n=_n,
+                max_attempts=_max_attempts,
+                seen=seen,
+            )
 
         return samples[0] if n is None else samples[:n]
 
@@ -405,3 +333,107 @@ class Sampler(ABC, Generic[Space]):
             A list of samples.
         """
         ...
+
+    class NoSamplerFoundError(ValueError):
+        """Error when no sampler is found for a given space."""
+
+        def __init__(self, space: Any, extra: str | None = None):
+            """Create a new no sampler found error.
+
+            Args:
+                space: The space that no sampler was found for
+                extra: Any extra information to add to the error message.
+            """
+            self.space = space
+            self.extra = extra
+
+        def __str__(self) -> str:
+            msg = (
+                f"No sampler found for space of type={type(self.space)}."
+                " Do you have the correct integrations installed? If none"
+                " exist for your space, you can create your own sampler."
+            )
+            if self.extra:
+                msg += f" {self.extra}"
+
+            return msg
+
+    class GenerateUniqueConfigError(RuntimeError):
+        """Error when a Sampler fails to sample a unique configuration."""
+
+        def __init__(self, n: int, max_attempts: int, seen: list[Config]):
+            """Create a new sample unique config error.
+
+            Args:
+                n: The number of unique configs that were to sample.
+                max_attempts: The maximum number of attempts made to sample
+                    `n` unique configurations.
+                seen: The configs seen during sampling.
+            """
+            self.n = n
+            self.max_attempts = max_attempts
+            self.seen = seen
+
+        def __str__(self) -> str:
+            n = self.n
+            max_attempts = self.max_attempts
+            seen = self.seen
+            return (
+                f"Could not find {n=} unique configs after {max_attempts=} attempts."
+                "\nYou could try increasing the `max_attempts=` parameter."
+                f"\n {len(seen)} seen: {seen=}"
+            )
+
+    class FailedSamplingError(RuntimeError):
+        """Error for when a Sampler fails to sample from a Space."""
+
+        @overload
+        def __init__(self, sampler: Sampler, error: Exception):
+            ...
+
+        @overload
+        def __init__(self, sampler: list[Sampler], error: list[Exception]):
+            ...
+
+        def __init__(
+            self,
+            sampler: Sampler | list[Sampler],
+            error: Exception | list[Exception],
+        ):
+            """Create a new sampler error.
+
+            Args:
+                sampler: The sampler(s) that failed.
+                error: The error(s) that was raised.
+
+            Raises:
+                ValueError: If sampler is a list, exception must be a list of the
+                    same length.
+            """
+            if isinstance(sampler, list) and (
+                not (isinstance(error, list) and len(sampler) == len(error))
+            ):
+                raise ValueError(
+                    "If sampler is a list, `error` must be a list of the same length."
+                    f"Got {sampler=} and {error=} .",
+                )
+
+            self.sampler = sampler
+            self.error = error
+
+        def __str__(self) -> str:
+            if isinstance(self.sampler, list):
+                msg = "\n\n".join(
+                    f"Failed to sample with {p}:"
+                    + "\n "
+                    + f"{e.__class__.__name__}: {e}"
+                    for p, e in zip(self.sampler, self.error)  # type: ignore
+                )
+            else:
+                msg = (
+                    f"Failed to sample with {self.sampler}:"
+                    + "\n"
+                    + f"{self.error.__class__.__name__}: {self.error}"
+                )
+
+            return msg

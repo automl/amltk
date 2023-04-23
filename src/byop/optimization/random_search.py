@@ -5,16 +5,18 @@ without doing anything with them.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from typing_extensions import ParamSpec
 
 from byop.optimization.optimizer import Optimizer, Trial
 from byop.pipeline.sampler import Sampler
 from byop.randomness import as_rng
+from byop.types import Space
 
 if TYPE_CHECKING:
-    from byop.types import Config, Seed, Space
+    from byop.types import Config, Seed
 
 P = ParamSpec("P")
 Q = ParamSpec("Q")
@@ -48,13 +50,12 @@ class RandomSearch(Optimizer[RSTrialInfo]):
         sampler: (
             Sampler[Space]
             | type[Sampler[Space]]
-            | Callable[[Space], Config]
             | Callable[[Space, int], Config]
-            | Callable[[Space, int, list[Config]], Config]
             | None
         ) = None,
         seed: Seed | None = None,
         duplicates: bool = False,
+        max_sample_attempts: int = 50,
     ):
         """Initialize the optimizer.
 
@@ -62,98 +63,83 @@ class RandomSearch(Optimizer[RSTrialInfo]):
             space: The space to sample from.
             sampler: The sampler to use to sample from the space.
                 If not provided, the sampler will be automatically found.
+
                 * If a `Sampler` is provided, it will be used to sample from the
                     space.
-                * If a `Callable` is provided, it will be used to sample from the
-                    space.
+                * If a `Callable` is provided, it will be used to sample from the space.
 
-                    If providing a `seed`, the `Callable` must accept a
-                    keyword argument `seed: int` which will be given an integer
-                    generated from the seed given in the `__init__`.
+                    ```python
+                    def my_callable_sampler(space, seed: int) -> Config: ...
+                    ```
 
-                    If providing `duplicate=False` (default), the `Callable` must also
-                    accept a keyword argument `duplicates: list[Config]` which
-                    is a list of configs already seen and should not be included
-                    in the returned samples.
+                    !!! warning "Deterministic behaviour"
+
+                        This should return the same set of configurations given the same
+                        seed for fully defined behaviour.
+
 
             seed: The seed to use for the sampler.
             duplicates: Whether to allow duplicate configurations.
+            max_sample_attempts: The maximum number of attempts to sample a
+                unique configuration. If this number is exceeded, an
+                `ExhaustedError` will be raised. This parameter has no
+                effect when `duplicates=True`.
         """
         self.space = space
         self.trial_count = 0
         self.seed = as_rng(seed) if seed is not None else None
+        self.max_sample_attempts = max_sample_attempts
 
         # We store any configs we've seen to prevent duplicates
-        self._configs_seen: list[Config] | None = [] if duplicates else None
+        self._configs_seen: list[Config] | None = [] if not duplicates else None
 
         if sampler is None:
             sampler = Sampler.find(space)
-        elif isinstance(sampler, type) and issubclass(sampler, Sampler):
-            sampler = sampler()
+            if sampler is None:
+                extra = "You can also provide a custom function to `sample=`."
+                raise Sampler.NoSamplerFoundError(space, extra=extra)
+            self.sampler = sampler
 
-        if isinstance(sampler, Sampler):
-            self.sample_f = sampler.sample
+        elif isinstance(sampler, type) and issubclass(sampler, Sampler):
+            self.sampler = sampler()
+        elif isinstance(sampler, Sampler):
+            self.sampler = sampler
         elif callable(sampler):
-            self.sample_f = sampler  # type: ignore
+            self.sampler = FunctionalSampler(sampler)
         else:
             raise ValueError(
                 f"Expected `sampler` to be a `Sampler` or `Callable`, got {sampler=}.",
             )
 
     def ask(self) -> Trial[RSTrialInfo]:
-        """Sample from the space."""
+        """Sample from the space.
+
+        Raises:
+            ExhaustedError: If the sampler is exhausted of unique configs.
+                Only possible to raise if `duplicates=False` (default).
+        """
         name = f"random-{self.trial_count}"
 
-        # NOTE(eddiebergman): We validate this is correct
-        # in the init and with the docstring. Any errors
-        # that occur from here are considered user error
-        if self.seed is None:
-            if self._configs_seen is None:
-                config = self.sample_f(self.space)  # type: ignore
-            else:
-                try:
-                    config = self.sample_f(
-                        self.space,
-                        duplicates=self._configs_seen,  # type: ignore
-                    )
-                except TypeError as e:
-                    msg = (
-                        f"Expected `sampler={self.sample_f}` to accept a `duplicates`"
-                        " keyword argument when using `duplicates=False`."
-                        f" {e}"
-                    )
-                    raise TypeError(msg) from e
-
-        elif self._configs_seen is None:
-            try:
-                seed_int = self.seed.integers(MAX_INT)
-                config = self.sample_f(self.space, seed=seed_int)  # type: ignore
-            except TypeError as e:
-                msg = (
-                    f"Expected `sampler={self.sample_f}` to accept a `seed`"
-                    f" keyword argument: {e}"
-                )
-                raise TypeError(msg) from e
-        else:
-            try:
-                seed_int = self.seed.integers(MAX_INT)
-                config = self.sample_f(
-                    self.space,
-                    seed=seed_int,  # type: ignore
-                    duplicates=self._configs_seen,  # type: ignore
-                )
-            except TypeError as e:
-                msg = (
-                    f"Expected `sampler={self.sample_f}` to accept a `seed`"
-                    f" and `duplicates` keyword argument: {e}"
-                )
-                raise TypeError(msg) from e
+        try:
+            config = self.sampler.sample(
+                self.space,
+                seed=self.seed,
+                duplicates=self._configs_seen,  # type: ignore
+                max_attempts=self.max_sample_attempts,
+            )
+        except Sampler.GenerateUniqueConfigError as e:
+            raise self.ExhaustedError(space=self.space) from e
 
         if self._configs_seen is not None:
             self._configs_seen.append(config)
 
         info = RSTrialInfo(name, self.trial_count, config)
-        trial = Trial(name=name, config=config, info=info)
+        trial = Trial(
+            name=name,
+            config=config,
+            info=info,
+            seed=self.seed.integers(MAX_INT) if self.seed is not None else None,
+        )
         self.trial_count = self.trial_count + 1
         return trial
 
@@ -164,3 +150,47 @@ class RandomSearch(Optimizer[RSTrialInfo]):
             We do nothing with the report as it's random search
             and does not use the report to do anything useful.
         """
+
+    class ExhaustedError(RuntimeError):
+        """Raised when the sampler is exhausted of unique configs."""
+
+        def __init__(self, space: Any):
+            """Initialize the error."""
+            self.space = space
+
+        def __str__(self) -> str:
+            return (
+                f"Exhausted all unique configs in the space {self.space}."
+                " Consider bumping up `max_sample_attempts=` or handling this"
+                " error case."
+            )
+
+
+@dataclass
+class FunctionalSampler(Sampler[Space]):
+    """A wrapper for a functional sampler for use in
+    [`RandomSearch`][byop.optimization.RandomSearch].
+
+    Attributes:
+        f: The functional sampler to use.
+    """
+
+    f: Callable[[Space, int], Config]
+
+    @classmethod
+    def supports_sampling(cls, space: Any) -> bool:  # noqa: ARG003
+        """Defaults to True for all spaces."""
+        return True
+
+    def copy(self, space: Space) -> Space:
+        """Attempts it's best with a deepcopy."""
+        return deepcopy(space)
+
+    def _sample(
+        self,
+        space: Space,
+        n: int = 1,
+        seed: Seed | None = None,
+    ) -> list[Config]:
+        rng = as_rng(seed)
+        return [self.f(space, rng.integers(MAX_INT)) for _ in range(n)]

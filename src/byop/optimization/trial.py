@@ -39,16 +39,18 @@ P = ParamSpec("P")
 
 @dataclass
 class Trial(Generic[Info]):
-    """A trial context manager.
+    """A trial as suggseted by an optimizer.
 
-    Attributes:
-        name: The name of the trial.
+    Args:
+        name: The unique name of the trial.
         config: The config for the trial.
         info: The info of the trial.
-        time: The time taken by the trial.
-        timer: The timer used to time the trial.
-        exception: The exception raised by the trial, if any.
         seed: The seed to use if suggested by the optimizer.
+
+    Attributes:
+        time: The time taken by the trial, once ended.
+        timer: The timer used to time the trial, once begun.
+        exception: The exception raised by the trial, if any.
     """
 
     name: str
