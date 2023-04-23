@@ -172,7 +172,7 @@ configurations from the `space` to evaluate.
     from byop.optimization import RandomSearch
     from byop.pipeline import searchable
 
-    my_searchable = searchable("myspace", space={"x": ["apple", "pear"]})  # (1)!
+    my_searchable = searchable("myspace", space={"x": ["apple", "pear"]})  # Only 2 valid configs
     space = my_searchable.space()
 
     random_search = RandomSearch(space=space, seed=42)
@@ -185,7 +185,6 @@ configurations from the `space` to evaluate.
     except RandomSearch.ExhaustedError as e:
         print(traceback.format_exc())
     ```
-    1. Only `#!python 2` valid possible configurations
 
     If you allow for duplicates in your sampling, simply set `duplicates=True`.
 
