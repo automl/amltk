@@ -1,3 +1,4 @@
+# Optimization Guide
 One of the core tasks of any AutoML system is to optimize some objective,
 whether it be some [`Pipeline`][byop.pipeline.Pipeline], a black-box or even a toy function.
 
@@ -95,7 +96,7 @@ in the [Pipeline guide](./pipelines.md).
     1. Here we say that there is a collection of `#!python "parameters"`
     which has one called `#!python "x"` which is in the range `#!python [-10.0, 10.0]`.
 
-### Creating an optimizer
+## Creating an optimizer
 
 We'll start by using [`RandomSearch`][byop.optimization.RandomSearch] to search
 for an optimal value for `#!python "x"` but later on we'll switch to using
@@ -279,7 +280,147 @@ on optimizing Neural Architectures.
 
 !!! info "Planned"
 
-We note that [integrating in your own optimizer is fairly straightforward](#integrating-your-own-optimizer).
+
+
+### Integrating your own Optimizer
+Integrating in your own optimizer is fairly straightforward.
+To integrate you own optimizer, you'll need to implement the following interface:
+
+=== "Simple"
+
+    ```python
+    from byop.optimization import Trial
+
+    class Optimizer:
+
+        def ask(self) -> Trial: ...
+        def tell(self, report: Trial.Report) -> None: ...
+    ```
+
+=== "Generics"
+
+    ```python
+    from byop.optimization.trial import Trial
+    from typing import TypeVar, Protocol
+
+    Info = TypeVar("Info")
+
+    class Optimizer(Protocol[Info]):
+
+        def ask(self) -> Trial[Info]: ...
+        def tell(self, report: Trial.Report[Info]) -> None: ...
+    ```
+
+    The `Info` type variable here is whatever underlying information you want to store in the
+    [`Trial`][byop.optimization.Trial] object, under `trial.info`.
+
+    !!! note "What is a Protocol? What is a TypeVar?"
+
+        Don't worry if this seems mysterious or confusing, you do not need to
+        use these advanced typing features to implement an optimizer.
+
+        These are features in Python that allow for more advanced type checking and
+        type inference. If you are interested in learning more, check out the
+        [Python typing documentation](https://docs.python.org/3/library/typing.html).
+
+---
+
+The [`ask`][byop.optimization.Optimizer.ask] method should return a
+new [`Trial`][byop.optimization.Trial] object, and the [`tell`][byop.optimization.Optimizer.tell]
+method should update the optimizer with the result of the trial. A [`Trial`][byop.optimization.Trial]
+should have a unique `name`, a `config` and whatever optimizer specific
+information you want to store should be stored in the `trial.info` property.
+
+??? example "A simplified version of SMAC integration"
+
+    Here is a simplified example of wrapping [`SMAC`](https://automl.github.io/SMAC3/stable/).
+    The real implementation is more complex, but this should give you an idea of how to
+    implement your own optimizer.
+
+    === "Integrating SMAC"
+
+        ```python
+        from smac.facade import AbstractFacade
+        from smac.runhistory import StatusType, TrialValue
+
+        from byop.optimization import Optimizer, Trial
+
+        class SMACOptimizer(Optimizer):
+
+            def __init__(self, *, facade: AbstractFacade) -> None:
+                self.facade = facade
+
+            def ask(self) -> Trial:
+                smac_trial_info = self.facade.ask()  # (2)!
+                config = smac_trial_info.config
+                budget = smac_trial_info.budget
+                instance = smac_trial_info.instance
+                seed = smac_trial_info.seed
+                config_id = self.facade.runhistory.config_ids[config]
+
+                unique_name = f"{config_id=}.{instance=}.{seed=}.{budget=}"  # (3)!
+                return Trial(name=unique_name, config=config, info=smac_trial_info)  # (4)!
+
+            def tell(self, report: Trial.Report) -> None:  # (5)!
+                if isinstance(report, (Trial.SuccessReport, Trial.FailReport)):
+                    duration = report.time.duration
+                    start = report.time.start,
+                    endtime = report.time.end,
+                    cost = report.results.get("cost", np.inf)
+                    status = (
+                        StatusType.SUCCESS
+                        if isinstance(report, Trial.SuccessReport)
+                        else StatusType.CRASHED
+                    )
+                    additional_info = report.results.get("additional_info", {})
+                else:
+                    duration = 0
+                    start = 0
+                    end = 0
+                    reported_cost = np.inf
+                    additional_info = {}
+
+                trial_value = TrialValue( # (6)!
+                    time=duration,
+                    starttime=start,
+                    endtime=end,
+                    cost=cost,
+                    status=status,
+                    additional_info=additional_info,
+                )
+                self.facade.tell(trial_value)  # (7)!
+        ```
+
+        2. We call `facade.ask()` to get a new `TrialInfo` object from SMAC.
+        3. We need to create a unique name for the trial, so we use the `config_id`, `instance`, `seed` and `budget`
+        to create a unique name.
+        4. We create a new `Trial` object, with the unique name, the configuration, and the `TrialInfo` object.
+        5. We need to implement the `tell` method, which is called when a trial is finished. We need to
+        report the results to the optimizer.
+        6. We create a `TrialValue` object, which is what SMAC uses internally to store the results of a trial.
+        7. We call `facade.tell` to report the results of the trial to SMAC.
+
+    === "To Type Fully"
+
+        ```python
+        from smac.runhistory import TrialInfo
+
+        from byop.optimization import Optimizer, Trial
+
+        class SMACOptimizer(Optimizer[TrialInfo]):
+
+            def ask(self) -> Trial[TrialInfo]:
+            def tell(self, report: Trial.Report[TrialInfo]) -> None: ...
+        ```
+
+        You'll notice here that we use `TrialInfo` as the type parameter
+        to [`Optimizer`][byop.optimization.Optimizer], [`Trial`][byop.optimization.Trial]
+        and [`Trial.Report`][byop.optimization.Trial.Report]. This is how we
+        tell type checking analyzers that the _thing_ stored in `trial.info`
+        will be a `TrialInfo` object from SMAC.
+
+---
+
 If there is an optimizer you would like integrated, please let us know!
 
 ## Running an Optimizer
@@ -774,96 +915,3 @@ and call limits. Please refer to the [Task guide](./tasks.md) for more informati
 * Run the scheduler using `asyncio` to allow interactivity, run as a server or other more advanced use cases.
 
 
-## Integrating your own Optimizer
-To integrate you own optimizer, you'll need to implement the following interface:
-
-```python
-from byop.optimization import Trial, TrialInfo
-
-class Optimizer(Protocol):
-    def ask(self) -> Trial[TrialInfo]:
-        ...
-
-    def tell(self, report: Trial.Report[TrialInfo]) -> None:
-        ...
-```
-
-The `ask` method should return a new `Trial` object, and the `tell` method should
-update the optimizer with the result of the trial. The `TrialInfo` type is
-whatever underlying information you want to store in the `Trial` object, under `trial.info`.
-
-Each [`Trial`][byop.optimization.Trial] object has 3 required properties:
-
-* `trial.name` - A unique name of the trial to identify it, as a `str`.
-* `trial.config` - The configuration of the trial, as a [`Mapping[str, Any]`][typing.Mapping],
-for example a simple `dict` with `str` keys and `Any` values.
-* `trial.info` - Any underlying information of the trial that comes from your optimizer.
-
-Here is a simplified example of wrapping [`SMAC`](https://automl.github.io/SMAC3/stable/).
-The real implementation is more complex, but this should give you an idea of how to
-implement your own optimizer.
-
-```python hl_lines="8 13 24 22 47"
-from smac.facade import AbstractFacade
-from smac.runhistory import StatusType
-from smac.runhistory import TrialInfo as SMACTrialInfo
-from smac.runhistory import TrialValue as SMACTrialValue
-
-from byop.optimization import Optimizer, Trial
-
-class SMACOptimizer(Optimizer[SMACTrialInfo]):  # (1)!
-
-    def __init__(self, *, facade: AbstractFacade) -> None:
-        self.facade = facade
-
-    def ask(self) -> Trial[SMACTrialInfo]:
-        smac_trial_info = self.facade.ask()  # (2)!
-        config = smac_trial_info.config
-        budget = smac_trial_info.budget
-        instance = smac_trial_info.instance
-        seed = smac_trial_info.seed
-        config_id = self.facade.runhistory.config_ids[config]
-
-        unique_name = f"{config_id=}.{instance=}.{seed=}.{budget=}"  # (3)!
-        return Trial(name=unique_name, config=config, info=smac_trial_info)  # (4)!
-
-    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # (5)!
-        if isinstance(report, (Trial.SuccessReport, Trial.FailReport)):
-            duration = report.time.duration
-            start = report.time.start,
-            endtime = report.time.end,
-            cost = report.results.get("cost", np.inf)
-            status = (
-                StatusType.SUCCESS
-                if isinstance(report, Trial.SuccessReport)
-                else StatusType.CRASHED
-            )
-            additional_info = report.results.get("additional_info", {})
-        else:
-            duration = 0
-            start = 0
-            end = 0
-            reported_cost = np.inf
-            additional_info = {}
-
-        trial_value = SMACTrialValue( # (6)!
-            time=duration,
-            starttime=start,
-            endtime=end,
-            cost=cost,
-            status=status,
-            additional_info=additional_info,
-        )
-        self.facade.tell(trial_value)  # (7)!
-```
-
-1. We need to specify the type of `TrialInfo` that we'll be using. In this case, SMAC's `TrialInfo`
-which they use internally.
-2. We call `facade.ask()` to get a new `TrialInfo` object from SMAC.
-3. We need to create a unique name for the trial, so we use the `config_id`, `instance`, `seed` and `budget`
-to create a unique name.
-4. We create a new `Trial` object, with the unique name, the configuration, and the `TrialInfo` object.
-5. We need to implement the `tell` method, which is called when a trial is finished. We need to
-report the results to the optimizer.
-6. We create a `TrialValue` object, which is what SMAC uses internally to store the results of a trial.
-7. We call `facade.tell` to report the results of the trial to SMAC.
