@@ -159,18 +159,20 @@ configurations from the `space` to evaluate.
     print(trial)
     ```
 
+    ---
+
     By default, [`RandomSearch`][byop.optimization.RandomSearch]
     does not allow duplicates. If it can't sample a unique config
     in `max_samples_attempts=` (default: `#!python 50`), then
     it will deem that there are no more unique configs and raise
     a [`RandomSearch.ExhaustedError`][byop.optimization.RandomSearch.ExhaustedError].
 
-    ```python exec="true" source="tabbed-left" result="python" returncode="1" title="RandomSearch Exhausted" tabs="Source | Error"
+    ```python exec="true" source="tabbed-left" result="python" returncode="1" title="RandomSearch Exhausted" tabs="Source | Error" hl_lines="5 10 11 14"
     import traceback
     from byop.optimization import RandomSearch
     from byop.pipeline import searchable
 
-    my_searchable = searchable("myspace", space={"x": ["apple", "pear"]})
+    my_searchable = searchable("myspace", space={"x": ["apple", "pear"]})  # (1)!
     space = my_searchable.space()
 
     random_search = RandomSearch(space=space, seed=42)
@@ -183,13 +185,16 @@ configurations from the `space` to evaluate.
     except RandomSearch.ExhaustedError as e:
         print(traceback.format_exc())
     ```
+    1. Only `#!python 2` valid possible configurations
 
     If you allow for duplicates in your sampling, simply set `duplicates=True`.
+
+    ---
 
     If you want to use a particular [`Sampler`][byop.pipeline.Sampler]
     you can pass it in as well.
 
-    ```python exec="true" source="material-block" result="python" title="RandomSearch Specific Sampler"
+    ```python exec="true" source="material-block" result="python" title="RandomSearch Specific Sampler" hl_lines="3 8"
     from byop.optimization import RandomSearch
     from byop.pipeline import searchable
     from byop.configspace import ConfigSpaceSampler
@@ -202,6 +207,8 @@ configurations from the `space` to evaluate.
     trial = random_search.ask()
     print(trial)
     ```
+
+    ---
 
     Or you can even pass in your own custom sampling function.
 
@@ -233,7 +240,7 @@ configurations from the `space` to evaluate.
     print(trial)
     ```
 
-    !!! warning "Must accept `seed=` keyword argument"
+    !!! warning "Determinism with the `seed` argument"
 
         Given the same `int` seed integer, your sampling function
         should return the same set of configurations.
