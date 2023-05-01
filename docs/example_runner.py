@@ -7,9 +7,10 @@ import textwrap
 from dataclasses import dataclass
 from itertools import takewhile
 from pathlib import Path
+from typing import Any
 
 import mkdocs_gen_files
-from more_itertools import first, first_true, peekable
+from more_itertools import first_true, peekable
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,10 @@ class Example:
     segments: list[CodeSegment | CommentSegment]
 
     @classmethod
-    def should_execute(cls, name: str) -> bool:
+    def should_execute(cls, *, name: str, runnable: bool) -> bool:
+        if not runnable:
+            return False
+
         env_var = os.environ.get(ENV_VAR, None)
         if env_var is None:
             return False
@@ -150,6 +154,20 @@ class Example:
         return name.lower() in examples_to_exec
 
     @classmethod
+    def header_flags(cls, line: str) -> dict[str, Any] | None:
+        prefix = "# Flags:"
+        if not line.startswith(prefix):
+            return None
+
+        line = line[len(prefix) :]
+        flags = [line.strip() for line in line.split(",")]
+
+        results = {}
+
+        results["doc-runnable"] = any(flag.lower() == "doc-runnable" for flag in flags)
+        return results
+
+    @classmethod
     def from_file(cls, path: Path) -> Example:
         with path.open() as f:
             lines = f.readlines()
@@ -157,7 +175,13 @@ class Example:
         lines = iter(lines)
 
         # First line is the name of the example to show
-        name = first(lines).strip().replace('"""', "")
+        name = next(lines).strip().replace('"""', "")
+        potential_flag_line = next(lines)
+        flags = cls.header_flags(potential_flag_line)
+        if flags is None:
+            # Prepend the potential flag line back to the lines
+            lines = iter([potential_flag_line, *lines])
+            flags = {}
 
         # Lines leading up to the second triple quote are the description
         description = "".join(takewhile(lambda _l: not _l.startswith('"""'), lines))
@@ -185,7 +209,10 @@ class Example:
                 code_segment = CodeSegment(
                     [line.rstrip() for line in ls],
                     session=name,
-                    exec=cls.should_execute(name),
+                    exec=cls.should_execute(
+                        name=name,
+                        runnable=flags.get("doc-runnable", False),
+                    ),
                 )
                 segments.append(code_segment)
 

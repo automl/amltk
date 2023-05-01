@@ -6,9 +6,7 @@ from __future__ import annotations
 import shutil
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
-
-from more_itertools import ilen
+from typing import TYPE_CHECKING, Any, Iterator, Sequence
 
 from byop.store.bucket import Bucket
 from byop.store.drop import Drop
@@ -39,7 +37,7 @@ DEFAULT_LOADERS: tuple[PathLoader, ...] = (
 )
 
 
-class PathBucket(Bucket[Path, str]):
+class PathBucket(Bucket[str, Path]):
     """A bucket that uses the Path API to store objects.
 
     This bucket is a key-value lookup backed up by some filesystem.
@@ -145,6 +143,7 @@ class PathBucket(Bucket[Path, str]):
         if create:
             path.mkdir(parents=True, exist_ok=True)
 
+        self._create = create
         self.path = path
         self.loaders = _loaders
 
@@ -160,42 +159,29 @@ class PathBucket(Bucket[Path, str]):
     def __iter__(self) -> Iterator[str]:
         return (path.name for path in self.path.iterdir())
 
-    def keys(self) -> Iterator[str]:
-        """Return an iterator over the keys in the bucket."""
-        return self.__iter__()
+    def sub(self, key: str, *, create: bool | None = None) -> Self:
+        """Create a subdirectory of the bucket.
 
-    def values(self) -> Iterator[Drop[Path]]:
-        """Return an iterator over the values in the bucket."""
-        return (self._drop(path, loaders=self.loaders) for path in self.path.iterdir())
+        Args:
+            key: The name of the subdirectory.
+            create: Whether the subdirectory will be created if it does not
+                exist. If None, the default, the value of `create` passed to
+                the constructor will be used.
 
-    def items(self) -> Iterator[tuple[str, Drop[Path]]]:
-        """Return an iterator over the items in the bucket."""
-        return (
-            (p.name, self._drop(p, loaders=self.loaders)) for p in self.path.iterdir()
+        Returns:
+            A new bucket with the same loaders as the current bucket.
+        """
+        return self.__class__(
+            self.path / key,
+            loaders=self.loaders,
+            create=self._create if create is None else create,
+            clean=False,
         )
 
-    def update(self, other: Mapping[str, Any]) -> None:
-        """Update the bucket with the items in other."""
-        for key, value in other.items():
-            self[key].put(value)
-
-    def __contains__(self, key: str) -> bool:
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
         return (self.path / key).exists()
-
-    def __len__(self) -> int:
-        return ilen(self.path.iterdir())
-
-    def __truediv__(self, key: str | Path) -> Self:
-        try:
-            return type(self)(self.path / key, loaders=self.loaders)
-        except TypeError:
-            return NotImplemented
-
-    def __rtruediv__(self, key: str | Path) -> Self:
-        try:
-            return type(self)(key / self.path, loaders=self.loaders)
-        except TypeError:
-            return NotImplemented
 
     @classmethod
     def _drop(cls, path: Path, loaders: tuple[PathLoader, ...]) -> Drop[Path]:

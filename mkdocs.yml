@@ -109,6 +109,7 @@ plugins:
   - mkdocstrings:
       default_handler: python
       enable_inventory: true
+      custom_templates: docs/_templates
       handlers:
         python:
           paths: [src]
@@ -120,7 +121,7 @@ plugins:
             - 'https://scikit-learn.org/stable/objects.inv'
             - 'https://pytorch.org/docs/stable/objects.inv'
             - 'https://jobqueue.dask.org/en/latest/objects.inv'
-          options:
+          options:  # https://mkdocstrings.github.io/python/usage/
             show_root_heading: false
             show_root_toc_entry: false
             show_object_full_path: false
@@ -133,6 +134,7 @@ plugins:
             group_by_category: false
             show_category_heading: false
             show_signature: true
+            separate_signature: false
             show_signature_annotations: false
             docstring_section_style: spacy
             filters:
@@ -143,6 +145,8 @@ nav:
   - Home: "index.md"
   - Guides: "guides/"
   - Integrations: "integrations/"
+  - Reference: "reference/"
   - Examples: "examples/"  # Auto generated with docs/examples_runner.py
-  - API: "reference/"  # Auto generated with docs/api_generator.py
+  - API: "api/"  # Auto generated with docs/api_generator.py
   - Contributing: "contributing.md"
+

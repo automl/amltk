@@ -919,5 +919,3 @@ and call limits. Please refer to the [Task guide](./tasks.md) for more informati
 [Slurm](https://slurm.schedmd.com/), and [Apache Airflow](https://airflow.apache.org/).
 * Use a whole host of more callbacks to control you system, check out the [Task guide](./tasks.md) for more information.
 * Run the scheduler using `asyncio` to allow interactivity, run as a server or other more advanced use cases.
-
-

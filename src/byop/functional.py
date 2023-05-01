@@ -16,12 +16,27 @@ K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
 
 
+def prefix_keys(d: Mapping[str, V], prefix: str) -> dict[str, V]:
+    """Prefix the keys of a mapping.
+
+    ```python exec="true" source="material-block" result="python" title="prefix_keys"
+    from byop.functional import prefix_keys
+
+    d = {"a": 1, "b": 2}
+    print(prefix_keys(d, "c:"))
+    ```
+    """
+    return {prefix + k: v for k, v in d.items()}
+
+
 def mapping_select(d: Mapping[str, V], prefix: str) -> dict[str, V]:
     """Select a subset of a mapping.
 
-    ```python
+    ```python exec="true" source="material-block" result="python" title="mapping_select"
+    from byop.functional import mapping_select
+
     d = {"a:b:c": 1, "a:b:d": 2, "c:elephant": 3}
-    mapping_select(d, "a:b:")  # {"c": 1, "d": 2}
+    print(mapping_select(d, "a:b:"))
     ```
 
     Args:
@@ -43,13 +58,13 @@ def reverse_enumerate(
     This function is similar to enumerate, but it iterates over the
     sequence in reverse.
 
-    ```python
+    ```python exec="true" source="material-block" result="python" title="reverse_enumerate"
+    from byop.functional import reverse_enumerate
+
     xs = ["a", "b", "c"]
     for i, x in reverse_enumerate(xs):
         print(i, x)
-    # 2 c
-    # 1 b
-    # 0 a
+    ```
 
     Args:
         seq: The sequence to iterate over.
@@ -57,19 +72,21 @@ def reverse_enumerate(
 
     Returns:
         An iterator over the sequence.
-    """
+    """  # noqa: E501
     if start is None:
         start = len(seq) - 1
     yield from zip(count(start, -1), reversed(seq))
 
 
 def rgetattr(obj: Any, attr: str, *args: Any) -> Any:
-    """Recursive getattr.
+    """Recursive version of getattr.
 
     This function is similar to getattr, but it allows you to get
     attributes using '.' notation.
 
-    ```python
+    ```python exec="true" source="material-block" result="python" title="rgetattr"
+    from byop.functional import rgetattr
+
     class A:
         x = 1
 
@@ -77,10 +94,11 @@ def rgetattr(obj: Any, attr: str, *args: Any) -> Any:
         a = A()
 
     b = B()
-    rgetattr(b, "a.x")  # 1
+    print(rgetattr(b, "a.x"))
     ```
 
-    https://stackoverflow.com/a/31174427/5332072
+    See Also:
+        * https://stackoverflow.com/a/31174427/5332072
 
     Args:
         obj: The object to get the attribute from.

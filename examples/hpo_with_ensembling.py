@@ -1,4 +1,5 @@
 """Performing HPO with Post-Hoc Ensembling.
+# Flags: doc-Runnable
 
 !!! note "Dependencies"
 
@@ -36,20 +37,13 @@ You can skip the imports sections and go straight to the
 from __future__ import annotations
 
 import shutil
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
 import openml
-
-from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
-from byop.optimization import Trial
-from byop.pipeline import Pipeline, choice, split, step
-from byop.scheduling import Scheduler, Task
-from byop.sklearn.data import split_data
-from byop.smac import SMACOptimizer
-from byop.store import PathBucket
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import VarianceThreshold
@@ -66,6 +60,13 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVC
 
+from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
+from byop.optimization import History, Trial
+from byop.pipeline import Pipeline, choice, split, step
+from byop.scheduling import Scheduler, Task
+from byop.sklearn.data import split_data
+from byop.smac import SMACOptimizer
+from byop.store import PathBucket
 
 """
 Below is just a small function to help us get the dataset from OpenML
@@ -236,6 +237,14 @@ def target_function(
         sklearn_pipeline.fit(X_train, y_train)
 
     if trial.exception:
+        trial.store(
+            {
+                "exception.txt": str(trial.exception),
+                "traceback.txt": traceback.format_tb(trial.traceback),
+                "config.json": dict(trial.config),
+            },
+            where=bucket,
+        )
         return trial.fail(cost=np.inf)  # <!> (4)!
 
     # Make our predictions with the model
@@ -244,25 +253,30 @@ def target_function(
     test_predictions = sklearn_pipeline.predict(X_test)
 
     val_probabilites = sklearn_pipeline.predict_proba(X_val)
+    val_accuracy = accuracy_score(val_predictions, y_val)
 
-    # Save all of this to the file system
-    scores = {
-        "train_accuracy": accuracy_score(train_predictions, y_train),
-        "validation_accuracy": accuracy_score(val_predictions, y_val),
-        "test_accuracy": accuracy_score(test_predictions, y_test),
-    }
-    bucket.update(  # (5)!
+    # Save the scores to the summary of the trial
+    trial.summary.update(
         {
-            f"trial_{trial.name}_config.json": dict(trial.config),
-            f"trial_{trial.name}_scores.json": scores,
-            f"trial_{trial.name}.pkl": sklearn_pipeline,
-            f"trial_{trial.name}_val_predictions.npy": val_predictions,
-            f"trial_{trial.name}_val_probabilities.npy": val_probabilites,
-            f"trial_{trial.name}_test_predictions.npy": test_predictions,
+            "train_accuracy": accuracy_score(train_predictions, y_train),
+            "validation_accuracy": val_accuracy,
+            "test_accuracy": accuracy_score(test_predictions, y_test),
         },
     )
 
-    val_accuracy = scores["validation_accuracy"]
+    # Save all of this to the file system
+    trial.store(  # (5)!
+        {
+            "config.json": dict(trial.config),
+            "scores.json": trial.summary,
+            "model.pkl": sklearn_pipeline,
+            "val_predictions.npy": val_predictions,
+            "val_probabilities.npy": val_probabilites,
+            "test_predictions.npy": test_predictions,
+        },
+        where=bucket,
+    )
+
     return trial.success(cost=1 - val_accuracy)  # <!> (6)!
 
 
@@ -273,8 +287,9 @@ def target_function(
 # 3. We begin the trial by timing the execution of the target function and capturing
 #  any potential exceptions.
 # 4. If the trial failed, we return a failed report with a cost of infinity.
-# 5. We save the results of the trial to the file system using the
-#  [`PathBucket`][byop.store.PathBucket] object.
+# 5. We save the results of the trial using
+#   [`Trial.store`][byop.optimization.Trial.store], creating a subdirectory
+#   for this trial.
 # 6. We return a successful report with the cost of the trial, which is the
 # inverse of the validation accuracy.
 """
@@ -300,17 +315,18 @@ class Ensemble:
 
 
 def create_ensemble(
+    history: History,
     bucket: PathBucket,
     /,
     size: int = 5,
     seed: int = 42,
 ) -> Ensemble:
-    files = bucket.find(r"trial_(.*)_val_probabilities.npy")  # (1)!
-    if files is None:
+    if len(history) == 0:
         return Ensemble({}, [], {})
 
     validation_predictions = {
-        name: drop.load(check=np.ndarray) for name, drop in files.items()
+        name: report.retrieve("val_probabilities.npy", where=bucket)
+        for name, report in history.items()
     }
     targets = bucket["y_val.npy"].load()
 
@@ -327,14 +343,11 @@ def create_ensemble(
         classes=[0, 1],  # <!>
     )  # <!>
 
-    configs = {name: bucket[f"trial_{name}_config.json"].load() for name in weights}
+    configs = {
+        name: history[name].retrieve("config.json", where=bucket) for name in weights
+    }
     return Ensemble(weights=weights, trajectory=trajectory, configs=configs)
 
-
-# 1. We use [`find()`][byop.store.Bucket.find] to find all of the files
-#   that match the regular expression `trial_(.*)_val_probabilities.npy`.
-#   The keys of the returned dictionary are the trial names and the values
-#   are the [`Drop`][byop.store.Drop] objects holding the predictions.
 """
 ## Main
 Finally we come to the main script that runs everything.
@@ -348,7 +361,7 @@ if path.exists():
     shutil.rmtree(path)
 
 bucket = PathBucket(path)
-bucket.update(  # (2)!
+bucket.store(  # (2)!
     {
         "X_train.csv": X_train,
         "X_val.csv": X_val,
@@ -367,14 +380,15 @@ objective = Trial.Objective(  # (5)!
     bucket=bucket,
     pipeline=pipeline,
 )
-
 task = Trial.Task(objective, scheduler)  # (6)!
+
 ensemble_task = Task(create_ensemble, scheduler)  # (7)!
 
-reports: list[Trial.SuccessReport] = []
+trial_history = History()
 ensembles: list[Ensemble] = []
 
-@scheduler.on_start(repeat=2)  # (8)!
+
+@scheduler.on_start  # (8)!
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
@@ -386,10 +400,16 @@ def tell_optimizer(report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
+@task.on_report
+def add_to_history(report: Trial.Report) -> None:
+    """When we get a report, print it."""
+    trial_history.add(report)
+
 @task.on_success
 def launch_ensemble_task(_: Trial.SuccessReport) -> None:
     """When a task successfully completes, launch an ensemble task."""
-    ensemble_task(bucket)
+    ensemble_task(trial_history, bucket)
+
 
 @task.on_report
 def launch_another_task(_: Trial.Report) -> None:
@@ -397,15 +417,6 @@ def launch_another_task(_: Trial.Report) -> None:
     trial = optimizer.ask()
     task(trial)
 
-@task.on_report
-def print_report(report: Trial.Report) -> None:
-    """When we get a report, print it."""
-    print(report)
-
-@task.on_success
-def save_success(report: Trial.SuccessReport) -> None:
-    """When we get a report, save it."""
-    reports.append(report)
 
 
 @ensemble_task.on_returned
@@ -413,27 +424,34 @@ def save_ensemble(ensemble: Ensemble) -> None:
     """When an ensemble task returns, save it."""
     ensembles.append(ensemble)
 
+
 @ensemble_task.on_exception
 def print_ensemble_exception(exception: BaseException) -> None:
     """When an ensemble task throws an exception, log it."""
     print(exception)
+    scheduler.stop()
+
 
 @scheduler.on_timeout
 def run_last_ensemble_task() -> None:
     """When the scheduler is empty, run the last ensemble task."""
-    ensemble_task(bucket)
+    ensemble_task(trial_history, bucket)
+
 
 scheduler.run(timeout=5, wait=True)  # (9)!
+
+print("Trial history:")
+history_df = trial_history.df()
+print(history_df)
 
 best_ensemble = max(ensembles, key=lambda e: e.trajectory[-1])
 
 print("Best ensemble:")
 print(best_ensemble)
-
 # 1. We use `#!python get_dataset()` defined earlier to load the
 #  dataset.
-# 2. We use [`update()`][byop.store.Bucket.update] to store the data in the bucket, just
-#   as if it was a regular dictionary.
+# 2. We use [`store()`][byop.store.Bucket.store] to store the data in the bucket, with
+# each key being the name of the file and the value being the data.
 # 3. We use [`Scheduler.with_sequential()`][byop.scheduling.Scheduler.with_sequential]
 #  create a [`Scheduler`][byop.scheduling.Scheduler] that runs everything
 #  sequentially. You can of course use a different backend if you want.
@@ -455,8 +473,8 @@ print(best_ensemble)
 #   for the `create_ensemble` method above. This will also run in parallel with the hpo
 #   trials if using a non-sequential scheduling mode.
 # 8. We use `Scheduler.on_start()` hook to register a
-#  callback that will be called when the scheduler starts. We use the `repeat` argument
-#  to make sure it's called `#!python n_workers = 4` times.
+#  callback that will be called when the scheduler starts. We can use the
+#  `repeat` argument to make sure it's called many times if we want.
 # 9. We use [`Scheduler.run()`][byop.scheduling.Scheduler.run] to run the scheduler.
 #  Here we set it to run briefly for 5 seconds and wait for remaining tasks to finish
 #  before continuing.

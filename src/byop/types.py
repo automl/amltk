@@ -24,15 +24,15 @@ class Comparable(Protocol):
     """Protocol for annotating comparable types."""
 
     @abstractmethod
-    def __lt__(self: CT, other: CT, /) -> bool:
+    def __lt__(self: _CT, other: _CT, /) -> bool:
         pass
 
     @abstractmethod
-    def __gt__(self: CT, other: CT, /) -> bool:
+    def __gt__(self: _CT, other: _CT, /) -> bool:
         pass
 
 
-CT = TypeVar("CT", bound=Comparable)
+_CT = TypeVar("_CT", bound=Comparable)
 
 
 def safe_issubclass(cls: type, classes: str | tuple[str, ...]) -> bool:
