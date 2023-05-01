@@ -84,9 +84,7 @@ log_cli = false
 log_level = "DEBUG"
 xfail_strict = true
 addopts = "--durations=10 -vv"
-markers = [
-  "example: An example"
-]
+markers = ["example: An example"]
 
 
 [tool.coverage.run]
@@ -226,7 +224,7 @@ exclude = [
 ]
 "src/byop/__version__.py" = ["D100"]
 "__init__.py" = ["I002"]
-"examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20"]
+"examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20", "D415"]
 "docs/*" = ["INP001"]
 
 

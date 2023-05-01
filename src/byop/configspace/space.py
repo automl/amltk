@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import copy, deepcopy
-from typing import TYPE_CHECKING, Any, Mapping, Sequence, cast
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 import numpy as np
 from ConfigSpace import Categorical, Configuration, ConfigurationSpace, Constant
@@ -183,9 +183,9 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
             self.set_seed(space, seed_int)
 
         if n == 1:
-            return [space.sample_configuration()]
+            return [dict(space.sample_configuration())]
 
-        return cast(list, space.sample_configuration(n))
+        return [dict(c) for c in space.sample_configuration(n)]
 
     def copy(self, space: ConfigurationSpace) -> ConfigurationSpace:
         """See [`Sampler.copy`][byop.pipeline.Sampler.copy].

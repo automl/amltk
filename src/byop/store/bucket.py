@@ -11,23 +11,31 @@ types in a single location.
 from __future__ import annotations
 
 import re
+from abc import ABC, abstractmethod
+from collections.abc import ItemsView, KeysView, ValuesView
 from typing import (
     TYPE_CHECKING,
     Any,
+    Generic,
     Hashable,
     Iterable,
     Iterator,
     Literal,
     Mapping,
-    Protocol,
+    MutableMapping,
     TypeVar,
     overload,
 )
 
+from more_itertools import ilen
+
+from byop.store.drop import Drop
+
 T = TypeVar("T")
 
 if TYPE_CHECKING:
-    from byop.store.drop import Drop
+    from typing_extensions import Self
+
     from byop.store.loader import Loader
 
 DEFAULT_FILE_LOADERS: tuple[Loader, ...] = ()
@@ -36,7 +44,7 @@ LinkT = TypeVar("LinkT")
 KeyT = TypeVar("KeyT", bound=Hashable)
 
 
-class Bucket(Protocol[LinkT, KeyT]):
+class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
     """Definition of a bucket of resources, accessed by a Key.
 
     Indexing into a bucket returns a [`Drop`][byop.store.drop.Drop] that
@@ -50,6 +58,7 @@ class Bucket(Protocol[LinkT, KeyT]):
     which wraps the resource.
     """
 
+    @abstractmethod
     def __setitem__(self, key: KeyT, value: Any) -> None:
         """Store a value in the bucket.
 
@@ -57,59 +66,61 @@ class Bucket(Protocol[LinkT, KeyT]):
             key: The key to the resource.
             value: The value to store in the bucket.
         """
-        ...
 
+    @abstractmethod
     def __getitem__(self, key: KeyT) -> Drop[LinkT]:
         """Get a drop for a resource in the bucket.
 
         Args:
             key: The key to the resource.
         """
-        ...
 
+    @abstractmethod
     def __delitem__(self, key: KeyT) -> None:
         """Remove a resource from the bucket.
 
         Args:
             key: The key to the resource.
         """
-        ...
 
+    @abstractmethod
     def __iter__(self) -> Iterator[KeyT]:
         """Iterate over the keys in the bucket."""
-        ...
 
-    def keys(self) -> Iterator[KeyT]:
+    @abstractmethod
+    def sub(self, key: KeyT) -> Self:
+        """Create a subbucket of this bucket.
+
+        Args:
+            key: The name of the sub bucket.
+
+        Returns:
+            A new bucket with the same loaders as the current bucket.
+        """
+
+    def keys(self) -> KeysView[KeyT]:
         """Iterate over the keys in the bucket."""
-        ...
+        return KeysView(self)
 
-    def values(self) -> Iterator[Drop[LinkT]]:
+    def values(self) -> ValuesView[Drop[LinkT]]:
         """Iterate over the drops in the bucket."""
-        ...
+        return ValuesView(self)
 
-    def items(self) -> Iterator[tuple[KeyT, Drop[LinkT]]]:
+    def items(self) -> ItemsView[KeyT, Drop[LinkT]]:
         """Iterate over the keys and drops in the bucket."""
-        ...
+        return ItemsView(self)
 
-    def __contains__(self, key: KeyT) -> bool:
+    def __contains__(self, key: object) -> bool:
         """Check if a key is in the bucket.
 
         Args:
             key: The key to check for.
         """
-        ...
+        return key in self
 
     def __len__(self) -> int:
         """Get the number of keys in the bucket."""
-        ...
-
-    def update(self, items: Mapping[KeyT, Any]) -> None:
-        """Update the bucket with the items from a mapping.
-
-        Args:
-            items: The items to update the bucket with.
-        """
-        ...
+        return ilen(iter(self))
 
     @overload
     def find(self, pattern: str) -> dict[str, Drop[LinkT]] | None:
@@ -202,6 +213,15 @@ class Bucket(Protocol[LinkT, KeyT]):
 
         return matches
 
+    def store(self, other: Mapping[KeyT, Any]) -> None:
+        """Store items into the bucket with the given mapping.
+
+        Args:
+            other: The mapping of items to store in the bucket.
+        """
+        for key, value in other.items():
+            self[key] = value
+
     def fetch(
         self,
         keys: Iterable[KeyT],
@@ -223,3 +243,9 @@ class Bucket(Protocol[LinkT, KeyT]):
         return {
             key: self[key].get(default=default_dict.get(key, default)) for key in keys
         }
+
+    def __truediv__(self, key: KeyT) -> Self:
+        try:
+            return self.sub(key)
+        except TypeError:
+            return NotImplemented

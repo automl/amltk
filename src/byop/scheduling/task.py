@@ -393,22 +393,34 @@ class Task(Generic[P, R]):
 
         exception = future.exception()
         if exception is not None:
-            self.emit_many(
-                {
-                    Task.F_EXCEPTION: ((future, exception), None),
-                    Task.EXCEPTION: ((exception,), None),
-                },
-            )
+            emissions: dict = {
+                Task.F_EXCEPTION: ((future, exception), None),
+                Task.EXCEPTION: ((exception,), None),
+            }
 
             # If it was a limiting exception, emit it
-            if isinstance(exception, Pynisher.TimeoutException):
-                self.emit(Task.TIMEOUT, future, exception)
             if isinstance(exception, Pynisher.WallTimeoutException):
-                self.emit(Task.WALL_TIME_LIMIT_REACHED, future, exception)
-            if isinstance(exception, Pynisher.MemoryLimitException):
-                self.emit(Task.MEMORY_LIMIT_REACHED, future, exception)
-            if isinstance(exception, Pynisher.CpuTimeoutException):
-                self.emit(Task.CPU_TIME_LIMIT_REACHED, future, exception)
+                emissions.update(
+                    {
+                        Task.TIMEOUT: ((future, exception), None),
+                        Task.WALL_TIME_LIMIT_REACHED: ((future, exception), None),
+                    },
+                )
+            elif isinstance(exception, Pynisher.MemoryLimitException):
+                emissions.update(
+                    {
+                        Task.MEMORY_LIMIT_REACHED: ((future, exception), None),
+                    },
+                )
+            elif isinstance(exception, Pynisher.CpuTimeoutException):
+                emissions.update(
+                    {
+                        Task.TIMEOUT: ((future, exception), None),
+                        Task.CPU_TIME_LIMIT_REACHED: ((future, exception), None),
+                    },
+                )
+
+            self.emit_many(emissions)  # type: ignore
         else:
             result = future.result()
             self.emit_many(
