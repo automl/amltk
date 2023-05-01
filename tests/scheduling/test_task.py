@@ -74,9 +74,9 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(mem_in_bytes=two_gb)
 
-    end_status = scheduler.run(end_on_empty=True)
+    end_status = scheduler.run(raises=False)
 
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert isinstance(end_status, Task.MemoryLimitException)
 
     assert task.counts == {
         Task.SUBMITTED: 1,
@@ -93,6 +93,7 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
         (Task.F_EXCEPTION, "big_memory_function"): 1,
         (Task.MEMORY_LIMIT_REACHED, "big_memory_function"): 1,
         Scheduler.STARTED: 1,
+        Scheduler.STOP: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
     }
@@ -105,9 +106,9 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(duration=3)
 
-    end_status = scheduler.run(end_on_empty=True)
+    end_status = scheduler.run(raises=False)
 
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert isinstance(end_status, Task.WallTimeoutException)
 
     assert task.counts == {
         Task.SUBMITTED: 1,
@@ -126,6 +127,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
         (Task.F_EXCEPTION, "time_wasting_function"): 1,
         (Task.WALL_TIME_LIMIT_REACHED, "time_wasting_function"): 1,
         Scheduler.STARTED: 1,
+        Scheduler.STOP: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
     }
@@ -139,9 +141,8 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(iterations=int(1e16))
 
-    end_status = scheduler.run(end_on_empty=True)
-
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    end_status = scheduler.run(raises=False)
+    assert isinstance(end_status, Task.CpuTimeoutException)
 
     assert task.counts == {
         Task.SUBMITTED: 1,
@@ -160,6 +161,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
         (Task.TIMEOUT, "cpu_time_wasting_function"): 1,
         (Task.CPU_TIME_LIMIT_REACHED, "cpu_time_wasting_function"): 1,
         Scheduler.STARTED: 1,
+        Scheduler.STOP: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
     }

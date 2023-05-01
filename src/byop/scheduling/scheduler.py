@@ -555,7 +555,7 @@ class Scheduler:
             return None
 
         self.queue.append(sync_future)
-        self._queue_has_items.set()
+        self._queue_has_items_event.set()
         sync_future.add_done_callback(self._register_complete)
         return sync_future
 
@@ -566,12 +566,9 @@ class Scheduler:
         except ValueError as e:
             logger.error(f"{future=} was not found in the queue {self.queue}: {e}!")
 
-        if (
-            self._end_on_exception_flag
-            and future.done()
-            and (exception := future.exception())
-        ):
-            self.stop("Ending on first exception", exception)
+        exception = future.exception()
+        if self._end_on_exception_flag and future.done() and exception:
+            self.stop("Ending on first exception", exception=exception)
 
     async def _stop_when_queue_empty(self) -> None:
         """Stop the scheduler when the queue is empty."""
@@ -615,7 +612,7 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-    ) -> ExitCode | Exception:
+    ) -> ExitCode | BaseException:
         self.executor.__enter__()
 
         # Declare we are running
@@ -655,6 +652,7 @@ class Scheduler:
         )
 
         # Determine the reason for stopping
+        stop_reason: BaseException | Scheduler.ExitCode
         if stop_triggered.done() and self._stop_event.is_set():
             stop_reason = Scheduler.ExitCode.STOPPED
 
@@ -673,8 +671,18 @@ class Scheduler:
             else:
                 msg = "Scheduler had `stop()` called on it."
 
+            if exception:
+                logger.error(msg)
+
             logger.debug(msg)
             self.event_manager.emit(Scheduler.STOP)
+            logger.warning(exception)
+            logger.warning(bool(self._end_on_exception_flag))
+            if self._end_on_exception_flag and exception:
+                stop_reason = exception
+            else:
+                stop_reason = Scheduler.ExitCode.STOPPED
+
         elif queue_empty and queue_empty.done():
             logger.debug("Scheduler stopped due to being empty.")
             stop_reason = Scheduler.ExitCode.EXHAUSTED
@@ -748,8 +756,9 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-        end_on_exception: bool = False,
-    ) -> ExitCode:
+        end_on_exception: bool = True,
+        raises: bool = True,
+    ) -> ExitCode | BaseException:
         """Run the scheduler.
 
         Args:
@@ -760,6 +769,9 @@ class Scheduler:
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
             end_on_exception: Whether to end if an exception occurs.
+            raises: Whether to raise an exception if the scheduler
+                ends due to an exception. Has no effect if `end_on_exception`
+                is `False`.
 
         Returns:
             The reason for the scheduler ending.
@@ -794,17 +806,18 @@ class Scheduler:
                 wait=wait,
             ),
         )
+        logger.warning(result)
 
         # Reset it back to its default
         self._end_on_exception_flag.reset()
 
         # If we were meant to end on an exception and the result
         # we got back from the scheduler was an exception, raise it
-        if isinstance(result, Exception):
-            if end_on_exception:
+        if isinstance(result, BaseException):
+            if end_on_exception and raises:
                 raise result
 
-            return Scheduler.ExitCode.EXCEPTION
+            return result
 
         return result
 
@@ -814,8 +827,9 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-        end_on_exception: bool = False,
-    ) -> ExitCode:
+        end_on_exception: bool = True,
+        raises: bool = True,
+    ) -> ExitCode | BaseException:
         """Async version of `run`.
 
         Args:
@@ -825,6 +839,9 @@ class Scheduler:
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
             end_on_exception: Whether to end if an exception occurs.
+            raises: Whether to raise an exception if the scheduler
+                ends due to an exception. Has no effect if `end_on_exception`
+                is `False`.
 
         Returns:
             The reason for the scheduler ending.
@@ -843,22 +860,24 @@ class Scheduler:
 
         # If we were meant to end on an exception and the result
         # we got back from the scheduler was an exception, raise it
-        if isinstance(result, Exception):
-            if end_on_exception:
+        if isinstance(result, BaseException):
+            if raises:
                 raise result
 
-            return Scheduler.ExitCode.EXCEPTION
+            return result
 
         return result
 
-    def stop(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
+    def stop(self, *args: Any, **kwargs: Any) -> None:
         """Stop the scheduler."""
         # NOTE: we allow args and kwargs to allow it to be easily
         # included in any callback.
         if not self.running():
             raise RuntimeError("Scheduler has not been started yet")
 
-        self._stop_event.set(msg="stop() called")
+        self._stop_event.set(msg="stop() called", exception=kwargs.get("exception"))
+        logger.debug(f"Stop event set with {args=} and {kwargs=}")
+        self._running_event.clear()
 
     class ExitCode(Enum):
         """The reason the scheduler ended."""
@@ -874,6 +893,3 @@ class Scheduler:
 
         UNKNOWN = auto()
         """The scheduler finished for an unknown reason."""
-
-        EXCEPTION = auto()
-        """A submitted task encountered an exception."""
