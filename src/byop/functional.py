@@ -6,7 +6,16 @@ from __future__ import annotations
 
 from functools import partial, reduce
 from itertools import count
-from typing import Any, Callable, Hashable, Iterator, Mapping, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Hashable,
+    Iterator,
+    Mapping,
+    Sequence,
+    TypeVar,
+)
 
 from byop.exceptions import exception_wrap
 
@@ -159,3 +168,46 @@ def callstring(f: Callable, *args: Any, **kwargs: Any) -> str:
         args_str += ", ".join(f"{k}={v}" for k, v in kwargs.items())
 
     return f"{funcname(f)}({args_str})"
+
+
+class Flag(Generic[T]):
+    """A flag.
+
+    This class is used to store a value that can be reset to its
+    initial value.
+
+    ```python
+    flag = Flag(1)
+    flag.value  # 1
+
+    flag.set(2)
+    flag.value  # 2
+
+    flag.reset()
+    flag.value  # 1
+    ```
+
+    Args:
+        initial: The initial value.
+
+    Attributes:
+        value: The current flag value.
+        initial: The initial value.
+    """
+
+    def __init__(self, initial: T) -> None:
+        """Initialize the flag."""
+        self.value = initial
+        self.initial = initial
+
+    def reset(self) -> None:
+        """Reset the flag to its initial value."""
+        self.value = self.initial
+
+    def set(self, value: T) -> None:
+        """Set the flag value."""
+        self.value = value
+
+    def __bool__(self) -> bool:
+        """Get the flag value."""
+        return bool(self.value)

@@ -49,3 +49,48 @@ class AsyncConnection:
         self.connection.send(obj)
         is_writable.clear()
         loop.remove_writer(self.connection.fileno())
+
+
+class ContextEvent(asyncio.Event):
+    """An event with added context to why it was triggered.
+
+    Attributes:
+        msg: The message that was set.
+        exception: The exception that was set.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """See [asyncio.Event][] for more information."""
+        super().__init__(**kwargs)
+        self.msg: str | None = None
+        self.exception: BaseException | None = None
+
+    def set(
+        self,
+        msg: str | None = None,
+        exception: BaseException | None = None,
+    ) -> None:
+        """Set the event and set the context.
+
+        Args:
+            msg: The message to set.
+            exception: The exception to set.
+        """
+        self.msg = msg
+        self.exception = exception
+        super().set()
+
+    def clear(self) -> None:
+        """Clear the event and clear the context."""
+        self.msg = None
+        self.exception = None
+        super().clear()
+
+    @property
+    def context(self) -> tuple[str | None, BaseException | None]:
+        """Get the context information.
+
+        Returns:
+            A tuple of the message and exception.
+        """
+        return self.msg, self.exception

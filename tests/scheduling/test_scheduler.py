@@ -16,10 +16,18 @@ from byop.scheduling import Scheduler, SequentialExecutor, Task
 logger = logging.getLogger(__name__)
 
 
+class CustomError(Exception):
+    """A custom error for testing."""
+
+
 def sleep_and_return(sleep_time: float) -> float:
     time.sleep(sleep_time)
     logger.debug(f"Done sleep for {sleep_time}!")
     return sleep_time
+
+
+def raise_exception() -> None:
+    raise CustomError("This is a custom error.")
 
 
 @case(tags=["executor"])
@@ -250,3 +258,25 @@ def test_repeat_on_start(scheduler: Scheduler) -> None:
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     assert scheduler.empty()
     assert results == [1] * 10
+
+
+def test_end_on_exception_in_task(scheduler: Scheduler) -> None:
+    task = Task(raise_exception, scheduler, name="raise_error")
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task()
+
+    with pytest.raises(CustomError):
+        scheduler.run(end_on_exception=True)
+
+
+def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
+    task = Task(raise_exception, scheduler, name="raise_error")
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task()
+
+    result = scheduler.run(end_on_exception=False)
+    assert result == Scheduler.ExitCode.EXHAUSTED
