@@ -80,7 +80,7 @@ see the [optimization guide](../guides/optimization.md) for more details.
     scheduler.run(timeout=3)
     ```
 
-## Querying
+### Querying
 The [`History`][byop.optimization.History] acts like
 a [`Mapping[str, Trial.Report]`][collections.abc.Mapping],
 where the keys are the `trial.name` and the values are its
@@ -100,7 +100,7 @@ sorted_reports = sorted(history.values(), key=lambda r: r.results['cost'])
 print(f"best = {sorted_reports[0]}")
 ```
 
-## Filtering
+### Filtering
 You can filter the history by using the [`filter()`][byop.optimization.History.filter]
 method. This method takes a [`Callable[[Trial.Report], bool]`][typing.Callable]
 and returns a new [`History`][byop.optimization.History] with only the
@@ -116,7 +116,7 @@ even_history_df = even_history.df()
 print(even_history_df[["results:cost", "config:x"]])
 ```
 
-# Traces
+## Trace
 A [`Trace`][byop.optimization.Trace] is just the history
 but ordered in some particular way. This means it acts `list`-like,
 specifically a [`Sequence[Trial.Report]`][collections.abc.Sequence], meaning
@@ -148,7 +148,7 @@ sorted_reports = sorted(trace, key=lambda r: r.results['cost'])
 print(f"best = {sorted_reports[0]}")
 ```
 
-# Incumbent Trace
+## Incumbent Trace
 An [`IncumbentTrace`][byop.optimization.IncumbentTrace] is a
 [`Trace`][byop.optimization.Trace] that only contains the
 **best** [`Trial.Report`][byop.optimization.Trial.Report]s
