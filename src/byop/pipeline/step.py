@@ -6,23 +6,26 @@ can be found in the `byop.pipeline.components` module.
 """
 from __future__ import annotations
 
-from copy import copy
+from copy import deepcopy
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     ClassVar,
     Generic,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     Sequence,
+    TypeVar,
     cast,
     overload,
 )
 
 from attrs import evolve, field, frozen
-from more_itertools import consume, last, peekable, triplewise
+from more_itertools import consume, first_true, last, peekable, triplewise
 
 from byop.functional import mapping_select
 from byop.types import Config, Seed, Space
@@ -33,6 +36,8 @@ if TYPE_CHECKING:
     from byop.pipeline.components import Split
     from byop.pipeline.parser import Parser
     from byop.pipeline.sampler import Sampler
+
+T = TypeVar("T")
 
 
 @frozen(kw_only=True)
@@ -57,12 +62,18 @@ class Step(Generic[Space]):
         name: Name of the step
         prv: The previous step in the chain
         nxt: The next step in the chain
+        parent: Any [`Split`][byop.pipeline.components.Split] or
+            [`Choice`][byop.pipeline.components.Choice] that this step is a part of
+            and is the head of the chain.
+        config: The configuration for this step
+        search_space: The search space for this step
     """
 
     name: str
 
     prv: Step | None = field(default=None, eq=False, repr=False)
     nxt: Step | None = field(default=None, eq=False, repr=False)
+    parent: Step | None = field(default=None, eq=False, repr=False)
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
@@ -138,6 +149,24 @@ class Step(Generic[Space]):
         elif self.nxt is not None:
             yield from self.nxt.iter(backwards=False, to=to)
 
+    def qualified_name(self, *, delimiter: str = ":") -> str:
+        """Get the qualified name of this step.
+
+        This is the name of the step prefixed by the names of all the previous
+        splits taken to reach this step in the chain.
+
+        Args:
+            delimiter: The delimiter to use between names. Defaults to ":"
+
+        Returns:
+            The qualified name
+        """
+        from byop.pipeline.components import Split
+
+        splits = [s for s in self.climb(include_self=False) if isinstance(s, Split)]
+        names = [*reversed([split.name for split in splits]), self.name]
+        return delimiter.join(names)
+
     def configured(self) -> bool:
         """Check if this searchable is configured."""
         return self.search_space is None and self.config is not None
@@ -177,7 +206,7 @@ class Step(Generic[Space]):
         if prefixed_name:
             this_config = mapping_select(config, f"{self.name}:")
         else:
-            this_config = copy(config)
+            this_config = deepcopy(config)
 
         if self.config is not None:
             this_config = {**self.config, **this_config}
@@ -203,6 +232,20 @@ class Step(Generic[Space]):
     def tail(self) -> Step:
         """Get the last step of this chain."""
         return last(self.iter())
+
+    def root(self) -> Step:
+        """Climb to the first step of this chain."""
+        return last(self.climb())
+
+    def climb(self, *, include_self: bool = True) -> Iterator[Step]:
+        """Iterate the steps required to reach the root."""
+        if include_self:
+            yield self
+
+        if self.prv is not None:
+            yield from self.prv.climb()
+        elif self.parent is not None:
+            yield from self.parent.climb()
 
     def proceeding(self) -> Iterator[Step]:
         """Iterate the steps that follow this one."""
@@ -231,13 +274,13 @@ class Step(Generic[Space]):
         #   However this can overwritten by passing "nxt" or "prv" explicitly.
         return evolve(self, **{"prv": None, "nxt": None, **kwargs})  # type: ignore
 
-    def copy(self) -> Self:
+    def copy(self: Self) -> Self:
         """Copy this step.
 
         Returns:
             Self: The copied step
         """
-        return copy(self)
+        return evolve(self)  # type: ignore
 
     def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """Remove the given steps from this chain.
@@ -267,22 +310,146 @@ class Step(Generic[Space]):
         if self.nxt is not None:
             yield from self.nxt.walk(splits, [*parents, self])
 
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
+    def traverse(
+        self,
+        *,
+        include_self: bool = True,
+        backwards: bool = False,
+    ) -> Iterator[Step]:
         """Traverse any sub-steps associated with this step.
 
         Subclasses should overwrite as required
 
         Args:
             include_self: Whether to include this step. Defaults to True
+            backwards: Whether to traverse backwards. This will
+                climb linearly until it reaches some head.
 
         Returns:
-            Iterator[Step[Key, O]]: The iterator over steps
+            Iterator[Step[Key]]: The iterator over steps
         """
         if include_self:
             yield self
 
+        if backwards:
+            if self.prv is not None:
+                yield from self.prv.traverse(backwards=True)
+            elif self.parent is not None:
+                yield from self.parent.traverse(backwards=True)
+
         if self.nxt is not None:
             yield from self.nxt.traverse()
+
+    @overload
+    def find(
+        self,
+        key: str | Callable[[Step], bool],
+        default: T,
+        *,
+        deep: bool = ...,
+    ) -> Step | T:
+        ...
+
+    @overload
+    def find(
+        self,
+        key: str | Callable[[Step], bool],
+        *,
+        deep: bool = ...,
+    ) -> Step | None:
+        ...
+
+    def find(
+        self,
+        key: str | Callable[[Step], bool],
+        default: T | None = None,
+        *,
+        deep: bool = True,
+    ) -> Step | T | None:
+        """Find a step in that's nested deeper from this step.
+
+        Args:
+            key: The key to search for or a function that returns True if the step
+                is the desired step
+            default:
+                The value to return if the step is not found. Defaults to None
+            deep:
+                Whether to search the entire pipeline or just the top layer.
+
+        Returns:
+            The step if found, otherwise the default value. Defaults to None
+        """
+        pred = key if callable(key) else (lambda step: step.name == key)
+        if deep:
+            all_steps = chain(self.traverse(), self.traverse(backwards=True))
+            return first_true(all_steps, default, pred)
+
+        all_steps = chain(self.iter(), self.iter(backwards=True))
+        return first_true(all_steps, default, pred)
+
+    def path_to(
+        self,
+        key: str | Step | Callable[[Step], bool],
+        *,
+        direction: Literal["forward", "backward"] | None = None,
+    ) -> list[Step] | None:
+        """Get the path to the given step.
+
+        This includes the path to the step itself.
+
+        ```python exec="true" source="material-block" result="python" title="path_to"
+        from byop.pipeline import step, split
+
+        head = (
+            step("head", 42)
+            | step("middle", 0)
+            | split(
+                "split",
+                step("left", 0),
+                step("right", 0),
+            )
+            | step("tail", 0)
+        )
+
+        path = head.path_to("left")
+        print([s.name for s in path])
+
+        left = head.find("left")
+        path = left.path_to("head")
+        print([s.name for s in path])
+        ```
+
+        Args:
+            key: The step to find
+            direction: Specify a particular direction to search in. Defaults to None
+                which means search both directions, starting with forwards.
+
+        Returns:
+            Iterator[Step[Key]]: The path to the step
+        """
+        if isinstance(key, Step):
+            pred = lambda step: step == key
+        elif isinstance(key, str):
+            pred = lambda step: step.name == key
+        else:
+            pred = key
+
+        # We found our target, just return now
+        if pred(self):
+            return [self]
+
+        if direction in (None, "forward") and self.nxt is not None:  # noqa: SIM102
+            if path := self.nxt.path_to(pred, direction="forward"):
+                return [self, *path]
+
+        if direction in (None, "backward"):
+            back = self.prv or self.parent
+            if back and (path := back.path_to(pred, direction="backward")):
+                return [self, *path]
+
+            return None
+
+        return None
 
     def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
         """Replace the given step with a new one.
@@ -464,7 +631,7 @@ class Step(Generic[Space]):
 
         # We use a `peekable` to check if there's actually anything to chain
         # In the off case we got nothing in `*steps` but empty iterables
-        new_steps = peekable(copy(s) for s in expanded)
+        new_steps = peekable(s.copy() for s in expanded)
         if not new_steps:
             return
 

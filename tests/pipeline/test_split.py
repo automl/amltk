@@ -181,3 +181,83 @@ def test_configure_chained() -> None:
     for s in configured_head.traverse():
         assert s.config == expected_configs[s.name]
         assert s.search_space is None
+
+
+def test_qualified_name() -> None:
+    head = split(
+        "split",
+        step("1", 2),
+        split("subsplit", step("2", 1) | step("3", 3)),
+    )
+    assert head.qualified_name() == "split"
+
+    s1 = head.find("1")
+    assert s1 is not None
+    assert s1.qualified_name() == "split:1"
+
+    subsplit = head.find("subsplit")
+    assert subsplit is not None
+    assert subsplit.qualified_name() == "split:subsplit"
+
+    s2 = head.find("2")
+    assert s2 is not None
+    assert s2.qualified_name() == "split:subsplit:2"
+
+    s3 = head.find("3")
+    assert s3 is not None
+    assert s3.qualified_name() == "split:subsplit:3"
+
+
+def test_path_to() -> None:
+    head = split(
+        "split",
+        step("1", 2),
+        split(
+            "subsplit",
+            step("2", 1) | step("3", 3),
+        ),
+    )
+    _split = head.find("split")
+    assert _split is not None
+
+    s1 = head.find("1")
+    assert s1 is not None
+
+    subsplit = head.find("subsplit")
+    assert subsplit is not None
+
+    s2 = head.find("2")
+    assert s2 is not None
+
+    s3 = head.find("3")
+    assert s3 is not None
+
+    assert _split.path_to(_split) == [_split]
+    assert _split.path_to(s1) == [_split, s1]
+    assert _split.path_to(subsplit) == [_split, subsplit]
+    assert _split.path_to(s2) == [_split, subsplit, s2]
+    assert _split.path_to(s3) == [_split, subsplit, s2, s3]
+
+    assert s1.path_to(_split) == [s1, _split]
+    assert s1.path_to(s1) == [s1]
+    assert s1.path_to(subsplit) is None
+    assert s1.path_to(s2) is None
+    assert s1.path_to(s3) is None
+
+    assert subsplit.path_to(_split) == [subsplit, _split]
+    assert subsplit.path_to(s1) is None
+    assert subsplit.path_to(subsplit) == [subsplit]
+    assert subsplit.path_to(s2) == [subsplit, s2]
+    assert subsplit.path_to(s3) == [subsplit, s2, s3]
+
+    assert s2.path_to(_split) == [s2, subsplit, _split]
+    assert s2.path_to(s1) is None
+    assert s2.path_to(subsplit) == [s2, subsplit]
+    assert s2.path_to(s2) == [s2]
+    assert s2.path_to(s3) == [s2, s3]
+
+    assert s3.path_to(_split) == [s3, s2, subsplit, _split]
+    assert s3.path_to(s1) is None
+    assert s3.path_to(subsplit) == [s3, s2, subsplit]
+    assert s3.path_to(s2) == [s3, s2]
+    assert s3.path_to(s3) == [s3]

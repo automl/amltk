@@ -130,3 +130,44 @@ def test_configure_chain() -> None:
     for s, expected_config in zip(configured_head.iter(), expected_configs):
         assert s.config == expected_config
         assert s.search_space is None
+
+
+def test_qualified_name() -> None:
+    head = step("1", 1) | step("2", 2) | step("3", 3)
+    last = head.tail()
+
+    # Should not have any prefixes from the other steps
+    assert last.qualified_name() == "3"
+
+
+def test_path_to() -> None:
+    head = step("1", 1) | step("2", 2) | step("3", 3)
+
+    s1 = head.find("1")
+    assert s1 is not None
+
+    s2 = head.find("2")
+    assert s2 is not None
+
+    s3 = head.find("3")
+    assert s3 is not None
+
+    assert s1.path_to(s1) == [s1]
+    assert s1.path_to(s3) == [s1, s2, s3]
+    assert s1.path_to(s2) == [s1, s2]
+
+    assert s2.path_to(s2) == [s2]
+    assert s2.path_to(s3) == [s2, s3]
+    assert s2.path_to(s1) == [s2, s1]
+
+    assert s3.path_to(s3) == [s3]
+    assert s3.path_to(s1) == [s3, s2, s1]
+    assert s3.path_to(s2) == [s3, s2]
+
+    assert s3.path_to(s1, direction="forward") is None
+    assert s2.path_to(s1, direction="forward") is None
+    assert s1.path_to(s1, direction="forward") == [s1]
+
+    assert s3.path_to(s3, direction="backward") == [s3]
+    assert s2.path_to(s3, direction="backward") is None
+    assert s1.path_to(s3, direction="backward") is None
