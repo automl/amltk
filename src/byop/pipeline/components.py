@@ -12,6 +12,7 @@ from typing import (
     Callable,
     Generic,
     Iterator,
+    Literal,
     Mapping,
     Sequence,
 )
@@ -79,11 +80,75 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
 
-    def traverse(self, *, include_self: bool = True) -> Iterator[Step]:
+    def __attrs_post_init__(self) -> None:
+        """Ensure that the paths are all unique."""
+        if len(self) != len(set(self)):
+            raise ValueError("Paths must be unique")
+
+        for path_head in self.paths:
+            object.__setattr__(path_head, "parent", self)
+            object.__setattr__(path_head, "prv", None)
+
+    def path_to(
+        self,
+        key: str | Step | Callable[[Step], bool],
+        *,
+        direction: Literal["forward", "backward"] | None = None,
+    ) -> list[Step] | None:
+        """See [`Step.path_to`][byop.pipeline.step.Step.path_to]."""
+        if callable(key):
+            pred = key
+        elif isinstance(key, Step):
+            pred = lambda step: step == key
+        else:
+            pred = lambda step: step.name == key
+
+        # We found our target, just return now
+        if pred(self):
+            return [self]
+
+        if direction in (None, "forward"):
+            for split_path in self.paths:
+                if path := split_path.path_to(pred, direction="forward"):
+                    return [self, *path]
+
+            if self.nxt is not None and (
+                path := self.nxt.path_to(pred, direction="forward")
+            ):
+                return [self, *path]
+
+        if direction in (None, "backward"):
+            back = self.prv or self.parent
+            if back and (path := back.path_to(pred, direction="backward")):
+                return [self, *path]
+
+            return None
+
+        return None
+
+    def traverse(
+        self,
+        *,
+        include_self: bool = True,
+        backwards: bool = False,
+    ) -> Iterator[Step]:
         """See `Step.traverse`."""
         if include_self:
             yield self
 
+        # Backward mode
+        if backwards:
+            if self.prv is not None:
+                yield from self.prv.traverse(backwards=True)
+            elif self.parent is not None:
+                yield from self.parent.traverse(backwards=True)
+
+            if include_self:
+                yield self
+
+            return
+
+        # Forward mode
         yield from chain.from_iterable(path.traverse() for path in self.paths)
         if self.nxt is not None:
             yield from self.nxt.traverse()

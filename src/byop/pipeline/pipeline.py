@@ -20,7 +20,6 @@ from typing import (
 from uuid import uuid4
 
 from attrs import field, frozen
-from more_itertools import first_true
 
 from byop.functional import mapping_select
 from byop.pipeline.components import Split, Step
@@ -148,11 +147,7 @@ class Pipeline:
         Returns:
             The step if found, otherwise the default value. Defaults to None
         """
-        result = first_true(
-            iterable=self.traverse() if deep else self.iter(),
-            pred=key if callable(key) else (lambda step: step.name == key),
-        )
-        return result if result is not None else default
+        return self.head.find(key, default, deep=deep)
 
     def select(
         self,
@@ -280,6 +275,31 @@ class Pipeline:
         return all(step.configured() for step in self.traverse()) and all(
             module.configured() for module in self.modules.values()
         )
+
+    def qualified_name(self, step: str | Step, *, delimiter: str = ":") -> str:
+        """Get the qualified name of a substep in the pipeline.
+
+        Args:
+            step: The step to get the qualified name of
+            delimiter: The delimiter to use between the splits and the step
+
+        Returns:
+            The qualified name of the step
+        """
+        # We use the walk function to get the step along with any splits
+        # to get there
+        if isinstance(step, Step):
+            step = step.name
+
+        path = self.head.path_to(step)
+        if path is None:
+            raise ValueError(f"Step {step} not found in pipeline")
+
+        *preceeding, found_step = path
+
+        splits = [s for s in preceeding if isinstance(s, Split)]
+
+        return delimiter.join([s.name for s in splits] + [found_step.name])
 
     @overload
     def space(

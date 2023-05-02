@@ -197,6 +197,23 @@ def test_duplicate_name_error(pipeline: Pipeline) -> None:
         pipeline | step(name, object())  # pyright: reportUnusedExpression=false
 
 
+def test_qualified_name() -> None:
+    pipeline = Pipeline.create(
+        step("1", 1)
+        | step("2", 2)
+        | choice(
+            "3",
+            step("4", 4),
+            step("5", 5),
+        ),
+    )
+    assert pipeline.qualified_name("1") == "1"
+    assert pipeline.qualified_name("2") == "2"
+    assert pipeline.qualified_name("3") == "3"
+    assert pipeline.qualified_name("4") == "3:4"
+    assert pipeline.qualified_name("5") == "3:5"
+
+
 @parametrize_with_cases("pipeline", cases=".")
 def test_renaming_function(pipeline: Pipeline) -> None:
     new_name = "replaced_name"
