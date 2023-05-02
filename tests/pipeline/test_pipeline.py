@@ -92,6 +92,14 @@ def test_traverse_contains_deeper_items_than_iter(pipeline: Pipeline) -> None:
     assert len(deep_items) > len(shallow_items)
 
 
+@parametrize_with_cases("pipeline", cases=".", has_tag="deep")
+def test_traverse_contains_no_duplicates(pipeline: Pipeline) -> None:
+    seen: set[str] = set()
+    for item in pipeline.traverse():
+        assert item.name not in seen
+        seen.add(item.name)
+
+
 @parametrize_with_cases("pipeline", cases=".")
 def test_find_shallow_success(pipeline: Pipeline) -> None:
     for selected_step in pipeline.steps:

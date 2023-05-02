@@ -7,7 +7,6 @@ api functions from `byop.pipeline`.
 from __future__ import annotations
 
 import logging
-from itertools import chain
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -97,7 +96,7 @@ class Pipeline:
         Yields:
             Step[Key]
         """
-        yield from chain.from_iterable(step.traverse() for step in self.steps)
+        yield from self.head.traverse()
 
     def walk(self) -> Iterator[tuple[list[Split], list[Step], Step]]:
         """Walk the pipeline in a depth-first manner.
