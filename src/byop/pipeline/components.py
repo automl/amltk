@@ -85,7 +85,8 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
             yield self
 
         yield from chain.from_iterable(path.traverse() for path in self.paths)
-        yield from self.nxt.traverse() if self.nxt else []
+        if self.nxt is not None:
+            yield from self.nxt.traverse()
 
     def walk(
         self,
