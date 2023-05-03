@@ -52,7 +52,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         elif isinstance(space, Hyperparameter):
             space = ConfigurationSpace({space.name: space})
         elif isinstance(space, ConfigurationSpace):
-            space = space
+            space = self.copy(space)
         else:
             TypeError(f"{space} is not parsable as a space")
 

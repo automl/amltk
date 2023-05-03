@@ -5,10 +5,7 @@ import pytest
 from byop.configspace import ConfigSpaceParser
 
 try:
-    from ConfigSpace import (
-        ConfigurationSpace,
-        EqualsCondition,
-    )
+    from ConfigSpace import ConfigurationSpace, EqualsCondition, ForbiddenEqualsClause
 except ImportError:
     pytest.skip("ConfigSpace not installed", allow_module_level=True)
 
@@ -21,6 +18,18 @@ from byop.pipeline import Choice, Pipeline, Split, Step, choice, split, step
 def case_single_step() -> tuple[Step, ConfigurationSpace]:
     item = step("a", 1, space={"hp": [1, 2, 3]})
     expected = ConfigurationSpace({"a:hp": [1, 2, 3]})
+    return item, expected
+
+
+@case
+def case_steps_with_embedded_forbiddens() -> tuple[Step, ConfigurationSpace]:
+    space = ConfigurationSpace({"hp": [1, 2, 3], "hp_other": ["a", "b", "c"]})
+    space.add_forbidden_clause(ForbiddenEqualsClause(space["hp"], 1))
+
+    item = step("a", 1, space=space)
+    expected = ConfigurationSpace({"a:hp": [1, 2, 3]})
+    expected.add_forbidden_clause(ForbiddenEqualsClause(expected["a:hp"], 1))
+
     return item, expected
 
 
@@ -374,6 +383,35 @@ def case_pipeline_with_pipeline_modules() -> tuple[Pipeline, ConfigurationSpace]
 
 
 @parametrize_with_cases("pipeline, expected", cases=".")
-def test_parsing_pipeline(pipeline: Pipeline, expected: ConfigurationSpace):
+def test_parsing_pipeline(pipeline: Pipeline, expected: ConfigurationSpace) -> None:
     parsed_space = pipeline.space(parser=ConfigSpaceParser())
     assert parsed_space == expected
+
+
+@parametrize_with_cases("pipeline, expected", cases=".")
+def test_parsing_pipeline_does_not_mutate_space(
+    pipeline: Pipeline,
+    expected: ConfigurationSpace,  # noqa: ARG001
+) -> None:
+    spaces_before = {
+        step.qualified_name(): step.search_space for step in pipeline.traverse()
+    }
+    pipeline.space(parser=ConfigSpaceParser())
+
+    spaces_after = {
+        step.qualified_name(): step.search_space for step in pipeline.traverse()
+    }
+    assert spaces_before == spaces_after
+
+
+@parametrize_with_cases("pipeline, expected", cases=".")
+def test_parsing_twice_produces_same_space(
+    pipeline: Pipeline,
+    expected: ConfigurationSpace,
+) -> None:
+    parsed_space = pipeline.space(parser=ConfigSpaceParser())
+    parsed_space2 = pipeline.space(parser=ConfigSpaceParser())
+
+    assert parsed_space == expected
+    assert parsed_space2 == expected
+    assert parsed_space == parsed_space2
