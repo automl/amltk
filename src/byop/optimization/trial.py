@@ -16,6 +16,7 @@ from typing import (
     Callable,
     ClassVar,
     Generic,
+    Iterable,
     Iterator,
     Literal,
     Mapping,
@@ -38,6 +39,8 @@ from byop.types import abstractmethod
 
 if TYPE_CHECKING:
     from concurrent.futures import Future
+
+    from byop.scheduling.task_plugin import TaskPlugin
 
 
 Info = TypeVar("Info")
@@ -79,6 +82,7 @@ class Trial(Generic[Info]):
         timer: The timer used to time the trial, once begun.
         exception: The exception raised by the trial, if any.
         traceback: The traceback of the exception, if any.
+        plugins: Any plugins attached to the trial.
     """
 
     name: str
@@ -95,6 +99,8 @@ class Trial(Generic[Info]):
     stats: dict[str, list[Any]] = field(default_factory=lambda: defaultdict(list))
     storage: set[Any] = field(default_factory=set)
     results: dict[str, Any] = field(default_factory=dict)
+
+    plugins: dict[str, Any] = field(default_factory=dict)
 
     @contextmanager
     def begin(
@@ -698,7 +704,7 @@ class Trial(Generic[Info]):
             return self.f(trial, *self.args, **self.kwargs)
 
     class Task(TaskBase):
-        """A task that will run a target function and tell the optimizer the result."""
+        """A Task specifically for Trials."""
 
         SUCCESS: Event[Trial.SuccessReport] = Event("trial-success")
         """The event that is triggered when a trial succeeds."""
@@ -718,26 +724,19 @@ class Trial(Generic[Info]):
             scheduler: Scheduler,
             *,
             name: str | None = None,
-            call_limit: int | None = None,
-            concurrent_limit: int | None = None,
-            memory_limit: int | tuple[int, str] | None = None,
-            cpu_time_limit: int | tuple[float, str] | None = None,
-            wall_time_limit: int | tuple[float, str] | None = None,
+            plugins: Iterable[TaskPlugin[[Trial], Trial.Report]] = (),
         ) -> None:
             """Initialize a task.
 
             See [`Task`][byop.scheduling.task.Task] for more details.
+
+            Args:
+                function: The function to run.
+                scheduler: The scheduler to use.
+                name: The name of the task.
+                plugins: Any plugins to attach to the task.
             """
-            super().__init__(
-                function,
-                scheduler,
-                name=name,
-                call_limit=call_limit,
-                concurrent_limit=concurrent_limit,
-                memory_limit=memory_limit,
-                cpu_time_limit=cpu_time_limit,
-                wall_time_limit=wall_time_limit,
-            )
+            super().__init__(function, scheduler, name=name, plugins=plugins)
             self.trial_lookup: dict[Future, Trial] = {}
 
             self.on_f_returned(self._emit_report)

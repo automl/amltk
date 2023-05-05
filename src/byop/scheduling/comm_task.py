@@ -11,7 +11,16 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from multiprocessing import Pipe
-from typing import TYPE_CHECKING, Any, Callable, Generic, Literal, TypeVar, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    Literal,
+    TypeVar,
+    overload,
+)
 from typing_extensions import Concatenate, ParamSpec
 
 from byop.asyncm import AsyncConnection
@@ -26,6 +35,7 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
     from byop.scheduling.scheduler import Scheduler
+    from byop.scheduling.task_plugin import TaskPlugin
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -301,25 +311,17 @@ class CommTask(Task[Concatenate[Comm, P], R]):
         scheduler: Scheduler,
         *,
         name: str | None = None,
-        call_limit: int | None = None,
-        concurrent_limit: int | None = None,
-        memory_limit: int | tuple[int, str] | None = None,
-        cpu_time_limit: int | tuple[float, str] | None = None,
-        wall_time_limit: int | tuple[float, str] | None = None,
+        plugins: Iterable[TaskPlugin[Concatenate[Comm, P], R]] = (),
     ) -> None:
         """Initialize a task.
 
         See [`Task`][byop.scheduling.task.Task] for more details.
         """
         super().__init__(
-            function,  # pyright: reportGeneralTypeIssues=false
+            function,  # type: ignore
             scheduler,
             name=name,
-            call_limit=call_limit,
-            concurrent_limit=concurrent_limit,
-            memory_limit=memory_limit,
-            cpu_time_limit=cpu_time_limit,
-            wall_time_limit=wall_time_limit,
+            plugins=plugins,
         )
 
         # NOTE: It's important to hold a reference to the worker_comm so

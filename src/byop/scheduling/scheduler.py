@@ -701,13 +701,7 @@ class Scheduler:
             else:
                 msg = "Scheduler had `stop()` called on it."
 
-            if exception:
-                logger.error(msg)
-
-            logger.debug(msg)
             self.event_manager.emit(Scheduler.STOP)
-            logger.warning(exception)
-            logger.warning(bool(self._end_on_exception_flag))
             if self._end_on_exception_flag and exception:
                 stop_reason = exception
             else:
@@ -836,7 +830,6 @@ class Scheduler:
                 wait=wait,
             ),
         )
-        logger.warning(result)
 
         # Reset it back to its default
         self._end_on_exception_flag.reset()
