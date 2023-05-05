@@ -424,4 +424,17 @@ class Task(Generic[P, R]):
             )
 
     def __repr__(self) -> str:
-        return f"Task(name={self.name})"
+        kwargs = {
+            k: v
+            for k, v in [
+                ("name", self.name),
+                ("call_limit", self.call_limit),
+                ("concurrent_limit", self.concurrent_limit),
+                ("memory_limit", self.memory_limit),
+                ("wall_time_limit", self.wall_time_limit),
+                ("cpu_time_limit", self.cpu_time_limit),
+            ]
+            if v is not None
+        }
+        kwargs_str = ", ".join(f"{k}={v}" for k, v in kwargs.items())
+        return f"{self.__class__.__name__}({kwargs_str})"
