@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
 from more_itertools import first_true, seekable
 
 from byop.building._sklearn_builder import sklearn_builder
-from byop.exceptions import attach_traceback
+from byop.exceptions import safe_map
 
 if TYPE_CHECKING:
     from byop.pipeline.pipeline import Pipeline
@@ -64,25 +64,22 @@ def build(
     else:
         raise NotImplementedError(f"Builder {builder} is not supported")
 
-    def _build(_builder: Callable[[Pipeline], B], _pipeline: Pipeline) -> B | Exception:
-        try:
-            return _builder(_pipeline)
-        except Exception as e:  # noqa: BLE001
-            return attach_traceback(e)
+    def _build(_builder: Callable[[Pipeline], B]) -> B:
+        return _builder(pipeline)
 
-    itr = (_build(_builder, pipeline) for _builder in builders)
-    results = seekable(itr)
-    selected_built_pipeline = first_true(
-        results,
-        default=None,
-        pred=lambda r: not isinstance(r, Exception),
-    )
+    results = seekable(safe_map(_build, builders))
+
+    is_result = lambda r: not (isinstance(r, tuple) and isinstance(r[0], Exception))
+
+    selected_built_pipeline = first_true(results, default=None, pred=is_result)
 
     # If we didn't manage to build a pipeline, iterate through
     # the errors and raise a ValueError
     if selected_built_pipeline is None:
         results.seek(0)  # Reset to start of the iterator
-        msgs = "\n".join(f"{builder}: {err}" for builder, err in zip(builders, results))
+        msgs = "\n".join(
+            f"{builder}: {err} \n" for builder, err in zip(builders, results)
+        )
         raise BuildError(f"Could not build pipeline with any of the builders:\n{msgs}")
 
     assert not isinstance(selected_built_pipeline, Exception)

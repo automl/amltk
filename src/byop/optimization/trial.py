@@ -4,6 +4,7 @@ TODO: Populate more here.
 """
 from __future__ import annotations
 
+import traceback
 from abc import ABC
 from collections import defaultdict
 from contextlib import contextmanager
@@ -26,7 +27,6 @@ from typing_extensions import Concatenate, ParamSpec
 import pandas as pd
 
 from byop.events import Event, Subscriber
-from byop.exceptions import attach_traceback
 from byop.functional import prefix_keys
 from byop.scheduling import (
     Scheduler,
@@ -78,6 +78,7 @@ class Trial(Generic[Info]):
         time: The time taken by the trial, once ended.
         timer: The timer used to time the trial, once begun.
         exception: The exception raised by the trial, if any.
+        traceback: The traceback of the exception, if any.
     """
 
     name: str
@@ -87,7 +88,8 @@ class Trial(Generic[Info]):
 
     time: TimeInterval | None = field(repr=False, default=None)
     timer: Timer | None = field(repr=False, default=None)
-    exception: Exception | None = field(repr=False, default=None)
+    exception: Exception | None = field(repr=True, default=None)
+    traceback: str | None = field(repr=False, default=None)
 
     summary: dict[str, Any] = field(default_factory=dict)
     stats: dict[str, list[Any]] = field(default_factory=lambda: defaultdict(list))
@@ -131,7 +133,8 @@ class Trial(Generic[Info]):
         try:
             yield
         except Exception as error:  # noqa: BLE001
-            self.exception = attach_traceback(error)
+            self.exception = error
+            self.traceback = traceback.format_exc()
         finally:
             if self.time is None:
                 self.time = self.timer.stop()
@@ -193,18 +196,21 @@ class Trial(Generic[Info]):
 
         time = self.time if self.time is not None else self.timer.stop()
         exception = self.exception
+        traceback = self.traceback
         self.results = results
 
         return Trial.FailReport(
             trial=self,
             time=time,
             exception=exception,
+            traceback=traceback,
             results=results,
         )
 
     def crashed(
         self,
         exception: BaseException | None = None,
+        traceback: str | None = None,
     ) -> Trial.CrashReport[Info]:
         """Generate a crash report.
 
@@ -218,6 +224,8 @@ class Trial(Generic[Info]):
             exception: The exception that caused the crash. If not provided, the
                 exception will be taken from the trial. If this is still `None`,
                 a `RuntimeError` will be raised.
+            traceback: The traceback of the exception. If not provided, the
+                traceback will be taken from the trial if there is one there.
 
         Returns:
             The result of the trial.
@@ -230,9 +238,14 @@ class Trial(Generic[Info]):
             )
 
         exception = exception if exception else self.exception
+        traceback = traceback if traceback else self.traceback
         assert exception is not None
 
-        return Trial.CrashReport(trial=self, exception=exception)
+        return Trial.CrashReport(
+            trial=self,
+            exception=exception,
+            traceback=traceback,
+        )
 
     def store(
         self,
@@ -594,12 +607,14 @@ class Trial(Generic[Info]):
 
         Attributes:
             exception: The exception for the trial.
+            traceback: The traceback for the trial, if it was obtainable.
         """
 
         successful: ClassVar[bool] = False
         status: ClassVar[Literal["crashed"]] = "crashed"
 
         exception: BaseException
+        traceback: str | None
 
         def _extra_series(self) -> dict[str, Any]:
             return {"exception": self.exception}
@@ -637,6 +652,7 @@ class Trial(Generic[Info]):
         Attributes:
             time: The time taken by the trial.
             exception: The exception raised by the trial if any.
+            traceback: The traceback of the exception raised by the trial if any.
             results: The results of the trial.
         """
 
@@ -645,6 +661,7 @@ class Trial(Generic[Info]):
 
         time: TimeInterval
         exception: BaseException | None
+        traceback: str | None
         results: dict[str, Any] = field(default_factory=dict)
 
         def _extra_series(self) -> dict[str, Any]:

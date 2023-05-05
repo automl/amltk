@@ -18,7 +18,6 @@ from typing_extensions import ParamSpec
 from pynisher import Pynisher
 
 from byop.events import Event, Subscriber
-from byop.exceptions import exception_wrap
 from byop.functional import callstring, funcname
 
 if TYPE_CHECKING:
@@ -158,15 +157,9 @@ class Task(Generic[P, R]):
 
         self.queue: list[Future[R]] = []
 
-        # We hold reference to this because we will wrap it with some
-        # utility to handle tracebacks and possible pynisher
+        # We hold reference to this because we might possible wrap it
         self._original_function = function
-
-        # We wrap the function such that when an error occurs, it's
-        # traceback is attached to the message. This is because we
-        # can't retrieve the traceback from an exception in another
-        # process.
-        self.function = exception_wrap(function)
+        self.function = function
 
         # If any of our limits is set, we need to wrap it in Pynisher
         # to enfore these limits.

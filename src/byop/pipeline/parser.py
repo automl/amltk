@@ -182,14 +182,11 @@ class Parser(ABC, Generic[Space]):
 
         # Wrap in seekable so we don't evaluate all of them, only as
         # far as we need to get a succesful parse.
-        results_itr = seekable(safe_map(_parse, parsers, attached_tb=True))
+        results_itr = seekable(safe_map(_parse, parsers))
 
+        is_result = lambda r: not (isinstance(r, tuple) and isinstance(r[0], Exception))
         # Progress the iterator until we get a successful parse
-        parsed_space = first_true(
-            results_itr,
-            default=False,
-            pred=lambda result: not isinstance(result, Exception),
-        )
+        parsed_space = first_true(results_itr, default=False, pred=is_result)
 
         # If we didn't get a succesful parse, raise the appropriate error
         if parsed_space is False:
@@ -197,7 +194,7 @@ class Parser(ABC, Generic[Space]):
             errors = cast(list[Exception], list(results_itr))
             raise Parser.ParserError(parser=parsers, error=errors)
 
-        assert not isinstance(parsed_space, (Exception, bool))
+        assert not isinstance(parsed_space, (tuple, bool))
         return parsed_space
 
     def parse(self, step: Pipeline | Step | Split | Choice | Any) -> Space:
