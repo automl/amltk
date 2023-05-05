@@ -24,11 +24,11 @@ def case_single_step() -> tuple[Step, ConfigurationSpace]:
 @case
 def case_steps_with_embedded_forbiddens() -> tuple[Step, ConfigurationSpace]:
     space = ConfigurationSpace({"hp": [1, 2, 3], "hp_other": ["a", "b", "c"]})
-    space.add_forbidden_clause(ForbiddenEqualsClause(space["hp"], 1))
+    space.add_forbidden_clause(ForbiddenEqualsClause(space["hp"], 2))
 
     item = step("a", 1, space=space)
-    expected = ConfigurationSpace({"a:hp": [1, 2, 3]})
-    expected.add_forbidden_clause(ForbiddenEqualsClause(expected["a:hp"], 1))
+    expected = ConfigurationSpace({"a:hp": [1, 2, 3], "a:hp_other": ["a", "b", "c"]})
+    expected.add_forbidden_clause(ForbiddenEqualsClause(expected["a:hp"], 2))
 
     return item, expected
 

@@ -83,7 +83,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         seed = smac_trial_info.seed
 
         config_id = self.facade.runhistory.config_ids[config]
-        unique_name = f"{config_id=}_{instance=}_{seed=}_{budget=}"
+        unique_name = f"{config_id=}_{seed=}_{budget=}_{instance=}"
         trial = Trial(
             name=unique_name,
             config=dict(config),
@@ -145,6 +145,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         if report.exception is not None:
             status_type = status_types.get(type(report.exception), StatusType.CRASHED)
             additional_info["exception"] = str(report.exception)
+            additional_info["traceback"] = report.traceback
 
         # If we have no reported costs, we need to ensure that we have a
         # valid crash_cost based on the number of objectives

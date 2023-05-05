@@ -188,14 +188,12 @@ class Sampler(ABC, Generic[Space]):
 
         # Wrap in seekable so we don't evaluate all of them, only as
         # far as we need to get a succesful parse.
-        results_itr = seekable(safe_map(_sample, samplers, attached_tb=True))
+        results_itr = seekable(safe_map(_sample, samplers))
+
+        is_result = lambda r: not (isinstance(r, tuple) and isinstance(r[0], Exception))
 
         # Progress the iterator until we get a successful sample
-        samples = first_true(
-            results_itr,
-            default=False,
-            pred=lambda result: not isinstance(result, Exception),
-        )
+        samples = first_true(results_itr, default=False, pred=is_result)
 
         # If we didn't get a succesful parse, raise the appropriate error
         if samples is False:
@@ -203,7 +201,7 @@ class Sampler(ABC, Generic[Space]):
             errors = cast(list[Exception], list(results_itr))
             raise Sampler.FailedSamplingError(sampler=samplers, error=errors)
 
-        assert not isinstance(samples, (Exception, bool))
+        assert not isinstance(samples, (tuple, bool))
         return samples
 
     @overload

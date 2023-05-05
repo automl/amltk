@@ -80,4 +80,5 @@ def test_report_failure(optimizer: Optimizer, time_kind: TimeKind):
 
     assert valid_time_interval(report.time)
     assert isinstance(report.exception, ValueError)
+    assert isinstance(report.traceback, str)
     assert report.results == {"cost": 2000}

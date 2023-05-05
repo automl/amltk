@@ -755,6 +755,7 @@ and save results with `task.on_success`.
                 original_trial = report.trial
                 original_config = report.trial.config
                 exception = report.exception
+                traceback = report.traceback
             ```
 
         === "Typed"
@@ -768,7 +769,8 @@ and save results with `task.on_success`.
             def do_something_with_report(report: Trial.CrashReport) -> None:
                 original_trial: Trial = report.trial
                 original_config: dict[str, Any] = report.trial.config
-                exception: BaseException | None = report.exception
+                exception: Exception = report.exception
+                traceback: str = report.traceback
             ```
 
     === "`on_report`"

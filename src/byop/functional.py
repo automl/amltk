@@ -17,8 +17,6 @@ from typing import (
     TypeVar,
 )
 
-from byop.exceptions import exception_wrap
-
 T = TypeVar("T")
 V = TypeVar("V")
 K = TypeVar("K", bound=Hashable)
@@ -135,8 +133,10 @@ def funcname(func: Callable, default: str | None = None) -> str:
     Returns:
         The name of the function.
     """
-    if isinstance(func, exception_wrap):
-        func = func.f
+    from byop.optimization import Trial
+
+    if isinstance(func, Trial.Objective):
+        return funcname(func.f)
 
     if isinstance(func, partial):
         return func.func.__name__

@@ -4,7 +4,7 @@ is a reference to a resource.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, overload
 
 from more_itertools.more import first
@@ -60,11 +60,10 @@ class Drop(Generic[KeyT]):
         loaders: The loaders to use to load the resource.
     """
 
-    __slots__ = ("key", "loaders", "_remove", "_exists")
     key: KeyT
-    loaders: tuple[Loader[KeyT, Any], ...]
-    _remove: Callable[[KeyT], None]
-    _exists: Callable[[KeyT], bool]
+    loaders: tuple[Loader[KeyT, Any], ...] = field(repr=False)
+    _remove: Callable[[KeyT], None] = field(repr=False)
+    _exists: Callable[[KeyT], bool] = field(repr=False)
 
     def put(
         self,

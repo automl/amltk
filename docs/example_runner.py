@@ -13,6 +13,7 @@ import mkdocs_gen_files
 from more_itertools import first_true, peekable
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARNING)
 
 nav = mkdocs_gen_files.Nav()  # pyright: reportPrivateImportUsage=false
 

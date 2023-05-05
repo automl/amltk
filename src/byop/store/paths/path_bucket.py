@@ -204,3 +204,6 @@ class PathBucket(Bucket[str, Path]):
     @classmethod
     def _exists(cls, path: Path) -> bool:
         return path.exists()
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.path!r})"
