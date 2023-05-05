@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from collections.abc import ItemsView, KeysView, ValuesView
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -97,18 +96,6 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
         Returns:
             A new bucket with the same loaders as the current bucket.
         """
-
-    def keys(self) -> KeysView[KeyT]:
-        """Iterate over the keys in the bucket."""
-        return KeysView(self)
-
-    def values(self) -> ValuesView[Drop[LinkT]]:
-        """Iterate over the drops in the bucket."""
-        return ValuesView(self)
-
-    def items(self) -> ItemsView[KeyT, Drop[LinkT]]:
-        """Iterate over the keys and drops in the bucket."""
-        return ItemsView(self)
 
     def __contains__(self, key: object) -> bool:
         """Check if a key is in the bucket.

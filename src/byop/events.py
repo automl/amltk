@@ -340,7 +340,7 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         Args:
             name: The name of the event manager.
         """
-        self.name = name
+        self.name: str = name
         self.handlers: dict[Hashable, EventHandler[Any]] = defaultdict(EventHandler)
         self.counts: Counter[Hashable] = Counter()
         self.forwards: dict[Hashable, list[Hashable]] = defaultdict(list)

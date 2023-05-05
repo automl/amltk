@@ -133,6 +133,11 @@ def funcname(func: Callable, default: str | None = None) -> str:
     Returns:
         The name of the function.
     """
+    from byop.optimization import Trial
+
+    if isinstance(func, Trial.Objective):
+        return funcname(func.f)
+
     if isinstance(func, partial):
         return func.func.__name__
     if hasattr(func, "__qualname__"):

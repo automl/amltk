@@ -379,13 +379,14 @@ class Step(Generic[Space]):
         Returns:
             The step if found, otherwise the default value. Defaults to None
         """
+        pred: Callable[[Step], bool]
         pred = key if callable(key) else (lambda step: step.name == key)
         if deep:
             all_steps = chain(self.traverse(), self.traverse(backwards=True))
-            return first_true(all_steps, default, pred)
+            return first_true(all_steps, default, pred)  # type: ignore
 
         all_steps = chain(self.iter(), self.iter(backwards=True))
-        return first_true(all_steps, default, pred)
+        return first_true(all_steps, default, pred)  # type: ignore
 
     def path_to(
         self,

@@ -18,7 +18,7 @@ from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, Hashable, TypeVar
 
 from byop.asyncm import ContextEvent
-from byop.events import Event, EventManager
+from byop.events import Event, EventManager, Subscriber
 from byop.functional import Flag
 from byop.scheduling.sequential_executor import SequentialExecutor
 from byop.scheduling.termination_strategies import termination_strategy
@@ -48,7 +48,35 @@ class Scheduler:
 
     # Create a scheduler which uses local processes as workers
     scheduler = Scheduler.with_processes(2)
+
+    # Run a function when the scheduler starts, twice
+    @scheduler.on_start(repeat=2)
+    def say_hello_world():
+        print("hello world")
+
+    @scheduler.on_finish
+    def say_goodbye_world():
+        print("goodbye world")
+
+    scheduler.run(timeout=10)
     ```
+
+    Attributes:
+        executor: The executor to use to run tasks.
+        event_manager: The event manager used to manage events.
+        queue: The queue of tasks running
+        on_start: A [`Subscriber`][byop.events.Subscriber] which is called
+            when the scheduler starts.
+        on_finishing: A [`Subscriber`][byop.events.Subscriber] which is called
+            when the scheduler is finishing up.
+        on_finish: A [`Subscriber`][byop.events.Subscriber] which is called
+            when the scheduler finishes.
+        on_stop: A [`Subscriber`][byop.events.Subscriber] which is called
+            when the scheduler is stopped.
+        on_timeout: A [`Subscriber`][byop.events.Subscriber] which is called
+            when the scheduler reaches the timeout.
+        on_empty: A [`Subscriber`][byop.events.Subscriber] which is called
+            when the queue is empty.
     """
 
     STARTED: Event[[]] = Event("scheduler-started")
@@ -145,11 +173,11 @@ class Scheduler:
         """
         self.executor = executor
 
-        self.terminate: Callable[[Executor], None] | None
+        self._terminate: Callable[[Executor], None] | None
         if terminate is True:
-            self.terminate = termination_strategy(executor)
+            self._terminate = termination_strategy(executor)
         else:
-            self.terminate = terminate if callable(terminate) else None
+            self._terminate = terminate if callable(terminate) else None
 
         # An event managers which handles task status and calls callbacks
         if event_manager is None:
@@ -180,12 +208,14 @@ class Scheduler:
         # endlessly, preventing any of the async code from running.
         self._timeout_timer: Timer | None = None
 
-        self.on_start = self.event_manager.subscriber(self.STARTED)
-        self.on_finishing = self.event_manager.subscriber(self.FINISHING)
-        self.on_finished = self.event_manager.subscriber(self.FINISHED)
-        self.on_stop = self.event_manager.subscriber(self.STOP)
-        self.on_timeout = self.event_manager.subscriber(self.TIMEOUT)
-        self.on_empty = self.event_manager.subscriber(self.EMPTY)
+        em = self.event_manager
+
+        self.on_start: Subscriber[[]] = em.subscriber(self.STARTED)
+        self.on_finishing: Subscriber[[]] = em.subscriber(self.FINISHING)
+        self.on_finished: Subscriber[[]] = em.subscriber(self.FINISHED)
+        self.on_stop: Subscriber[[]] = em.subscriber(self.STOP)
+        self.on_timeout: Subscriber[[]] = em.subscriber(self.TIMEOUT)
+        self.on_empty: Subscriber[[]] = em.subscriber(self.EMPTY)
 
     @classmethod
     def with_processes(
@@ -722,9 +752,9 @@ class Scheduler:
         logger.debug("Scheduler has shutdown and declared as no longer running")
 
         if not wait:
-            if self.terminate is not None:
-                logger.debug(f"Terminating workers with {self.terminate}")
-                self.terminate(self.executor)
+            if self._terminate is not None:
+                logger.debug(f"Terminating workers with {self._terminate }")
+                self._terminate(self.executor)
             else:
                 # Just try to cancel the tasks. Will cancel pending tasks
                 # but executors like dask will even kill the job
