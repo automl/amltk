@@ -234,16 +234,8 @@ def target_function(
         bucket["y_val.npy"].load(),
         bucket["y_test.npy"].load(),
     )
-    print(X_train.shape)
-    print(X_val.shape)
-    print(X_test.shape)
-    print(y_train.shape)
-    print(y_val.shape)
-    print(y_test.shape)
-
     pipeline = pipeline.configure(trial.config)  # <!> (2)!
     sklearn_pipeline = pipeline.build()  # <!>
-    print(sklearn_pipeline)
 
     with trial.begin():  # <!> (3)!
         sklearn_pipeline.fit(X_train, y_train)
@@ -252,10 +244,8 @@ def target_function(
         items = {
             "exception.txt": str(trial.exception),
             "config.json": dict(trial.config),
+            "traceback.txt": str(trial.traceback),
         }
-        if trial.traceback:
-            print(trial.traceback)
-            items["traceback.txt"] = trial.traceback
 
         trial.store(items, where=bucket)
 
