@@ -70,7 +70,7 @@ sklearn = ["scikit-learn"]
 smac = ["smac>=2.0", "byop[configspace]"]
 optuna = ["optuna"]
 configspace = ["configspace"]
-dask = ["dask<=2023.4"]
+dask = ["dask<=2023.4.1"]
 
 [project.urls]
 documentation = "https://github.com/automl/byop/"
