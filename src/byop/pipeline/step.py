@@ -33,7 +33,7 @@ from byop.types import Config, Seed, Space
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from byop.pipeline.components import Split
+    from byop.pipeline.components import Group
     from byop.pipeline.parser import Parser
     from byop.pipeline.sampler import Sampler
 
@@ -54,6 +54,7 @@ class Step(Generic[Space]):
 
         * [`step()`][byop.pipeline.api.step]
         * [`choice()`][byop.pipeline.api.choice]
+        * [`group()`][byop.pipeline.api.group]
         * [`split()`][byop.pipeline.api.split]
         * [`searchable()`][byop.pipeline.api.searchable]
 
@@ -62,7 +63,7 @@ class Step(Generic[Space]):
         name: Name of the step
         prv: The previous step in the chain
         nxt: The next step in the chain
-        parent: Any [`Split`][byop.pipeline.components.Split] or
+        parent: Any [`Group`][byop.pipeline.components.Group] or
             [`Choice`][byop.pipeline.components.Choice] that this step is a part of
             and is the head of the chain.
         config: The configuration for this step
@@ -153,7 +154,7 @@ class Step(Generic[Space]):
         """Get the qualified name of this step.
 
         This is the name of the step prefixed by the names of all the previous
-        splits taken to reach this step in the chain.
+        groups taken to reach this step in the chain.
 
         Args:
             delimiter: The delimiter to use between names. Defaults to ":"
@@ -161,10 +162,10 @@ class Step(Generic[Space]):
         Returns:
             The qualified name
         """
-        from byop.pipeline.components import Split
+        from byop.pipeline.components import Group
 
-        splits = [s for s in self.climb(include_self=False) if isinstance(s, Split)]
-        names = [*reversed([split.name for split in splits]), self.name]
+        groups = [s for s in self.climb(include_self=False) if isinstance(s, Group)]
+        names = [*reversed([group.name for group in groups]), self.name]
         return delimiter.join(names)
 
     def configured(self) -> bool:
@@ -299,16 +300,16 @@ class Step(Generic[Space]):
 
     def walk(
         self,
-        splits: Sequence[Split] | None = None,
+        groups: Sequence[Group] | None = None,
         parents: Sequence[Step] | None = None,
-    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
+    ) -> Iterator[tuple[list[Group], list[Step], Step]]:
         """See `Step.walk`."""
-        splits = list(splits) if splits is not None else []
+        groups = list(groups) if groups is not None else []
         parents = list(parents) if parents is not None else []
-        yield splits, parents, self
+        yield groups, parents, self
 
         if self.nxt is not None:
-            yield from self.nxt.walk(splits, [*parents, self])
+            yield from self.nxt.walk(groups=groups, parents=[*parents, self])
 
     def traverse(
         self,

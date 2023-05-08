@@ -84,14 +84,15 @@ from sklearn.preprocessing import (
 from sklearn.svm import SVC
 
 from byop.sklearn import sklearn_pipeline
-from byop.pipeline import step, split, choice, Pipeline
+from byop.pipeline import step, split, choice, group, Pipeline
 
 pipeline = Pipeline.create(
     split(
         "feature_preprocessing",
-        (
+        group(
+            "categoricals",
             step(
-                "categoricals",
+                "categorical_imputer",
                 SimpleImputer,
                 space={
                     "strategy": ["most_frequent", "constant"],
@@ -108,8 +109,9 @@ pipeline = Pipeline.create(
                 config={"drop": "first"},
             )
         ),
-        (
-            step("numerics", SimpleImputer, space={"strategy": ["mean", "median"]})
+        group(
+            "numericals",
+            step("numerical_imputer", SimpleImputer, space={"strategy": ["mean", "median"]})
             | step(
                 "variance_threshold",
                 VarianceThreshold,
@@ -125,7 +127,7 @@ pipeline = Pipeline.create(
         item=ColumnTransformer,
         config={
             "categoricals": make_column_selector(dtype_include=object),
-            "numerics": make_column_selector(dtype_include=np.number),
+            "numericals": make_column_selector(dtype_include=np.number),
         },
     ),
     choice(

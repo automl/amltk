@@ -29,20 +29,26 @@ to construct.
         step("nan-imputer", SimpleImputer, config={"strategy": "most_frequent"}),
         split(
             "data-preprocessing",
-            step(
-                "one-hot-encoder",
-                OneHotEncoder,
-                space={
-                    "min_frequency": (0.01, 0.1),
-                    "handle_unknown": ["ignore", "infrequent_if_exist"],
-                },
-                config={"drop": "first"},
-            ),
-            step("scaler", StandardScaler),
+            group(
+                "categoricals",
+                step(
+                    "one-hot-encoder",
+                    OneHotEncoder,
+                    space={
+                        "min_frequency": (0.01, 0.1),
+                        "handle_unknown": ["ignore", "infrequent_if_exist"],
+                    },
+                    config={"drop": "first"},
+                ),
+            )
+            group(
+                "numericals",
+                step("scaler", StandardScaler),
+            )
             item=ColumnTransformer,
             config={
-                "one-hot-encoder": make_column_selector(dtype_include=object),
-                "scaler": make_column_selector(dtype_include=np.number),
+                "categoricals": make_column_selector(dtype_include=object),
+                "numericals": make_column_selector(dtype_include=np.number),
             },
         ),
         choice(
@@ -82,6 +88,12 @@ it and building it into something useful can be done with the methods,
     * [`Split`][byop.pipeline.Split]: A step which represents that the data flow through a
       pipeline will be split between the following steps.
       This is usually accompanied by some object that does the data splitting.
+
+    * [`Group`][byop.pipeline.Group]: A grouping of steps which you can think of
+      as drawing a named box around part of a pipeline. This is usually used
+      to extend the names given to parameters in the search space and to help
+      give extra contextual meaning. Custom pipeline builders can utilize this as they
+      wish.
 
     * `Option`: A step which indicates the following step(s) are optionally included.
 
@@ -413,7 +425,7 @@ configured_pipeline = pipeline.configure(config)
         !!! note "Split"
 
             We currently only support a [sklearn.compose.ColumnTransformer][]
-            for a split
+            for a split.
 
     === "Pytorch"
 
@@ -649,7 +661,7 @@ and `#!python "svm"` are under the heirarchy of the choice.
 
 !!! Note
 
-    By calling [`configure()`][byop.pipeline.Split.configure] on a `Choice` with
+    By calling [`configure()`][byop.pipeline.Group.configure] on a `Choice` with
     a valid configuration, you collapse the choice down to a single valid `Component`.
 
 ![Configuring a Choice](../images/pipeline-guide-choice-configure.excalidraw.svg)
@@ -657,7 +669,7 @@ and `#!python "svm"` are under the heirarchy of the choice.
 Lastly, you can still access the
 [`space()`][byop.pipeline.Step.space],
 [`sample()`][byop.pipeline.Step.sample],
-[`configure()`][byop.pipeline.Split.configure],
+[`configure()`][byop.pipeline.Group.configure],
 [`build()`][byop.pipeline.Split.build],
 methods of a `Choice` in much the same way as mentioned for a `Component`.
 
@@ -687,9 +699,10 @@ implementation you are interested in.
 
     from byop.pipeline import split
 
-    categorical = (
+    categorical = group(
+        "categorical",
         step(
-            "categorical",
+            "categorical_imputer",
             SimpleImputer,
             space={"strategy": ["most_frequent", "constant"]}
             config={"fill_value": "missing"}
@@ -715,8 +728,9 @@ implementation you are interested in.
 
     from byop.pipeline import split
 
-    numerical = (
-        step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
+    numerical = group(
+        "numerical",
+        step("numerical_imputer", SimpleImputer, space={"strategy": ["mean", "median"]}),
         | choice(
             "scaler",
             step("standard", StandardScaler),
@@ -742,8 +756,9 @@ implementation you are interested in.
 
     from byop.pipeline import step, split, Pipeline
 
-    numerical = (
-        step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
+    numerical = group(
+        "numerical",
+        step("numerical_imputer", SimpleImputer, space={"strategy": ["mean", "median"]}),
         | choice(
             "scaler",
             step("standard", StandardScaler),
@@ -753,9 +768,10 @@ implementation you are interested in.
         )
     )
 
-    categorical = (
+    categorical = group(
+        "categorical",
         step(
-            "categorical",
+            "categorical_imputer",
             SimpleImputer,
             space={"strategy": ["most_frequent", "constant"]}
             config={"fill_value": "missing"}
@@ -777,23 +793,25 @@ implementation you are interested in.
             config={
                 "categorical": make_column_selector(dtype_include=object),  # (1)!
                 "numerical": make_column_selector(dtype_include=np.number),  # (2)!
+                "remainder": "passthrough",  # (3)!
             }
     )
     ```
 
     1. The [`make_column_selector`][sklearn.compose.make_column_selector] is how we select
        columns from our data which are of `#!python dtype=object`. Notice
-       that we match `#!python "categorical"` to the first step in the
+       that we match `#!python "categorical"` to the group name in the
        path for handling categorical features. This is an artifact of
        how we build the [sklearn.pipeline.Pipeline][].
     2. Much the same as the line above except we select all numerical
        columns and send them to the `#!python "numerical"` path in the
        split.
     3. This is how you implement a `#!python "passthrough"` in an sklearn
-       Pipeline, such that no transformation is applied.
+       Pipeline, such that no transformation is applied to the "#!python remainder".
 
-    Notice above that we gave the first steps of each path, namely
-    `#!python "categorical"` and `#!python "numerical"` to `#!python split(config={"numerical": ..., "categorical": ...})`.
+    Notice above that we grouped each path, giving them a unique name to match to,
+    namely `#!python "categorical"` and `#!python "numerical"` which matches to
+    `#!python split(config={"numerical": ..., "categorical": ...})`.
     This is how a [sklearn.compose.ColumnTransformer][] is built and nothing special that we do.
 
 === "All in One"
@@ -809,9 +827,10 @@ implementation you are interested in.
     pipeline = Pipeline.create(
         split(
             "data_preprocessing",
-            (
+            group(
+                "categorical",
                 step(
-                    "categorical",
+                    "categorical_imputer",
                     SimpleImputer,
                     space={"strategy": ["most_frequent", "constant"]}
                     config={"fill_value": "missing"}
@@ -823,8 +842,9 @@ implementation you are interested in.
                     config={"drop": "first", "handle_unknown": "infrequent_if_exist"},
                 ),
             ),
-            (
-                step("numerical", SimpleImputer, space={"strategy": ["mean", "median"]}),
+            group(
+                "numerical",
+                step("numerical_imputer", SimpleImputer, space={"strategy": ["mean", "median"]}),
                 | choice(
                     "scaler",
                     step("standard", StandardScaler),

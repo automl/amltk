@@ -62,21 +62,17 @@ class Component(Step[Space], Generic[Item, Space]):
 
 
 @frozen(kw_only=True)
-class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
-    """A split in the pipeline.
+class Group(Mapping[str, Step], Step[Space]):
+    """A Fixed component with an item attached.
 
     Attributes:
-        name: The name of the component
-        paths: The paths that can be taken from this split
-        item (optional): The item attached to this component
-        config (optional): Any additional items to associate with this config
-        search_space (optional): A search space associated with this component
+        name: The name of the group
+        paths: The different paths in the group
     """
 
     name: str
-    paths: Sequence[Step] = field(hash=False)
+    paths: Sequence[Step]
 
-    item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
 
@@ -108,8 +104,8 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
             return [self]
 
         if direction in (None, "forward"):
-            for split_path in self.paths:
-                if path := split_path.path_to(pred, direction="forward"):
+            for member in self.paths:
+                if path := member.path_to(pred, direction="forward"):
                     return [self, *path]
 
             if self.nxt is not None and (
@@ -155,20 +151,20 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
 
     def walk(
         self,
-        splits: Sequence[Split] | None = None,
+        groups: Sequence[Group] | None = None,
         parents: Sequence[Step] | None = None,
-    ) -> Iterator[tuple[list[Split], list[Step], Step]]:
+    ) -> Iterator[tuple[list[Group], list[Step], Step]]:
         """See `Step.walk`."""
-        splits = list(splits) if splits is not None else []
+        groups = list(groups) if groups is not None else []
         parents = list(parents) if parents is not None else []
-        yield splits, parents, self
+        yield groups, parents, self
 
         for path in self.paths:
-            yield from path.walk(splits=[*splits, self], parents=[])
+            yield from path.walk(groups=[*groups, self], parents=[])
 
         if self.nxt:
             yield from self.nxt.walk(
-                splits=splits,
+                groups=groups,
                 parents=[*parents, self],
             )
 
@@ -204,13 +200,6 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
 
         if self.nxt is not None:
             yield from self.nxt.remove(keys)
-
-    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
-        """See `Step.select`."""
-        yield self
-
-        if self.nxt is not None:
-            yield from self.nxt.select(choices)
 
     # OPTIMIZE: Unlikely to be an issue but I figure `.items()` on
     # a split of size `n` will cause `n` iterations of `paths`
@@ -287,6 +276,45 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
 
         return new_self
 
+    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
+        """See `Step.select`."""
+        if self.name in choices:
+            choice = choices[self.name]
+            chosen = first_true(self.paths, pred=lambda path: path.name == choice)
+            if chosen is None:
+                raise ValueError(
+                    f"{self.__class__.__qualname__} {self.name} has no path '{choice}'"
+                    f"\n{self}",
+                )
+            yield chosen
+        else:
+            # Otherwise, we need to call select over the paths
+            paths = [Step.join(path.select(choices)) for path in self.paths]
+            yield self.mutate(paths=paths)
+
+        if self.nxt is not None:
+            yield from self.nxt.select(choices)
+
+
+@frozen(kw_only=True)
+class Split(Group[Space], Generic[Item, Space]):
+    """A split in the pipeline.
+
+    Attributes:
+        name: The name of the component
+        paths: The paths that can be taken from this split
+        item (optional): The item attached to this component
+        config (optional): Any additional items to associate with this config
+        search_space (optional): A search space associated with this component
+    """
+
+    name: str
+    paths: Sequence[Step] = field(hash=False)
+
+    item: Item | Callable[..., Item] | None = field(default=None, hash=False)
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+    search_space: Space | None = field(default=None, hash=False, repr=False)
+
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
@@ -311,14 +339,13 @@ class Split(Mapping[str, Step], Step[Space], Generic[Item, Space]):
 
 
 @frozen(kw_only=True)
-class Choice(Split[Item, Space]):
+class Choice(Group[Space]):
     """A Choice between different subcomponents.
 
     Attributes:
         name: The name of the component
         paths: The paths that can be taken from this split
         weights: The weights associated with each path
-        item (optional): The item attached to this component
         config (optional): Any additional items to associate with this config
         search_space (optional): A search space associated with this component
     """
@@ -328,29 +355,12 @@ class Choice(Split[Item, Space]):
 
     weights: Sequence[float] | None = field(hash=False)
 
-    item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
 
     def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""
         return zip(self.paths, (repeat(1) if self.weights is None else self.weights))
-
-    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
-        """See `Step.select`."""
-        if self.name in choices:
-            choice = choices[self.name]
-            chosen = first_true(self.paths, pred=lambda path: path.name == choice)
-            if chosen is None:
-                raise ValueError(f"Choice {self.name} has no path '{choice}'\n{self}")
-            yield chosen
-        else:
-            # Otherwise, we need to call select over the paths
-            paths = [Step.join(path.select(choices)) for path in self.paths]
-            yield self.mutate(paths=paths)
-
-        if self.nxt is not None:
-            yield from self.nxt.select(choices)
 
     def configure(self, config: Config, *, prefixed_name: bool | None = None) -> Step:
         """Configure this step and anything following it with the given config.

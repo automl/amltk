@@ -37,7 +37,6 @@ You can skip the imports sections and go straight to the
 from __future__ import annotations
 
 import shutil
-import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -62,7 +61,7 @@ from sklearn.svm import SVC
 
 from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from byop.optimization import History, Trial
-from byop.pipeline import Pipeline, choice, split, step
+from byop.pipeline import Pipeline, choice, group, split, step
 from byop.scheduling import Scheduler, Task
 from byop.sklearn.data import split_data
 from byop.smac import SMACOptimizer
@@ -114,9 +113,10 @@ guide.
 pipeline = Pipeline.create(
     split(
         "feature_preprocessing",
-        (  # <!> (3)!
+        group(  # <!> (3)!
+            "categoricals",
             step(
-                "categoricals",
+                "category_imputer",
                 SimpleImputer,
                 space={
                     "strategy": ["most_frequent", "constant"],
@@ -131,10 +131,15 @@ pipeline = Pipeline.create(
                     "handle_unknown": ["ignore", "infrequent_if_exist"],
                 },
                 config={"drop": "first"},
-            )
+            ),
         ),
-        (  # <!> (2)!
-            step("numerics", SimpleImputer, space={"strategy": ["mean", "median"]})
+        group(  # <!> (2)!
+            "numerics",
+            step(
+                "numerical_imputer",
+                SimpleImputer,
+                space={"strategy": ["mean", "median"]},
+            )
             | step(
                 "variance_threshold",
                 VarianceThreshold,
@@ -146,7 +151,7 @@ pipeline = Pipeline.create(
                 step("minmax", MinMaxScaler),
                 step("robust", RobustScaler),
                 step("passthrough", FunctionTransformer),
-            )
+            ),
         ),
         item=ColumnTransformer,
         config={
@@ -185,12 +190,12 @@ print(pipeline.space())
 #   configuration of a sklearn estimator. The space parameter is a dictionary
 #   of hyperparameters to optimize over, and the config parameter is a
 #   dictionary of fixed parameters to set on the estimator.
-# 2. Here we define the numerical preprocessing steps to use. Each step is a
+# 2. Here we gropu the numerical preprocessing steps to use. Each step is a
 #  scaler to use. Each scaler is defined by a step, which is a configuration
 #  of the preprocessor. The space parameter is a dictionary of
 #  hyperparameters to optimize over, and the config parameter is a dictionary
 #  of fixed parameters to set on the preprocessing step.
-# 3. Here we define the categorical preprocessing steps to use.
+# 3. Here we group the categorical preprocessing steps to use.
 #   Each step is given a space, which is a dictionary of hyperparameters to
 #   optimize over, and a config, which is a dictionary of fixed parameters to
 #   set on the preprocessing step.
@@ -229,22 +234,31 @@ def target_function(
         bucket["y_val.npy"].load(),
         bucket["y_test.npy"].load(),
     )
+    print(X_train.shape)
+    print(X_val.shape)
+    print(X_test.shape)
+    print(y_train.shape)
+    print(y_val.shape)
+    print(y_test.shape)
 
     pipeline = pipeline.configure(trial.config)  # <!> (2)!
     sklearn_pipeline = pipeline.build()  # <!>
+    print(sklearn_pipeline)
 
     with trial.begin():  # <!> (3)!
         sklearn_pipeline.fit(X_train, y_train)
 
     if trial.exception:
-        trial.store(
-            {
-                "exception.txt": str(trial.exception),
-                "traceback.txt": traceback.format_tb(trial.traceback),
-                "config.json": dict(trial.config),
-            },
-            where=bucket,
-        )
+        items = {
+            "exception.txt": str(trial.exception),
+            "config.json": dict(trial.config),
+        }
+        if trial.traceback:
+            print(trial.traceback)
+            items["traceback.txt"] = trial.traceback
+
+        trial.store(items, where=bucket)
+
         return trial.fail(cost=np.inf)  # <!> (4)!
 
     # Make our predictions with the model
@@ -348,6 +362,7 @@ def create_ensemble(
     }
     return Ensemble(weights=weights, trajectory=trajectory, configs=configs)
 
+
 """
 ## Main
 Finally we come to the main script that runs everything.
@@ -400,10 +415,12 @@ def tell_optimizer(report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
+
 @task.on_report
 def add_to_history(report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
+
 
 @task.on_success
 def launch_ensemble_task(_: Trial.SuccessReport) -> None:
@@ -416,7 +433,6 @@ def launch_another_task(_: Trial.Report) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
     task(trial)
-
 
 
 @ensemble_task.on_returned

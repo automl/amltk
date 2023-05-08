@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Iterable, Union
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
-from byop.pipeline.components import Component, Split
+from byop.pipeline.components import Component, Group, Split, Step
 from byop.types import Any
 
 if TYPE_CHECKING:
@@ -30,7 +30,9 @@ COLUMN_TRANSFORMER_ARGS = [
 SklearnItem: TypeAlias = Union[Any, ColumnTransformer]
 
 
-def process_component(step: Component[SklearnItem, Any]) -> tuple[str, SklearnItem]:
+def process_component(
+    step: Component[SklearnItem, Any],
+) -> Iterable[tuple[str, SklearnItem]]:
     """Process a single step into a tuple of (name, component) for sklearn.
 
     Args:
@@ -39,11 +41,18 @@ def process_component(step: Component[SklearnItem, Any]) -> tuple[str, SklearnIt
     Returns:
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
-    return (str(step.name), step.build())
+    yield (str(step.name), step.build())
+
+    if step.nxt is not None:
+        yield from process_from(step.nxt)
 
 
-def process_split(step: Split[SklearnItem, Any]) -> tuple[str, SklearnItem]:
-    """Process a single split into a tuple of (name, component) for sklearn.
+def process_group(step: Group[Any]) -> Iterable[tuple[str, SklearnItem]]:
+    """Process a single group into a tuple of (name, component) for sklearn.
+
+    !!! warning
+
+        Only works for groups with a single item.
 
     Args:
         step: The step to process
@@ -51,45 +60,100 @@ def process_split(step: Split[SklearnItem, Any]) -> tuple[str, SklearnItem]:
     Returns:
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
-    if step.item is None:
-        raise NotImplementedError(
-            f"Can't handle split as it has no item attached: {step}",
+    if len(step) > 1:
+        raise ValueError(
+            f"Can't handle groups with more than 1 item: {step}."
+            "\nCurrently they are simply removed and replaced with their one item."
+            " If you inteded some other functionality with inclduing more than"
+            " one item in a group, please raise a ticket or implement your own"
+            " builder.",
         )
 
-    if any(path.name in COLUMN_TRANSFORMER_ARGS for path in step.paths):
+    single_path = step.paths[0]
+    yield from process_from(single_path)
+
+    if step.nxt is not None:
+        yield from process_from(step.nxt)
+
+
+def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, SklearnItem]]:
+    """Process a single split into a tuple of (name, component) for sklearn.
+
+    Args:
+        split: The step to process
+
+    Returns:
+        tuple[str, SklearnComponent]: The name and component for sklearn
+    """
+    if split.item is None:
+        raise NotImplementedError(
+            f"Can't handle split as it has no item attached: {split}.",
+            " Sklearn builder requires all splits to have a ColumnTransformer",
+            " as the item.",
+        )
+
+    if split.config is None:
+        raise NotImplementedError(
+            f"Can't handle split as it has no config attached: {split}.",
+            " Sklearn builder requires all splits to have a config to tell",
+            " the ColumnTransformer how to operate.",
+        )
+
+    if any(path.name in COLUMN_TRANSFORMER_ARGS for path in split.paths):
         raise ValueError(
             f"Can't handle step as it has a path with a name that matches"
-            f" a known ColumnTransformer argument: {step}",
+            f" a known ColumnTransformer argument: {split}",
         )
 
-    # We passthrough if there's no config associated with the split as we
-    # don't know what to pass to each possible path when the config is missing
-    if step.config is None:
-        return (str(step.name), ColumnTransformer([], remainder="passthrough"))
+    path_names = {path.name for path in split.paths}
 
-    ct_config = {k: v for k, v in step.config.items() if k in COLUMN_TRANSFORMER_ARGS}
+    # Get the config values for the column transformer, and the paths
+    ct_config = {k: v for k, v in split.config.items() if k in COLUMN_TRANSFORMER_ARGS}
+    ct_paths = {k: v for k, v in split.config.items() if k in path_names}
+
+    # ... if theirs any other values in the config that isn't these, raise an error
+    if any(split.config.keys() - ct_config.keys() - ct_paths.keys()):
+        raise ValueError(
+            f"Can't handle split as it has a config with keys that aren't"
+            f" ColumnTransformer arguments or paths: {split}",
+            "\nPlease ensure that all keys in the config are either ColumnTransformer"
+            " arguments or paths."
+            "\n"
+            f"\nSplit '{split.name}': {split.config}"
+            f"\nColumnTransformer arguments: {COLUMN_TRANSFORMER_ARGS}"
+            f"\nPaths: {path_names}",
+        )
 
     transformers: list = []
-    for path in step.paths:
-        if path.name not in step.config:
-            transformers.append((path.name, "passthrough", None))
-        else:
-            assert isinstance(path, (Component, Split))
-            steps = list(process_from(path))
+    for path in split.paths:
+        if path.name not in split.config:
+            raise ValueError(
+                f"Can't handle split {split.name=} as it has a path {path.name=}"
+                " with noconfig associated with it"
+                "\nPlease ensure that all paths have a config associated with them.",
+                f"Split '{split.name}': {split.config}",
+            )
 
-            sklearn_step: SklearnItem
-            sklearn_step = steps[0][1] if len(steps) == 1 else SklearnPipeline(steps)
+        assert isinstance(path, (Component, Split, Group))
+        steps = list(process_from(path))
 
-            config = step.config[path.name]
-            transformers.append((path.name, sklearn_step, config))
+        sklearn_step: SklearnItem
+
+        sklearn_step = steps[0][1] if len(steps) == 1 else SklearnPipeline(steps)
+
+        split_config = split.config[path.name]
+
+        split_item = (path.name, sklearn_step, split_config)
+        transformers.append(split_item)
 
     column_transformer = ColumnTransformer(transformers, **ct_config)
-    return (step.name, column_transformer)
+    yield (split.name, column_transformer)
+
+    if split.nxt is not None:
+        yield from process_from(split.nxt)
 
 
-def process_from(
-    step: Component[SklearnItem, Any] | Split[SklearnItem, Any],
-) -> Iterable[tuple[str, SklearnItem]]:
+def process_from(step: Step) -> Iterable[tuple[str, SklearnItem]]:
     """Process a chain of steps into tuples of (name, component) for sklearn.
 
     Args:
@@ -99,15 +163,13 @@ def process_from(
         tuple[str, SklearnComponent]: The name and component for sklearn
     """
     if isinstance(step, Split):
-        yield process_split(step)
+        yield from process_split(step)
+    elif isinstance(step, Group):
+        yield from process_group(step)
     elif isinstance(step, Component):
-        yield process_component(step)
+        yield from process_component(step)
     else:
         raise NotImplementedError(f"Can't handle step: {step}")
-
-    if step.nxt is not None:
-        assert isinstance(step.nxt, (Component, Split))
-        yield from process_from(step.nxt)
 
 
 def build(pipeline: Pipeline) -> SklearnPipeline:
@@ -125,13 +187,13 @@ def build(pipeline: Pipeline) -> SklearnPipeline:
             The built pipeline
     """
     for step in pipeline.traverse():
-        if not isinstance(step, (Component, Split)):
+        if not isinstance(step, (Component, Group, Split)):
             msg = (
                 f"Can't build pipeline with step {step}."
                 " Only Components and Splits are supported."
             )
             raise ValueError(msg)
 
-    assert isinstance(pipeline.head, (Component, Split))
+    assert isinstance(pipeline.head, (Component, Split, Group))
     steps = list(process_from(pipeline.head))
     return SklearnPipeline(steps)

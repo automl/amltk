@@ -16,7 +16,7 @@ from typing import (
 from more_itertools import first_true, seekable
 
 from byop.exceptions import safe_map
-from byop.pipeline.components import Choice, Split, Step
+from byop.pipeline.components import Choice, Group, Step
 from byop.pipeline.pipeline import Pipeline
 from byop.types import Seed, Space
 
@@ -197,7 +197,7 @@ class Parser(ABC, Generic[Space]):
         assert not isinstance(parsed_space, (tuple, bool))
         return parsed_space
 
-    def parse(self, step: Pipeline | Step | Split | Choice | Any) -> Space:
+    def parse(self, step: Pipeline | Step | Group | Choice | Any) -> Space:
         """Parse a pipeline, step or something resembling a Space.
 
         Args:
@@ -214,8 +214,8 @@ class Parser(ABC, Generic[Space]):
         if isinstance(step, Choice):
             return self.parse_choice(step)
 
-        if isinstance(step, Split):
-            return self.parse_split(step)
+        if isinstance(step, Group):
+            return self.parse_group(step)
 
         if isinstance(step, Step):
             return self.parse_step(step)
@@ -262,14 +262,14 @@ class Parser(ABC, Generic[Space]):
 
         return space
 
-    def parse_split(self, step: Split) -> Space:
-        """Parse the space from a given split.
+    def parse_group(self, step: Group) -> Space:
+        """Parse the space from a given group.
 
         Args:
-            step: The split to parse.
+            step: The group to parse.
 
         Returns:
-            The space for this split.
+            The space for this group.
         """
         space = self.empty()
 

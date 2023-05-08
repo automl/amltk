@@ -1,8 +1,11 @@
 """The pipeline class used to represent a pipeline of steps.
 
-This module exposes a Pipelne class that wraps a chain of `Component`, `Split`
-and `Choice` components, created through the `step`, `choice` and `split`
-api functions from `byop.pipeline`.
+This module exposes a Pipeline class that wraps a chain of
+[`Component`][byop.pipeline.Component], [`Split`][byop.pipeline.Split],
+[`Group`][byop.pipeline.Group] and [`Choice`][byop.pipeline.Choice]
+components, created through the [`step()`][byop.pipeline.api.step],
+[`choice()`][byop.pipeline.choice], [`split()`][byop.pipeline.split]
+and [`group()`][byop.pipeline.group] api functions from `byop.pipeline`.
 """
 from __future__ import annotations
 
@@ -22,7 +25,7 @@ from uuid import uuid4
 from attrs import field, frozen
 
 from byop.functional import mapping_select
-from byop.pipeline.components import Split, Step
+from byop.pipeline.components import Group, Step
 
 if TYPE_CHECKING:
     from byop.pipeline.parser import Parser
@@ -97,16 +100,16 @@ class Pipeline:
         """
         yield from self.head.traverse()
 
-    def walk(self) -> Iterator[tuple[list[Split], list[Step], Step]]:
+    def walk(self) -> Iterator[tuple[list[Group], list[Step], Step]]:
         """Walk the pipeline in a depth-first manner.
 
-        This is similar to traverse, but yields the splits that lead to the step along
-        with any parents in a chain with that step (which does not include the splits)
+        This is similar to traverse, but yields the groups that lead to the step along
+        with any parents in a chain with that step (which does not include the groups)
 
         Yields:
-            (splits, parents, step)
+            (groups, parents, step)
         """
-        yield from self.head.walk(splits=[], parents=[])
+        yield from self.head.walk(groups=[], parents=[])
 
     @overload
     def find(
@@ -281,12 +284,12 @@ class Pipeline:
 
         Args:
             step: The step to get the qualified name of
-            delimiter: The delimiter to use between the splits and the step
+            delimiter: The delimiter to use between the groups and the step
 
         Returns:
             The qualified name of the step
         """
-        # We use the walk function to get the step along with any splits
+        # We use the walk function to get the step along with any groups
         # to get there
         if isinstance(step, Step):
             step = step.name
@@ -297,9 +300,9 @@ class Pipeline:
 
         *preceeding, found_step = path
 
-        splits = [s for s in preceeding if isinstance(s, Split)]
+        groups = [step for step in preceeding if isinstance(step, Group)]
 
-        return delimiter.join([s.name for s in splits] + [found_step.name])
+        return delimiter.join([group.name for group in groups] + [found_step.name])
 
     @overload
     def space(

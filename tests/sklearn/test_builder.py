@@ -10,11 +10,49 @@ from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.svm import SVC
 
 from byop.configspace import ConfigSpaceParser
-from byop.pipeline import Pipeline, SpaceAdapter, choice, split, step
+from byop.pipeline import Pipeline, SpaceAdapter, choice, group, split, step
 
 # Some toy data
 X = pd.DataFrame({"a": ["1", "0", "1", "dog"], "b": [4, 5, 6, 7], "c": [7, 8, 9, 10]})
 y = pd.Series([1, 0, 1, 1])
+
+
+def test_simple_pipeline() -> None:
+    # Defining a pipeline
+    pipeline = Pipeline.create(
+        step("ordinal", OrdinalEncoder),
+        step("std", StandardScaler),
+        step("rf", RandomForestClassifier),
+    )
+
+    # Building the pipeline
+    sklearn_pipeline: SklearnPipeline = pipeline.build()
+
+    # Fitting the pipeline
+    sklearn_pipeline.fit(X, y)
+
+    # Predicting with the pipeline
+    sklearn_pipeline.predict(X)
+
+
+def test_simple_pipeline_with_group() -> None:
+    # Defining a pipeline
+    pipeline = Pipeline.create(
+        group(
+            "feature_preprocessing",
+            step("ordinal", OrdinalEncoder) | step("std", StandardScaler),
+        ),
+        step("rf", RandomForestClassifier),
+    )
+
+    # Building the pipeline
+    sklearn_pipeline: SklearnPipeline = pipeline.build()
+
+    # Fitting the pipeline
+    sklearn_pipeline.fit(X, y)
+
+    # Predicting with the pipeline
+    sklearn_pipeline.predict(X)
 
 
 @parametrize("adapter", [ConfigSpaceParser()])
@@ -24,12 +62,18 @@ def test_split_with_choice(adapter: SpaceAdapter, seed: int) -> None:
     pipeline = Pipeline.create(
         split(
             "feature_preprocessing",
-            step("cats", OrdinalEncoder) | step("std", StandardScaler),
-            step("nums", StandardScaler),
+            group(
+                "categoricals",
+                step("ordinal", OrdinalEncoder) | step("std", StandardScaler),
+            ),
+            group(
+                "numericals",
+                step("scaler", StandardScaler, space={"with_mean": [True, False]}),
+            ),
             item=ColumnTransformer,
             config={
-                "cats": make_column_selector(dtype_include=object),
-                "nums": make_column_selector(dtype_include=np.number),
+                "categoricals": make_column_selector(dtype_include=object),
+                "numericals": make_column_selector(dtype_include=np.number),
             },
         ),
         step(

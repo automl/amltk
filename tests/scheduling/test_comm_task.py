@@ -5,6 +5,7 @@ import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Hashable, Iterator
 
+import pytest
 from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
@@ -57,6 +58,9 @@ def case_process_executor() -> ProcessPoolExecutor:
 def case_dask_executor() -> ClientExecutor:
     # Dask will raise a warning when re-using the ports, hence
     # we silence the warnings here.
+    pytest.skip(
+        "Dask executor stopped support for passing Connection" " objects in 2023.4",
+    )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         cluster = LocalCluster(

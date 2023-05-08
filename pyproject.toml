@@ -46,7 +46,7 @@ test = [
   "distributed",
   "openpyxl",
   "pyarrow",
-  "byop[smac, optuna, sklearn]",
+  "byop[smac, optuna, sklearn, docs-example]",
 ]
 doc = [
   "mkdocs",
@@ -70,6 +70,7 @@ sklearn = ["scikit-learn"]
 smac = ["smac>=2.0", "byop[configspace]"]
 optuna = ["optuna"]
 configspace = ["configspace"]
+dask = ["dask<=2023.4"]
 
 [project.urls]
 documentation = "https://github.com/automl/byop/"

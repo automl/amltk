@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterable, Mapping, TypeVar, overload
 
-from byop.pipeline.components import Choice, Component, Split
+from byop.pipeline.components import Choice, Component, Group, Split
 from byop.pipeline.step import Step
 
 Space = TypeVar("Space")
@@ -118,58 +118,17 @@ def step(
     return Component(name=name, item=item, config=config, search_space=space)
 
 
-@overload
-def choice(
-    name: str,
-    *choices: Step,
-    weights: Iterable[float] | None = ...,
-    item: None = None,
-) -> Choice[None, None]:
-    ...
-
-
-@overload
-def choice(
-    name: str,
-    *choices: Step,
-    weights: Iterable[float] | None = ...,
-    item: T,
-    config: Mapping[str, Any] | None = ...,
-) -> Choice[T, None]:
-    ...
-
-
-@overload
-def choice(
-    name: str,
-    *choices: Step,
-    weights: Iterable[float] | None = ...,
-    item: T,
-    space: Space,
-    config: Mapping[str, Any] | None = ...,
-) -> Choice[T, Space]:
-    ...
-
-
 def choice(
     name: str,
     *choices: Step,
     weights: Iterable[float] | None = None,
-    item: T | None = None,
-    space: Space | None = None,
-    config: Mapping[str, Any] | None = None,
-) -> Choice[T, Space] | Choice[T, None] | Choice[None, None]:
+) -> Choice[None]:
     """Define a choice in a pipeline.
 
     Args:
         name: The unique name of this step
         *choices: The choices that can be taken
         weights: Weights to assign to each choice
-        item: The item for this step.
-        config:
-            A config of set values to pass. If any parameter here is also present in
-            the space, this will be removed from the space.
-        space: A space with which this step can be searched over.
 
     Returns:
         Choice: Choice component with your choices as possibilities
@@ -178,14 +137,7 @@ def choice(
     if weights and len(weights) != len(choices):
         raise ValueError("Weights must be the same length as choices")
 
-    return Choice(
-        name=name,
-        paths=list(choices),
-        weights=weights,
-        item=item,
-        search_space=space,
-        config=config,
-    )
+    return Choice(name=name, paths=list(choices), weights=weights)
 
 
 @overload
@@ -227,8 +179,8 @@ def split(
     """Create a Split component, allowing data to flow multiple paths.
 
     Args:
-        name (Key): The unique name of this step
-        *paths (Step): The different paths
+        name: The unique name of this step
+        *paths: The different paths
         item: The item for this step.
         config:
             A config of set values to pass. If any parameter here is also present in
@@ -245,3 +197,16 @@ def split(
         search_space=space,
         config=config,
     )
+
+
+def group(name: str, *paths: Step[Space]) -> Group[Space]:
+    """Create a Group component, allowing to namespace one or multiple steps.
+
+    Args:
+        name: The unique name of this step
+        *paths: The different paths
+
+    Returns:
+        Group component with your choices as possibilities
+    """
+    return Group(name=name, paths=list(paths))
