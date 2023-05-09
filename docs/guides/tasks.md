@@ -7,8 +7,8 @@ and extensible. This allows workflows which encourage gradual development
 and experimentation, where the user can incrementally add more functionality
 and complexity to their system.
 
-By the end of this guide, we hope that the following code, it's options
-and it's inner working becomes easy to understand.
+By the end of this guide, we hope that the following code, its options
+and its inner working become easy to understand.
 
 ```python
 from byop.scheduling import Scheduler, Task
@@ -36,17 +36,17 @@ scheduler.run()
 ```
 
 
-This guide starts with a simple introduce to `amltk`'s event system, which
-act as the gears through which the whole system moves.
+This guide starts with a simple introduction to `amltk`'s event system, which
+acts as the gears through which the whole system moves.
 After that, we introduce the engine, the [`Scheduler`][byop.scheduling.Scheduler]
-and how this interacts with python's built in interface [`Executor`][concurrent.futures.Executor]
+and how this interacts with python's built-in interface [`Executor`][concurrent.futures.Executor]
 to offload compute to processes, compute nodes or even cloud resources.
-However the `Scheduler` is rather useless without some fuel.
-For this we present [`Tasks`][byop.scheduling.Task], the compute to actually
+However, the `Scheduler` is rather useless without some fuel.
+For this, we present [`Tasks`][byop.scheduling.Task], the computational task to
 perform with the `Scheduler` and start the system's gears turning.
 
 ## Events
-At the core of of AutoML-Toolkit is an [`EventManager`][byop.events.EventManager]
+At the core of AutoML-Toolkit is an [`EventManager`][byop.events.EventManager]
 whose sole purpose is to allow you to do two things:
 
 * [`emit`][byop.events.EventManager.emit]: Emit some event with arguments.

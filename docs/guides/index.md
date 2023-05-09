@@ -1,6 +1,6 @@
-The guides here serve as a well structured introduction to the capabilities
-of AutoML-Toolkit. Notable we have three core concepts at the heart of
-AutoML-Toolkit, with supporting types and auxillary functionality to
+The guides here serve as a well-structured introduction to the capabilities
+of AutoML-Toolkit. Notably, we have three core concepts at the heart of
+AutoML-Toolkit, with supporting types and auxiliary functionality to
 enable these concepts.
 
 These take the form of a [`Task`][byop.scheduling.Task], a [`Pipeline`][byop.pipeline.Pipeline]
@@ -20,9 +20,9 @@ to create the most flexible optimization framework we could imagine.
     !!! tip "Notable Features"
 
         * A system that allows incremental and encapsulated feature addition.
-        * An event-driven system with an easy to use _callbacks_.
+        * An event-driven system with easy to use _callbacks_.
         * Place constraints on your `Task`.
-        * Integrations for different backends for where to run your tasks
+        * Integrations for different backends for where to run your tasks.
         * A wide set of events to plug into.
         * An easy to extend system to create your own specialized events and tasks.
 
@@ -36,7 +36,7 @@ to create the most flexible optimization framework we could imagine.
     defining what your **pipeline** will do and how
     it can be parametrized. By piecing together [`steps`][byop.pipeline.api.step],
     [`choices`][byop.pipeline.api.choice] and [`splits`][byop.pipeline.api.split], you can
-    say how you pipeline should look and how it's parametrized. We'll take care
+    say how your pipeline should look and how it's parametrized. We'll take care
     of creating the search space to optimize over, configuring it and finally assembling
     it into something you can actually use.
 
