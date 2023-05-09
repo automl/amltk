@@ -328,7 +328,7 @@ class Timer:
 
   def finish(self) -> None:
     self.end = time.time()
-    self.duration = self.start - self.end
+    self.duration = self.end - self.start
 
 timer = Timer()
 timer.start()
