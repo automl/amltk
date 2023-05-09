@@ -10,7 +10,6 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from byop.pynisher.pynisher_task_plugin import TaskPlugin
 from byop.scheduling import Scheduler, Task
 from byop.scheduling.task_plugin import CallLimiter
 
@@ -67,11 +66,10 @@ def cpu_time_wasting_function(iterations: int) -> int:
 
 
 def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
-    c: list[TaskPlugin[[int], int]] = [CallLimiter(max_concurrent=2)]
     task = Task(
         time_wasting_function,
         scheduler=scheduler,
-        plugins=c,
+        plugins=[CallLimiter(max_concurrent=2)],
     )
 
     @scheduler.on_start(repeat=10)
