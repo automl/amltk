@@ -3,15 +3,15 @@ Thanks for checking out the contribution page!
 `amltk` is open to all open-source contributions, whether it be fixes,
 features, integrations or even just simple doc fixes.
 
-This guide will walkthrough some simple guidelines on the workflow
-of `amltk` but also some of the design principles that are core to its
+This guide will walk through some simple guidelines on the workflow
+of `amltk` but also some design principles that are core to its
 development. Some of these principles may be new for first time
 contributors and examples will be given where necessary.
 
 ## Setting up
 The core workflows of `amltk` are accessed through the [`justfile`](https://github.com/casey/just)
-in the root of the working directory. It is recommeneded to have this
-installed with their [simple one liners on their repo](https://github.com/casey/just#installation).
+in the root of the working directory. It is recommended to have this
+installed with their [simple one-liners on their repo](https://github.com/casey/just#installation).
 All of these were developed with bash in mind and your usage with other platforms
 may vary,
 please use the `justfile` as reference if this is the case.
@@ -31,17 +31,17 @@ hub fork
 ```
 
 #### Installation
-To install `amltk` for development, we rely on specific dependancies
-that are not required for the actual library to run. There are listed
+To install `amltk` for development, we rely on specific dependencies
+that are not required for the actual library to run. These are listed
 in the `pyproject.toml` under the `[project.optional-dependencies]` header.
 
 You can install all of these by doing the following:
 ```bash
-# Create a virtual environment in your preffered way.
+# Create a virtual environment in your preferred way.
 python -m venv .my-virtual-env
 source ./.my-virtual-env/bin/activate
 
-# Install all required dependancies
+# Install all required dependencies
 just install
 ```
 
@@ -57,8 +57,8 @@ repository. The configuration for `pre-commit` can be found in
 `.pre-commit-config.yaml`.
 
 To run these checks at any time, use the command `just fix`, followed
-by `just check`. Any list of errors will be presented to you and will
-recommend fixing these before commiting.
+by `just check`. Any list of errors will be presented to you, and we
+recommend fixing these before committing.
 
 While these can certainly be skipped, these checks will be run using
 github actions, a Continuous Integration (CI) service. If there are
@@ -97,11 +97,11 @@ please consider more context when describing not only what you changed
 but why and how.
 
 We may ask you to break up your changes into smaller atomic units that
-are easier to verify and review but we will describe this process to
+are easier to verify and review, but we will describe this process to
 you if required.
 
 #### Reviews
-One your PR is submitted, we will likely have comments and changes that
+Once your PR is submitted, we will likely have comments and changes that
 are required. Please be patient as we may not be able to respond
 immediately. If there are only minor comments, we will simply annotate
 your code where these changes are required and upon fixing them, we will
@@ -109,9 +109,9 @@ happily merge these into the `main` branch and thank you for your
 open-source contributions!
 
 Good practice is to actually review your own PR after submitting it.
-You'll often find small issues such as doc strings or even small logical
-issues. In general, if you can't understand your own PR, it's likely we
-wont either.
+You'll often find small issues such as out-of-sync doc strings or even small
+logical issues. In general, if you can't understand your own PR, it's likely 
+we won't either.
 
 ##### Granting access to your fork
 If the PR requires larger structural changes or more discussion, there
@@ -145,7 +145,7 @@ for code coverage and [`pytest-cases`](https://smarie.github.io/python-pytest-ca
 for test structure.
 
 In general, writing a test and running `just test` to test the whole library should be sufficient.
-If you need more fine grained control, such as only testing a particular test, please refer to [this
+If you need more fine-grained control, such as only testing a particular test, please refer to [this
 cheatsheet](https://gist.github.com/kwmiebach/3fd49612ef7a52b5ce3a).
 
 ```bash
@@ -155,12 +155,12 @@ pytest -k "test_name_of_my_test"    # Test a particular test
 ```
 
 > :warning: In general, you should prefer to run `just test` over `pytest` if new to testing.
-This will run all test until it hits it's first failure which allows for better incremental testing.
+This will run all test until it hits its first failure which allows for better incremental testing.
 It will also avoid running the examples which are often longer and saved for CI.
 
 ### Testing examples
 If testing any added examples, please use the `just test-examples` command, which is
-a shortcut for `pytest "tests/test_examples.py" -x --lf`. There is unfortunatly no way
+a shortcut for `pytest "tests/test_examples.py" -x --lf`. There is unfortunately no way
 to sub-select one.
 
 If you are not sure how to test your contribution or need some pointers to get started, please
@@ -184,11 +184,11 @@ The fixes can be done with `just fix`.
 
 ### Mypy - Static Type Checking
 This codebase also relies heavily on pythons `typing` and [`mypy`](https://mypy.readthedocs.io/en/stable/)
-to ensure correctness across modules. Running this standalone on all files can take some time
+to ensure correctness across modules. Running this standalone on all files can take some time,
 so we don't require you to run this, our automated testers will. If you wish to do so manually,
 then use `just check-types`.
 
-If any of the typing concepts are confusing, now is a good chance to learn
+If any of the typing concepts are confusing, now is a good chance to learn,
 and we would be happy to assist in helping properly type your PR if things do not work. If all else
 fails, please feel free to introduce a `# type: ignore` to tell `mypy` to shut up **along with a
 description to why it is there**. This will help future contributors and maintainers understand the
@@ -300,10 +300,10 @@ means bundle objects that belong together, together. This also means
 favour re-usable components that are decoupled from where they are
 intended to be used. Where possible, prefer immutable objects, i.e.
 ones that are not meant to be modified once constructed. Prefer
-composition over inheritance, using generics to indicate what's
+composition to inheritance, using generics to indicate what's
 being composed.
 
-Lets take a look at a few examples at these different concepts.
+Let's take a look at a few examples at these different concepts.
 
 You can find a basic cheatsheet for types [here](https://mypy.readthedocs.io/en/stable/cheat_sheet_py3.html#cheat-sheet-py3)
 
@@ -311,7 +311,7 @@ You can find a basic cheatsheet for types [here](https://mypy.readthedocs.io/en/
 Consider we need some timing functionality, that is we need to start
 some `Timer` and then eventually `stop` it and record a `start`, `end`
 and `duration`. We will use pythons [`@dataclass`](https://docs.python.org/3/library/dataclasses.html) to create a simple
-implementation and slowly iterate until we reach a well designed timer.
+implementation and slowly iterate until we reach a well-designed timer.
 
 ```python
 from dataclasses import dataclass
@@ -352,16 +352,16 @@ Trying to cram more functionality into `Timer` is just going to make it
 more complex and prone to error. We can solve this by, you guess it,
 types and immutability.
 
-First let's make it immutable by using a indicative `@classmethod` and
+First, let's make it immutable by using an indicative `@classmethod` and
 a dedicated return type to represent a time.
 
 ```python
 @dataclass
-class timer:
+class Timer:
     start_time: float
 
     @classmethod
-    def start(cls) -> timer:
+    def start(cls) -> Timer:
         return timer(start_time=time.time())
 
     def stop(self) -> tuple[float, float, float]:
@@ -369,7 +369,7 @@ class timer:
         duration = self.end - self.start_time
         return self.start_time, end, duration
 
-timer = timer.start()
+timer = Timer.start()
 # do something ...
 begin, end, duration = timer.stop()  # get the information we care about
 # do something else ...
@@ -377,7 +377,7 @@ begin, end, duration = timer.stop()  # we can even get another timestamp
 
 ```
 
-Great, by adding the restriction that our class can not be changed, we
+Great! By adding the restriction that our class can not be changed, we
 actually simplify the interface and introduce new functionality by
 turning our `Timer` into more of a `Stopwatch` where multiple durations
 can be retrieved. Notice how it's now quite difficult to misuse the class
@@ -407,13 +407,13 @@ class Timer:
     start_time: float
 
     @classmethod
-    def start(cls) -> timer:
+    def start(cls) -> Timer:
         return timer(start_time=time.time())
 
     def stop(self) -> TimeInterval:
         return TimeInterval(start=self.start_time, end=time.time())
 
-timer = timer.start()
+timer = Timer.start()
 # do something ...
 interval = timer.stop()
 print(f"{interval=}")  # Interval(start=..., end=...)
@@ -422,7 +422,7 @@ print(interval.duration)
 
 By introducing a simple type instead of multiple values, editors
 can now be smarter and help guide a user of `Timer` to what the timer
-returns when stopped and what's contained. The benfit of wrapping these
+returns when stopped and what's contained. The benefit of wrapping these
 means we can now also add more information to our `TimeInterval` without
 complicating the return type.
 
@@ -443,7 +443,7 @@ class Timer:
     start_time: float
 
     @classmethod
-    def start(cls) -> timer:
+    def start(cls) -> Timer:
         return timer(start_time=time.time())
 
     def stop(self) -> TimeInterval:
@@ -456,7 +456,7 @@ The last modification we will make is to utilize an `Enum` to ensure no
 so we attach some convenience for users to the class they care about,
 namely the `Timer`. The same could be done for the `TimeInterval` too.
 This has an added benefit we can nicely implement a time interval
-conversion function, to switch between units. Admittedly `start`
+conversion function, to switch between units. Admittedly, `start`
 and `end` lose some contextual meaning here but the same principles apply
 elsewhere.
 
@@ -487,7 +487,7 @@ class TimeInterval:
         """Convert this time interval to a different set of units."""
         new_start = ...
         new_end = ...
-        return TimeInterval(start=new_start, end=new_end, unit=units)
+        return TimeInterval(start=new_start, end=new_end, unit=unit)
 
 
 @dataclass
@@ -499,7 +499,7 @@ class Timer:
     units: ClassVar[type[TimeUnit]] = TimeUnit
 
     @classmethod
-    def start(cls) -> timer:
+    def start(cls) -> Timer:
         return timer(start_time=time.time())
 
     def stop(self) -> TimeInterval:
@@ -529,7 +529,7 @@ information together. While it is by no means complete, it is quite
 extensible for the future without needing to break API.
 
 #### What Type is it? Generics
-The library relies extensively **composition** with limited places of
+The library relies extensively on **composition** with limited places of
 _inheritance_ driven design. By asking a user to _inherit_ from a class
 as a means of implementing their desired behaviours, you complicate
 both your own `class` design, but also the job of a user.
@@ -541,7 +541,7 @@ provide a clean interaction point between people who wish to integrate
 code and the main libraries inner workings, without intertwining the two.
 
 The first advanced type feature to introduce is the `TypeVar`. This is
-akin to typed languages **generic**
+akin to typed languages' **generic**.
 
 If you've already used some basic `mypy` typing in Python, you've likely
 already used this without knowing it.
@@ -579,20 +579,20 @@ T = TypeVar("T")
 def f(x: T) -> T:
     return x
 
-result: str = f("hello") # Yup, passed in type is an str so result is a str
+result: str = f("hello") # Yup, passed in type is a str so result is a str
 result: int = f(4)       # Yup, passed in type is an int so result is an int
 ```
 
 We can do even more funky things with `Generic` and `TypeVar` combined, to essentially
 have objects bound to specific types information. This is similar to generics from other
-languages and is what let's us write things like `list[str]`.
+languages and is what lets us write things like `list[str]`.
 
 ```python
 from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
-class Box(Generic[T])
+class Box(Generic[T]):
     """Simple class which holds an item"""
 
     def __init__(self, x: T):
@@ -615,11 +615,11 @@ As a last quick example to get up to scratch, we can `bound` a `TypeVar` to basi
 say that the type it can be must inherit from a specific class.
 
 ```python
-from typing import TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T", bound=float)
 
-class Box(Generic[T])
+class Box(Generic[T]):
     """Simple class which holds an item"""
 
     def __init__(self, x: T):
@@ -638,7 +638,7 @@ the [python typing documentation](https://docs.python.org/3/library/typing.html)
 
 #### Easy virtual environments
 
-These two things go a long way for creating virtaul environments
+These two things go a long way for creating virtual environments
 and activating them. Place them in your `.bashrc` or equivalent to use them.
 ```bash
 pyvenv () {
@@ -693,7 +693,7 @@ here for brevity's sake
 # Maintainer Guide
 This section serves as a guide for active maintainers of `amltk` to
 keep the ship running smoothly and help foster a growing user-base.
-All maintainers but be familiar with the rest of the `CONTRIBUTING.md`.
+All maintainers must be familiar with the rest of the `CONTRIBUTING.md`.
 
 #### Ethos
 We appreciate all open-source contributions, whether that be a question,
@@ -701,7 +701,7 @@ issue or PR. This also pertains to potentially first-time contributors
 and people new to Python and open-source in general. This includes
 objective non-personal criticisms. We will try to be as helpful
 and communicative as possible with respect to our availability,
-and encourage open-discussion.
+and encourage open discussion.
 
 To foster growth and contribution, we will guide users through the
 library as required and encourage any and all contributions. If more
@@ -709,7 +709,7 @@ work is required on a PR, please encourage users to grant access to their
 fork such that we can actively contribute to their contribution and utilize
 a collaborative approach. This will also help prevent staling contributions.
 
-In the event of any indivdual who makes personal attacks or derogative
+In the event of any individual who makes personal attacks or derogative
 comments, please maintain decorum, respond nicely, and if issues persist,
 then inform the user they will be blocked.
 
@@ -727,7 +727,7 @@ through the `justfile`. If there is a workflow that you prefer and is
 not covered, please add your own.
 
 #### Automation
-Mainting repositories is time consuming work,
+Maintaining repositories is time-consuming work,
 whether that be benchmarking, experimenting, testing, versioning,
 issues, pull requests, documentation and anything else tangential to
 code features. Any and all automation to the repository is greatly
@@ -742,29 +742,29 @@ Whenever a version needs to be bumped, this workflow has been
 automated with `just bump`, which will bump all version strings
 and keeping to semvar versioning, using the commit history as a guide.
 Try to avoid using the `!` flag with a commit to indicate a major version
-bump unless concessus has been reached. Perhaps once we have released
-several major versions and stabalized API, we may utilize this more freely.
+bump unless consensus has been reached. Perhaps once we have released
+several major versions and a stabilized API, we may utilize this more freely.
 
-#### Dependancies
+#### Dependencies
 One of the hardest parts of maintenance for a mature library,
 especially one that supports integrations from both mature and
-research code is managing dependancies. Where possible,
-**prefer not adding an explicit dependancy**. This mainly holds for
-the **required** dependancies which all users must install. For
-developer dependancies, please feel free to add one with good
-justification. If integration some machine learning eco-system some
-as `scikit-learn` or `pytorch`, please try to bundle these dependancies
+research code is managing dependencies. Where possible,
+**prefer not adding an explicit dependency**. This mainly holds for
+the **required** dependencies which all users must install. For
+developer dependencies, please feel free to add one with good
+justification. When integrating some machine learning ecosystem like
+`scikit-learn` or `pytorch`, please try to bundle these dependencies
 as **optional** and reflect so accordingly in the code.
 
-There is some utility to handle such in `amltk.types` such as
-`safe_isinstance` and `safe_issubclass` to not rely on the
+There is some utility to work with optional dependencies in `amltk.types`,
+such as `safe_isinstance` and `safe_issubclass`, to not rely on the
 library being installed for runtime type checking. For static
 compile time type checking, please use mypy's `if TYPE_CHECKING:`
 idiom. This will prevent runtime errors for users who do not have
-these dependancies installed. For example:
+these dependencies installed. For example:
 
 ```python
-from typing import TYPE_CHECKING:
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
@@ -775,14 +775,14 @@ def draw_configspace(self, space: ConfigurationSpace) -> None:
 
 The exception to this rule is any modules a user must explicitly import
 for the integration. In this case, it is fine to assume the user has the
-required dependancies and any error generated is considered user error and
+required dependencies and any error generated is considered user error and
 if possible guide them to the `pip install "amltk[optional_dep]"` that
 they require for the integration.
 
-#### Dependancy updates
+#### Dependency updates
 We have `dependabot` enabled in the repository using
 the `.github/dependabot.yml`. This bot will periodically
-make pull requests to the repository that update dependancies. Do
+make pull requests to the repository that update dependencies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
 
