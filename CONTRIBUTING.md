@@ -344,7 +344,7 @@ timer = Timer()
 timer.begin()
 print(timer.duration)  # This is None
 timer.end()  # User accidentally calls end instead of finish
-milliseconds_since_begining = time.end - time.start  # Whoops, no time interval
+seconds_since_beginning = time.end - time.start  # Whoops, no time interval
 ```
 
 The problems here stem from the fact that `Timer` is mutable.
