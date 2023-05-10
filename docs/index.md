@@ -28,7 +28,7 @@ allowing you to define, search and build machine learning systems.
 
 -   :octicons-package-dependents-16: __Minimal Dependencies__
 
-    AutoML-Toolkit was designed to not introduce dependancies on your code.
+    AutoML-Toolkit was designed to not introduce dependencies on your code.
     We support some [integrations](./integrations) but only if they are optionally installed!.
 
 ---
