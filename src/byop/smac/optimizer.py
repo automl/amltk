@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal, Sequence
 
-from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, Scenario
 from smac.runhistory import (
     StatusType,
@@ -17,6 +16,7 @@ from smac.runhistory import (
 
 from byop.optimization import Optimizer, Trial
 from byop.randomness import as_int
+from pynisher import MemoryLimitException, TimeoutException
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -84,7 +84,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}_{seed=}_{budget=}_{instance=}"
-        trial = Trial(
+        trial: Trial[SMACTrialInfo] = Trial(
             name=unique_name,
             config=dict(config),
             info=smac_trial_info,

@@ -363,7 +363,6 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
     ) -> str:
         """Register a callback for an event.
 
-
         Args:
             event: The event to register the callback for.
             callback: The callback to register.
@@ -377,6 +376,9 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
                 successively.
             limit: The maximum number of times the callback can be
                 called.
+
+        Returns:
+            The name of the callback.
         """
         if repeat <= 0:
             raise ValueError(f"{repeat=} must be a positive integer.")

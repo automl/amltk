@@ -93,6 +93,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
 
     assert task.counts == {
         Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
         Task.DONE: 1,
         Task.RETURNED: 1,
         Task.F_RETURNED: 1,
@@ -100,6 +101,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "sleep"): 1,
+        (Task.F_SUBMITTED, "sleep"): 1,
         (Task.DONE, "sleep"): 1,
         (Task.RETURNED, "sleep"): 1,
         (Task.F_RETURNED, "sleep"): 1,
@@ -139,12 +141,17 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
     if isinstance(scheduler.executor, ProcessPoolExecutor):
         expected_task_counts = {
             Task.SUBMITTED: 1,
+            Task.F_SUBMITTED: 1,
             Task.EXCEPTION: 1,
             Task.F_EXCEPTION: 1,
             Task.DONE: 1,
         }
     else:
-        expected_task_counts = {Task.SUBMITTED: 1, Task.CANCELLED: 1}
+        expected_task_counts = {
+            Task.SUBMITTED: 1,
+            Task.F_SUBMITTED: 1,
+            Task.CANCELLED: 1,
+        }
 
     assert task.counts == expected_task_counts
 
@@ -178,6 +185,7 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
 
     expected_counts = {
         Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
         Task.DONE: 1,
         Task.RETURNED: 1,
         Task.F_RETURNED: 1,
@@ -187,10 +195,12 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "first"): 1,
+        (Task.F_SUBMITTED, "first"): 1,
         (Task.DONE, "first"): 1,
         (Task.RETURNED, "first"): 1,
         (Task.F_RETURNED, "first"): 1,
         (Task.SUBMITTED, "second"): 1,
+        (Task.F_SUBMITTED, "second"): 1,
         (Task.DONE, "second"): 1,
         (Task.RETURNED, "second"): 1,
         (Task.F_RETURNED, "second"): 1,
@@ -221,6 +231,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
 
     assert task.counts == {
         Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
         Task.DONE: 1,
         Task.RETURNED: 1,
         Task.F_RETURNED: 1,
@@ -228,6 +239,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "sleep"): 1,
+        (Task.F_SUBMITTED, "sleep"): 1,
         (Task.DONE, "sleep"): 1,
         (Task.RETURNED, "sleep"): 1,
         (Task.F_RETURNED, "sleep"): 1,

@@ -92,6 +92,7 @@ markdown_extensions:
 plugins:
   - search
   - autorefs
+  - glightbox
   - offline:
       enabled: !ENV [AMLTK_DOCS_OFFLINE, false]
   - markdown-exec
@@ -144,7 +145,6 @@ plugins:
 nav:
   - Home: "index.md"
   - Guides: "guides/"
-  - Integrations: "integrations/"
   - Reference: "reference/"
   - Examples: "examples/"  # Auto generated with docs/examples_runner.py
   - API: "api/"  # Auto generated with docs/api_generator.py

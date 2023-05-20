@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import traceback
 from abc import ABC
-from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,6 +15,7 @@ from typing import (
     Callable,
     ClassVar,
     Generic,
+    Iterable,
     Iterator,
     Literal,
     Mapping,
@@ -26,12 +26,14 @@ from typing_extensions import Concatenate, ParamSpec
 
 import pandas as pd
 
-from byop.events import Event, Subscriber
+from byop.events import Event, Subscriber, funcname
 from byop.functional import prefix_keys
 from byop.scheduling import (
     Scheduler,
     Task as TaskBase,
+    TaskPlugin,
 )
+from byop.scheduling.task import logging
 from byop.store import Bucket, PathBucket
 from byop.timing import TimeInterval, TimeKind, Timer
 from byop.types import abstractmethod
@@ -47,14 +49,15 @@ P = ParamSpec("P")
 T = TypeVar("T")
 R = TypeVar("R")
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class Trial(Generic[Info]):
     """A trial as suggested by an optimizer.
 
     You can modify the Trial as you see fit, specifically
-    `.summary` and `.stats` which are for recording any
-    information you may like.
+    `.summary` which are for recording any information you may like.
 
     The other attributes will be automatically set, such
     as `.time`, `.timer` and `.exception`, which are capture
@@ -69,9 +72,6 @@ class Trial(Generic[Info]):
     Attributes:
         summary: The summary of the trial. These are for
             summary statistics of a trial and are single values.
-        stats: The stats of the trial. These are lists
-            of values, where each value is the value of the stat
-            in some order.
         stored: Anything stored in the trial, the elements
             of the list are keys that can be used to retrieve them
             later, such as a Path.
@@ -79,6 +79,7 @@ class Trial(Generic[Info]):
         timer: The timer used to time the trial, once begun.
         exception: The exception raised by the trial, if any.
         traceback: The traceback of the exception, if any.
+        plugins: Any plugins attached to the trial.
     """
 
     name: str
@@ -92,9 +93,10 @@ class Trial(Generic[Info]):
     traceback: str | None = field(repr=False, default=None)
 
     summary: dict[str, Any] = field(default_factory=dict)
-    stats: dict[str, list[Any]] = field(default_factory=lambda: defaultdict(list))
     storage: set[Any] = field(default_factory=set)
     results: dict[str, Any] = field(default_factory=dict)
+
+    plugins: dict[str, Any] = field(default_factory=dict)
 
     @contextmanager
     def begin(
@@ -245,6 +247,7 @@ class Trial(Generic[Info]):
             trial=self,
             exception=exception,
             traceback=traceback,
+            time=None,
         )
 
     def store(
@@ -316,7 +319,7 @@ class Trial(Generic[Info]):
             method(self.name, items)
 
         # Add the keys to storage
-        self.storage = self.storage.union(items.keys())
+        self.storage.update(items.keys())
 
     @overload
     def retrieve(
@@ -413,6 +416,15 @@ class Trial(Generic[Info]):
         # Store in a sub-bucket
         return method.sub(self.name)[key].load(check=check)
 
+    def attach_plugin_item(self, name: str, plugin_item: Any) -> None:
+        """Attach a plugin item to the trial.
+
+        Args:
+            name: The name of the plugin item.
+            plugin_item: The plugin item.
+        """
+        self.plugins[name] = plugin_item
+
     @dataclass
     class Report(ABC, Generic[InfoInner]):
         """A report for a trial.
@@ -437,9 +449,10 @@ class Trial(Generic[Info]):
         """
 
         successful: ClassVar[bool]
-        status: ClassVar[str]
+        status: ClassVar[str] = "unknown"
 
         trial: Trial[InfoInner]
+        time: TimeInterval | None
 
         @property
         def name(self) -> str:
@@ -457,17 +470,12 @@ class Trial(Generic[Info]):
             return self.trial.summary
 
         @property
-        def stats(self) -> dict[str, Any]:
-            """The stats of the trial."""
-            return self.trial.stats
-
-        @property
         def storage(self) -> set[str]:
             """The storage of the trial."""
             return self.trial.storage
 
         @property
-        def info(self) -> InfoInner:
+        def info(self) -> InfoInner | None:
             """The info of the trial, specific to the optimizer that issued it."""
             return self.trial.info
 
@@ -481,19 +489,27 @@ class Trial(Generic[Info]):
             !!! note "Prefixes"
 
                 * `summary`: Entries will be prefixed with `#!python "summary:"`
-                * `stats`: Entries will be prefixed with `#!python "stats:"`
                 * `config`: Entries will be prefixed with `#!python "config:"`
                 * `results`: Entries will be prefixed with `#!python "results:"`
             """
+            if self.time is not None:
+                timings = {
+                    "start": self.time.start,
+                    "duration": self.time.duration,
+                    "end": self.time.end,
+                }
+            else:
+                timings = {}
+
             return pd.Series(
                 {
                     "name": self.name,
                     "successful": self.successful,
                     "status": self.status,
                     "trial_seed": self.trial.seed,
+                    **prefix_keys(timings, "time:"),
                     **self._extra_series(),
                     **prefix_keys(self.trial.summary, "summary:"),
-                    **prefix_keys(self.trial.stats, "stats:"),
                     **prefix_keys(self.trial.config, "config:"),
                 },
             )
@@ -606,6 +622,7 @@ class Trial(Generic[Info]):
         attributes.
 
         Attributes:
+            trial: The trial that crashed.
             exception: The exception for the trial.
             traceback: The traceback for the trial, if it was obtainable.
         """
@@ -613,20 +630,20 @@ class Trial(Generic[Info]):
         successful: ClassVar[bool] = False
         status: ClassVar[Literal["crashed"]] = "crashed"
 
+        trial: Trial[InfoInner]
+        time: None
         exception: BaseException
         traceback: str | None
 
         def _extra_series(self) -> dict[str, Any]:
-            return {"exception": self.exception}
+            return {"exception": str(self.exception)}
 
     @dataclass
     class SuccessReport(Report[InfoInner]):
         """A report for a successful trial.
 
-        See [`Report`][byop.optimization.Trial.Report] for additional
-        attributes.
-
         Attributes:
+            trial: The trial that was successful.
             time: The time taken by the trial.
             results: The results of the trial.
         """
@@ -634,22 +651,19 @@ class Trial(Generic[Info]):
         successful: ClassVar[bool] = True
         status: ClassVar[Literal["success"]] = "success"
 
+        trial: Trial[InfoInner]
         time: TimeInterval
         results: dict[str, Any] = field(default_factory=dict)
 
         def _extra_series(self) -> dict[str, Any]:
-            return {
-                **prefix_keys(self.results, "results:"),
-                "time:start": self.time.start,
-                "time:end": self.time.end,
-                "time:duration": self.time.duration,
-            }
+            return {**prefix_keys(self.results, "results:")}
 
     @dataclass
     class FailReport(Report[InfoInner]):
         """A report for a failed trial.
 
         Attributes:
+            trial: The trial that failed.
             time: The time taken by the trial.
             exception: The exception raised by the trial if any.
             traceback: The traceback of the exception raised by the trial if any.
@@ -659,6 +673,7 @@ class Trial(Generic[Info]):
         successful: ClassVar[bool] = False
         status: ClassVar[Literal["fail"]] = "fail"
 
+        trial: Trial[InfoInner]
         time: TimeInterval
         exception: BaseException | None
         traceback: str | None
@@ -668,9 +683,6 @@ class Trial(Generic[Info]):
             return {
                 **prefix_keys(self.results, "results:"),
                 "exception": self.exception,
-                "time:start": self.time.start,
-                "time:end": self.time.end,
-                "time:duration": self.time.duration,
             }
 
     class Objective(Generic[P, InfoInner]):
@@ -698,7 +710,7 @@ class Trial(Generic[Info]):
             return self.f(trial, *self.args, **self.kwargs)
 
     class Task(TaskBase):
-        """A task that will run a target function and tell the optimizer the result."""
+        """A Task specifically for Trials."""
 
         SUCCESS: Event[Trial.SuccessReport] = Event("trial-success")
         """The event that is triggered when a trial succeeds."""
@@ -718,30 +730,24 @@ class Trial(Generic[Info]):
             scheduler: Scheduler,
             *,
             name: str | None = None,
-            call_limit: int | None = None,
-            concurrent_limit: int | None = None,
-            memory_limit: int | tuple[int, str] | None = None,
-            cpu_time_limit: int | tuple[float, str] | None = None,
-            wall_time_limit: int | tuple[float, str] | None = None,
+            plugins: Iterable[
+                TaskPlugin[[Trial[InfoInner]], Trial.Report[InfoInner]]
+            ] = (),
         ) -> None:
             """Initialize a task.
 
             See [`Task`][byop.scheduling.task.Task] for more details.
-            """
-            super().__init__(
-                function,
-                scheduler,
-                name=name,
-                call_limit=call_limit,
-                concurrent_limit=concurrent_limit,
-                memory_limit=memory_limit,
-                cpu_time_limit=cpu_time_limit,
-                wall_time_limit=wall_time_limit,
-            )
-            self.trial_lookup: dict[Future, Trial] = {}
 
-            self.on_f_returned(self._emit_report)
-            self.on_f_exception(self._emit_report)
+            Args:
+                function: The function to run.
+                scheduler: The scheduler to use.
+                name: The name of the task.
+                plugins: Any plugins to attach to the task.
+            """
+            # NOTE: It's important these are here to setup up the subscribers
+            # properly
+            self.name = funcname(function) if name is None else name
+            self.scheduler = scheduler
 
             self.on_report: Subscriber[Trial.Report[InfoInner]]
             self.on_report = self.subscriber(self.REPORT)
@@ -755,23 +761,13 @@ class Trial(Generic[Info]):
             self.on_crashed: Subscriber[Trial.CrashReport[InfoInner]]
             self.on_crashed = self.subscriber(self.CRASHED)
 
-        def __call__(
-            self,
-            trial: Trial[InfoInner],
-        ) -> Future[Trial.Report[InfoInner]] | None:
-            """Run the trial and return the future for the result.
+            self.trial_lookup: dict[Future, Trial] = {}
 
-            Args:
-                trial: The trial to run.
+            super().__init__(function, scheduler, name=name, plugins=plugins)
 
-            Returns:
-                The future for the result of the trial.
-            """
-            future = super().__call__(trial)
-            if future is not None:
-                self.trial_lookup[future] = trial
-
-            return future
+            self.on_f_returned(self._emit_report)
+            self.on_f_exception(self._emit_report)
+            self.on_f_submitted(self._register_future)
 
         def _emit_report(
             self,
@@ -781,7 +777,12 @@ class Trial(Generic[Info]):
             """Emit a report for a trial based on the type of the report."""
             # Emit the fact a report happened
             if isinstance(report, BaseException):
-                report = self.trial_lookup[future].crashed(report)
+                trial = self.trial_lookup.get(future)
+                if trial is None:
+                    logger.error(f"No trial found for future {future}!")
+                    return
+
+                report = trial.crashed(report)
 
             emit_items: dict[Event, Any] = {
                 self.REPORT: ((report,), None),
@@ -800,3 +801,12 @@ class Trial(Generic[Info]):
 
             emit_items[event] = ((report,), None)
             self.emit_many(emit_items)  # type: ignore
+
+        def _register_future(
+            self,
+            future: Future[Any],
+            trial: Trial,
+            *args: Any,  # noqa: ARG002
+            **kwargs: Any,  # noqa: ARG002
+        ) -> None:
+            self.trial_lookup[future] = trial

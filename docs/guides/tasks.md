@@ -377,14 +377,6 @@ in a sequential manner!
     scheduler = Scheduler(executor=SequentialExecutor())
     ```
 
-??? warning "Limitations"
-
-    Due to the fact this all runs in the same process, limitations
-    to [`Tasks`][byop.scheduling.Task] are likely to cause issues.
-    Notably, `memory_limit`, `cpu_time_limit` and `wall_time_limit`.
-    It's also likely to cause interferences with
-    [`CommTask`][byop.scheduling.CommTask].
-
 
 
 ### Subscribing to Scheduler Events
@@ -590,7 +582,7 @@ it was emitted as the values.
     def print_hello(username: str) -> None:
         print(f"hello {username}, welcome!")
 
-    on_user_joined(print_hello)
+    on_user_joined.emit("john")
     ```
 
     1. We define our event with a type parameter to specify the type of
@@ -670,7 +662,6 @@ the scheduler finished.
     scheduler = Scheduler(...)
 
     scheduler.run(wait=False)
-
     ```
 
 === "`run(end_on_exception=..., raises=...)`"
@@ -696,6 +687,20 @@ the scheduler finished.
         scheduler.run(end_on_exception=True, raises=True)
     except Exception as e:
         print(f"An exception occurred: {e}")
+    ```
+
+=== "`run(end_on_empty=)`"
+
+    By default the scheduler will end once it's queue is empty, as this normally means
+    there will be no more events possible within the scheduler. To prevent this, pass
+    `#!python end_on_empty=False`.
+
+    ```python
+    from byop.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    scheduler.run(end_on_empty=False)
     ```
 
 === "`async_run()`"
@@ -777,6 +782,11 @@ resource consumption and provide a convenient way to express special kinds
 of tasks, with the possibility to create their own custom events to hook
 into.
 
+If the functionality doesn' suffices, you can also take a look at
+the available plugins in the [Reference](../reference) which are
+a way to extend and modify the capabilities of tasks, as well
+as introduce new custom events.
+
 !!! info "Provided Extensions of `Task`"
 
     * [`CommTask`][byop.scheduling.CommTask]s are tasks which are given
@@ -818,7 +828,7 @@ we like but the proffered way to handle the results is to use the
 `on_returned` and `on_exception` events.
 
 Here we demonstrate how we can gradually build up complexity to
-test our system and add functionality with small incremental changes
+test our system and add functionality with small incremental changes.
 
 === "Initial Test"
 
@@ -1057,128 +1067,6 @@ test our system and add functionality with small incremental changes
     registered. However the order of events is not guaranteed and is subject
     to undetermined behavior based on your computations and executor.
 
-### Limiting resource consumption
-Tasks can be used to limit the amount of resources a function can use.
-This is done using the following arguments to `Task`:
-
-=== "Call Limit"
-
-    The maximum number of times this task can be run.
-    If this limit is reached and the task is called again, the
-    [`CALL_LIMIT_REACHED`][byop.scheduling.Task.CALL_LIMIT_REACHED] event will be emitted
-    and the task will not be executed.
-    This can be subscribed to with
-    `on_call_limit_reached()`
-
-    ```python
-    from byop.scheduling import Task
-
-    task = Task(..., call_limit=5)
-
-    @task.on_call_limit_reached
-    def print_it(*args, **kwargs) -> None:
-        print(f"Task was already called {task.n_called} times")
-        print(f"Failed to run {task=} with {args=} and {kwargs=}")
-    ```
-
-=== "Concurrency"
-
-    The maximum number of concurrent executions of this task.
-    If the concurrent limit is reached and the task is called again, the
-    [`CONCURRENT_LIMIT_REACHED`][byop.scheduling.Task.CONCURRENT_LIMIT_REACHED] event will be emitted
-    and the task will not be executed.
-    This can be subscribed to with
-    `on_concurrent_limit_reached()`.
-
-    ```python
-    from byop.scheduling import Task
-
-    task = Task(..., concurrent_limit=3)
-
-    @task.on_concurrent_limit_reached
-    def print_it(*args, **kwargs) -> None:
-        print(f"Task already running {self.n_running} workers")
-        print(f"Failed to run {task=} with {args=} and {kwargs=}")
-    ```
-
-=== "Memory"
-
-    The maximum amount of memory this task can use.
-    If the memory limit triggered and the function crashes as a result,
-    the [`MEMORY_LIMIT_REACHED`][byop.scheduling.Task.MEMORY_LIMIT_REACHED] event will be emitted.
-    This can be subscribed to with
-    `on_memory_limit_reached()`.
-
-    ```python
-    from byop.scheduling import Task
-
-    task = Task(..., memory_limit=(2, "gb")) # (1)!
-
-    @task.on_memory_limit_reached
-    def print_it(future: Future, exception: BaseException) -> None:
-        print(f"Task reached memory limit, {future=} failed.")
-        print(f"Failed with {exception=}")
-    ```
-
-    1. Check out the parameters on how to set the memory limit
-    [here](https://github.com/automl/pynisher#parameters)
-
-    !!! warning "Memory Limits with Pynisher"
-
-        Pynisher has some limitations with memory on Mac and Windows:
-        https://github.com/automl/pynisher#features
-
-=== "CPU time"
-
-    The maximum amount of CPU time this task can use.
-    If the CPU time limit triggered and the function crashes as a result,
-    the [`TIMEOUT`][byop.scheduling.Task.TIMEOUT] and
-    [`CPU_TIME_LIMIT_REACHED`][byop.scheduling.Task.CPU_TIME_LIMIT_REACHED] events will be emitted.
-    This can be subscribed to with `on_timeout()` and
-    `on_cpu_time_limit_reached()` respectively.
-
-    ```python
-    from byop.scheduling import Task
-
-    task = Task(..., cpu_time_limit=(60, "s"))
-
-    @task.on_cpu_limit_reached
-    def print_it(future: Future, exception: BaseException) -> None:
-        print(f"Task reached memory limit, {future=} failed.")
-        print(f"Failed with {exception=}")
-    ```
-
-    1. Check out the parameters on how to set the cpu time limit
-    [here](https://github.com/automl/pynisher#parameters)
-
-    !!! warning "CPU Time Limits with Pynisher"
-
-        Pynisher has some limitations with cpu timing on Mac and Windows:
-        https://github.com/automl/pynisher#features
-
-=== "Wall time"
-
-    The maximum amount of wall clock time this task can use.
-    If the wall clock time limit triggered and the function crashes as a result,
-    the [`TIMEOUT`][byop.scheduling.Task.TIMEOUT] and
-    [`WALL_TIME_LIMIT_REACHED`][byop.scheduling.Task.WALL_TIME_LIMIT_REACHED] events will be emitted.
-    This can be subscribed to with `on_timeout()` and
-    `on_wall_time_limit_reached()` respectively.
-
-    ```python
-    from byop.scheduling import Task
-
-    task = Task(..., wall_time_limit=(5, "m"))  # (1)!
-
-    @task.on_walltime_limit_reached
-    def print_it(future: Future, exception: BaseException) -> None:
-        print(f"Task reached memory limit, {future=} failed.")
-        print(f"Failed with {exception=}")
-    ```
-
-    1. Check out the parameters on how to set the wall time limit
-    [here](https://github.com/automl/pynisher#parameters)
-
 ### Task Events
 As the [`Task`][byop.scheduling.Task] is the main unit of abstraction for submitting
 a function to be computed, we try to provide an extensive set of events to capture
@@ -1251,50 +1139,38 @@ Below are all the events that can be subscribed to with the [`Task`][byop.schedu
     can be used as a dictionary key.
     You can subscribe to this event with `on_f_exception()`.
 
-=== "`TIMEOUT`"
+### Task Plugins
+Tasks can be augmented with new capabilities by passing in [`TaskPlugins`][byop.TaskPlugin]
+to `Task(..., plugins=...)`.
 
-    `#!python TIMEOUT: Event[Future, BaseException] = Event("task-timeout")`
+Here we demonstrate just one plugins, for limiting how often a task can be called with
+the [`CallLimiter`][byop.CallLimiter]. Check out the [reference](../reference/index.md) for
+a list of other plugins, such as a [weights and biases plugin](../reference/wandb.md) for
+integrating with weights and biases, as well as a [pynisher plugin](../reference/pynisher.md)
+for limiting walltime, memory and/or cputime for your task.
 
-    The task was given a `wall_time_limit` or `cpu_time_limit` and it timed out.
-    You can subscribe to this event with `on_timeout()`.
+!!! example "CallLimiter"
 
-=== "`CALL_LIMIT_REACHED`"
+    We can limit the number of times a function is called or how many concurrent
+    instances of it can be running. To do so, we create the [`CallLimiter`][byop.CallLimiter]
+    and pass it in as a plugin. This plugin also introduces some new events that can be listened to.
 
-    `#!python CALL_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")`
+    ```python
+    from byop.scheduling import Task, CallLimiter
 
-    The task was submitted but reached it's maximum call limit. The callback
-    will be passed the `#!python *args, **kwargs` that the task was called with.
-    You can subscribe to this event with `on_concurrent_limit_reached()`.
+    limiter = CallLimiter(max_calls=10, max_concurrent=2)
+    task = Task(..., plugins=[limiter])
+
+    @task.on(CallLimiter.CALL_LIMIT_REACHED)
+    def print_it(*args, **kwargs) -> None:
+        print(f"Task was already called {task.n_called} times")
+
+    @task.on(CallLimiter.CONCURRENT_LIMIT_REACHED)
+    def print_it(*args, **kwargs) -> None:
+        print(f"Task already running at max concurrency")
+    ```
 
 
-=== "`CONCURRENT_LIMIT_REACHED`"
-
-    `#!python CONCURRENT_LIMIT_REACHED: Event[P] = Event("task-concurrent-limit")`
-
-    The task was submitted but reached it's maximum concurrency limit. The callback
-    will be passed the `#!python *args, **kwargs` that the task was called with.
-    You can subscribe to this event with `on_concurrent_limit_reached()`.
-
-=== "`MEMORY_LIMIT_REACHED`"
-
-    `#!python MEMORY_LIMIT_REACHED: Event[Future, BaseException] = Event("task-memory-limit")`
-
-    The task was given a `memory_limit` and it was exceeded.
-    You can subscribe to this event with `on_memory_limit_reached()`.
-
-=== "`CPU_TIME_LIMIT_REACHED`"
-
-    `#!python CPU_TIME_LIMIT_REACHED: Event[Future, BaseException] = Event("task-cputime-limit")`
-
-    The task was submitted with a cpu time limit but exceeded the limit.
-    You can subscribe to this event with `on_cpu_time_limit_reached()`.
-
-=== "`WALL_TIME_LIMIT_REACHED`"
-
-    `#!python WALL_TIME_LIMIT_REACHED: Event[Future, BaseException] = Event("task-walltime-limit")`
-
-    The task was submitted with a wall time limit but exceeded the limit.
-    You can subscribe to this event with `on_cpu_time_limit_reached()`.
 
 ## Comm Tasks
 The [`CommTask`][byop.scheduling.CommTask] is a special type of task that is used

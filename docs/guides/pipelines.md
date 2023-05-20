@@ -214,7 +214,7 @@ is for what comes next.
 
 In any machine learning pipeline, we often wish to optimize some hyperparameters
 of our model. For this we actually need to define some hyperparameters. For
-this example, we will be using [`ConfigSpace`](../integrations/configspace.md) and
+this example, we will be using [`ConfigSpace`](../reference//configspace.md) and
 it's syntax for defining a search space, but check out our built-in
 [integrations](integrations) for more.
 

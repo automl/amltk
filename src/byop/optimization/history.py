@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import operator
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     IO,
-    Any,
     Callable,
+    Hashable,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     Sequence,
     TypeVar,
@@ -18,11 +20,13 @@ from typing import (
 
 import pandas as pd
 
+from byop.functional import compare_accumulate
 from byop.optimization.trial import Trial
 from byop.types import Comparable
 
 T = TypeVar("T")
 CT = TypeVar("CT", bound=Comparable)
+HashableT = TypeVar("HashableT", bound=Hashable)
 
 
 @dataclass
@@ -65,6 +69,18 @@ class History(Mapping[str, Trial.Report]):
 
     reports: dict[str, Trial.Report] = field(default_factory=dict)
 
+    @classmethod
+    def from_reports(cls, reports: Iterable[Trial.Report]) -> History:
+        """Creates a history from reports.
+
+        Args:
+            reports: An iterable of reports.
+
+        Returns:
+            A history.
+        """
+        return cls({report.name: report for report in reports})
+
     def add(self, report: Trial.Report | Iterable[Trial.Report]) -> None:
         """Adds a report or reports to the history.
 
@@ -85,7 +101,6 @@ class History(Mapping[str, Trial.Report]):
         !!! note "Prefixes"
 
             * `summary`: Entries will be prefixed with `#!python "summary:"`
-            * `stats`: Entries will be prefixed with `#!python "stats:"`
             * `config`: Entries will be prefixed with `#!python "config:"`
             * `results`: Entries will be prefixed with `#!python "results:"`
 
@@ -111,6 +126,12 @@ class History(Mapping[str, Trial.Report]):
         history_df = pd.DataFrame(series)
         if len(history_df) > 0:
             history_df = history_df.set_index("name")
+
+            if "time:start" in history_df.columns and "time:end" in history_df.columns:
+                min_time = history_df[["time:start", "time:end"]].min().min()
+                history_df["time:relative_start"] = history_df["time:start"] - min_time
+                history_df["time:relative_end"] = history_df["time:end"] - min_time
+
         else:
             history_df.index.name = "name"
 
@@ -136,14 +157,62 @@ class History(Mapping[str, Trial.Report]):
             cost = report.results["cost"]
             print(f"{name}, {cost=}, {report}")
         ```
+
+        Args:
+            by: A predicate to filter by.
+
+        Returns:
+            A new history with the filtered reports.
         """  # noqa: E501
         return History(
             {name: report for name, report in self.reports.items() if by(report)},
         )
 
+    def groupby(
+        self,
+        key: Literal["status"] | Callable[[Trial.Report], Hashable],
+    ) -> dict[Hashable, History]:
+        """Groups the history by the values of a key.
+
+        ```python exec="true" source="material-block" result="python" title="groupby" hl_lines="15"
+        from byop.optimization import Trial, History
+
+        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
+        history = History()
+
+        for trial in trials:
+            with trial.begin():
+                x = trial.config["x"]
+                if x % 2 == 0:
+                    report = trial.fail(cost=1_000)
+                else:
+                    report = trial.success(cost=x**2 - x*2 + 4)
+                history.add(report)
+
+        for status, history in history.groupby("status").items():
+            print(f"{status=}, {len(history)=}")
+        ```
+
+        Args:
+            key: A key to group by. If `"status"` is passed, the history will be
+                grouped by the status of the reports.
+
+        Returns:
+            A mapping of keys to histories.
+        """  # noqa: E501
+        d = defaultdict(list)
+
+        if key == "status":
+            key = operator.attrgetter("status")
+
+        for report in self.reports.values():
+            d[key(report)].append(report)
+
+        return {k: History.from_reports(v) for k, v in d.items()}
+
     def sortby(
         self,
-        key: Callable[[Trial.Report], Comparable],
+        key: Callable[[Trial.Report], Comparable] | str,
         *,
         reversed: bool = False,  # noqa: A002
     ) -> Trace:
@@ -172,14 +241,24 @@ class History(Mapping[str, Trial.Report]):
         ```
 
         Args:
-            key: The key to sort by.
+            key: The key to sort by. If given a str, it will sort by
+                the value of that key in the summary and also filter
+                out anything that does not contain this key.
             reversed: Whether to sort in reverse order. By default,
                 this is `False` meaning smaller items are sorted first.
 
         Returns:
             A Trace of the history.
         """  # noqa: E501
-        return Trace(sorted(self.reports.values(), key=key, reverse=reversed))
+        # If given a str, filter out anything that doesn't have that key
+        if isinstance(key, str):
+            history = self.filter(lambda report: key in report.summary)
+            sort_key = lambda report: report.summary[key]
+        else:
+            history = self
+            sort_key = key
+
+        return Trace(sorted(history.reports.values(), key=sort_key, reverse=reversed))
 
     def __getitem__(self, key: str) -> Trial.Report:
         return self.reports[key]
@@ -206,6 +285,8 @@ class History(Mapping[str, Trial.Report]):
         """
         if isinstance(path, IO):
             path.write(self.df().to_csv())
+        else:
+            self.df().to_csv(path)
 
 
 @dataclass
@@ -252,7 +333,7 @@ class Trace(Sequence[Trial.Report]):
             return NotImplemented
         return self.reports == other.reports
 
-    def sortby(self, key: Callable[[Trial.Report], Any]) -> Trace:
+    def sortby(self, key: Callable[[Trial.Report], Comparable] | str) -> Trace:
         """Sorts the trace by a key.
 
         ```python exec="true" source="material-block" result="python" title="sortby" hl_lines="22"
@@ -287,12 +368,22 @@ class Trace(Sequence[Trial.Report]):
         ```
 
         Args:
-            key: A key to sort the trace by.
+            key: A key to sort the trace by. If given a str, it will
+                sort by the value of that key in the summary and also
+                filter out anything that does not contain this key in
+                its summary.
 
         Returns:
             A new trace with the sorted reports.
         """  # noqa: E501
-        return Trace(sorted(self.reports, key=key))
+        if isinstance(key, str):
+            trace = self.filter(lambda report: key in report.summary)
+            sort_key = lambda report: report.summary[key]
+        else:
+            trace = self
+            sort_key = key
+
+        return Trace(sorted(trace.reports, key=sort_key))
 
     def filter(self, by: Callable[[Trial.Report], bool]) -> Trace:
         """Filters the trace by a predicate.
@@ -334,9 +425,10 @@ class Trace(Sequence[Trial.Report]):
 
     def incumbents(
         self,
-        key: Callable[[Trial.Report], CT],
+        key: Callable[[Trial.Report], CT] | str,
         *,
-        op: Callable[[CT, CT], bool] = operator.lt,
+        op: Callable[[CT, CT], bool] | Literal["min"] | Literal["max"] = "min",
+        ffill: bool = False,
     ) -> IncumbentTrace:
         """Sorts the trace by a key and returns the incumbents.
 
@@ -371,21 +463,39 @@ class Trace(Sequence[Trial.Report]):
         ```
 
         Args:
-            key: The key to use.
+            key: The key to use. If given a str, it will sort by the value
+                of that key in the summary and also filter out anything that
+                does not contain this key in its summary.
             op: The comparison operator to use when deciding if a report is
-                an incumbent. By default, this is `operator.lt`, which means
+                an incumbent. By default, this is `"min"`, which means
                 that the incumbent is the smallest value. If you want to maximize,
-                you can use `operator.gt`. You can also use more advanced
+                you can use `"max"`. You can also use more advanced
                 `Callable`s if you like.
+            ffill: Whether to forward fill the incumbents. This means that
+                if a report is not an incumbent, it will be replaced with
+                the previous incumbent. This is useful if you want to
+                visualize the incumbents over time.
 
         Returns:
             A Trace of the incumbents.
         """  # noqa: E501
-        incumbents = [self.reports[0]]
-        for report in self.reports[1:]:
-            if op(key(report), key(incumbents[-1])):
-                incumbents.append(report)
+        if isinstance(op, str):
+            if op not in {"min", "max"}:
+                raise ValueError(f"Unknown op: {op}")
+            op = operator.lt if op == "min" else operator.gt  # type: ignore
+        else:
+            op = op  # type: ignore
 
+        if isinstance(key, str):
+            trace = self.filter(lambda report: key in report.summary)
+            _op = lambda r1, r2: op(r1.summary[key], r2.summary[key])  # type: ignore
+        else:
+            trace = self
+            _op = lambda r1, r2: op(key(r1), key(r2))  # type: ignore
+
+        incumbents = list(
+            compare_accumulate(trace.reports, op=_op, ffill=ffill),  # type: ignore
+        )
         return IncumbentTrace(incumbents)
 
     def df(self) -> pd.DataFrame:
@@ -397,7 +507,6 @@ class Trace(Sequence[Trial.Report]):
         !!! note "Prefixes"
 
             * `summary`: Entries will be prefixed with `#!python "summary:"`
-            * `stats`: Entries will be prefixed with `#!python "stats:"`
             * `config`: Entries will be prefixed with `#!python "config:"`
             * `results`: Entries will be prefixed with `#!python "results:"`
 
@@ -429,10 +538,26 @@ class Trace(Sequence[Trial.Report]):
         trace_df = pd.DataFrame([report.series() for report in self.reports])
         if len(trace_df) > 0:
             trace_df = trace_df.set_index("name")
+
+            if "time:start" in trace_df.columns and "time:end" in trace_df.columns:
+                min_time = trace_df[["time:start", "time:end"]].min().min()
+                trace_df["time:relative_start"] = trace_df["time:start"] - min_time
+                trace_df["time:relative_end"] = trace_df["time:end"] - min_time
         else:
             trace_df.index.name = "name"
 
         return trace_df
+
+    def save(self, path: str | Path | IO[str]) -> None:
+        """Saves the history to a file.
+
+        Args:
+            path: The path to save the history to.
+        """
+        if isinstance(path, IO):
+            path.write(self.df().to_csv())
+        else:
+            self.df().to_csv(path)
 
 
 @dataclass

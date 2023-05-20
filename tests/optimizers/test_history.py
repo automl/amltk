@@ -11,6 +11,30 @@ def quadratic(x):
     return x**2
 
 
+def eval_trial(
+    trial: Trial | list[Trial],
+    *,
+    fail: float | None = None,
+    crash: Exception | None = None,
+) -> list[Trial.Report]:
+    if isinstance(trial, Trial):
+        trial = [trial]
+
+    if crash is not None:
+        return [trial.crashed(exception=crash) for trial in trial]
+
+    reports: list[Trial.Report] = []
+    for _trial in trial:
+        with _trial.begin():
+            if fail is not None:
+                reports.append(_trial.fail(cost=fail))
+            else:
+                x = _trial.config["x"]
+                reports.append(_trial.success(cost=quadratic(x)))
+
+    return reports
+
+
 @case
 def case_empty() -> list[Trial.Report]:
     return []
@@ -18,53 +42,39 @@ def case_empty() -> list[Trial.Report]:
 
 @case(tags=["success"])
 def case_one_report_success() -> list[Trial.Report]:
-    trial = Trial("trial_1", info=None, config={"x": 1})
-    with trial.begin():
-        x = trial.config["x"]
-        return [trial.success(cost=quadratic(x))]
+    trial: Trial = Trial("trial_1", info=None, config={"x": 1})
+    return eval_trial(trial)
 
 
 @case(tags=["fail"])
 def case_one_report_fail() -> list[Trial.Report]:
-    trial = Trial("trial_1", info=None, config={"x": 1})
-    with trial.begin():
-        return [trial.fail(cost=100)]
+    trial: Trial = Trial("trial_1", info=None, config={"x": 1})
+    return eval_trial(trial, fail=100)
 
 
 @case(tags=["crash"])
 def case_one_report_crash() -> list[Trial.Report]:
-    trial = Trial("trial_1", info=None, config={"x": 1})
-    return [trial.crashed(exception=ValueError())]
+    trial: Trial = Trial("trial_1", info=None, config={"x": 1})
+    return eval_trial(trial, crash=ValueError(1))
 
 
 @case(tags=["success", "fail", "crash"])
 def case_many_report() -> list[Trial.Report]:
-    success_trials = [
+    success_trials: list[Trial] = [
         Trial(f"trial_{i+6}", info=None, config={"x": i}) for i in range(-5, 5)
     ]
-    fail_trials = [
+    fail_trials: list[Trial] = [
         Trial(f"trial_{i+16}", info=None, config={"x": i}) for i in range(-5, 5)
     ]
-    crash_trials = [
+    crash_trials: list[Trial] = [
         Trial(f"trial_{i+26}", info=None, config={"x": i}) for i in range(-5, 5)
     ]
 
-    reports: list[Trial.Report] = []
-    for trial in success_trials:
-        with trial.begin():
-            x = trial.config["x"]
-            reports.append(trial.success(cost=quadratic(x)))
-
-    for trial in fail_trials:
-        with trial.begin():
-            reports.append(trial.fail(cost=100))
-
-    for trial in crash_trials:
-        with trial.begin():
-            x = trial.config["x"]
-            reports.append(trial.crashed(exception=ValueError(x)))
-
-    return reports
+    return [
+        *eval_trial(success_trials),
+        *eval_trial(fail_trials, fail=100),
+        *eval_trial(crash_trials, crash=ValueError(1)),
+    ]
 
 
 @parametrize_with_cases("reports", cases=".")
@@ -169,3 +179,28 @@ def test_trace_df(reports: list[Trial.Report]) -> None:
         assert counts.get("success", 0) == len(filtered_success)
         assert counts.get("fail", 0) == len(filtered_fail)
         assert counts.get("crashed", 0) == len(filtered_crashed)
+
+
+def test_history_sortby() -> None:
+    trials: list[Trial] = [
+        Trial(f"trial_{i+6}", info=None, config={"x": i}) for i in range(-5, 5)
+    ]
+
+    summary = ["trial_1", "trial_3"]
+    history = History()
+
+    for trial in trials:
+        with trial.begin():
+            if trial.name in summary:
+                trial.summary["loss"] = trial.config["x"] ** 2
+
+            report = trial.success(cost=trial.config["x"])
+            history.add(report)
+
+    trace = history.sortby("loss")
+    assert isinstance(trace, Trace)
+    assert len(trace) == len(summary)
+    assert all("loss" in r.summary for r in trace)
+
+    losses = [r.summary["loss"] for r in trace]
+    assert sorted(losses) == losses

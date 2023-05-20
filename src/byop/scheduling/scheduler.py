@@ -572,7 +572,8 @@ class Scheduler:
             A Future representing the given call.
         """
         if not self.running():
-            raise RuntimeError("The scheduler is not running!")
+            logger.info(f"Scheduler is not running, cannot submit task {function}")
+            return None
 
         if self._timeout_timer is not None and self._timeout_timer.finished.is_set():
             logger.info(f"Timeout has elapsed, cannot submit task {function}")
@@ -701,13 +702,7 @@ class Scheduler:
             else:
                 msg = "Scheduler had `stop()` called on it."
 
-            if exception:
-                logger.error(msg)
-
-            logger.debug(msg)
             self.event_manager.emit(Scheduler.STOP)
-            logger.warning(exception)
-            logger.warning(bool(self._end_on_exception_flag))
             if self._end_on_exception_flag and exception:
                 stop_reason = exception
             else:
@@ -836,7 +831,6 @@ class Scheduler:
                 wait=wait,
             ),
         )
-        logger.warning(result)
 
         # Reset it back to its default
         self._end_on_exception_flag.reset()
@@ -903,7 +897,7 @@ class Scheduler:
         # NOTE: we allow args and kwargs to allow it to be easily
         # included in any callback.
         if not self.running():
-            raise RuntimeError("Scheduler has not been started yet")
+            return
 
         self._stop_event.set(msg="stop() called", exception=kwargs.get("exception"))
         logger.debug(f"Stop event set with {args=} and {kwargs=}")
