@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import warnings
-from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import Executor, ProcessPoolExecutor
 from typing import Iterator
 
 from dask.distributed import Client, LocalCluster, Worker
@@ -12,11 +12,6 @@ from pytest_cases import case, fixture, parametrize_with_cases
 
 from byop.pynisher import PynisherPlugin
 from byop.scheduling import Scheduler, Task
-
-
-@case(tags=["executor"])
-def case_thread_executor() -> ThreadPoolExecutor:
-    return ThreadPoolExecutor(max_workers=2)
 
 
 @case(tags=["executor"])
@@ -79,12 +74,13 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(mem_in_bytes=two_gb)
 
-    end_status = scheduler.run(raises=False)
+    end_status = scheduler.run(end_on_exception=True, raises=False)
 
     assert isinstance(end_status, PynisherPlugin.MemoryLimitException)
 
     assert task.counts == {
         Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
         Task.DONE: 1,
         Task.EXCEPTION: 1,
         Task.F_EXCEPTION: 1,
@@ -93,6 +89,7 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "big_memory_function"): 1,
+        (Task.F_SUBMITTED, "big_memory_function"): 1,
         (Task.DONE, "big_memory_function"): 1,
         (Task.EXCEPTION, "big_memory_function"): 1,
         (Task.F_EXCEPTION, "big_memory_function"): 1,
@@ -121,6 +118,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
 
     assert task.counts == {
         Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
         Task.DONE: 1,
         Task.EXCEPTION: 1,
         Task.F_EXCEPTION: 1,
@@ -130,6 +128,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
 
     counts = {
         (Task.SUBMITTED, "time_wasting_function"): 1,
+        (Task.F_SUBMITTED, "time_wasting_function"): 1,
         (Task.DONE, "time_wasting_function"): 1,
         (PynisherPlugin.TIMEOUT, "time_wasting_function"): 1,
         (Task.EXCEPTION, "time_wasting_function"): 1,
@@ -159,6 +158,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
 
     assert task.counts == {
         Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
         Task.DONE: 1,
         Task.EXCEPTION: 1,
         Task.F_EXCEPTION: 1,
@@ -168,6 +168,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "cpu_time_wasting_function"): 1,
+        (Task.F_SUBMITTED, "cpu_time_wasting_function"): 1,
         (Task.DONE, "cpu_time_wasting_function"): 1,
         (Task.EXCEPTION, "cpu_time_wasting_function"): 1,
         (Task.F_EXCEPTION, "cpu_time_wasting_function"): 1,

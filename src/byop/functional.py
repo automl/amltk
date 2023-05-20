@@ -11,6 +11,7 @@ from typing import (
     Callable,
     Generic,
     Hashable,
+    Iterable,
     Iterator,
     Mapping,
     Sequence,
@@ -168,6 +169,49 @@ def callstring(f: Callable, *args: Any, **kwargs: Any) -> str:
         args_str += ", ".join(f"{k}={v}" for k, v in kwargs.items())
 
     return f"{funcname(f)}({args_str})"
+
+
+def compare_accumulate(
+    xs: Iterable[T],
+    op: Callable[[T, T], bool],
+    *,
+    ffill: bool = False,
+) -> Iterator[T]:
+    """Compare and accumulate.
+
+    The most recent item to return True is carried forward and yielded.
+    Once another item in the iterator returns True, it is then the value to be
+    carried forward.
+
+    ```python exec="true" source="material-block" result="python" title="compare_accumulate"
+    from byop.functional import compare_accumulate
+
+    xs = [5, 4, 6, 2, 1, 8]
+    print(list(compare_accumulate(xs, lambda x, y: x > y)))
+    # [5, 6, 8]
+
+    print(list(compare_accumulate(xs, lambda x, y: x > y, ffill=True)))
+    # [5, 5, 6, 6, 6, 8]
+    ```
+
+    Args:
+        xs: The iterable to compare and accumulate.
+        op: The comparison operator.
+        ffill: Whether to forward fill. If this is `True`, any item that returns
+            `False` will be replaced with the most recent item that returned `True`.
+    """  # noqa: E501
+    itr = iter(xs)
+    current = next(itr, None)
+    if current is None:
+        return
+
+    yield current
+    for x in itr:
+        if op(x, current):
+            yield x
+            current = x
+        elif ffill:
+            yield current
 
 
 class Flag(Generic[T]):

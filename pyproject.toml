@@ -71,6 +71,7 @@ optuna = ["optuna"]
 configspace = ["configspace"]
 dask = ["dask<=2023.4"]
 pynisher = ["pynisher>=1.0.5"]
+wandb = ["wandb"]
 
 [project.urls]
 documentation = "https://github.com/automl/byop/"
@@ -131,7 +132,7 @@ select = [
   "COM",
   "C4",
   "D",
-  "DTZ",
+  # "DTZ",  # One day I should know how to utilize timezones and dates...
   "E",
   # "EXE", Meh
   "ERA",

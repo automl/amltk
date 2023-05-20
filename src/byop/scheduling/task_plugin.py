@@ -1,6 +1,7 @@
 """This module contains the TaskPlugin class."""
 from __future__ import annotations
 
+from abc import ABC
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, TypeVar
 from typing_extensions import ParamSpec
@@ -9,14 +10,13 @@ from byop.events import Event
 
 if TYPE_CHECKING:
     from byop.scheduling import Task
-    from byop.scheduling.task import Subscriber
 
 P = ParamSpec("P")
 R = TypeVar("R")
 TrialInfo = TypeVar("TrialInfo")
 
 
-class TaskPlugin(Generic[P, R]):
+class TaskPlugin(ABC, Generic[P, R]):
     """A plugin that can be attached to a Task.
 
     By inheriting from a `TaskPlugin`, you can hook into a
@@ -33,31 +33,30 @@ class TaskPlugin(Generic[P, R]):
 
     All methods are optional, and you can choose to implement only the ones
     you need. Most plugins will likely need to implement the
-    [`attach()`][byop.scheduling.TaskPlugin.attach] method, which is called
+    [`attach_task()`][byop.scheduling.TaskPlugin.attach_task] method, which is called
     when the plugin is attached to a task. In this method, you can for
     example subscribe to events on the task, create new subscribers for people
     to use or even store a reference to the task for later use.
 
     Plugins are also encouraged to utilize the events of a
     [`Task`][byop.scheduling.Task] to further hook into the lifecycle of the task.
-    For exampe, by saving a reference to the task in the `attach()` method, you
+    For exampe, by saving a reference to the task in the `attach_task()` method, you
     can use the [`emit()`][byop.scheduling.Task] method of the task to emit
     your own specialized events.
 
     !!! note "Methods"
 
-        * [`attach()`][byop.scheduling.TaskPlugin.attach]
-        * [`wrap()`][byop.scheduling.TaskPlugin.wrap]
+        * [`attach_task()`][byop.scheduling.TaskPlugin.attach_task]
         * [`pre_submit()`][byop.scheduling.TaskPlugin.pre_submit]
     """
 
+    name: ClassVar[str]
     """The name of the plugin.
 
     This is used to identify the plugin during logging.
     """
-    name: ClassVar[str]
 
-    def attach(self, task: Task) -> None:
+    def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task.
 
         This method is called when the plugin is attached to a task. This
@@ -68,37 +67,15 @@ class TaskPlugin(Generic[P, R]):
             task: The task the plugin is being attached to.
         """
 
-    def wrap(self, fn: Callable[P, R]) -> Callable[P, R]:
-        """Wrap the task function.
-
-        This method is called when the task is created, and is used to
-        wrap the task function. This is useful for example if you want
-        to wrap the task function to add some logging or other behaviour.
-
-        An example of this is the
-        [`PynisherPlugin`][byop.pynisher.PynisherPlugin] which wraps the
-        task function in a `Pynisher` instance to limit the resources
-        available to the task.
-
-        Args:
-            fn: The task function to wrap.
-
-        Returns:
-            The wrapped task function.
-        """
-        return fn
-
     def pre_submit(
         self,
-        fn: Callable[P, R],  # noqa: ARG002
-        *args: P.args,  # noqa: ARG002
-        **kwargs: P.kwargs,  # noqa: ARG002
-    ) -> bool:
+        fn: Callable[P, R],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> tuple[Callable[P, R], tuple, dict] | None:
         """Pre-submit hook.
 
-        This method is called before the task is submitted. This is the place
-        to do any checks on the arguments and keyword arguments, and return
-        `False` if the task should not be submitted.
+        This method is called before the task is submitted.
 
         Args:
             fn: The task function.
@@ -106,9 +83,11 @@ class TaskPlugin(Generic[P, R]):
             **kwargs: The keyword arguments to the task function.
 
         Returns:
-            `True` if the task should be submitted, `False` otherwise.
+            A tuple of the task function, arguments and keyword arguments
+            if the task should be submitted, or `None` if the task should
+            not be submitted.
         """
-        return True
+        return fn, args, kwargs
 
     def events(self) -> list[Event]:
         """Return a list of events that this plugin emits.
@@ -143,7 +122,7 @@ class CallLimiter(TaskPlugin[P, R]):
         task(2)
         task(3)
 
-    @limiter.on_call_limit
+    @task.on(limiter.CALL_LIMIT_REACHED)
     def on_call_limit(x: int):
         print(f"Call limit reached: Didn't run task with {x}")
 
@@ -154,12 +133,6 @@ class CallLimiter(TaskPlugin[P, R]):
         max_calls: The maximum number of calls to the task.
         max_concurrent: The maximum number of calls of this task that can
             be in the queue.
-        on_call_limit: A subscriber to the
-            [`CALL_LIMIT_REACHED`][byop.scheduling.CallLimiter.CALL_LIMIT_REACHED]
-            event.
-        on_concurrent_limit: A subscriber to the
-            [`CONCURRENT_LIMIT_REACHED`][byop.scheduling.CallLimiter.CONCURRENT_LIMIT_REACHED]
-            event.
     """
 
     name: ClassVar = "call-limiter"
@@ -191,26 +164,19 @@ class CallLimiter(TaskPlugin[P, R]):
         self._calls = 0
         self._concurrent = 0
 
-        self.on_call_limit: Subscriber[P]
-        self.on_concurrent_limit: Subscriber[P]
-
-    def attach(self, task: Task) -> None:
+    def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
-
-        # Register our own subscribers
-        self.on_call_limit = task.subscriber(self.CALL_LIMIT_REACHED)
-        self.on_concurrent_limit = task.subscriber(self.CALL_LIMIT_REACHED)
 
         # Make sure to increment the count when a task was submitted
         task.on_submitted(self._increment_call_count)
 
     def pre_submit(
         self,
-        fn: Callable[P, R],  # noqa: ARG002
+        fn: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> bool:
+    ) -> tuple[Callable, tuple, dict] | None:
         """Pre-submit hook.
 
         Prevents submission of the task if it exceeds any of the set limits.
@@ -219,16 +185,16 @@ class CallLimiter(TaskPlugin[P, R]):
 
         if self.max_calls is not None and self._calls >= self.max_calls:
             self.task.emit(self.CALL_LIMIT_REACHED, *args, **kwargs)
-            return False
+            return None
 
         if (
             self.max_concurrent is not None
             and len(self.task.queue) >= self.max_concurrent
         ):
             self.task.emit(self.CONCURRENT_LIMIT_REACHED, *args, **kwargs)
-            return False
+            return None
 
-        return True
+        return fn, args, kwargs
 
     def _increment_call_count(self, _: Any) -> None:
         self._calls += 1

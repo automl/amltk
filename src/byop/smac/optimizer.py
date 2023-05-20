@@ -84,7 +84,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}_{seed=}_{budget=}_{instance=}"
-        trial = Trial(
+        trial: Trial[SMACTrialInfo] = Trial(
             name=unique_name,
             config=dict(config),
             info=smac_trial_info,

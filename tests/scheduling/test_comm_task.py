@@ -101,6 +101,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
 
     task_counts: dict[Hashable, int] = {
         CommTask.SUBMITTED: 1,
+        CommTask.F_SUBMITTED: 1,
         CommTask.DONE: 1,
         CommTask.RETURNED: 1,
         CommTask.MESSAGE: len(replies),
@@ -112,6 +113,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     scheduler_counts = {
         (CommTask.SUBMITTED, "sending_worker"): 1,
+        (CommTask.F_SUBMITTED, "sending_worker"): 1,
         (CommTask.DONE, "sending_worker"): 1,
         (CommTask.RETURNED, "sending_worker"): 1,
         (CommTask.MESSAGE, "sending_worker"): len(replies),
@@ -151,6 +153,7 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
 
     assert task.counts == {
         CommTask.SUBMITTED: 1,
+        CommTask.F_SUBMITTED: 1,
         CommTask.DONE: 1,
         CommTask.RETURNED: 1,
         CommTask.F_RETURNED: 1,
@@ -161,6 +164,7 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
 
     assert scheduler.counts == {
         (CommTask.SUBMITTED, "requesting_worker"): 1,
+        (CommTask.F_SUBMITTED, "requesting_worker"): 1,
         (CommTask.DONE, "requesting_worker"): 1,
         (CommTask.RETURNED, "requesting_worker"): 1,
         (CommTask.F_RETURNED, "requesting_worker"): 1,

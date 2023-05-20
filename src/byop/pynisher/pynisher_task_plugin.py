@@ -9,15 +9,18 @@ which are [listed here](https://github.com/automl/pynisher#features).
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, TypeVar
+from typing_extensions import ParamSpec
 
 from byop.events import Event
 from byop.scheduling.task_plugin import TaskPlugin
 from pynisher import Pynisher
 
 if TYPE_CHECKING:
-    from byop.events import Subscriber
     from byop.scheduling.task import Task
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 class PynisherPlugin(TaskPlugin):
@@ -45,7 +48,7 @@ class PynisherPlugin(TaskPlugin):
     def on_start():
         task(3)
 
-    @pynisher.on_wall_time_limit_reached
+    @task.on(pynisher.WALL_TIME_LIMIT_REACHED)
     def on_wall_time_limit(exception):
         print(f"Wall time limit reached!")
 
@@ -56,18 +59,6 @@ class PynisherPlugin(TaskPlugin):
         memory_limit: The memory limit of the task.
         cpu_time_limit: The cpu time limit of the task.
         wall_time_limit: The wall time limit of the task.
-        on_timeout: A subscriber to the
-            [`TIMEOUT`][byop.pynisher.PynisherPlugin.TIMEOUT] event. This is triggered
-            for both `WALL_TIME_LIMIT_REACHED` and `CPU_TIME_LIMIT_REACHED`.
-        on_memory_limit_reached: A subscriber to the
-            [`MEMORY_LIMIT_REACHED`][byop.pynisher.PynisherPlugin.MEMORY_LIMIT_REACHED]
-            event.
-        on_cpu_time_limit_reached: A subscriber to the
-            [`CPU_TIME_LIMIT_REACHED`][byop.pynisher.PynisherPlugin.CPU_TIME_LIMIT_REACHED]
-            event.
-        on_wall_time_limit_reached: A subscriber to the
-            [`WALL_TIME_LIMIT_REACHED`][byop.pynisher.PynisherPlugin.WALL_TIME_LIMIT_REACHED]
-            event.
     """
 
     name = "pynisher-plugin"
@@ -107,9 +98,15 @@ class PynisherPlugin(TaskPlugin):
         """Initialize a `PynisherPlugin` instance.
 
         Args:
-            memory_limit: The memory limit to wrap the task in. Defaults to `None`
-            cpu_time_limit: The cpu time limit to wrap the task in. Defaults to `None`
-            wall_time_limit: The wall time limit for the task. Defaults to `None`.
+            memory_limit: The memory limit to wrap the task in. Base unit is in bytes
+                but you can specify `(value, unit)` where `unit` is one of
+                `("B", "KB", "MB", "GB")`. Defaults to `None`
+            cpu_time_limit: The cpu time limit to wrap the task in. Base unit is in
+                seconds but you can specify `(value, unit)` where `unit` is one of
+                `("s", "m", "h")`. Defaults to `None`
+            wall_time_limit: The wall time limit for the task. Base unit is in seconds
+                but you can specify `(value, unit)` where `unit` is one of
+                `("s", "m", "h")`. Defaults to `None`.
         """
         self.memory_limit = memory_limit
         self.cpu_time_limit = cpu_time_limit
@@ -117,12 +114,12 @@ class PynisherPlugin(TaskPlugin):
 
         self.task: Task
 
-        self.on_timeout: Subscriber[BaseException]
-        self.on_memory_limit_reached: Subscriber[BaseException]
-        self.on_cpu_time_limit_reached: Subscriber[BaseException]
-        self.on_wall_time_limit_reached: Subscriber[BaseException]
-
-    def wrap(self, fn: Callable) -> Callable:
+    def pre_submit(
+        self,
+        fn: Callable[P, R],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> tuple[Callable[P, R], tuple, dict]:
         """Wrap a task function in a `Pynisher` instance."""
         # If any of our limits is set, we need to wrap it in Pynisher
         # to enfore these limits.
@@ -138,17 +135,11 @@ class PynisherPlugin(TaskPlugin):
                 terminate_child_processes=True,
             )
 
-        return fn
+        return fn, args, kwargs
 
-    def attach(self, task: Task) -> None:
+    def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
-
-        # Register our own subscribers
-        self.on_timeout = task.subscriber(self.TIMEOUT)
-        self.on_wall_time_limit_reached = task.subscriber(self.WALL_TIME_LIMIT_REACHED)
-        self.on_cpu_time_limit_reached = task.subscriber(self.CPU_TIME_LIMIT_REACHED)
-        self.on_memory_limit_reached = task.subscriber(self.MEMORY_LIMIT_REACHED)
 
         # Check the exception and emit pynisher specific ones too
         task.on_exception(self._check_to_emit_pynisher_exception)

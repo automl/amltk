@@ -1,9 +1,19 @@
+from byop.optimization import (
+    History,
+    IncumbentTrace,
+    Optimizer,
+    RandomSearch,
+    Trace,
+    Trial,
+)
 from byop.pipeline import Pipeline, choice, searchable, split, step
 from byop.scheduling import (
+    CallLimiter,
     Comm,
     CommTask,
     Scheduler,
     Task,
+    TaskPlugin,
 )
 from byop.store import (
     Bucket,
@@ -42,4 +52,13 @@ __all__ = [
     "PickleLoader",
     "TxtLoader",
     "YAMLLoader",
+    "History",
+    "IncumbentTrace",
+    "Optimizer",
+    "RandomSearch",
+    "Trace",
+    "Trial",
+    "CallLimiter",
+    "Scheduler",
+    "TaskPlugin",
 ]

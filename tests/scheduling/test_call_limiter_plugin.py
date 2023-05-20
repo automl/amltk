@@ -66,7 +66,7 @@ def cpu_time_wasting_function(iterations: int) -> int:
 
 
 def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
-    task = Task(
+    task = Task(  # type: ignore
         time_wasting_function,
         scheduler=scheduler,
         plugins=[CallLimiter(max_concurrent=2)],
@@ -82,6 +82,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
     assert task.counts == {
         CallLimiter.CONCURRENT_LIMIT_REACHED: 8,
         Task.SUBMITTED: 2,
+        Task.F_SUBMITTED: 2,
         Task.DONE: 2,
         Task.RETURNED: 2,
         Task.F_RETURNED: 2,
@@ -89,6 +90,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
 
     assert scheduler.counts == {
         (Task.SUBMITTED, "time_wasting_function"): 2,
+        (Task.F_SUBMITTED, "time_wasting_function"): 2,
         (CallLimiter.CONCURRENT_LIMIT_REACHED, "time_wasting_function"): 8,
         (Task.DONE, "time_wasting_function"): 2,
         (Task.RETURNED, "time_wasting_function"): 2,
@@ -100,7 +102,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
 
 
 def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
-    task = Task(
+    task = Task(  # type: ignore
         time_wasting_function,
         scheduler,
         plugins=[CallLimiter(max_calls=2)],
@@ -116,6 +118,7 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
     assert task.counts == {
         CallLimiter.CALL_LIMIT_REACHED: 8,
         Task.SUBMITTED: 2,
+        Task.F_SUBMITTED: 2,
         Task.DONE: 2,
         Task.RETURNED: 2,
         Task.F_RETURNED: 2,
@@ -124,6 +127,7 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
     assert scheduler.counts == {
         (CallLimiter.CALL_LIMIT_REACHED, "time_wasting_function"): 8,
         (Task.SUBMITTED, "time_wasting_function"): 2,
+        (Task.F_SUBMITTED, "time_wasting_function"): 2,
         (Task.DONE, "time_wasting_function"): 2,
         (Task.RETURNED, "time_wasting_function"): 2,
         (Task.F_RETURNED, "time_wasting_function"): 2,

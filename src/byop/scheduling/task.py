@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Callable, Generic, Hashable, Iterable, TypeVar
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, Self
 
 from byop.events import Event, Subscriber
 from byop.functional import callstring, funcname
@@ -68,6 +68,13 @@ class Task(Generic[P, R]):
         scheduler: The scheduler that this task is registered with.
     """
 
+    F_SUBMITTED: Event[...] = Event("task-future-submitted")
+    """An event that is emitted when a future is submitted to the scheduler.
+    It will pass the future as the first argument with args and kwargs following.
+
+    This is done before any callbacks are attached to the future.
+    """
+
     SUBMITTED: Event[Future] = Event("task-submitted")
     """A Task has been submitted to the scheduler."""
 
@@ -90,12 +97,12 @@ class Task(Generic[P, R]):
     """A Task failed to return anything but an exception."""
 
     def __init__(
-        self,
+        self: Self,
         function: Callable[P, R],
         scheduler: Scheduler,
         *,
         name: str | None = None,
-        plugins: Iterable[TaskPlugin] = (),
+        plugins: Iterable[TaskPlugin[P, R]] = (),
     ) -> None:
         """Initialize a task.
 
@@ -108,14 +115,15 @@ class Task(Generic[P, R]):
         self.plugins = plugins
         self.name = funcname(function) if name is None else name
 
-        # We hold reference to this because we might possible wrap it
-        self._original_function = function
-
+        self.function = function
         self.scheduler = scheduler
 
         self.queue: list[Future[R]] = []
 
         # Set up subscription methods to events
+        self.on_f_submitted: Subscriber[...]
+        self.on_f_submitted = self.subscriber(self.F_SUBMITTED)
+
         self.on_submitted: Subscriber[Future[R]]
         self.on_submitted = self.subscriber(self.SUBMITTED)
 
@@ -138,10 +146,7 @@ class Task(Generic[P, R]):
         self.on_exception = self.subscriber(self.EXCEPTION)
 
         for plugin in self.plugins:
-            plugin.attach(self)
-            function = plugin.wrap(function)  # type: ignore
-
-        self.function = function
+            plugin.attach_task(self)
 
     def futures(self) -> list[Future[R]]:
         """Get the futures for this task.
@@ -186,6 +191,43 @@ class Task(Generic[P, R]):
         """
         _event = (event, self.name)
         return self.scheduler.event_manager.subscriber(_event)
+
+    def on(
+        self,
+        event: Event[P2],
+        *,
+        name: str | None = None,
+        when: Callable[[], bool] | None = None,
+        limit: int | None = None,
+        repeat: int = 1,
+        every: int | None = None,
+    ) -> Callable[[Callable[P2, R]], Callable[P2, R]]:
+        """Decorator to subscribe to an event.
+
+        Args:
+            event: The event to subscribe to.
+            name: See [`EventManager.on()`][byop.events.EventManager.on].
+            when: See [`EventManager.on()`][byop.events.EventManager.on].
+            limit: See [`EventManager.on()`][byop.events.EventManager.on].
+            repeat: See [`EventManager.on()`][byop.events.EventManager.on].
+            every: See [`EventManager.on()`][byop.events.EventManager.on].
+
+        Returns:
+            A decorator that can be used to subscribe to events.
+        """
+
+        def decorator(callback: Callable[P2, R]) -> Callable[P2, R]:
+            self.subscriber(event)(
+                callback,
+                name=name,
+                when=when,
+                limit=limit,
+                repeat=repeat,
+                every=every,
+            )
+            return callback
+
+        return decorator
 
     def emit(self, event: Event[P2], *args: P2.args, **kwargs: P2.kwargs) -> None:
         """Emit an event.
@@ -254,20 +296,23 @@ class Task(Generic[P, R]):
         # Inform all plugins that the task is about to be called
         # They have chance to cancel submission based on their return
         # value.
+        fn = self.function
         for plugin in self.plugins:
-            should_submit = plugin.pre_submit(self.function, *args, **kwargs)
-
-            if not should_submit:
+            items = plugin.pre_submit(fn, *args, **kwargs)
+            if items is None:
                 logger.debug(
                     f"Plugin '{plugin.name}' prevented {self} from being submitted"
-                    f" with {callstring(self._original_function, *args, **kwargs)}",
+                    f" with {callstring(self.function, *args, **kwargs)}",
                 )
                 return None
 
-        future = self.scheduler.submit(self.function, *args, **kwargs)
+            fn, args, kwargs = items  # type: ignore
+
+        future = self.scheduler.submit(fn, *args, **kwargs)
+
         if future is None:
             msg = (
-                f"Task {callstring(self._original_function, *args, **kwargs)} was not"
+                f"Task {callstring(self.function, *args, **kwargs)} was not"
                 " able to be submitted. The scheduler is likely already finished."
             )
             logger.info(msg)
@@ -275,17 +320,20 @@ class Task(Generic[P, R]):
 
         self.queue.append(future)
 
+        # To allow any subclasses time to react to the future before emitting
+        # events or scheduling callbacks.
+        self.emit(Task.F_SUBMITTED, future, *args, **kwargs)
+
         # We actuall have the function wrapped in something will
         # attach tracebacks to errors, so we need to get the
         # original function name.
-        msg = (
-            f"Submitted {self} with "
-            f"{callstring(self._original_function, *args, **kwargs)}"
-        )
+        msg = f"Submitted {self} with " f"{callstring(self.function, *args, **kwargs)}"
         logger.debug(msg)
         self.emit(Task.SUBMITTED, future)
 
         # Process the task once it's completed
+        # NOTE: If the task is done super quickly or in the sequential mode,
+        # this will immediatly call `self._process_future`.
         future.add_done_callback(self._process_future)
 
         return future
@@ -318,6 +366,21 @@ class Task(Generic[P, R]):
                     Task.RETURNED: ((result,), None),
                 },
             )
+
+    def _when_future_from_submission(
+        self,
+        future: Future[R],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> None:
+        """Access the future before the callbacks for the future are registered.
+
+        This is primarly to allow subclasses of Task to know of the future obtained
+        from submitting to the Scheduler, **before** the callbacks are registered.
+        This can be required in the case the task finishes super quickly, meaning
+        callbacks are registered before the subtask can do anything. This also
+        necessarily happens in a sequential execution Scheduler.
+        """
 
     def __repr__(self) -> str:
         kwargs = {

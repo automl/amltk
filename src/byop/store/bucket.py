@@ -17,7 +17,6 @@ from typing import (
     Any,
     Generic,
     Hashable,
-    Iterable,
     Iterator,
     Literal,
     Mapping,
@@ -211,8 +210,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
 
     def fetch(
         self,
-        keys: Iterable[KeyT],
-        *,
+        *keys: KeyT,
         default: None | Any | dict[KeyT, Any] = None,
     ) -> dict[KeyT, Any]:
         """Fetch a resource from the bucket.
