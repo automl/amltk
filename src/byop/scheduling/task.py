@@ -3,14 +3,10 @@
 A Task is a unit of work that can be scheduled by the scheduler. It is
 defined by its name, its function, and it's `Future` representing the
 final outcome of the task.
-
-There is also the [`CommTask`][byop.scheduling.comm_task.CommTask] which can
-be used for communication between the task and the main process.
 """
 from __future__ import annotations
 
 import logging
-from itertools import chain
 from typing import TYPE_CHECKING, Any, Callable, Generic, Hashable, Iterable, TypeVar
 from typing_extensions import ParamSpec, Self
 
@@ -120,6 +116,9 @@ class Task(Generic[P, R]):
 
         self.queue: list[Future[R]] = []
 
+        # Used to keep track of any events emitted out of this task
+        self._emitted_events: set[Event] = set()
+
         # Set up subscription methods to events
         self.on_f_submitted: Subscriber[...]
         self.on_f_submitted = self.subscriber(self.F_SUBMITTED)
@@ -171,14 +170,9 @@ class Task(Generic[P, R]):
             and count > 0
         }
 
-    def events(self) -> list[Event]:
-        """Return the events that this task could emit."""
-        inherited_attrs = chain.from_iterable(
-            vars(cls).values() for cls in self.__class__.__mro__
-        )
-        inherited_events = [attr for attr in inherited_attrs if isinstance(attr, Event)]
-        plugin_events = chain.from_iterable(plugin.events() for plugin in self.plugins)
-        return inherited_events + list(plugin_events)
+    def events(self) -> set[Event]:
+        """Return the events that this task did emit."""
+        return self._emitted_events
 
     def subscriber(self, event: Event[P2]) -> Subscriber[P2]:
         """Return an object that can be used to subscribe to an event for this task.
@@ -238,11 +232,12 @@ class Task(Generic[P, R]):
             **kwargs: The keyword arguments to pass to the event handlers.
         """
         task_event = (event, self.name)
+        self._emitted_events.add(event)
         self.scheduler.event_manager.emit(task_event, *args, **kwargs)
 
     def emit_many(
         self,
-        events: dict[Hashable, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
+        events: dict[Event, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
     ) -> None:
         """Emit many events at once.
 
@@ -265,6 +260,9 @@ class Task(Generic[P, R]):
                 to emit, and the values are tuples of the positional and
                 keyword arguments to pass to the event handlers.
         """
+        for event in events:
+            self._emitted_events.add(event)
+
         self.scheduler.event_manager.emit_many(
             {(event, self.name): params for event, params in events.items()},
         )
@@ -300,7 +298,7 @@ class Task(Generic[P, R]):
         for plugin in self.plugins:
             items = plugin.pre_submit(fn, *args, **kwargs)
             if items is None:
-                logger.debug(
+                logger.info(
                     f"Plugin '{plugin.name}' prevented {self} from being submitted"
                     f" with {callstring(self.function, *args, **kwargs)}",
                 )

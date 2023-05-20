@@ -10,24 +10,27 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from byop.scheduling import Comm, CommTask, Scheduler
+from byop.scheduling import Scheduler, Task
+from byop.scheduling.comms import Comm
 
 logger = logging.getLogger(__name__)
 
 
-def sending_worker(comm: Comm, replies: list[Any]) -> None:
+def sending_worker(replies: list[Any], comm: Comm | None = None) -> None:
     """A worker that responds to messages.
 
     Args:
         comm: The communication channel to use.
         replies: A list of replies to send to the client.
     """
+    assert comm is not None
+
     with comm:
         for reply in replies:
             comm.send(reply)
 
 
-def requesting_worker(comm: Comm, requests: list[Any]) -> None:
+def requesting_worker(requests: list[Any], comm: Comm | None = None) -> None:
     """A worker that waits for messages.
 
     This will send a request, waiting for a response, finally
@@ -38,6 +41,8 @@ def requesting_worker(comm: Comm, requests: list[Any]) -> None:
         comm: The communication channel to use.
         requests: A list of requests to receive from the client.
     """
+    assert comm is not None
+
     with comm:
         for request in requests:
             response = comm.request(request)
@@ -87,9 +92,10 @@ def test_sending_worker(scheduler: Scheduler) -> None:
     replies = [1, 2, 3]
     results: list[int] = []
 
-    task = CommTask(sending_worker, scheduler=scheduler)
+    comm_plugin = Comm.Plugin()
+    task = Task(sending_worker, scheduler=scheduler, plugins=[comm_plugin])
 
-    @task.on_message
+    @task.on(Comm.MESSAGE)
     def handle_msg(msg: Any) -> None:
         results.append(msg.data)
 
@@ -100,25 +106,25 @@ def test_sending_worker(scheduler: Scheduler) -> None:
     end_status = scheduler.run()
 
     task_counts: dict[Hashable, int] = {
-        CommTask.SUBMITTED: 1,
-        CommTask.F_SUBMITTED: 1,
-        CommTask.DONE: 1,
-        CommTask.RETURNED: 1,
-        CommTask.MESSAGE: len(replies),
-        CommTask.F_RETURNED: 1,
-        CommTask.CLOSE: 1,
+        Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
+        Task.DONE: 1,
+        Task.RETURNED: 1,
+        Comm.MESSAGE: len(replies),
+        Task.F_RETURNED: 1,
+        Comm.CLOSE: 1,
     }
     assert task.counts == task_counts
 
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     scheduler_counts = {
-        (CommTask.SUBMITTED, "sending_worker"): 1,
-        (CommTask.F_SUBMITTED, "sending_worker"): 1,
-        (CommTask.DONE, "sending_worker"): 1,
-        (CommTask.RETURNED, "sending_worker"): 1,
-        (CommTask.MESSAGE, "sending_worker"): len(replies),
-        (CommTask.CLOSE, "sending_worker"): 1,
-        (CommTask.F_RETURNED, "sending_worker"): 1,
+        (Task.SUBMITTED, "sending_worker"): 1,
+        (Task.F_SUBMITTED, "sending_worker"): 1,
+        (Task.DONE, "sending_worker"): 1,
+        (Task.RETURNED, "sending_worker"): 1,
+        (Comm.MESSAGE, "sending_worker"): len(replies),
+        (Comm.CLOSE, "sending_worker"): 1,
+        (Task.F_RETURNED, "sending_worker"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,
@@ -132,14 +138,15 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
     requests = [1, 2, 3]
     results: list[int] = []
 
-    task = CommTask(requesting_worker, scheduler=scheduler)
+    comm_plugin = Comm.Plugin()
+    task = Task(requesting_worker, scheduler=scheduler, plugins=[comm_plugin])
 
-    @task.on_request
-    def handle_waiting(msg: CommTask.Msg) -> None:
+    @task.on(Comm.REQUEST)
+    def handle_waiting(msg: Comm.Msg) -> None:
         msg.respond(msg.data * 2)
 
-    @task.on_message
-    def handle_msg(msg: CommTask.Msg) -> None:
+    @task.on(Comm.MESSAGE)
+    def handle_msg(msg: Comm.Msg) -> None:
         results.append(msg.data)
 
     @scheduler.on_start
@@ -152,25 +159,25 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
     assert results == [2, 4, 6]
 
     assert task.counts == {
-        CommTask.SUBMITTED: 1,
-        CommTask.F_SUBMITTED: 1,
-        CommTask.DONE: 1,
-        CommTask.RETURNED: 1,
-        CommTask.F_RETURNED: 1,
-        CommTask.MESSAGE: len(results),
-        CommTask.REQUEST: len(requests),
-        CommTask.CLOSE: 1,
+        Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
+        Task.DONE: 1,
+        Task.RETURNED: 1,
+        Task.F_RETURNED: 1,
+        Comm.MESSAGE: len(results),
+        Comm.REQUEST: len(requests),
+        Comm.CLOSE: 1,
     }
 
     assert scheduler.counts == {
-        (CommTask.SUBMITTED, "requesting_worker"): 1,
-        (CommTask.F_SUBMITTED, "requesting_worker"): 1,
-        (CommTask.DONE, "requesting_worker"): 1,
-        (CommTask.RETURNED, "requesting_worker"): 1,
-        (CommTask.F_RETURNED, "requesting_worker"): 1,
-        (CommTask.MESSAGE, "requesting_worker"): len(results),
-        (CommTask.REQUEST, "requesting_worker"): len(requests),
-        (CommTask.CLOSE, "requesting_worker"): 1,
+        (Task.SUBMITTED, "requesting_worker"): 1,
+        (Task.F_SUBMITTED, "requesting_worker"): 1,
+        (Task.DONE, "requesting_worker"): 1,
+        (Task.RETURNED, "requesting_worker"): 1,
+        (Task.F_RETURNED, "requesting_worker"): 1,
+        (Comm.MESSAGE, "requesting_worker"): len(results),
+        (Comm.REQUEST, "requesting_worker"): len(requests),
+        (Comm.CLOSE, "requesting_worker"): 1,
         Scheduler.STARTED: 1,
         Scheduler.FINISHING: 1,
         Scheduler.FINISHED: 1,

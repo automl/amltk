@@ -4,6 +4,7 @@ TODO: Populate more here.
 """
 from __future__ import annotations
 
+import logging
 import traceback
 from abc import ABC
 from contextlib import contextmanager
@@ -28,18 +29,16 @@ import pandas as pd
 
 from byop.events import Event, Subscriber, funcname
 from byop.functional import prefix_keys
-from byop.scheduling import (
-    Scheduler,
-    Task as TaskBase,
-    TaskPlugin,
-)
-from byop.scheduling.task import logging
+from byop.scheduling.task import Task as TaskBase
 from byop.store import Bucket, PathBucket
 from byop.timing import TimeInterval, TimeKind, Timer
 from byop.types import abstractmethod
 
 if TYPE_CHECKING:
     from concurrent.futures import Future
+
+    from byop.scheduling.scheduler import Scheduler
+    from byop.scheduling.task_plugin import TaskPlugin
 
 
 Info = TypeVar("Info")
