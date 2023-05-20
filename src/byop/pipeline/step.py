@@ -27,8 +27,8 @@ from typing import (
 from attrs import evolve, field, frozen
 from more_itertools import consume, first_true, last, peekable, triplewise
 
-from byop.functional import mapping_select
-from byop.types import Config, Seed, Space
+from byop.functional import mapping_select, prefix_keys
+from byop.types import Config, FidT, Seed, Space
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -68,6 +68,7 @@ class Step(Generic[Space]):
             and is the head of the chain.
         config: The configuration for this step
         search_space: The search space for this step
+        fidelity_space: The fidelities for this step
     """
 
     name: str
@@ -78,6 +79,11 @@ class Step(Generic[Space]):
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    fidelity_space: Mapping[str, FidT] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
 
     DELIMITER: ClassVar[str] = ":"
 
@@ -510,6 +516,42 @@ class Step(Generic[Space]):
         from byop.pipeline.parser import Parser
 
         return Parser.try_parse(self, parser=parser, seed=seed)
+
+    def fidelities(self) -> dict[str, FidT]:
+        """Get the fidelities for this step."""
+        fids = prefix_keys(self.fidelity_space or {}, f"{self.name}:")
+
+        if self.nxt is None:
+            return fids
+
+        nxt_fids = self.nxt.fidelities()
+        return {**fids, **nxt_fids}
+
+    def linearized_fidelity(self, value: float) -> dict[str, int | float | Any]:
+        """Get the linearized fidelity for this step.
+
+        Args:
+            value: The value to linearize. Must be between [0, 1]
+
+        Return:
+            dictionary from key to it's linearized fidelity.
+        """
+        assert 1.0 <= value <= 100.0, f"{value=} not in [1.0, 100.0]"  # noqa: PLR2004
+        d = {}
+        if self.fidelity_space is not None:
+            for f_name, f_range in self.fidelity_space.items():
+                low, high = f_range
+                fid = low + (high - low) * (value - 1) / 100
+                fid = fid if isinstance(low, float) else round(fid)
+                d[f_name] = fid
+
+            d = prefix_keys(d, f"{self.name}:")
+
+        if self.nxt is None:
+            return d
+
+        nxt_fids = self.nxt.linearized_fidelity(value)
+        return {**d, **nxt_fids}
 
     def build(self) -> Any:
         """Build the step.

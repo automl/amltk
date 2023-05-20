@@ -20,8 +20,8 @@ from typing import (
 from attrs import field, frozen
 from more_itertools import first_true
 
-from byop.pipeline.step import Step, mapping_select
-from byop.types import Config, Item, Space
+from byop.pipeline.step import Step, mapping_select, prefix_keys
+from byop.types import Config, FidT, Item, Space
 
 
 @frozen(kw_only=True)
@@ -33,6 +33,7 @@ class Component(Step[Space], Generic[Item, Space]):
         item: The item attached to this component
         config (optional): Any additional items to associate with this config
         search_space (optional): A search space associated with this component
+        fidelity_space: The fidelities for this step
     """
 
     name: str
@@ -40,6 +41,11 @@ class Component(Step[Space], Generic[Item, Space]):
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    fidelity_space: Mapping[str, FidT] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
 
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
@@ -75,6 +81,11 @@ class Group(Mapping[str, Step], Step[Space]):
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    fidelity_space: Mapping[str, Any] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
 
     def __attrs_post_init__(self) -> None:
         """Ensure that the paths are all unique."""
@@ -294,6 +305,48 @@ class Group(Mapping[str, Step], Step[Space]):
 
         if self.nxt is not None:
             yield from self.nxt.select(choices)
+
+    def fidelities(self) -> dict[str, FidT]:
+        """See `Step.fidelities`."""
+        fids = {}
+        for path in self.paths:
+            fids.update(prefix_keys(path.fidelities(), f"{self.name}:"))
+
+        if self.nxt is not None:
+            fids.update(self.nxt.fidelities())
+
+        return fids
+
+    def linearized_fidelity(self, value: float) -> dict[str, int | float | Any]:
+        """Get the linearized fidelity for this step.
+
+        Args:
+            value: The value to linearize. Must be between [0, 1]
+
+        Return:
+            dictionary from key to it's linearized fidelity.
+        """
+        assert 1.0 <= value <= 100.0, f"{value=} not in [1.0, 100.0]"  # noqa: PLR2004
+        d = {}
+        if self.fidelity_space is not None:
+            for f_name, f_range in self.fidelity_space.items():
+                low, high = f_range
+                fid = low + (high - low) * value
+                fid = low + (high - low) * (value - 1) / 100
+                fid = fid if isinstance(low, float) else round(fid)
+                d[f_name] = fid
+
+            d = prefix_keys(d, f"{self.name}:")
+
+        for path in self.paths:
+            path_fids = prefix_keys(path.linearized_fidelity(value), f"{self.name}:")
+            d.update(path_fids)
+
+        if self.nxt is None:
+            return d
+
+        nxt_fids = self.nxt.linearized_fidelity(value)
+        return {**d, **nxt_fids}
 
 
 @frozen(kw_only=True)

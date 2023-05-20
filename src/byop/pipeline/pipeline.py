@@ -30,7 +30,7 @@ from byop.pipeline.components import Group, Step
 if TYPE_CHECKING:
     from byop.pipeline.parser import Parser
     from byop.pipeline.sampler import Sampler
-    from byop.types import Config, Seed, Space
+    from byop.types import Config, FidT, Seed, Space
 
 T = TypeVar("T")  # Dummy typevar
 B = TypeVar("B")  # Built pipeline
@@ -351,6 +351,14 @@ class Pipeline:
         from byop.pipeline.parser import Parser  # Prevent circular imports
 
         return Parser.try_parse(pipeline_or_step=self, parser=parser, seed=seed)
+
+    def fidelities(self) -> dict[str, FidT]:
+        """Get the fidelities for the pipeline.
+
+        Returns:
+            The fidelities for the pipeline
+        """
+        return self.head.fidelities()
 
     @overload
     def sample(

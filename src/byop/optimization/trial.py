@@ -85,6 +85,7 @@ class Trial(Generic[Info]):
     config: Mapping[str, Any]
     info: Info = field(repr=False)
     seed: int | None = None
+    fidelities: dict[str, Any] | None = None
 
     time: TimeInterval | None = field(repr=False, default=None)
     timer: Timer | None = field(repr=False, default=None)
