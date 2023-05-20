@@ -4,10 +4,13 @@ Anything changing here is considering a major change
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable, Mapping, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, TypeVar, overload
 
 from byop.pipeline.components import Choice, Component, Group, Split
 from byop.pipeline.step import Step
+
+if TYPE_CHECKING:
+    from byop.types import FidT
 
 Space = TypeVar("Space")
 T = TypeVar("T")
@@ -19,6 +22,7 @@ def searchable(
     *,
     space: None = None,
     config: Mapping[str, Any] | None = None,
+    fidelities: Mapping[str, FidT] | None = ...,
 ) -> Step[None]:
     ...
 
@@ -29,6 +33,7 @@ def searchable(
     *,
     space: Space,
     config: Mapping[str, Any] | None = None,
+    fidelities: Mapping[str, FidT] | None = ...,
 ) -> Step[Space]:
     ...
 
@@ -38,6 +43,7 @@ def searchable(
     *,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
+    fidelities: Mapping[str, FidT] | None = None,
 ) -> Step[Space] | Step[None]:
     """A set of searachble items.
 
@@ -53,11 +59,15 @@ def searchable(
         config:
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
+        fidelities:
+            A fidelity associated with this searchable. This can be a single range
+            indicated as a tuple, an ordered list or a mapping from a name to
+            any of the above.
 
     Returns:
         Step
     """
-    return Step(name=name, config=config, search_space=space)
+    return Step(name=name, config=config, search_space=space, fidelity_space=fidelities)
 
 
 @overload
@@ -66,6 +76,7 @@ def step(
     item: T | Callable[..., T],
     *,
     config: Mapping[str, Any] | None = ...,
+    fidelities: Mapping[str, FidT] | None = ...,
 ) -> Component[T, None]:
     ...
 
@@ -77,6 +88,7 @@ def step(
     *,
     space: Space,
     config: Mapping[str, Any] | None = ...,
+    fidelities: Mapping[str, FidT] | None = ...,
 ) -> Component[T, Space]:
     ...
 
@@ -87,6 +99,7 @@ def step(
     *,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
+    fidelities: Mapping[str, FidT] | None = None,
 ) -> Component[T, Space] | Component[T, None]:
     """A step in a pipeline.
 
@@ -111,11 +124,21 @@ def step(
         config:
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
+        fidelities:
+            A fidelity associated with this searchable. This can be a single range
+            indicated as a tuple, an ordered list or a mapping from a name to
+            any of the above.
 
     Returns:
         The component describing this step
     """
-    return Component(name=name, item=item, config=config, search_space=space)
+    return Component(
+        name=name,
+        item=item,
+        config=config,
+        search_space=space,
+        fidelity_space=fidelities,
+    )
 
 
 def choice(

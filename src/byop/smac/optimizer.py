@@ -5,9 +5,9 @@ TODO: More description and explanation with examples.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import TYPE_CHECKING, Literal, Mapping, Sequence
 
-from smac import HyperparameterOptimizationFacade, Scenario
+from smac import HyperparameterOptimizationFacade, MultiFidelityFacade, Scenario
 from smac.runhistory import (
     StatusType,
     TrialInfo as SMACTrialInfo,
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
     from smac.facade import AbstractFacade
 
-    from byop.types import Seed
+    from byop.types import FidT, Seed
 
 
 logger = logging.getLogger(__name__)
@@ -34,41 +34,71 @@ logger = logging.getLogger(__name__)
 class SMACOptimizer(Optimizer[SMACTrialInfo]):
     """An optimizer that uses SMAC to optimize a config space."""
 
-    def __init__(self, *, facade: AbstractFacade) -> None:
+    def __init__(
+        self,
+        *,
+        facade: AbstractFacade,
+        fidelities: Mapping[str, FidT] | None = None,
+    ) -> None:
         """Initialize the optimizer.
 
         Args:
             facade: The SMAC facade to use.
+            fidelities: The fidelities to use, if any.
         """
         self.facade = facade
+        self.fidelities = fidelities
 
     @classmethod
-    def HPO(  # noqa: N802
+    def create(
         cls,
         *,
         space: ConfigurationSpace,
         seed: Seed | None = None,
+        fidelities: Mapping[str, FidT] | None = None,
         continue_from_last_run: bool = False,
         logging_level: int | Path | Literal[False] | None = False,
     ) -> Self:
-        """Create a new SMAC optimizer using the HPO facade.
+        """Create a new SMAC optimizer using either the HPO facade or
+        a mutli-fidelity facade.
 
         Args:
             space: The config space to optimize.
             seed: The seed to use for the optimizer.
+            fidelities: The fidelities to use, if any.
             continue_from_last_run: Whether to continue from a previous run.
             logging_level: The logging level to use.
                 This argument is passed forward to SMAC, use False to disable
                 SMAC's handling of logging.
         """
         seed = as_int(seed)
-        facade = HyperparameterOptimizationFacade(
-            scenario=Scenario(configspace=space, seed=seed),
+
+        if fidelities:
+            if len(fidelities) == 1:
+                v = next(iter(fidelities.values()))
+                min_budget, max_budget = v
+            else:
+                min_budget, max_budget = 1.0, 100.0
+
+            scenario = Scenario(
+                configspace=space,
+                seed=seed,
+                min_budget=min_budget,
+                max_budget=max_budget,
+            )
+            facade_cls = MultiFidelityFacade
+
+        else:
+            scenario = Scenario(configspace=space, seed=seed)
+            facade_cls = HyperparameterOptimizationFacade
+
+        facade = facade_cls(
+            scenario=scenario,
             target_function="dummy",  # NOTE: https://github.com/automl/SMAC3/issues/946
             overwrite=not continue_from_last_run,
             logging_level=logging_level,
         )
-        return cls(facade=facade)
+        return cls(facade=facade, fidelities=fidelities)
 
     def ask(self) -> Trial[SMACTrialInfo]:
         """Ask the optimizer for a new config.
@@ -82,6 +112,15 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         instance = smac_trial_info.instance
         seed = smac_trial_info.seed
 
+        if self.fidelities and budget:
+            if len(self.fidelities) == 1:
+                k, _ = next(iter(self.fidelities.items()))
+                trial_fids = {k: budget}
+            else:
+                trial_fids = {"budget": budget}
+        else:
+            trial_fids = None
+
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}_{seed=}_{budget=}_{instance=}"
         trial: Trial[SMACTrialInfo] = Trial(
@@ -89,6 +128,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             config=dict(config),
             info=smac_trial_info,
             seed=seed,
+            fidelities=trial_fids,
         )
         logger.info(f"Asked for trial {trial.name}")
         logger.debug(f"{trial=}")
