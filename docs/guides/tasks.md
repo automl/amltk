@@ -789,9 +789,6 @@ as introduce new custom events.
 
 !!! info "Provided Extensions of `Task`"
 
-    * [`CommTask`][byop.scheduling.CommTask]s are tasks which are given
-    a [`Comm`][byop.scheduling.Comm] as their first argument
-    for two-way communicaiton with the main process.
     * [`Trial.Task`][byop.optimization.Trial.Task]s are tasks particular to
     optimization in AutoML-toolkit, which are given an optimization [`Trial`][byop.optimization.Trial]
     as their first argument and should return a [`Trial.Report`][byop.optimization.Trial.Report]
@@ -1146,8 +1143,8 @@ to `Task(..., plugins=...)`.
 Here we demonstrate just one plugins, for limiting how often a task can be called with
 the [`CallLimiter`][byop.CallLimiter]. Check out the [reference](../reference/index.md) for
 a list of other plugins, such as a [weights and biases plugin](../reference/wandb.md) for
-integrating with weights and biases, as well as a [pynisher plugin](../reference/pynisher.md)
-for limiting walltime, memory and/or cputime for your task.
+integrating with weights and biases, [pynisher plugin](../reference/pynisher.md)
+for limiting walltime, memory and/or cputime for your task and [comm plugin](../reference/comms.md)
 
 !!! example "CallLimiter"
 
@@ -1170,106 +1167,6 @@ for limiting walltime, memory and/or cputime for your task.
         print(f"Task already running at max concurrency")
     ```
 
-
-
-## Comm Tasks
-The [`CommTask`][byop.scheduling.CommTask] is a special type of task that is used
-for two way communication between a worker and the server. It builds upon
-a [`Task`][byop.scheduling.Task] to both specialize the signature of functions
-it accepts but also to provide custom events for this kind of task.
-
-??? warning "Local Processes Only"
-
-    We currently use [`multiprocessing.Pipe`][multiprocessing.Pipe] to communicate
-    between the worker and the scheduler. This means we are limited to local processes
-    only.
-
-    If there is interest, we could extend this to be interfaced and provide web socket
-    communication as well. Please open an issue if you are interested in this or if you
-    would like to contribute.
-
-### Usage of Comm Tasks
-A [`CommTask`][byop.scheduling.CommTask] relies heavily on a [`Comm`][byop.scheduling.Comm] object to
-facilitate the communication between the worker and the scheduler. By using this `Comm`,
-we can [`send()`][byop.scheduling.Comm.send] and [`request()`][byop.scheduling.Comm.request]
-messages from the workers point of view.
-These messages are then received by the scheduler and emitted as the
-[`MESSAGE`][byop.scheduling.CommTask.MESSAGE] and [`REQUEST`][byop.scheduling.CommTask.REQUEST]
-events respectively which both pass a [`CommTask.Msg`][byop.scheduling.CommTask.Msg] object
-to the callback. This object contains the `data` that was transmitted.
-
-Below we show an example of both `send()` and
-`request()` in action.
-
-=== "`send()`"
-
-    ```python hl_lines="7 16 17 18 19"
-    from byop.scheduling import Scheduler, CommTask, Comm
-
-    # The function must accept a `Comm` object as the first argument
-    def echoer(comm: Comm, xs: list[int]):
-        with comm:  # (1)!
-          for x in xs:
-              comm.send(x)  # (2)!
-
-    scheduler = Scheduler(...)
-    task = CommTask(echoer, scheduler)
-
-    @scheduler.on_start
-    def start():
-        task.submit([1, 2, 3, 4, 5])
-
-    @task.on_message
-    def on_message(msg: CommTask.Msg):  # (3)!
-        print(f"Recieved a message {msg=}")
-        print(msg.data)
-
-    scheduler.run()
-    ```
-
-    1. The `Comm` object should be used as a context manager. This is to ensure
-       that the `Comm` object is closed correctly when the function exits.
-    2. Here we use the [`send()`][byop.scheduling.Comm.send] method to send a message
-       to the scheduler.
-    3. We can also do `#!python CommTask.Msg[int]` to specify the type of data
-       we expect to receive.
-
-=== "`request()`"
-
-    ```python hl_lines="7 16 17 18 19"
-    from byop.scheduling import Scheduler, CommTask, Comm
-
-    # The function must accept a `Comm` object as the first argument
-    def echoer(comm: Comm, n_requests: int):
-        with comm:
-          for _ in range(n):
-              response = comm.request(n)  # (1)!
-
-    scheduler = Scheduler(...)
-    task = CommTask(echoer, scheduler)
-
-    @scheduler.on_start
-    def start():
-        task.submit([1, 2, 3, 4, 5])
-
-    @task.on_request
-    def handle_request(msg: CommTask.Msg):
-        print(f"Recieved request {msg=}")
-        msg.respond(msg.data * 2)  # (2)!
-
-    scheduler.run()
-    ```
-
-    1. Here we use the [`request()`][byop.scheduling.Comm.request] method to send a request
-       to the scheduler with some data.
-    2. We can use the [`respond()`][byop.scheduling.CommTask.Msg.respond] method to
-       respond to the request with some data.
-
-!!! tip "Identifying Workers"
-
-    The [`CommTask.Msg`][byop.scheduling.CommTask.Msg] object also has the `future`
-    attribute, which is the [`Future`][concurrent.futures.Future] object that represents
-    the worker. This is hashable and usable in a dictionary as a key.
 
 ## Extending `Task`
 The goal of task was to provide a simple interface for submitting functions to the `Scheduler`
@@ -1547,9 +1444,7 @@ scheduler.run()
 This short demonstration showed you how to define your own `Task` and custom `Event`s
 and seamlessly hook them into the scheduler and event system. You may wish to check
 out [`Trial.Task`][byop.optimization.Trial.Task] for a more complete example of how we
-extended `Task` to implement the optimization part of AutoML-Toolkit. You may also wish to
-build off of [`CommTask`][byop.scheduling.CommTask] for defining tasks which communicate but
-that exercise is left to the reader.
+extended `Task` to implement the optimization part of AutoML-Toolkit.
 
 ---
 

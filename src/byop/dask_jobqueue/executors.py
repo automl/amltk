@@ -16,6 +16,7 @@ jobqueue implementations and get access to their executors.
 # ruff: noqa: N802, E501
 from __future__ import annotations
 
+import logging
 import pprint
 from concurrent.futures import Executor, Future
 from typing import (
@@ -40,8 +41,6 @@ from dask_jobqueue import (
     SGECluster,
     SLURMCluster,
 )
-
-from byop.scheduling.comm_task import logging
 
 if TYPE_CHECKING:
     from distributed.cfexecutor import ClientExecutor

@@ -10,7 +10,6 @@ from byop.pipeline import Pipeline, choice, searchable, split, step
 from byop.scheduling import (
     CallLimiter,
     Comm,
-    CommTask,
     Scheduler,
     Task,
     TaskPlugin,
@@ -38,7 +37,6 @@ __all__ = [
     "searchable",
     "Scheduler",
     "Comm",
-    "CommTask",
     "Task",
     "Bucket",
     "Drop",
