@@ -166,7 +166,7 @@ What you can use it for depends on what you want to do.
 
     my_pipeline = Pipeline.create(...)
 
-    optimizer = SMACOptimizer.HPO(pipeline.space(), seed=42) # (4)!
+    optimizer = SMACOptimizer.create(pipeline.space(), seed=42) # (4)!
 
     n_workers = 8
     scheduler = Scheduler.with_processes(n_workers)  # (3)!

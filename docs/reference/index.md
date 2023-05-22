@@ -36,3 +36,5 @@
     fashion, enabling quick and easy storing of many file types at once.
 * [History](./history.md) - A datastructure to house the results of an optimization run and
     pull out information after.
+* [data](./data.md) - Utilities for working with data containers like numpy arrays, pandas
+    dataframes and series.

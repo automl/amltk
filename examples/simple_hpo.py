@@ -248,7 +248,7 @@ optimize the pipeline. We pass in the space of the pipeline, which is the space 
 the hyperparameters we want to optimize.
 """
 scheduler = Scheduler.with_sequential()
-optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)
+optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)
 
 
 """
