@@ -73,6 +73,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         """
         seed = as_int(seed)
 
+        facade_cls: type[AbstractFacade]
         if fidelities:
             if len(fidelities) == 1:
                 v = next(iter(fidelities.values()))

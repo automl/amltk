@@ -378,7 +378,7 @@ bucket.store(  # (2)!
 )
 
 scheduler = Scheduler.with_sequential()  # (3)!
-optimizer = SMACOptimizer.HPO(space=pipeline.space(), seed=seed)  # (4)!
+optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)  # (4)!
 
 objective = Trial.Objective(  # (5)!
     target_function,
@@ -461,7 +461,7 @@ print(best_ensemble)
 # 3. We use [`Scheduler.with_sequential()`][byop.scheduling.Scheduler.with_sequential]
 #  create a [`Scheduler`][byop.scheduling.Scheduler] that runs everything
 #  sequentially. You can of course use a different backend if you want.
-# 4. We use [`SMACOptimizer.HPO()`][byop.smac.SMACOptimizer.HPO] to create a
+# 4. We use [`SMACOptimizer.create()`][byop.smac.SMACOptimizer.create] to create a
 #  [`SMACOptimizer`][byop.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
 # 5. We use [`Trial.Objective()`][byop.optimization.Trial.Objective] to wrap our

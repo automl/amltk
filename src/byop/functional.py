@@ -214,6 +214,51 @@ def compare_accumulate(
             yield current
 
 
+def transformations(
+    x: T,
+    transforms: Iterable[Callable[[T], T]],
+) -> Iterator[T]:
+    """Apply transformations to an object.
+
+    !!! note "Typing"
+
+        The typing specifies that the domain of the type of `x` stays constant, i.e.
+        `x` is always of type `T`. However this is not a strict requirement and you
+        can safely ignore the type warnings if so.
+
+    ```python exec="true" source="material-block" result="python" title="transforms"
+    from byop.functional import transformations
+
+    def f(x):
+        return x + 1
+
+    def g(x):
+        return x * 2
+
+    def h(x):
+        return x - 1
+
+    x = 1
+    steps = list(transformations(x, [f, g, h]))
+    print(steps)
+    # [1, 2, 4, 3]
+    ```
+
+    Args:
+        x: The object to transform.
+        transforms: The transformations to apply.
+
+    Returns:
+        An iterator over the transformed object.
+    """
+    yield x
+
+    itr = iter(transforms)
+    t = next(itr, None)
+    if t is not None:
+        yield from transformations(t(x), itr)
+
+
 class Flag(Generic[T]):
     """A flag.
 

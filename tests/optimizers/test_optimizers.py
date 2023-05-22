@@ -41,7 +41,7 @@ def opt_random_search() -> RandomSearch:
 @case
 def opt_smac_hpo() -> SMACOptimizer:
     pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
-    return SMACOptimizer.HPO(space=pipeline.space(), seed=2**32 - 1)
+    return SMACOptimizer.create(space=pipeline.space(), seed=2**32 - 1)
 
 
 @case
