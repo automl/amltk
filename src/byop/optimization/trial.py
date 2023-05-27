@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import logging
 import traceback
-from abc import ABC
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,14 +24,14 @@ from typing import (
 )
 from typing_extensions import Concatenate, ParamSpec
 
+import numpy as np
 import pandas as pd
 
 from byop.events import Event, Subscriber, funcname
-from byop.functional import prefix_keys
+from byop.functional import mapping_select, prefix_keys
 from byop.scheduling.task import Task as TaskBase
 from byop.store import Bucket, PathBucket
 from byop.timing import TimeInterval, TimeKind, Timer
-from byop.types import abstractmethod
 
 if TYPE_CHECKING:
     from concurrent.futures import Future
@@ -89,13 +88,14 @@ class Trial(Generic[Info]):
 
     time: TimeInterval | None = field(repr=False, default=None)
     timer: Timer | None = field(repr=False, default=None)
+
+    summary: dict[str, Any] = field(default_factory=dict)
+    results: dict[str, Any] = field(default_factory=dict)
+
     exception: Exception | None = field(repr=True, default=None)
     traceback: str | None = field(repr=False, default=None)
 
-    summary: dict[str, Any] = field(default_factory=dict)
     storage: set[Any] = field(default_factory=set)
-    results: dict[str, Any] = field(default_factory=dict)
-
     plugins: dict[str, Any] = field(default_factory=dict)
 
     @contextmanager
@@ -167,7 +167,13 @@ class Trial(Generic[Info]):
 
         time = self.time if self.time is not None else self.timer.stop()
         self.results = results
-        return Trial.SuccessReport(trial=self, time=time, results=results)
+        return Trial.SuccessReport(
+            trial=self,
+            time=time,
+            results=results,
+            exception=None,
+            traceback=None,
+        )
 
     def fail(self, **results: Any) -> Trial.FailReport[Info]:
         """Generate a failure report.
@@ -247,7 +253,8 @@ class Trial(Generic[Info]):
             trial=self,
             exception=exception,
             traceback=traceback,
-            time=None,
+            time=TimeInterval.na_time_interval(),
+            results=None,
         )
 
     def store(
@@ -426,33 +433,47 @@ class Trial(Generic[Info]):
         self.plugins[name] = plugin_item
 
     @dataclass
-    class Report(ABC, Generic[InfoInner]):
+    class Report(Generic[InfoInner]):
         """A report for a trial.
 
         !!! note "Specific Instansiations"
 
             * [`SuccessReport`][byop.optimization.Trial.SuccessReport] -
-                also contains a `.result` attribute which is where any
-                results reported with [`success()`][byop.optimization.Trial.success]
-                are stored.
+                Created with [`success()`][byop.optimization.Trial.success]
 
             * [`FailReport`][byop.optimization.Trial.FailReport] -
-                also contains a `.exception` attribute which is where any
-                exceptions caught will be stored, along with `.results` where any
-                results reported with [`fail()`][byop.optimization.Trial.fail] are
-                stored.
+                Created with [`fail()`][byop.optimization.Trial.fail]
 
-            * [`CrashReport`][byop.optimization.Trial.CrashReport]
+            * [`CrashReport`][byop.optimization.Trial.CrashReport] -
+                Created with [`crashed()`][byop.optimization.Trial.crashed]
+
 
         Attributes:
             trial: The trial that was run.
         """
 
-        successful: ClassVar[bool]
-        status: ClassVar[str] = "unknown"
-
-        trial: Trial[InfoInner]
+        exception: BaseException | None
+        results: dict[str, Any] | None
         time: TimeInterval | None
+        traceback: str | None
+        trial: Trial[InfoInner]
+
+        status: str
+
+        DF_COLUMN_TYPES: ClassVar[dict] = {
+            "name": pd.StringDtype(),
+            "status": pd.StringDtype(),
+            # As trial_seed can be None, we can't represent this in an int column.
+            # Tried np.nan but that only works with floats
+            "trial_seed": pd.Int64Dtype(),
+            "exception": pd.StringDtype(),
+            "traceback": pd.StringDtype(),
+            "time:start": float,
+            "time:end": float,
+            "time:duration": float,
+            "time:kind": pd.StringDtype(),
+            "time:unit": pd.StringDtype(),
+        }
 
         @property
         def name(self) -> str:
@@ -479,40 +500,37 @@ class Trial(Generic[Info]):
             """The info of the trial, specific to the optimizer that issued it."""
             return self.trial.info
 
-        @abstractmethod
-        def _extra_series(self) -> dict[str, Any]:
-            """Additional information to put in the series."""
-
-        def series(self) -> pd.Series:
-            """Get a series of the results of the trial.
+        def df(self) -> pd.DataFrame:
+            """Get a dataframe of the results of the trial.
 
             !!! note "Prefixes"
 
                 * `summary`: Entries will be prefixed with `#!python "summary:"`
                 * `config`: Entries will be prefixed with `#!python "config:"`
                 * `results`: Entries will be prefixed with `#!python "results:"`
+                * `time`: Entries will be prefixed with `#!python "time:"`
+                * `storage`: Entries will be prefixed with `#!python "storage:"`
             """
-            if self.time is not None:
-                timings = {
-                    "start": self.time.start,
-                    "duration": self.time.duration,
-                    "end": self.time.end,
-                }
-            else:
-                timings = {}
-
-            return pd.Series(
+            _df = pd.DataFrame(
                 {
                     "name": self.name,
-                    "successful": self.successful,
                     "status": self.status,
-                    "trial_seed": self.trial.seed,
-                    **prefix_keys(timings, "time:"),
-                    **self._extra_series(),
+                    "trial_seed": self.trial.seed if self.trial.seed else np.nan,
                     **prefix_keys(self.trial.summary, "summary:"),
+                    **prefix_keys(self.results or {}, "results:"),
                     **prefix_keys(self.trial.config, "config:"),
+                    **prefix_keys(
+                        self.time.dict_for_dataframe() if self.time else {},
+                        "time:",
+                    ),
+                    "exception": str(self.exception) if self.exception else None,
+                    "traceback": self.traceback,
                 },
+                index=[0],
             )
+            present_cols = {k: v for k, v in self.DF_COLUMN_TYPES.items() if k in _df}
+            _df = _df.astype(present_cols)
+            return _df
 
         @overload
         def retrieve(
@@ -614,76 +632,108 @@ class Trial(Generic[Info]):
             # Store in a sub-bucket
             return method.sub(self.name)[key].load(check=check)
 
+        @classmethod
+        def from_df(cls, df: pd.DataFrame | pd.Series) -> Trial.Report:
+            """Create a report from a dataframe.
+
+            See Also:
+                * [`.from_dict()`][byop.optimization.Trial.Report.from_dict]
+            """
+            if isinstance(df, pd.DataFrame):
+                if len(df) != 1:
+                    raise ValueError(
+                        f"Expected a dataframe with one row, got {len(df)} rows.",
+                    )
+                data_dict = df.iloc[0].to_dict()
+            else:
+                data_dict = df.to_dict()
+
+            return cls.from_dict(data_dict)
+
+        @classmethod
+        def from_dict(cls, d: Mapping[str, Any]) -> Trial.Report:
+            """Create a report from a dictionary.
+
+            !!! note "Prefixes"
+
+                Please see [`.df()`][byop.optimization.Trial.Report.df]
+                for information on what the prefixes should be for certain fields.
+
+            Args:
+                d: The dictionary to create the report from.
+
+            Returns:
+                The created report.
+            """
+            # The relative_ here is inserted in `df()` method of history, however
+            # TimeInterval doesn't know about it, so we remove it here.
+            time_interval = {
+                k: v
+                for k, v in mapping_select(d, "time:").items()
+                if ("relative_" not in k and k != "duration")
+            }
+            fidelities = mapping_select(d, "fidelities:")
+            config = mapping_select(d, "config:")
+            summary = mapping_select(d, "summary:")
+            results = mapping_select(d, "results:")
+
+            trial: Trial[Any] = Trial(
+                name=d["name"],
+                config=config,
+                info=None,  # We don't save this to disk so we load it back as None
+                seed=d["trial_seed"],
+                fidelities=fidelities,
+                time=TimeInterval.from_dict(time_interval) if time_interval else None,
+                timer=None,
+                results=results,
+                summary=summary,
+                exception=d["exception"],
+                traceback=d["traceback"],
+            )
+            return cls(
+                status=d["status"],
+                trial=trial,
+                exception=d["exception"],
+                traceback=d["traceback"],
+                time=trial.time,
+                results=results,
+            )
+
     @dataclass
     class CrashReport(Report[InfoInner]):
-        """A report for a crashed trial.
+        """A report for a crashed trial."""
 
-        See [`Report`][byop.optimization.Trial.Report] for additional
-        attributes.
-
-        Attributes:
-            trial: The trial that crashed.
-            exception: The exception for the trial.
-            traceback: The traceback for the trial, if it was obtainable.
-        """
-
-        successful: ClassVar[bool] = False
-        status: ClassVar[Literal["crashed"]] = "crashed"
-
-        trial: Trial[InfoInner]
-        time: None
         exception: BaseException
+        results: None
+        time: TimeInterval
         traceback: str | None
+        trial: Trial[InfoInner]
 
-        def _extra_series(self) -> dict[str, Any]:
-            return {"exception": str(self.exception)}
+        status: str = "crashed"
 
     @dataclass
     class SuccessReport(Report[InfoInner]):
-        """A report for a successful trial.
+        """A report for a successful trial."""
 
-        Attributes:
-            trial: The trial that was successful.
-            time: The time taken by the trial.
-            results: The results of the trial.
-        """
-
-        successful: ClassVar[bool] = True
-        status: ClassVar[Literal["success"]] = "success"
-
-        trial: Trial[InfoInner]
+        exception: None
+        results: dict[str, Any]
         time: TimeInterval
-        results: dict[str, Any] = field(default_factory=dict)
+        traceback: None
+        trial: Trial[InfoInner]
 
-        def _extra_series(self) -> dict[str, Any]:
-            return {**prefix_keys(self.results, "results:")}
+        status: str = "success"
 
     @dataclass
     class FailReport(Report[InfoInner]):
-        """A report for a failed trial.
+        """A report for a failed trial."""
 
-        Attributes:
-            trial: The trial that failed.
-            time: The time taken by the trial.
-            exception: The exception raised by the trial if any.
-            traceback: The traceback of the exception raised by the trial if any.
-            results: The results of the trial.
-        """
-
-        successful: ClassVar[bool] = False
-        status: ClassVar[Literal["fail"]] = "fail"
-
-        trial: Trial[InfoInner]
-        time: TimeInterval
         exception: BaseException | None
+        results: dict[str, Any]
+        time: TimeInterval
         traceback: str | None
-        results: dict[str, Any] = field(default_factory=dict)
+        trial: Trial[InfoInner]
 
-        def _extra_series(self) -> dict[str, Any]:
-            return {
-                **prefix_keys(self.results, "results:"),
-                "exception": self.exception,
-            }
+        status: str = "fail"
 
     class Objective(Generic[P, InfoInner]):
         """Attach static information to a function to be optimized."""

@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum, auto
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal, Mapping, TypeVar
 from typing_extensions import assert_never
+
+import numpy as np
+
+T = TypeVar("T")
 
 
 class TimeUnit(Enum):
@@ -15,6 +19,31 @@ class TimeUnit(Enum):
     MILLISECONDS = auto()
     MICROSECONDS = auto()
     NANOSECONDS = auto()
+    UNKNOWN = auto()
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    def __repr__(self) -> str:
+        return self.name.lower()
+
+    @classmethod
+    def get(cls, key: Any) -> TimeUnit:
+        """Get the enum value from a string.
+
+        Args:
+            key: The string to convert.
+
+        Returns:
+            The enum value.
+        """
+        if isinstance(key, str):
+            try:
+                return TimeUnit[key.upper()]
+            except KeyError:
+                return TimeUnit.UNKNOWN
+
+        return TimeUnit.UNKNOWN
 
 
 class TimeKind(Enum):
@@ -23,6 +52,31 @@ class TimeKind(Enum):
     WALL = auto()
     CPU = auto()
     PROCESS = auto()
+    UNKNOWN = auto()
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    def __repr__(self) -> str:
+        return self.name.lower()
+
+    @classmethod
+    def get(cls, key: Any) -> TimeKind:
+        """Get the enum value from a string.
+
+        Args:
+            key: The string to convert.
+
+        Returns:
+            The enum value.
+        """
+        if isinstance(key, str):
+            try:
+                return TimeKind[key.upper()]
+            except KeyError:
+                return TimeKind.UNKNOWN
+
+        return TimeKind.UNKNOWN
 
 
 @dataclass
@@ -115,3 +169,37 @@ class TimeInterval:
     def duration(self) -> float:
         """The duration of the time interval."""
         return self.end - self.start
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the time interval to a dictionary."""
+        return {**asdict(self), "duration": self.duration}
+
+    def dict_for_dataframe(self) -> dict[str, Any]:
+        """Convert the time interval to a dictionary for a dataframe."""
+        return {
+            "start": self.start,
+            "end": self.end,
+            "kind": str(self.kind),
+            "unit": str(self.unit),
+            "duration": self.duration,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> TimeInterval:
+        """Create a time interval from a dictionary."""
+        return cls(
+            start=d["start"],
+            end=d["end"],
+            kind=TimeKind.get(d["kind"]),
+            unit=TimeUnit.get(d["unit"]),
+        )
+
+    @classmethod
+    def na_time_interval(cls) -> TimeInterval:
+        """Create a time interval with all values set to `None`."""
+        return cls(
+            start=np.nan,
+            end=np.nan,
+            kind=TimeKind.UNKNOWN,
+            unit=TimeUnit.UNKNOWN,
+        )

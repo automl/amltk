@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import traceback
+from pathlib import Path
+
+import pandas as pd
 from more_itertools import pairwise
 from pytest_cases import case, parametrize_with_cases
 
@@ -21,7 +25,13 @@ def eval_trial(
         trial = [trial]
 
     if crash is not None:
-        return [trial.crashed(exception=crash) for trial in trial]
+        try:
+            raise crash
+        except Exception as crash:  # noqa: BLE001
+            return [
+                trial.crashed(exception=crash, traceback=traceback.format_exc())
+                for trial in trial
+            ]
 
     reports: list[Trial.Report] = []
     for _trial in trial:
@@ -55,7 +65,7 @@ def case_one_report_fail() -> list[Trial.Report]:
 @case(tags=["crash"])
 def case_one_report_crash() -> list[Trial.Report]:
     trial: Trial = Trial("trial_1", info=None, config={"x": 1})
-    return eval_trial(trial, crash=ValueError(1))
+    return eval_trial(trial, crash=ValueError("Some Error"))
 
 
 @case(tags=["success", "fail", "crash"])
@@ -73,7 +83,7 @@ def case_many_report() -> list[Trial.Report]:
     return [
         *eval_trial(success_trials),
         *eval_trial(fail_trials, fail=100),
-        *eval_trial(crash_trials, crash=ValueError(1)),
+        *eval_trial(crash_trials, crash=ValueError("Crash Error")),
     ]
 
 
@@ -92,7 +102,6 @@ def test_history_df(reports: list[Trial.Report]) -> None:
 
     history_df = history.df()
     assert len(history_df) == len(reports)
-    assert history_df.index.name == "name"
 
 
 @parametrize_with_cases("reports", cases=".")
@@ -163,7 +172,6 @@ def test_trace_df(reports: list[Trial.Report]) -> None:
     trace_df = trace_by_x.df()
 
     assert len(trace_df) == len(trace_by_x) == len(history)
-    assert trace_df.index.name == "name"
 
     filtered_success = trace_by_x.filter(lambda report: report.status == "success")
     assert all(report.status == "success" for report in filtered_success)
@@ -204,3 +212,22 @@ def test_history_sortby() -> None:
 
     losses = [r.summary["loss"] for r in trace]
     assert sorted(losses) == losses
+
+
+@parametrize_with_cases("reports", cases=".")
+def test_history_serialization(reports: list[Trial.Report], tmp_path: Path) -> None:
+    history = History()
+    history.add(reports)
+
+    df = history.df()
+    assert len(df) == len(reports)
+
+    restored_df = History.from_df(df).df()
+    pd.testing.assert_frame_equal(df, restored_df)
+
+    tmpfile = tmp_path / "history.csv"
+    history.to_csv(tmpfile)
+
+    restored_history = History.from_csv(tmpfile)
+    restored_df = restored_history.df()
+    pd.testing.assert_frame_equal(df, restored_df)

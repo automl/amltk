@@ -45,6 +45,7 @@ def mapping_select(d: Mapping[str, V], prefix: str) -> dict[str, V]:
 
     d = {"a:b:c": 1, "a:b:d": 2, "c:elephant": 3}
     print(mapping_select(d, "a:b:"))
+    # {"c": 1, "d": 2}
     ```
 
     Args:
