@@ -150,8 +150,8 @@ class WandbLiveRunWrap:
 
             report = self.fn(trial)
 
-            series = report.series()
-            run.log({"table": wandb.Table(dataframe=series.to_frame().T)})
+            report_df = report.df()
+            run.log({"table": wandb.Table(dataframe=report_df)})
             wandb_summary = {
                 k: v
                 for k, v in report.summary.items()

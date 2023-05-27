@@ -95,8 +95,7 @@ class History(Mapping[str, Trial.Report]):
     def df(self) -> pd.DataFrame:
         """Returns a pandas DataFrame of the history.
 
-        Each individual trial will be a row in the dataframe with the
-        trial name as the index.
+        Each individual trial will be a row in the dataframe.
 
         !!! note "Prefixes"
 
@@ -122,18 +121,18 @@ class History(Mapping[str, Trial.Report]):
         Returns:
             A pandas DataFrame of the history.
         """  # noqa: E501
-        series = [report.series() for report in self.reports.values()]
-        history_df = pd.DataFrame(series)
-        if len(history_df) > 0:
-            history_df = history_df.set_index("name")
+        if len(self) == 0:
+            return pd.DataFrame()
 
-            if "time:start" in history_df.columns and "time:end" in history_df.columns:
-                min_time = history_df[["time:start", "time:end"]].min().min()
-                history_df["time:relative_start"] = history_df["time:start"] - min_time
-                history_df["time:relative_end"] = history_df["time:end"] - min_time
-
-        else:
-            history_df.index.name = "name"
+        history_df = pd.concat([report.df() for report in self.reports.values()])
+        if (
+            len(history_df) > 0
+            and "time:start" in history_df.columns
+            and "time:end" in history_df.columns
+        ):
+            min_time = history_df[["time:start", "time:end"]].min().min()
+            history_df["time:relative_start"] = history_df["time:start"] - min_time
+            history_df["time:relative_end"] = history_df["time:end"] - min_time
 
         return history_df
 
@@ -277,16 +276,50 @@ class History(Mapping[str, Trial.Report]):
             return NotImplemented
         return self.reports == other.reports
 
-    def save(self, path: str | Path | IO[str]) -> None:
-        """Saves the history to a file.
+    def to_csv(self, path: str | Path | IO[str]) -> None:
+        """Saves the history to a csv.
 
         Args:
             path: The path to save the history to.
         """
         if isinstance(path, IO):
-            path.write(self.df().to_csv())
+            path.write(self.df().to_csv(na_rep=""))
         else:
             self.df().to_csv(path)
+
+    @classmethod
+    def from_csv(cls, path: str | Path | IO[str] | pd.DataFrame) -> History:
+        """Loads a history from a csv.
+
+        Args:
+            path: The path to load the history from.
+
+        Returns:
+            A History.
+        """
+        _df = pd.read_csv(path) if isinstance(path, (IO, str, Path)) else path
+
+        present_cols = {
+            k: v for k, v in Trial.Report.DF_COLUMN_TYPES.items() if k in _df
+        }
+        _df = _df.astype(present_cols)
+
+        return cls.from_df(_df)
+
+    @classmethod
+    def from_df(cls, df: pd.DataFrame) -> History:
+        """Loads a history from a pandas DataFrame.
+
+        Args:
+            df: The DataFrame to load the history from.
+
+        Returns:
+            A History.
+        """
+        if len(df) == 0:
+            return cls()
+        reports = [Trial.Report.from_df(s) for _, s in df.iterrows()]
+        return History({report.name: report for report in reports})
 
 
 @dataclass
@@ -501,8 +534,7 @@ class Trace(Sequence[Trial.Report]):
     def df(self) -> pd.DataFrame:
         """Returns a pandas DataFrame of the trace.
 
-        Each individual trial will be a row in the DataFrame with
-        the index simply being their numerical order.
+        Each individual trial will be a row in the DataFrame
 
         !!! note "Prefixes"
 
@@ -535,21 +567,23 @@ class Trace(Sequence[Trial.Report]):
         Returns:
             A pandas DataFrame of the trace.
         """  # noqa: E501
-        trace_df = pd.DataFrame([report.series() for report in self.reports])
-        if len(trace_df) > 0:
-            trace_df = trace_df.set_index("name")
+        if len(self) == 0:
+            return pd.DataFrame()
 
-            if "time:start" in trace_df.columns and "time:end" in trace_df.columns:
-                min_time = trace_df[["time:start", "time:end"]].min().min()
-                trace_df["time:relative_start"] = trace_df["time:start"] - min_time
-                trace_df["time:relative_end"] = trace_df["time:end"] - min_time
-        else:
-            trace_df.index.name = "name"
+        trace_df = pd.concat([report.df() for report in self.reports])
+        if (
+            len(trace_df) > 0
+            and "time:start" in trace_df.columns
+            and "time:end" in trace_df.columns
+        ):
+            min_time = trace_df[["time:start", "time:end"]].min().min()
+            trace_df["time:relative_start"] = trace_df["time:start"] - min_time
+            trace_df["time:relative_end"] = trace_df["time:end"] - min_time
 
         return trace_df
 
-    def save(self, path: str | Path | IO[str]) -> None:
-        """Saves the history to a file.
+    def to_csv(self, path: str | Path | IO[str]) -> None:
+        """Saves the history to a csv.
 
         Args:
             path: The path to save the history to.
