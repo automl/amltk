@@ -6,7 +6,7 @@ from byop.optimization import (
     Trace,
     Trial,
 )
-from byop.pipeline import Pipeline, choice, searchable, split, step
+from byop.pipeline import Pipeline, choice, group, searchable, split, step
 from byop.scheduling import (
     CallLimiter,
     Comm,
@@ -33,6 +33,7 @@ __all__ = [
     "Pipeline",
     "split",
     "step",
+    "group",
     "choice",
     "searchable",
     "Scheduler",
