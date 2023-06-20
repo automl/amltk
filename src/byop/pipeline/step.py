@@ -84,6 +84,7 @@ class Step(Generic[Space]):
         hash=False,
         repr=False,
     )
+    meta: Mapping[str, Any] | None = None
 
     DELIMITER: ClassVar[str] = ":"
 

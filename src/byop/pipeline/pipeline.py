@@ -46,11 +46,13 @@ class Pipeline:
         name: The name of the pipeline
         steps: The steps in the pipeline
         modules: Additional modules to associate with the pipeline
+        meta: Additional meta information to associate with the pipeline
     """
 
     name: str
     steps: list[Step]
     modules: Mapping[str, Step | Pipeline] = field(factory=dict)
+    meta: Mapping[str, Any] | None = None
 
     @property
     def head(self) -> Step:
@@ -514,13 +516,27 @@ class Pipeline:
         *steps: Step | Pipeline | Iterable[Step],
         modules: Pipeline | Step | Iterable[Pipeline | Step] | None = None,
         name: str | None = None,
+        meta: Mapping[str, Any] | None = None,
     ) -> Pipeline:
         """Create a pipeline from a sequence of steps.
 
+        ??? warning "Using another pipeline `create()`"
+
+            When using another pipeline as part of a substep, we handle
+            the parameters of subpiplines in the following ways:
+
+            * `modules`: Any modules attached to a subpipeline will be copied
+                and attached to the new pipeline. If there is a naming conflict,
+                an error will be raised.
+
+            * `meta`: Any metadata associated with subpiplines will be erased.
+                Please retrieve them an handle accordingly.
+
         Args:
             *steps: The steps to create the pipeline from
-            name (optional): The name of the pipeline. Defaults to a uuid
-            modules (optional): The modules to use for the pipeline
+            name: The name of the pipeline. Defaults to a uuid
+            modules: The modules to use for the pipeline
+            meta: The meta information to attach to the pipeline
 
         Returns:
             Pipeline
@@ -571,4 +587,5 @@ class Pipeline:
             name=name,
             steps=step_sequence,
             modules=final_modules,
+            meta=meta,
         )
