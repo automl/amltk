@@ -8,10 +8,10 @@ from ConfigSpace import Configuration, ConfigurationSpace
 from more_itertools import all_unique
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.configspace import ConfigSpaceAdapter
-from byop.optimization import RandomSearch
-from byop.optuna import OptunaSpaceAdapter
-from byop.pipeline import Parser, Sampler, Step, searchable
+from amltk.configspace import ConfigSpaceAdapter
+from amltk.optimization import RandomSearch
+from amltk.optuna import OptunaSpaceAdapter
+from amltk.pipeline import Parser, Sampler, Step, searchable
 
 logger = logging.getLogger(__name__)
 

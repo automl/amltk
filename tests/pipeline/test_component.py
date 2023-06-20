@@ -4,8 +4,8 @@ from itertools import chain, combinations
 
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop import step
-from byop.pipeline import Component, Step
+from amltk import step
+from amltk.pipeline import Component, Step
 
 
 @case

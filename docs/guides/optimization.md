@@ -1,8 +1,8 @@
 # Optimization Guide
 One of the core tasks of any AutoML system is to optimize some objective,
-whether it be some [`Pipeline`][byop.pipeline.Pipeline], a black-box or even a toy function.
+whether it be some [`Pipeline`][amltk.pipeline.Pipeline], a black-box or even a toy function.
 
-For this we require an [`Optimizer`][byop.optimization.Optimizer]. We integrate
+For this we require an [`Optimizer`][amltk.optimization.Optimizer]. We integrate
 several optimizers and integrating your own is very straightforward, under one
 very central premise.
 
@@ -41,7 +41,7 @@ very central premise.
 
 This guide relies lightly on topics covered in the [Pipeline Guide](./pipelines.md) for
 creating a `Pipeline` but also the [Task guide](./tasks.md) for creating a
-[`Scheduler`][byop.scheduling.Scheduler] and a [`Task`][byop.scheduling.Task].
+[`Scheduler`][amltk.scheduling.Scheduler] and a [`Task`][amltk.scheduling.Task].
 These aren't required but if something is not clear or you'd like to know **how** something
 works, please refer to these guides
 
@@ -71,7 +71,7 @@ in the [Pipeline guide](./pipelines.md).
 === "Defining a Search Space"
 
     ```python hl_lines="6"
-    from byop.pipeline import searchable
+    from amltk.pipeline import searchable
 
     def poly(x):
         return (x**2 + 4*x + 3) / x
@@ -85,7 +85,7 @@ in the [Pipeline guide](./pipelines.md).
 === "Typed"
 
     ```python hl_lines="6"
-    from byop.pipeline import searchable
+    from amltk.pipeline import searchable
 
     def poly(x: float) -> float:
         return (x**2 + 4*x + 3) / x
@@ -98,15 +98,15 @@ in the [Pipeline guide](./pipelines.md).
 
 ## Creating an optimizer
 
-We'll start by using [`RandomSearch`][byop.optimization.RandomSearch] to search
+We'll start by using [`RandomSearch`][amltk.optimization.RandomSearch] to search
 for an optimal value for `#!python "x"` but later on we'll switch to using
 [SMAC](https://github.com/automl/SMAC3) which is a much smarter optimizer.
 
 === "Creating an optmizer"
 
     ```python hl_lines="9 10"
-    from byop.optimization import RandomSearch
-    from byop.pipeline import searchable
+    from amltk.optimization import RandomSearch
+    from amltk.pipeline import searchable
 
     def poly(x):
         return (x**2 + 4*x + 3) / x
@@ -120,8 +120,8 @@ for an optimal value for `#!python "x"` but later on we'll switch to using
 === "Typed"
 
     ```python hl_lines="9 10"
-    from byop.optimization import RandomSearch
-    from byop.pipeline import searchable
+    from amltk.optimization import RandomSearch
+    from amltk.pipeline import searchable
 
     def poly(x: float) -> float:
         return (x**2 + 4*x + 3) / x
@@ -142,13 +142,13 @@ configurations from the `space` to evaluate.
 
 ??? note "Usage"
 
-    You can use [`RandomSearch`][byop.optimization.RandomSearch]
+    You can use [`RandomSearch`][amltk.optimization.RandomSearch]
     by simply passing in the `space` and optionally a `seed` which
     will be used for sampling.
 
     ```python exec="true" source="material-block" result="python" title="RandomSearch Construction"
-    from byop.optimization import RandomSearch
-    from byop.pipeline import searchable
+    from amltk.optimization import RandomSearch
+    from amltk.pipeline import searchable
 
     my_searchable = searchable("myspace", space={"x": (-10.0, 10.0)})
     space = my_searchable.space()
@@ -161,16 +161,16 @@ configurations from the `space` to evaluate.
 
     ---
 
-    By default, [`RandomSearch`][byop.optimization.RandomSearch]
+    By default, [`RandomSearch`][amltk.optimization.RandomSearch]
     does not allow duplicates. If it can't sample a unique config
     in `max_samples_attempts=` (default: `#!python 50`), then
     it will deem that there are no more unique configs and raise
-    a [`RandomSearch.ExhaustedError`][byop.optimization.RandomSearch.ExhaustedError].
+    a [`RandomSearch.ExhaustedError`][amltk.optimization.RandomSearch.ExhaustedError].
 
     ```python exec="true" source="tabbed-left" result="python" returncode="1" title="RandomSearch Exhausted" tabs="Source | Error" hl_lines="5 10 11 14"
     import traceback
-    from byop.optimization import RandomSearch
-    from byop.pipeline import searchable
+    from amltk.optimization import RandomSearch
+    from amltk.pipeline import searchable
 
     my_searchable = searchable("myspace", space={"x": ["apple", "pear"]})  # Only 2 valid configs
     space = my_searchable.space()
@@ -190,13 +190,13 @@ configurations from the `space` to evaluate.
 
     ---
 
-    If you want to use a particular [`Sampler`][byop.pipeline.Sampler]
+    If you want to use a particular [`Sampler`][amltk.pipeline.Sampler]
     you can pass it in as well.
 
     ```python exec="true" source="material-block" result="python" title="RandomSearch Specific Sampler" hl_lines="3 8"
-    from byop.optimization import RandomSearch
-    from byop.pipeline import searchable
-    from byop.configspace import ConfigSpaceSampler
+    from amltk.optimization import RandomSearch
+    from amltk.pipeline import searchable
+    from amltk.configspace import ConfigSpaceSampler
 
     my_searchable = searchable("myspace", space={"x": (-10.0, 10.0)})
     space = my_searchable.space()
@@ -213,7 +213,7 @@ configurations from the `space` to evaluate.
 
     ```python exec="true" source="material-block" result="python" title="RandomSearch Custom Sample Function" hl_lines="9 10 11 12 13 14 15 16 21"
     import numpy as np
-    from byop.optimization import RandomSearch
+    from amltk.optimization import RandomSearch
 
     search_space = {
         "x": (-10.0, 10.0),
@@ -295,7 +295,7 @@ To integrate you own optimizer, you'll need to implement the following interface
 === "Simple"
 
     ```python
-    from byop.optimization import Trial
+    from amltk.optimization import Trial
 
     class Optimizer:
 
@@ -306,7 +306,7 @@ To integrate you own optimizer, you'll need to implement the following interface
 === "Generics"
 
     ```python
-    from byop.optimization.trial import Trial
+    from amltk.optimization.trial import Trial
     from typing import TypeVar, Protocol
 
     Info = TypeVar("Info")
@@ -318,7 +318,7 @@ To integrate you own optimizer, you'll need to implement the following interface
     ```
 
     The `Info` type variable here is whatever underlying information you want to store in the
-    [`Trial`][byop.optimization.Trial] object, under `trial.info`.
+    [`Trial`][amltk.optimization.Trial] object, under `trial.info`.
 
     !!! note "What is a Protocol? What is a TypeVar?"
 
@@ -331,9 +331,9 @@ To integrate you own optimizer, you'll need to implement the following interface
 
 ---
 
-The [`ask`][byop.optimization.Optimizer.ask] method should return a
-new [`Trial`][byop.optimization.Trial] object, and the [`tell`][byop.optimization.Optimizer.tell]
-method should update the optimizer with the result of the trial. A [`Trial`][byop.optimization.Trial]
+The [`ask`][amltk.optimization.Optimizer.ask] method should return a
+new [`Trial`][amltk.optimization.Trial] object, and the [`tell`][amltk.optimization.Optimizer.tell]
+method should update the optimizer with the result of the trial. A [`Trial`][amltk.optimization.Trial]
 should have a unique `name`, a `config` and whatever optimizer specific
 information you want to store should be stored in the `trial.info` property.
 
@@ -349,7 +349,7 @@ information you want to store should be stored in the `trial.info` property.
         from smac.facade import AbstractFacade
         from smac.runhistory import StatusType, TrialValue
 
-        from byop.optimization import Optimizer, Trial
+        from amltk.optimization import Optimizer, Trial
 
         class SMACOptimizer(Optimizer):
 
@@ -411,7 +411,7 @@ information you want to store should be stored in the `trial.info` property.
         ```python
         from smac.runhistory import TrialInfo
 
-        from byop.optimization import Optimizer, Trial
+        from amltk.optimization import Optimizer, Trial
 
         class SMACOptimizer(Optimizer[TrialInfo]):
 
@@ -420,8 +420,8 @@ information you want to store should be stored in the `trial.info` property.
         ```
 
         You'll notice here that we use `TrialInfo` as the type parameter
-        to [`Optimizer`][byop.optimization.Optimizer], [`Trial`][byop.optimization.Trial]
-        and [`Trial.Report`][byop.optimization.Trial.Report]. This is how we
+        to [`Optimizer`][amltk.optimization.Optimizer], [`Trial`][amltk.optimization.Trial]
+        and [`Trial.Report`][amltk.optimization.Trial.Report]. This is how we
         tell type checking analyzers that the _thing_ stored in `trial.info`
         will be a `TrialInfo` object from SMAC.
 
@@ -431,9 +431,9 @@ If there is an optimizer you would like integrated, please let us know!
 
 ## Running an Optimizer
 Now that we have an optimizer that knows the `space` to search, we can begin to
-actually [`ask()`][byop.optimization.Optimizer.ask] the optimizer for a next
-[`Trial`][byop.optimization.Trial], run our function and return
-a [`Trial.Report`][byop.optimization.Trial.Report].
+actually [`ask()`][amltk.optimization.Optimizer.ask] the optimizer for a next
+[`Trial`][amltk.optimization.Trial], run our function and return
+a [`Trial.Report`][amltk.optimization.Trial.Report].
 
 First we need to modify our function we wish to optimize to actually accept
 the `Trial` and return the `Report`.
@@ -441,8 +441,8 @@ the `Trial` and return the `Report`.
 === "Running the optmizer"
 
     ```python hl_lines="4 5 6 7 8 9 10 19 20 21 22 24 25"
-    from byop.optimization import RandomSearch
-    from byop.pipeline import searchable
+    from amltk.optimization import RandomSearch
+    from amltk.pipeline import searchable
 
     def poly(trial):
         x = trial.config["x"]
@@ -468,18 +468,18 @@ the `Trial` and return the `Report`.
         results.append(cost)
     ```
 
-    1. Using the [`with trial.begin():`][byop.optimization.Trial.begin],
+    1. Using the [`with trial.begin():`][amltk.optimization.Trial.begin],
     you let us know where exactly your trial begins and we can handle
     all things related to exception handling and timing.
     2. If you can return a success, then do so with
-    [`trial.success()`][byop.optimization.Trial.success].
-    3. If you can't return a success, then do so with [`trial.fail()`][byop.optimization.Trial.fail].
+    [`trial.success()`][amltk.optimization.Trial.success].
+    3. If you can't return a success, then do so with [`trial.fail()`][amltk.optimization.Trial.fail].
 
 === "Typed"
 
     ```python hl_lines="4 5 6 7 8 9 10 19 20 21 22 24 25"
-    from byop.optimization import RandomSearch, Trial
-    from byop.pipeline import searchable
+    from amltk.optimization import RandomSearch, Trial
+    from amltk.pipeline import searchable
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:  # (4)!
         x = trial.config["x"]
@@ -505,14 +505,14 @@ the `Trial` and return the `Report`.
         results.append(cost)
     ```
 
-    1. Using the [`with trial.begin():`][byop.optimization.Trial.begin],
+    1. Using the [`with trial.begin():`][amltk.optimization.Trial.begin],
     you let us know where exactly your trial begins and we can handle
     all things related to exception handling and timing.
     2. If you can return a success, then do so with
-    [`trial.success()`][byop.optimization.Trial.success]. This
+    [`trial.success()`][amltk.optimization.Trial.success]. This
     returns a [`Trial.SuccessReport`].
-    3. If you can't return a success, then do so with [`trial.fail()`][byop.optimization.Trial.fail].
-    This returns a [`trial.FailReport`][byop.optimization.Trial.FailReport].
+    3. If you can't return a success, then do so with [`trial.fail()`][amltk.optimization.Trial.fail].
+    This returns a [`trial.FailReport`][amltk.optimization.Trial.FailReport].
     4. Here the inner type parameter `RSTrial` is the type of `trial.info` which
     contains the object returned by the ask of the wrapped `optimizer`. We'll
     see this in [integrating your own Optimizer](#integrating-your-own-optimizer).
@@ -520,11 +520,11 @@ the `Trial` and return the `Report`.
 ### Running the Optimizer in a parallel fashion
 
 Now that we've seen the basic optimization loop, it's time to parallelize it with
-a [`Scheduler`][byop.scheduling.Scheduler] and the [`Trial.Task`][byop.optimization.Trial.Task].
-We cover the [`Scheduler`][byop.scheduling.Scheduler] and [`Tasks`][byop.scheduling.Task]
+a [`Scheduler`][amltk.scheduling.Scheduler] and the [`Trial.Task`][amltk.optimization.Trial.Task].
+We cover the [`Scheduler`][amltk.scheduling.Scheduler] and [`Tasks`][amltk.scheduling.Task]
 in the [Tasks guide](./tasks.md) if you'd like to know more about how this works.
 
-We first create a [`Scheduler`][byop.scheduling.Scheduler] to run with `#!python 1`
+We first create a [`Scheduler`][amltk.scheduling.Scheduler] to run with `#!python 1`
 process and run it for `#!python 5` seconds.
 Using the event system of AutoML-Toolkit,
 we define what happens through _callbacks_, registering to certain events, such
@@ -534,9 +534,9 @@ and save results with `task.on_success`.
 === "Creating a `Trial.Task`"
 
     ```python hl_lines="19 23 24 25 26 28 29 30 32 33 34 35 37 38 39 40 42"
-    from byop.optimization import RandomSearch, Trial
-    from byop.pipeline import searchable
-    from byop.scheduling import Scheduler
+    from amltk.optimization import RandomSearch, Trial
+    from amltk.pipeline import searchable
+    from amltk.scheduling import Scheduler
 
     def poly(trial):
         x = trial.config["x"]
@@ -589,15 +589,15 @@ and save results with `task.on_success`.
     4. We don't store anything more than the optmimizer needs. Saving results
     that you wish to access later is up to you.
     5. Here we wrap the function we want to run in another process in a
-    [`Trial.Task`][byop.optimization.Trial]. There are other backends than
+    [`Trial.Task`][amltk.optimization.Trial]. There are other backends than
     processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
 
 === "Typed"
 
     ```python hl_lines="19 23 24 25 26 28 29 30 32 33 34 35 37 38 39 40 42"
-    from byop.optimization import RandomSearch, Trial, RSTrialInfo
-    from byop.pipeline import searchable
-    from byop.scheduling import Scheduler
+    from amltk.optimization import RandomSearch, Trial, RSTrialInfo
+    from amltk.pipeline import searchable
+    from amltk.scheduling import Scheduler
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
         x = trial.config["x"]
@@ -650,7 +650,7 @@ and save results with `task.on_success`.
     4. We don't store anything more than the optmimizer needs. Saving results
     that you wish to access later is up to you.
     5. Here we wrap the function we want to run in another process in a
-    [`Trial.Task`][byop.optimization.Trial]. There are other backends than
+    [`Trial.Task`][amltk.optimization.Trial]. There are other backends than
     processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
 
 ??? tip "What Events you can subscribe to for a `Trial.Task`"
@@ -658,18 +658,18 @@ and save results with `task.on_success`.
     The `scheduler.on_start`, `task.on_report` and `task.on_success` methods
     define how our system runs. These are part of the event system of AutoML-Toolkit which
     are covered in more detail in the [Tasks guide](./tasks.md). Below we list some of the events
-    related to a [`Trial.Task`][byop.optimization.Trial.Task].
+    related to a [`Trial.Task`][amltk.optimization.Trial.Task].
 
     === "`on_success`"
 
         Any function decorated with this will be called when the wrapped function returns
-        with [`trial.success()`][byop.optimization.Trial.success], passing on the
-        [`Trial.SuccessReport`][byop.optimization.Trial.SuccessReport].
+        with [`trial.success()`][amltk.optimization.Trial.success], passing on the
+        [`Trial.SuccessReport`][amltk.optimization.Trial.SuccessReport].
 
         === "Use"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -684,7 +684,7 @@ and save results with `task.on_success`.
         === "Typed"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -699,13 +699,13 @@ and save results with `task.on_success`.
     === "`on_failure`"
 
         Any function decorated with this will be called when the wrapped function returns
-        with [`trial.fail()`][byop.optimization.Trial.fail], passing on the
-        [`Trial.FailReport`][byop.optimization.Trial.FailReport].
+        with [`trial.fail()`][amltk.optimization.Trial.fail], passing on the
+        [`Trial.FailReport`][amltk.optimization.Trial.FailReport].
 
         === "Use"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -721,7 +721,7 @@ and save results with `task.on_success`.
         === "Typed"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -738,15 +738,15 @@ and save results with `task.on_success`.
     === "`on_crashed`"
 
         Any function decorated with this will be called when the wrapped function crashes
-        outside of [`trial.begin()`][byop.optimization.Trial.begin]. In this case,
+        outside of [`trial.begin()`][amltk.optimization.Trial.begin]. In this case,
         we got nothing back from the called function exception an exception.
         We pass on this exception with a
-        [`Trial.CrashReport`][byop.optimization.Trial.CrashReport].
+        [`Trial.CrashReport`][amltk.optimization.Trial.CrashReport].
 
         === "Use"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -761,7 +761,7 @@ and save results with `task.on_success`.
         === "Typed"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -778,14 +778,14 @@ and save results with `task.on_success`.
         Any function decorated with this will be called whenever any of the other
         events is triggered. It will pass on one of:
 
-        * [SuccessReport][byop.optimization.Trial.SuccessReport]
-        * [FailReport][byop.optimization.Trial.FailReport]
-        * [CrashReport][byop.optimization.Trial.CrashReport]
+        * [SuccessReport][amltk.optimization.Trial.SuccessReport]
+        * [FailReport][amltk.optimization.Trial.FailReport]
+        * [CrashReport][amltk.optimization.Trial.CrashReport]
 
         === "Use"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -798,7 +798,7 @@ and save results with `task.on_success`.
         === "Typed"
 
             ```python
-            from byop.optimization import Trial
+            from amltk.optimization import Trial
 
             task = Trial.Task(...)
 
@@ -815,9 +815,9 @@ and the number of processes in our `Scheduler`. That's it.
 === "Scaling Up"
 
     ```python hl_lines="18 19 25"
-    from byop.optimization import RandomSearch, Trial
-    from byop.pipeline import searchable
-    from byop.scheduling import Scheduler
+    from amltk.optimization import RandomSearch, Trial
+    from amltk.pipeline import searchable
+    from amltk.scheduling import Scheduler
 
     def poly(trial):
         x = trial.config["x"]
@@ -864,9 +864,9 @@ and the number of processes in our `Scheduler`. That's it.
 === "Typed"
 
     ```python hl_lines="18 19 25"
-    from byop.optimization import RandomSearch, Trial, RSTrialInfo
-    from byop.pipeline import searchable
-    from byop.scheduling import Scheduler
+    from amltk.optimization import RandomSearch, Trial, RSTrialInfo
+    from amltk.pipeline import searchable
+    from amltk.scheduling import Scheduler
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
         x = trial.config["x"]

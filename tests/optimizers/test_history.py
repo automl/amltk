@@ -7,8 +7,8 @@ import pandas as pd
 from more_itertools import pairwise
 from pytest_cases import case, parametrize_with_cases
 
-from byop.optimization import Trial
-from byop.optimization.history import History, Trace
+from amltk.optimization import Trial
+from amltk.optimization.history import History, Trace
 
 
 def quadratic(x):

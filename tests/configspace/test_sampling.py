@@ -3,8 +3,8 @@ from __future__ import annotations
 from more_itertools import all_unique
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.configspace import ConfigSpaceAdapter
-from byop.pipeline import Choice, Pipeline, Split, Step, choice, split, step
+from amltk.configspace import ConfigSpaceAdapter
+from amltk.pipeline import Choice, Pipeline, Split, Step, choice, split, step
 
 
 @case

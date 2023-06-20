@@ -7,7 +7,7 @@ import pandas as pd
 from more_itertools import exactly_n
 from pytest_cases import parametrize
 
-from byop.sklearn.data import split_data
+from amltk.sklearn.data import split_data
 
 
 @parametrize(

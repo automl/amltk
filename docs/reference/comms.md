@@ -1,5 +1,5 @@
 ## Comm Plugin
-The [`Comm`][byop.scheduling.Comm] is the access point to to enable
+The [`Comm`][amltk.scheduling.Comm] is the access point to to enable
 two way communication between a worker and the server.
 
 ??? warning "Local Processes Only"
@@ -13,12 +13,12 @@ two way communication between a worker and the server.
     would like to contribute.
 
 ### Usage of Comm Plugin
-A [`Comm`][byop.Comm] facilitate the communication between the worker and the scheduler.
-By using this `Comm`, we can [`send()`][byop.Comm.send] and
-[`request()`][byop.Comm.request] messages from the workers point of view.
+A [`Comm`][amltk.Comm] facilitate the communication between the worker and the scheduler.
+By using this `Comm`, we can [`send()`][amltk.Comm.send] and
+[`request()`][amltk.Comm.request] messages from the workers point of view.
 These messages are then received by the scheduler and emitted as the
-[`MESSAGE`][byop.Comm.MESSAGE] and [`REQUEST`][byop.Comm.REQUEST]
-events respectively which both pass a [`Comm.Msg`][byop.Comm.Msg] object
+[`MESSAGE`][amltk.Comm.MESSAGE] and [`REQUEST`][amltk.Comm.REQUEST]
+events respectively which both pass a [`Comm.Msg`][amltk.Comm.Msg] object
 to the callback. This object contains the `data` that was transmitted.
 
 Below we show an example of both `send()` and
@@ -26,14 +26,14 @@ Below we show an example of both `send()` and
 
 !!! warning "Usage with Task.Trial"
 
-    If you are using the plugin with a [`Trial.Task`][byop.optimization.Trial.Task],
+    If you are using the plugin with a [`Trial.Task`][amltk.optimization.Trial.Task],
     i.e. for optimization, the comm will accessible from `trial.plugins["comm"]` and
     you do **not** need the `comm` as an argument.
 
 === "`send()`"
 
     ```python hl_lines="7 9 12 16 17 18 19 20 21"
-    from byop import Scheduler, Task, Comm
+    from amltk import Scheduler, Task, Comm
 
     # The function must accept an optional `Comm` keyword argument
     def echoer(xs: list[int], comm: Comm | None = None):
@@ -60,7 +60,7 @@ Below we show an example of both `send()` and
 
     1. The `Comm` object should be used as a context manager. This is to ensure
        that the `Comm` object is closed correctly when the function exits.
-    2. Here we use the [`send()`][byop.Comm.send] method to send a message
+    2. Here we use the [`send()`][amltk.Comm.send] method to send a message
        to the scheduler.
     3. We can also do `#!python Comm.Msg[int]` to specify the type of data
        we expect to receive.
@@ -68,7 +68,7 @@ Below we show an example of both `send()` and
 === "`request()`"
 
     ```python hl_lines="7 16 17 18 19"
-    from byop.scheduling import Scheduler, Comm
+    from amltk.scheduling import Scheduler, Comm
 
     # The function must accept an optional `Comm` keyword argument
     def requester(xs: list[int], comm: Comm | None = None):
@@ -91,12 +91,12 @@ Below we show an example of both `send()` and
     scheduler.run()
     ```
 
-    1. Here we use the [`request()`][byop.Comm.request] method to send a request
+    1. Here we use the [`request()`][amltk.Comm.request] method to send a request
        to the scheduler with some data.
-    2. We can use the [`respond()`][byop.Comm.Msg.respond] method to
+    2. We can use the [`respond()`][amltk.Comm.Msg.respond] method to
        respond to the request with some data.
 
 !!! tip "Identifying Workers"
 
-    The [`Comm.Msg`][byop.Comm.Msg] object also has the `identifier`
+    The [`Comm.Msg`][amltk.Comm.Msg] object also has the `identifier`
     attribute, which is a unique identifier for the worker.

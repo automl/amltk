@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from byop import choice, step
+from amltk import choice, step
 
 
 def test_error_when_uneven_weights() -> None:

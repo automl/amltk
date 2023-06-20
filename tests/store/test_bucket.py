@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from pytest_cases import case, fixture, parametrize, parametrize_with_cases
 
-from byop.store import Bucket, PathBucket
+from amltk.store import Bucket, PathBucket
 
 T = TypeVar("T")
 DF = TypeVar("DF", pd.DataFrame, pd.Series)
@@ -21,7 +21,7 @@ def xfail(thing: object, reason: str):
 
 
 def unsupported_format(thing: object):
-    return xfail(thing, "Unsupported format: https://github.com/automl/byop/issues/4")
+    return xfail(thing, "Unsupported format: https://github.com/automl/amltk/issues/4")
 
 
 @case
@@ -99,7 +99,7 @@ def data_string() -> tuple[str, str, type[str], Callable[[str, str], bool]]:
 def data_bytes() -> tuple[bytes, str, type[bytes], Callable[[bytes, bytes], bool]]:
     pytest.xfail(
         "bytes adds some werid prepeding"
-        " see https://github.com/automl/byop/issues/4",
+        " see https://github.com/automl/amltk/issues/4",
     )
     return b"Hello World", "bytes.bin", bytes, operator.eq
 

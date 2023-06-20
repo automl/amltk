@@ -9,8 +9,8 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.svm import SVC
 
-from byop.configspace import ConfigSpaceParser
-from byop.pipeline import Pipeline, SpaceAdapter, choice, group, split, step
+from amltk.configspace import ConfigSpaceParser
+from amltk.pipeline import Pipeline, SpaceAdapter, choice, group, split, step
 
 # Some toy data
 X = pd.DataFrame({"a": ["1", "0", "1", "dog"], "b": [4, 5, 6, 7], "c": [7, 8, 9, 10]})

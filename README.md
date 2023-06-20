@@ -9,7 +9,7 @@ configurable pipelines, agnostic to:
 
 ## Installation
 ```bash
-git clone git@github.com:automl/byop.git
+git clone git@github.com:automl/amltk.git
 
 # If using `just`
 just install-dev

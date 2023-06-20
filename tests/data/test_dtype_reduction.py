@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pytest_cases import parametrize
 
-from byop.data.dtype_reduction import reduce_dtypes
+from amltk.data.dtype_reduction import reduce_dtypes
 
 
 def test_reduce_dtypes_mixed_df() -> None:

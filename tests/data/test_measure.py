@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from byop.data.measure import byte_size
+from amltk.data.measure import byte_size
 
 
 def test_bytesize():

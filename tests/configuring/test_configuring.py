@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from byop import Pipeline, choice, searchable, split, step
+from amltk import Pipeline, choice, searchable, split, step
 
 
 def test_heirarchical_str() -> None:

@@ -1,5 +1,5 @@
 [project]
-name = "byop"
+name = "amltk"
 version = "0.8.0"
 dependencies = [
   "typing_extensions", # Better typing
@@ -44,7 +44,7 @@ test = [
   "distributed",
   "openpyxl",
   "pyarrow",
-  "byop[smac, optuna, sklearn, docs-example]",
+  "amltk[smac, optuna, sklearn, docs-examples]",
 ]
 doc = [
   "mkdocs",
@@ -52,20 +52,21 @@ doc = [
   "mkdocs-autorefs",
   "mkdocs-gen-files",
   "mkdocs-literate-nav",
+  "mkdocs-glightbox",
   "mkdocstrings[python]",
   "markdown-exec[ansi]",
   "mike",
   "pillow",
   "cairosvg",
-  "byop[smac, sklearn]",
+  "amltk[smac, sklearn]",
 ]
 docs-examples = [
   "openml",
-  "byop[smac]"
+  "amltk[smac]"
 ]
 
 sklearn = ["scikit-learn"]
-smac = ["smac>=2.0", "byop[configspace]"]
+smac = ["smac>=2.0", "amltk[configspace]"]
 optuna = ["optuna"]
 configspace = ["configspace"]
 dask = ["dask<=2023.4"]
@@ -73,8 +74,8 @@ pynisher = ["pynisher>=1.0.5"]
 wandb = ["wandb"]
 
 [project.urls]
-documentation = "https://github.com/automl/byop/"
-source = "https://github.com/automl/byop/"
+documentation = "https://github.com/automl/amltk/"
+source = "https://github.com/automl/amltk/"
 
 # https://docs.pytest.org/en/7.2.x/reference/reference.html#ini-options-ref
 [tool.pytest.ini_options]
@@ -90,7 +91,7 @@ markers = ["example: An example"]
 
 [tool.coverage.run]
 branch = true
-context = "byop"
+context = "amltk"
 
 [tool.coverage.report]
 show_missing = true
@@ -107,7 +108,7 @@ name = "cz_conventional_commits"
 version = "0.8.0"
 tag_format = "v$major.$minor.$patch$prerelease"
 update_changelog_on_bump = true
-version_files = ["pyproject.toml:version", "src/byop/__version__.py"]
+version_files = ["pyproject.toml:version", "src/amltk/__version__.py"]
 
 [tool.black]
 target-version = ['py38']
@@ -223,14 +224,14 @@ exclude = [
   "PD901",   #  X is a bad variable name. (pandas)
   "TCH",
 ]
-"src/byop/__version__.py" = ["D100"]
+"src/amltk/__version__.py" = ["D100"]
 "__init__.py" = ["I002"]
 "examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20", "D415"]
 "docs/*" = ["INP001"]
 
 
 [tool.ruff.isort]
-known-first-party = ["byop"]
+known-first-party = ["amltk"]
 known-third-party = ["sklearn"]
 no-lines-before = ["future"]
 required-imports = ["from __future__ import annotations"]
@@ -246,7 +247,7 @@ max-args = 10  # Changed from default of 5
 
 [tool.mypy]
 python_version = "3.8"
-packages = ["src/byop", "tests"]
+packages = ["src/amltk", "tests"]
 
 show_error_codes = true
 
@@ -272,7 +273,7 @@ disallow_untyped_decorators = false # Test decorators are not properly typed
 disallow_incomplete_defs = false    # Sometimes we just want to ignore verbose types
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "ConfigSpace.*", "pandas.*", "more_itertools.*", "dask_jobqueue.*"]
+module = ["sklearn.*", "ConfigSpace.*", "pandas.*", "more_itertools.*", "dask_jobqueue.*", "wandb.*"]
 ignore_missing_imports = true
 
 [tool.pyright]

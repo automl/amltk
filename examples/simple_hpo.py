@@ -35,12 +35,12 @@ from sklearn.preprocessing import (
     OneHotEncoder,
 )
 
-from byop.optimization import History, Trial
-from byop.pipeline import Pipeline, split, step
-from byop.scheduling import Scheduler
-from byop.sklearn.data import split_data
-from byop.smac import SMACOptimizer
-from byop.store import PathBucket
+from amltk.optimization import History, Trial
+from amltk.pipeline import Pipeline, split, step
+from amltk.scheduling import Scheduler
+from amltk.sklearn.data import split_data
+from amltk.smac import SMACOptimizer
+from amltk.store import PathBucket
 
 """
 ## Dataset
@@ -118,12 +118,12 @@ print(pipeline.space())
 """
 ## Target Function
 The function we will optimize must take in a `Trial` and return a `Trial.Report`.
-We also pass in a [`PathBucket`][byop.store.Bucket] which is a dict-like view of the
+We also pass in a [`PathBucket`][amltk.store.Bucket] which is a dict-like view of the
 file system, where we have our dataset stored.
 
-We also pass in our [`Pipeline`][byop.pipeline.Pipeline] representation of our
+We also pass in our [`Pipeline`][amltk.pipeline.Pipeline] representation of our
 pipeline, which we will use to build our sklearn pipeline with a specific
-`trial.config` suggested by the [`Optimizer`][byop.optimization.Optimizer].
+`trial.config` suggested by the [`Optimizer`][amltk.optimization.Optimizer].
 """
 
 
@@ -201,12 +201,12 @@ def target_function(
 """
 ## Running the Whole Thing
 
-Now we can run the whole thing. We will use the [`Scheduler`][byop.scheduling.Scheduler]
-to run the optimization, and the [`SMACOptimizer`][byop.smac.SMACOptimizer] to
+Now we can run the whole thing. We will use the [`Scheduler`][amltk.scheduling.Scheduler]
+to run the optimization, and the [`SMACOptimizer`][amltk.smac.SMACOptimizer] to
 to optimize the pipeline.
 
 ### Getting and storing data
-We use a [`PathBucket`][byop.store.PathBucket] to store the data. This is a dict-like
+We use a [`PathBucket`][amltk.store.PathBucket] to store the data. This is a dict-like
 view of the file system.
 """
 
@@ -237,13 +237,13 @@ print(X_train.shape)
 
 """
 ### Setting up the Scheduler, Task and Optimizer
-We use the [`Scheduler.with_sequential`][byop.scheduling.Scheduler.with_sequential]
-method to create a [`Scheduler`][byop.scheduling.Scheduler] that will run the
+We use the [`Scheduler.with_sequential`][amltk.scheduling.Scheduler.with_sequential]
+method to create a [`Scheduler`][amltk.scheduling.Scheduler] that will run the
 optimization sequentially and in the same process. This is useful for debugging.
 
 Please check out the full [guides](../../guides) to learn more!
 
-We then create an [`SMACOptimizer`][byop.smac.SMACOptimizer] which will
+We then create an [`SMACOptimizer`][amltk.smac.SMACOptimizer] which will
 optimize the pipeline. We pass in the space of the pipeline, which is the space of
 the hyperparameters we want to optimize.
 """
@@ -252,12 +252,12 @@ optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)
 
 
 """
-Here we create an [`Objective`][byop.optimization.Trial.Objective] which is nothing but
+Here we create an [`Objective`][amltk.optimization.Trial.Objective] which is nothing but
 a [partial][functools.partial] with some type safety added on. You could also
 just use a [partial][functools.partial] here if you prefer.
 
-Next we create a [`Trial.Task`][byop.optimization.Trial.Task] which is a special kind
-of [`Task`][byop.scheduling.Task] that is used for optimization. We pass it
+Next we create a [`Trial.Task`][amltk.optimization.Trial.Task] which is a special kind
+of [`Task`][amltk.scheduling.Task] that is used for optimization. We pass it
 in the function we want to run (`objective`) and the scheduler we will run it
 in.
 """
@@ -267,8 +267,8 @@ task = Trial.Task(objective, scheduler)
 
 print(task)
 """
-We use the callback decorators of the [`Scheduler`][byop.scheduling.Scheduler] and
-the [`Trial.Task`][byop.optimization.Trial.Task] to add callbacks that get called during
+We use the callback decorators of the [`Scheduler`][amltk.scheduling.Scheduler] and
+the [`Trial.Task`][amltk.optimization.Trial.Task] to add callbacks that get called during
 events that happen during the running of the scheduler. Using this, we can control the
 flow of how things run. Check out the [task guide](../../guides/tasks) for more.
 
@@ -285,12 +285,12 @@ def launch_initial_tasks() -> None:
 
 
 """
-When a [`Trial.Task`][byop.optimization.Trial.Task] returns and we get a report, i.e.
-with [`task.success()`][byop.optimization.Trial.success] or
-[`task.fail()`][byop.optimization.Trial.fail], the `task` will fire off the
-[`Trial.Task.SUCCESS`][byop.optimization.Trial.Task.SUCCESS] or the
-[`Trial.Task.FAILURE`][byop.optimization.Trial.Task.FAILURE] event respectively along
-with a general [`Trial.Task.REPORT`][byop.optimization.Trial.Task.REPORT] event. We can
+When a [`Trial.Task`][amltk.optimization.Trial.Task] returns and we get a report, i.e.
+with [`task.success()`][amltk.optimization.Trial.success] or
+[`task.fail()`][amltk.optimization.Trial.fail], the `task` will fire off the
+[`Trial.Task.SUCCESS`][amltk.optimization.Trial.Task.SUCCESS] or the
+[`Trial.Task.FAILURE`][amltk.optimization.Trial.Task.FAILURE] event respectively along
+with a general [`Trial.Task.REPORT`][amltk.optimization.Trial.Task.REPORT] event. We can
 use these to add callbacks that get called when these events happen.
 
 Here we use it to update the optimizer with the report we got.
@@ -304,8 +304,8 @@ def tell_optimizer(report: Trial.Report) -> None:
 
 
 """
-We can use the [`History`][byop.optimization.History] class to store the reports we get
-from the [`Trial.Task`][byop.optimization.Trial.Task]. We can then use this to analyze
+We can use the [`History`][amltk.optimization.History] class to store the reports we get
+from the [`Trial.Task`][amltk.optimization.Trial.Task]. We can then use this to analyze
 the results of the optimization afterwords.
 """
 trial_history = History()
@@ -332,7 +332,7 @@ def launch_another_task(_: Trial.Report) -> None:
 """
 ### Setting the system to run
 
-Lastly we use [`Scheduler.run`][byop.scheduling.Scheduler.run] to run the
+Lastly we use [`Scheduler.run`][amltk.scheduling.Scheduler.run] to run the
 scheduler. We pass in a timeout of 5 seconds.
 """
 scheduler.run(timeout=5)

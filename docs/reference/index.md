@@ -19,7 +19,7 @@
 ## Scheduler Executors
 
 * [DaskJobQueue](./dask-jobqueue.md) - A set of [`Executors`][concurrent.futures.Executor]
-    usable with the [`Scheduler`][byop.Scheduler] for different cluster setups.
+    usable with the [`Scheduler`][amltk.Scheduler] for different cluster setups.
 
 ## Plugins
 
@@ -27,7 +27,7 @@
     can be called and how many concurrent instances of it can be run.
 * [pynisher](./pynisher.md) - A plugin to limit the maximum time or memory a task can
     use, highly suitable for creating AutoML systems.
-* [wandb](./wandb.md) - A plugin for a [`Trial.Task`][byop.Trial.Task] that automatically
+* [wandb](./wandb.md) - A plugin for a [`Trial.Task`][amltk.Trial.Task] that automatically
     logs your runs to [weights and biases](https://wandb.ai/site)!
 
 ## Utility

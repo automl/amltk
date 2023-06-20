@@ -3,8 +3,8 @@ from __future__ import annotations
 from more_itertools import all_unique
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.optuna.space import OptunaSpaceAdapter
-from byop.pipeline import Pipeline, Split, Step, split, step
+from amltk.optuna.space import OptunaSpaceAdapter
+from amltk.pipeline import Pipeline, Split, Step, split, step
 
 
 @case

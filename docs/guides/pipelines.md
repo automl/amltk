@@ -9,10 +9,10 @@ Please see [examples](./examples) if you would rather see copy-pastable examples
 
 ## Introduction
 
-At the core of a [`Pipeline`][byop.pipeline.Pipeline] definition
-is the many [`Steps`][byop.pipeline.Step] it consists of.
+At the core of a [`Pipeline`][amltk.pipeline.Pipeline] definition
+is the many [`Steps`][amltk.pipeline.Step] it consists of.
 By combining these together, you can define a _directed acyclic graph_ (DAG),
-that repesents the flow of data through your [`Pipeline`][byop.pipeline.Pipeline].
+that repesents the flow of data through your [`Pipeline`][amltk.pipeline.Pipeline].
 Here is one such example that by the end of this guide, you should be able
 to construct.
 
@@ -23,7 +23,7 @@ to construct.
 === "Code"
 
     ```python
-    from byop.pipeline import Pipeline, step, split, choice
+    from amltk.pipeline import Pipeline, step, split, choice
 
     pipeline = Pipeline.create(
         step("nan-imputer", SimpleImputer, config={"strategy": "most_frequent"}),
@@ -69,10 +69,10 @@ to construct.
 
 Once we have our pipeline definition, extracting a search space, configuring
 it and building it into something useful can be done with the methods,
-[`pipeline.space()`][byop.pipeline.Pipeline.space],
-[`pipeline.sample()`][byop.pipeline.Pipeline.sample],
-[`pipeline.configure()`][byop.pipeline.Pipeline.configure],
-[`pipeline.build()`][byop.pipeline.Pipeline.build],
+[`pipeline.space()`][amltk.pipeline.Pipeline.space],
+[`pipeline.sample()`][amltk.pipeline.Pipeline.sample],
+[`pipeline.configure()`][amltk.pipeline.Pipeline.configure],
+[`pipeline.build()`][amltk.pipeline.Pipeline.build],
 
 
 !!! info "Building Blocks"
@@ -80,16 +80,16 @@ it and building it into something useful can be done with the methods,
     There are a few concrete flavours that each encode the different parts of
     this DAG with which we can then search over.
 
-    * [`Component`][byop.pipeline.Component]: A step of a pipeline with an object attached
+    * [`Component`][amltk.pipeline.Component]: A step of a pipeline with an object attached
     and possibly some space attached to it.
 
-    * [`Choice`][byop.pipeline.Choice]: A step which represents the a choice of which step(s) is next.
+    * [`Choice`][amltk.pipeline.Choice]: A step which represents the a choice of which step(s) is next.
 
-    * [`Split`][byop.pipeline.Split]: A step which represents that the data flow through a
+    * [`Split`][amltk.pipeline.Split]: A step which represents that the data flow through a
       pipeline will be split between the following steps.
       This is usually accompanied by some object that does the data splitting.
 
-    * [`Group`][byop.pipeline.Group]: A grouping of steps which you can think of
+    * [`Group`][amltk.pipeline.Group]: A grouping of steps which you can think of
       as drawing a named box around part of a pipeline. This is usually used
       to extend the names given to parameters in the search space and to help
       give extra contextual meaning. Custom pipeline builders can utilize this as they
@@ -103,8 +103,8 @@ it and building it into something useful can be done with the methods,
 
 
     There's also some _attachables_ you can
-    [`attach(modules=...)`][byop.pipeline.Pipeline.attach] to a
-    [`Pipeline`][byop.pipeline.Pipeline] for searching and configuring things that don't
+    [`attach(modules=...)`][amltk.pipeline.Pipeline.attach] to a
+    [`Pipeline`][amltk.pipeline.Pipeline] for searching and configuring things that don't
     necessarily follow the DAG dataflow of a pipeline, e.g. `batch_size` for
     training Nerual Nets.
 
@@ -115,7 +115,7 @@ it and building it into something useful can be done with the methods,
 
 
 ```python
-from byop.Pipeline imort Pipeline
+from amltk.Pipeline imort Pipeline
 
 pipeline = Pipeline.create(...)
 
@@ -130,19 +130,19 @@ configured_pipeline = pipeline.config(config) # (3)!
 built_pipeline = pipeline.build()  # (4)!
 ```
 
-1. We can export the entire search space using [`space()`][byop.pipeline.Pipeline.space].
+1. We can export the entire search space using [`space()`][amltk.pipeline.Pipeline.space].
   This will be any space that supports expressing your pipeline.
-2. You can [`sample()`][byop.pipeline.Pipeline.sample] from the space using the pipeline.
+2. You can [`sample()`][amltk.pipeline.Pipeline.sample] from the space using the pipeline.
   This will work regardless of the implementation of the space you have.
-3. Once we have a [`Config`][byop.types.Config], we can easily _configure_ our pipeline,
+3. Once we have a [`Config`][amltk.types.Config], we can easily _configure_ our pipeline,
   removing all the _spaces_ and replacing them with concrete a configuration.
 4. Finally, with a _configured pipeline_, we can simply call
-[`build()`][byop.pipeline.Pipeline.build] on it to get a concrete object that you can use
+[`build()`][amltk.pipeline.Pipeline.build] on it to get a concrete object that you can use
 with no `amltk` components in there.
 
 By the end of this guide you should be able to understand each of these
 components, how to create them, modify it, and build your own
-[`Pipeline`][byop.pipeline.Pipeline].
+[`Pipeline`][amltk.pipeline.Pipeline].
 
 !!! Note
 
@@ -154,11 +154,11 @@ components, how to create them, modify it, and build your own
 We'll start by creating a simple `Component` for a
 a [`RandomForestClassifier`][sklearn.ensemble.RandomForestClassifier],
 along with its search space. We'll then
-[`configure`][byop.pipeline.Step.configure] it and
-[`build()`][byop.pipeline.Component.build] it into a standalone,
+[`configure`][amltk.pipeline.Step.configure] it and
+[`build()`][amltk.pipeline.Component.build] it into a standalone,
 useable sklearn object, showing how you can get its
-[`space()`][byop.pipeline.Step.space]
-and [`sample()`][byop.pipeline.Step.sample]
+[`space()`][amltk.pipeline.Step.space]
+and [`sample()`][amltk.pipeline.Step.sample]
 it.
 
 ![Component Flow](../images/pipeline-guide-component-flow.svg)
@@ -167,7 +167,7 @@ it.
 ### Defining a Component
 
 ```python
-from byop.pipeline import step, Component
+from amltk.pipeline import step, Component
 
 mystep: Component = step("hello_step", object())  # (1)!
 ```
@@ -182,7 +182,7 @@ Lets create a step that will represent a Random Forest in our pipeline and set
 some parameters for it.
 
 ```python
-from byop.pipeline import step
+from amltk.pipeline import step
 from sklearn.ensemble import RandomForestclassifier
 
 component = step("rf", RandomForestClassifier, config={"n_estimators": 10})
@@ -192,10 +192,10 @@ Here the `config` is the parameters we want to call `RandomForestClassifier`
 with whenever we want to turn our pipeline definition into something concrete.
 
 If at any point we want to convert this step into the actual `RandomForestClassifier`
-object, we can always call [`build()`][byop.pipeline.Component.build] on the step.
+object, we can always call [`build()`][amltk.pipeline.Component.build] on the step.
 
 ```python hl_lines="5"
-from byop.pipeline import step
+from amltk.pipeline import step
 from sklearn.ensemble import RandomForestclassifier
 
 component = step("rf", RandomForestClassifier, config={"n_estimators": 10})
@@ -221,7 +221,7 @@ it's syntax for defining a search space, but check out our built-in
 === "Definition"
 
     ```python hl_lines="6 7"
-    from byop.pipeline import step
+    from amltk.pipeline import step
     from sklearn.ensemble import RandomForestClassifier
 
     component = step(
@@ -240,7 +240,7 @@ it's syntax for defining a search space, but check out our built-in
 === "Retrievinig the space"
 
     ```python hl_lines="10"
-    from byop.pipeline import step
+    from amltk.pipeline import step
     from sklearn.ensemble import RandomForestClassifier
 
     component = step(
@@ -257,7 +257,7 @@ it's syntax for defining a search space, but check out our built-in
 === "Configuring (Manual)"
 
     ```python hl_lines="10 11"
-    from byop.pipeline import step
+    from amltk.pipeline import step
     from sklearn.ensemble import RandomForestClassifier
 
     component = step(
@@ -271,14 +271,14 @@ it's syntax for defining a search space, but check out our built-in
     ```
 
     We can sample from this space, but first we will show how you can use
-    [`configure()`][byop.pipeline.Step.configure] with a manually written
+    [`configure()`][amltk.pipeline.Step.configure] with a manually written
     config to configure the component.
 
 === "Configuring (Sampled)"
 
 
     ```python hl_lines="10 11 13"
-    from byop.pipeline import step
+    from amltk.pipeline import step
     from sklearn.ensemble import RandomForestClassifier
 
     component = step(
@@ -299,7 +299,7 @@ it's syntax for defining a search space, but check out our built-in
 === "Building"
 
     ```python hl_lines="15"
-    from byop.pipeline import step
+    from amltk.pipeline import step
     from sklearn.ensemble import RandomForestClassifier
 
     component = step(
@@ -317,7 +317,7 @@ it's syntax for defining a search space, but check out our built-in
     ```
 
     Once we have a configured component, the last step is the most simple, and that
-    is we can [`build()`][byop.pipeline.Component.build] into a useable object, i.e.
+    is we can [`build()`][amltk.pipeline.Component.build] into a useable object, i.e.
     the `RandomForestClassifier`.
 
 
@@ -334,8 +334,8 @@ it's syntax for defining a search space, but check out our built-in
 
 ## Pipeline
 Now that we know how to define a component, we can continue directly
-to creating a [`Pipeline`][byop.pipeline.Pipeline]. Afterwards, we
-will introduce [`choice`][byop.pipeline.choice] and [`split`][byop.pipeline.split]
+to creating a [`Pipeline`][amltk.pipeline.Pipeline]. Afterwards, we
+will introduce [`choice`][amltk.pipeline.choice] and [`split`][amltk.pipeline.split]
 for creating more complex flows.
 
 
@@ -344,13 +344,13 @@ A `Pipeline` is simply a wrapper around a **chained** set of steps,
 with convenience for constructing the entire space, configuring
 it and building it, much as we did for a `Component` built with `step`.
 
-To construct one, we will use the classmethod, [`Pipeline.create()`][byop.pipeline.Pipeline.create],
+To construct one, we will use the classmethod, [`Pipeline.create()`][amltk.pipeline.Pipeline.create],
 passing in the step we have above.
 
 === "Embedded"
 
     ```python
-    from byop.pipeline import step, Pipeline
+    from amltk.pipeline import step, Pipeline
     from sklearn.ensemble import RandomForestClassifier
 
     pipeline = Pipeline.create(
@@ -366,7 +366,7 @@ passing in the step we have above.
 === "Seperate"
 
     ```python
-    from byop.pipeline import step, Pipeline
+    from amltk.pipeline import step, Pipeline
     from sklearn.svm import SVC
 
     component = step(
@@ -384,22 +384,22 @@ passing in the step we have above.
     will be provided.
 
     ```python
-    from byop.pipeline import Pipeline
+    from amltk.pipeline import Pipeline
 
     pipeline = Pipeline.create(..., name="my-named-pipeline")
     ```
 
 In practice, we won't need a reference to the individual component so
-we will start defining them inside the [`Pipeline.create()`][byop.pipeline.Pipeline.create] method
+we will start defining them inside the [`Pipeline.create()`][amltk.pipeline.Pipeline.create] method
 itself from now on.
 
-We can then query for the [`space()`][byop.pipeline.Pipeline.space],
-[`sample()`][byop.pipeline.Pipeline.sample],
-[`configure()`][byop.pipeline.Pipeline.configure]
+We can then query for the [`space()`][amltk.pipeline.Pipeline.space],
+[`sample()`][amltk.pipeline.Pipeline.sample],
+[`configure()`][amltk.pipeline.Pipeline.configure]
 it just like we did with the single `Component`.
 
 ```python hl_lines="12 13 14"
-from byop.pipeline import step, Pipeline
+from amltk.pipeline import step, Pipeline
 from sklearn.svm import SVC
 
 pipeline = Pipeline.create(
@@ -438,12 +438,12 @@ configured_pipeline = pipeline.configure(config)
     === "Custom"
 
         If you have a custom Pipeline implementation that you expect, take
-        a look at [`build(builder=...)`][byop.pipeline.Pipeline.build] for
+        a look at [`build(builder=...)`][amltk.pipeline.Pipeline.build] for
         how you can integrate your own.
 
         !!! info "Doc needs to be improved"
 
-The difference here is when we call [`build()`][byop.pipeline.Pipeline.build],
+The difference here is when we call [`build()`][amltk.pipeline.Pipeline.build],
 we no longer just get an `SVM`, as we would when calling
 `build()` on the individual component, but instead
 we get a usable object . AutoML-toolkit will attempt to identify
@@ -473,7 +473,7 @@ For this section, we will focus on an `SVM` with a
         that attached to it.
 
     ```python hl_lines="7"
-    from byop import step
+    from amltk import step
 
     standard_scalaer = step("standard", StandardScaler)
 
@@ -492,7 +492,7 @@ For this section, we will focus on an `SVM` with a
         can see it in action.
 
     ```python hl_lines="10"
-    from byop.pipeline import Pipeline
+    from amltk.pipeline import Pipeline
     from sklearn.svm import SVC
     from sklearn.preprocessing import StandarScaler
 
@@ -518,7 +518,7 @@ For this section, we will focus on an `SVM` with a
         our pipeline defintion.
 
     ```python hl_lines="7 8 9 10 11 12 13"
-    from byop.pipeline import Pipeline
+    from amltk.pipeline import Pipeline
     from sklearn.svm import SVC
     from sklearn.preprocessing import StandarScaler
     from sklearn.impute import SimpleImputer
@@ -551,7 +551,7 @@ For this section, we will focus on an `SVM` with a
         a valid [sklearn.pipeline.Pipeline][].
 
     ```python hl_lines="22 23 24"
-    from byop.pipeline import Pipeline
+    from amltk.pipeline import Pipeline
     from sklearn.svm import SVC
     from sklearn.preprocessing import StandarScaler
     from sklearn.impute import SimpleImputer
@@ -582,7 +582,7 @@ For this section, we will focus on an `SVM` with a
 
 !!! note "Next steps"
 
-    This marks the end for the basics of [`Pipeline`][byop.pipeline.Pipeline]
+    This marks the end for the basics of [`Pipeline`][amltk.pipeline.Pipeline]
     but is by no means a complete introduction. We
     recommend checking out the following sections to learn more:
 
@@ -598,7 +598,7 @@ For this section, we will focus on an `SVM` with a
 
 
 ## Choices
-Assuming we know how to create a `Component` using [`step()`][byop.pipeline.api.step],
+Assuming we know how to create a `Component` using [`step()`][amltk.pipeline.api.step],
 we will look at the how to define choices. It's worth noting
 that choices are only possible with search spaces that support
 it. Check out our [integrated search spaces](../integrations#search-spaces)
@@ -612,7 +612,7 @@ a `RandomForestClassifier` and an `SVC`.
 First thing we should do is define our two steps.
 
 ```python
-from byop.pipeline import step
+from amltk.pipeline import step
 from sklearn.ensemble import RandomForestClassfier
 from sklearn.svm import SVC
 
@@ -620,12 +620,12 @@ rf = step("rf", RandomForestClassifier, space={"n_estimators": (10, 100)})
 svm = step("svm", SVC, space={"C": (0.1, 10.0)})
 ```
 
-To combine these two into a choice, we wrap the two steps in a [`Choice`][byop.pipeline.Choice]
-as created by [`choice(...)`][byop.pipeline.choice]. Notice below there
+To combine these two into a choice, we wrap the two steps in a [`Choice`][amltk.pipeline.Choice]
+as created by [`choice(...)`][amltk.pipeline.choice]. Notice below there
 is no `|` operator, as we do not wish to chain these together.
 
 ```python hl_lines="5 6 7 8"
-from byop.pipeline import step, choice
+from amltk.pipeline import step, choice
 from sklearn.ensemble import RandomForestClassfier
 from sklearn.svm import SVC
 
@@ -640,7 +640,7 @@ To illustrate what the config looks like and what configuring does,
 we can create our own manual config.
 
 ```python
-from byop.pipeline import step, choice
+from amltk.pipeline import step, choice
 from sklearn.ensemble import RandomForestClassfier
 from sklearn.svm import SVC
 
@@ -661,20 +661,20 @@ and `#!python "svm"` are under the heirarchy of the choice.
 
 !!! Note
 
-    By calling [`configure()`][byop.pipeline.Group.configure] on a `Choice` with
+    By calling [`configure()`][amltk.pipeline.Group.configure] on a `Choice` with
     a valid configuration, you collapse the choice down to a single valid `Component`.
 
 ![Configuring a Choice](../images/pipeline-guide-choice-configure.excalidraw.svg)
 
 Lastly, you can still access the
-[`space()`][byop.pipeline.Step.space],
-[`sample()`][byop.pipeline.Step.sample],
-[`configure()`][byop.pipeline.Group.configure],
-[`build()`][byop.pipeline.Split.build],
+[`space()`][amltk.pipeline.Step.space],
+[`sample()`][amltk.pipeline.Step.sample],
+[`configure()`][amltk.pipeline.Group.configure],
+[`build()`][amltk.pipeline.Split.build],
 methods of a `Choice` in much the same way as mentioned for a `Component`.
 
-Some extra things to know about a [`Choice`][byop.pipeline.Choice] made
-from [`choice()`][byop.pipeline.choice].
+Some extra things to know about a [`Choice`][amltk.pipeline.Choice] made
+from [`choice()`][amltk.pipeline.choice].
 * You can pass weights to `choice(..., weights=...)`, where the `weights` are
   the same length and same order as the steps in the choice. These weights
   will be encoded into the [search space if possible](../integrations).
@@ -697,7 +697,7 @@ implementation you are interested in.
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import OneHotEncoder
 
-    from byop.pipeline import split
+    from amltk.pipeline import split
 
     categorical = group(
         "categorical",
@@ -726,7 +726,7 @@ implementation you are interested in.
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler
 
-    from byop.pipeline import split
+    from amltk.pipeline import split
 
     numerical = group(
         "numerical",
@@ -754,7 +754,7 @@ implementation you are interested in.
     from sklearn.compose import ColumnTransformer, make_column_selector
     import numpy as np
 
-    from byop.pipeline import step, split, Pipeline
+    from amltk.pipeline import step, split, Pipeline
 
     numerical = group(
         "numerical",
@@ -822,7 +822,7 @@ implementation you are interested in.
     from sklearn.compose import ColumnTransformer, make_column_selector
     import numpy as np
 
-    from byop.pipeline import step, split, Pipeline
+    from amltk.pipeline import step, split, Pipeline
 
     pipeline = Pipeline.create(
         split(
@@ -864,7 +864,7 @@ implementation you are interested in.
 A pipeline is often not sufficient to represent everything surrounding the pipeline
 that you'd wish to associate with it. For that reason, we introduce the concept
 of _module_.
-These are components or pipelines that you [`attach()`][byop.pipeline.Pipeline.attach]
+These are components or pipelines that you [`attach()`][amltk.pipeline.Pipeline.attach]
 to your main pipeline, but are not directly part of the dataflow.
 
 For example, we can create a simple `searchable` which we `attach()` to our pipeline.
@@ -872,7 +872,7 @@ This will be included in the `space()` that it outputed from the `Pipeline` and 
 configured when `configure()` is called.
 
 ```python
-from byop.pipeline import Pipeline, searchable
+from amltk.pipeline import Pipeline, searchable
 
 pipeline = Pipeline.create(...)
 pipeline = pipeline.attach( # (1)!
@@ -897,10 +897,10 @@ the modification.
 Lets take PyTorchLightning's trainers for example, they define how you network should
 be trained but not actually how data should flow.
 
-Lets see how we might [`attach()`][byop.pipeline.Pipeline.attach] this to a `Pipeline`.
+Lets see how we might [`attach()`][amltk.pipeline.Pipeline.attach] this to a `Pipeline`.
 
 ```python hl_lines="8"
-from byop.pipeline import Pipeline, step
+from amltk.pipeline import Pipeline, step
 from lightning.pytorch import Trainer
 
 pipeline = Pipeline.create(...)
@@ -917,7 +917,7 @@ the modification.
 We can then easily access and build this as required.
 
 ```python
-from byop.pipeline import Pipeline, step
+from amltk.pipeline import Pipeline, step
 from lightning.pytorch import Trainer
 
 pipeline = Pipeline.create(...)
@@ -941,7 +941,7 @@ we can access the module using the `.modules` attribute with
 `#!python pipeline.modules["trainer"]` to call `build()` on it.
 
 ```python
-from byop.pipeline import Pipeline, step
+from amltk.pipeline import Pipeline, step
 
 pipeline = Pipeline.create(...)
 

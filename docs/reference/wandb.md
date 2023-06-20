@@ -30,7 +30,7 @@ you wish to track:
 ```python hl_lines="8 13 18 20"
 import wandb
 
-from byop import Scheduler, Trial
+from amltk import Scheduler, Trial
 
 def target_function(trial: Trial) -> Trial.Report:
     x, y, z = trial.config["x"], trial.config["y"], trial.config["z"]
@@ -96,20 +96,20 @@ This will create some basic wandb output for you
 
     You can only create one run per Process as per
     [wandb documentation.][https://docs.wandb.ai/guides/track/log/distributed-training#method-2-many-processes]
-    When you use any [`Scheduler`][byop.scheduling.Scheduler] that utilizes
+    When you use any [`Scheduler`][amltk.scheduling.Scheduler] that utilizes
     multiple processes, you should be fine, the one notable exception
     is using a Scheduler with threads.
 
 ## Basic Usage with Plugin
 To use the wandb plugin, the only thing we need to do is create a
-[`WandbPlugin`][byop.wandb.WandbPlugin] and attach it to the actual
-[`Trial`][byop.Trial] with the following:
+[`WandbPlugin`][amltk.wandb.WandbPlugin] and attach it to the actual
+[`Trial`][amltk.Trial] with the following:
 
 ```python hl_lines="3 4 5 6 7 8 13"
-from byop.wandb import WandbPlugin
+from amltk.wandb import WandbPlugin
 
 wandb_plugin = WandbPlugin(
-    project="byop-test2",
+    project="amltk-test2",
     group=...,
     entity=...,
     mode=...,
@@ -161,7 +161,7 @@ possible analysis.
 Weights and biases gives you the ability to tag, add notes and additionally mark
 specific runs.
 To do so, you can pass in a function to modify the
-[`WandbParams`][byop.wandb.WandbParams] that are used to create the run.
+[`WandbParams`][amltk.wandb.WandbParams] that are used to create the run.
 
 The below example will add tag runs based on if the `x` value is positive or negative.
 

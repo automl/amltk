@@ -11,7 +11,7 @@ By the end of this guide, we hope that the following code, its options
 and its inner working become easy to understand.
 
 ```python
-from byop.scheduling import Scheduler, Task
+from amltk.scheduling import Scheduler, Task
 
 def the_anwser(a: int, b: int, c: int) -> int:
     the_answer = ...
@@ -38,19 +38,19 @@ scheduler.run()
 
 This guide starts with a simple introduction to `amltk`'s event system, which
 acts as the gears through which the whole system moves.
-After that, we introduce the engine, the [`Scheduler`][byop.scheduling.Scheduler]
+After that, we introduce the engine, the [`Scheduler`][amltk.scheduling.Scheduler]
 and how this interacts with python's built-in interface [`Executor`][concurrent.futures.Executor]
 to offload compute to processes, compute nodes or even cloud resources.
 However, the `Scheduler` is rather useless without some fuel.
-For this, we present [`Tasks`][byop.scheduling.Task], the computational task to
+For this, we present [`Tasks`][amltk.scheduling.Task], the computational task to
 perform with the `Scheduler` and start the system's gears turning.
 
 ## Events
-At the core of AutoML-Toolkit is an [`EventManager`][byop.events.EventManager]
+At the core of AutoML-Toolkit is an [`EventManager`][amltk.events.EventManager]
 whose sole purpose is to allow you to do two things:
 
-* [`emit`][byop.events.EventManager.emit]: Emit some event with arguments.
-* [`on`][byop.events.EventManager.on]: Register a function which gets called when a certain
+* [`emit`][amltk.events.EventManager.emit]: Emit some event with arguments.
+* [`on`][amltk.events.EventManager.on]: Register a function which gets called when a certain
   event is emitted.
 
 === "Diagram"
@@ -61,7 +61,7 @@ whose sole purpose is to allow you to do two things:
 
 
     ```python
-    from byop.events import EventManager
+    from amltk.events import EventManager
 
     def f(a: int, b: str, c: float) -> None:
         ...
@@ -87,16 +87,16 @@ whose sole purpose is to allow you to do two things:
     ```
 
 We can technically define any [`Hashable`][typing.Hashable] object as an event, such as `#!python "hello"`,
-but typically we create an [`Event`][byop.events.Event] object. By themselves they don't add much
+but typically we create an [`Event`][amltk.events.Event] object. By themselves they don't add much
 but when using python's
 typing and mypy/pyright, this let's us make sure the callbacks
 registered to an event are compatible with the arguments passed to
-[`emit`][byop.events.EventManager.emit].
+[`emit`][amltk.events.EventManager.emit].
 
 === "Creating an Event"
 
     ```python hl_lines="11"
-    from byop.events import EventManager, Event
+    from amltk.events import EventManager, Event
 
     def f(a: int, b: str, c: float) -> None:
         ...
@@ -119,7 +119,7 @@ registered to an event are compatible with the arguments passed to
 === "Typed version"
 
     ```python hl_lines="11"
-    from byop.events import EventManager, Event
+    from amltk.events import EventManager, Event
 
     def f(a: int, b: str, c: float) -> None:
         ...
@@ -143,7 +143,7 @@ There is some _sugar_ the `EventManager` provides but we will introduce
 them as we go along.
 
 ## Scheduler
-The engine of AutoML-Toolkit is the [`Scheduler`][byop.scheduling.Scheduler].
+The engine of AutoML-Toolkit is the [`Scheduler`][amltk.scheduling.Scheduler].
 It requires one thing to function and that's an
 [`Executor`][concurrent.futures.Executor], an interface defined
 by core python for something that takes a function `f` and
@@ -157,7 +157,7 @@ it's arguments, returning a [`Future`][concurrent.futures.Future].
     compute in the future.
 
 Using just these, we can start to scaffold an entire event based framework which
-starts from the `Scheduler` and builds outwards to the cleaner abstraction, a [`Task`][byop.scheduling.Task].
+starts from the `Scheduler` and builds outwards to the cleaner abstraction, a [`Task`][amltk.scheduling.Task].
 
 ### Creating a Scheduler
 
@@ -180,7 +180,7 @@ Python supports the `Executor` interface natively with the
     === "Process Pool Executor"
 
         ```python
-        from byop.scheduling import Scheduler
+        from amltk.scheduling import Scheduler
 
         scheduler = Scheduler.with_processes(2)  # (1)!
         ```
@@ -189,7 +189,7 @@ Python supports the `Executor` interface natively with the
            a `ProcessPoolExecutor` with 2 workers.
            ```python
             from concurrent.futures import ProcessPoolExecutor
-            from byop.scheduling import Scheduler
+            from amltk.scheduling import Scheduler
 
             executor = ProcessPoolExecutor(max_workers=2)
             scheduler = Scheduler(executor=executor)
@@ -198,7 +198,7 @@ Python supports the `Executor` interface natively with the
     === "Thread Pool Executor"
 
         ```python
-        from byop.scheduling import Scheduler
+        from amltk.scheduling import Scheduler
 
         scheduler = Scheduler.with_threads(2)  # (1)!
         ```
@@ -207,7 +207,7 @@ Python supports the `Executor` interface natively with the
            a `ThreadPoolExecutor` with 2 workers.
            ```python
             from concurrent.futures import ThreadPoolExecutor
-            from byop.scheduling import Scheduler
+            from amltk.scheduling import Scheduler
 
             executor = ThreadPoolExecutor(max_workers=2)
             scheduler = Scheduler(executor=executor)
@@ -229,7 +229,7 @@ provide a robust and flexible framework for scheduling compute across workers.
 
     ```python hl_lines="5"
     from dask.distributed import Client
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     client = Client(...)
     executor = client.get_executor()
@@ -260,7 +260,7 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
     === "Slurm"
 
         ```python hl_lines="3 4 5 6 7 8 9"
-        from byop.scheduling import Scheduler
+        from amltk.scheduling import Scheduler
 
         scheduler = Scheduler.with_slurm(
             n_workers=10,  # (1)!
@@ -280,7 +280,7 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
            and pass it to the `Scheduler` constructor.
            ```python hl_lines="10"
            from dask_jobqueue import SLURMCluster
-           from byop.scheduling import Scheduler
+           from amltk.scheduling import Scheduler
 
            cluster = SLURMCluster(
                queue=...,
@@ -309,7 +309,7 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
             You can use the following to do so:
 
             ```python
-            from byop.scheduling import Scheduler
+            from amltk.scheduling import Scheduler
 
             scheduler = Scheduler.with_slurm(n_workers=..., submit_command="sbatch --extra"
             ```
@@ -319,11 +319,11 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
         Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
         and the following methods:
 
-        * [`Scheduler.with_pbs()`][byop.scheduling.Scheduler.with_pbs]
-        * [`Scheduler.with_lsf()`][byop.scheduling.Scheduler.with_lsf]
-        * [`Scheduler.with_moab()`][byop.scheduling.Scheduler.with_moab]
-        * [`Scheduler.with_sge()`][byop.scheduling.Scheduler.with_sge]
-        * [`Scheduler.with_htcondor()`][byop.scheduling.Scheduler.with_htcondor]
+        * [`Scheduler.with_pbs()`][amltk.scheduling.Scheduler.with_pbs]
+        * [`Scheduler.with_lsf()`][amltk.scheduling.Scheduler.with_lsf]
+        * [`Scheduler.with_moab()`][amltk.scheduling.Scheduler.with_moab]
+        * [`Scheduler.with_sge()`][amltk.scheduling.Scheduler.with_sge]
+        * [`Scheduler.with_htcondor()`][amltk.scheduling.Scheduler.with_htcondor]
 
 #### :simple-ray: [`ray`](https://docs.ray.io/en/master/)
 ---
@@ -358,13 +358,13 @@ GCP.
 
 Sometimes you'll need to debug what's going on and remove the noise
 of processes and parallelism. For this, we have implemented a very basic
-[`SequentialExecutor`][byop.scheduling.SequentialExecutor] to run everything
+[`SequentialExecutor`][amltk.scheduling.SequentialExecutor] to run everything
 in a sequential manner!
 
 === "Easy"
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler.with_sequential()
     ```
@@ -372,7 +372,7 @@ in a sequential manner!
 === "Explicit"
 
     ```python
-    from byop.scheduling import Scheduler, SequetialExecutor
+    from amltk.scheduling import Scheduler, SequetialExecutor
 
     scheduler = Scheduler(executor=SequentialExecutor())
     ```
@@ -382,7 +382,7 @@ in a sequential manner!
 ### Subscribing to Scheduler Events
 
 The `Scheduler` defines many events which are emitted depending on its state.
-One example of this is [`STARTED`][byop.scheduling.Scheduler.STARTED], an
+One example of this is [`STARTED`][amltk.scheduling.Scheduler.STARTED], an
 event to signal the scheduler has started and ready to accept tasks.
 We can subscribe to this event and trigger our callback with `on_start()`.
 
@@ -391,49 +391,49 @@ We can subscribe to this event and trigger our callback with `on_start()`.
     The `Scheduler` defines even more events which we can subscribe to:
 
     ---
-    [`STARTED`][byop.scheduling.Scheduler.STARTED] : `on_start()`.
+    [`STARTED`][amltk.scheduling.Scheduler.STARTED] : `on_start()`.
 
     An event to signal that the scheduler is now up and running.
 
     ---
 
-    [`FINISHING`][byop.scheduling.Scheduler.FINISHING] : `on_finishing()`.
+    [`FINISHING`][amltk.scheduling.Scheduler.FINISHING] : `on_finishing()`.
 
     An event to signal the scheduler is still running but is waiting for
     currently running tasks to finish.
 
     ---
 
-    [`FINISHED`][byop.scheduling.Scheduler.FINISHING] : `on_finished()`.
+    [`FINISHED`][amltk.scheduling.Scheduler.FINISHING] : `on_finished()`.
 
     An event to signal the scheduler is no longer running and this is
     the last event it will emit.
 
     ---
 
-    [`EMPTY`][byop.scheduling.Scheduler.EMPTY] : `on_empty()`.
+    [`EMPTY`][amltk.scheduling.Scheduler.EMPTY] : `on_empty()`.
 
     An event to signal that there is nothing currently running in the scheduler.
 
     ---
 
-    [`TIMEOUT`][byop.scheduling.Scheduler.TIMEOUT] : `on_timeout()`.
+    [`TIMEOUT`][amltk.scheduling.Scheduler.TIMEOUT] : `on_timeout()`.
 
     An event to signal the scheduler has reached its time limit.
 
     ---
 
-    [`STOP`][byop.scheduling.Scheduler.STOP] : `on_stop()`.
+    [`STOP`][amltk.scheduling.Scheduler.STOP] : `on_stop()`.
 
     An event to signal the scheduler has been stopped explicitly with
-    [`scheduler.stop()`][byop.scheduling.Scheduler.stop].
+    [`scheduler.stop()`][amltk.scheduling.Scheduler.stop].
 
     ---
 
     In general, each event can be listened to with `on_event_name` where
     `event_name()` is the lowercase version of the `Event`.
 
-    The complete list of events for [`Scheduler`][byop.scheduling.Scheduler].
+    The complete list of events for [`Scheduler`][amltk.scheduling.Scheduler].
 
 We provide two ways to do so, one with _decorators_ and another in a _functional_
 way.
@@ -441,7 +441,7 @@ way.
 === "Decorators"
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -451,12 +451,12 @@ way.
     ```
 
     1. You can decorate your callback and it will be called when the
-    scheduler emits the [`STARTED`][byop.scheduling.Scheduler.STARTED] event.
+    scheduler emits the [`STARTED`][amltk.scheduling.Scheduler.STARTED] event.
 
 === "Functional"
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -467,18 +467,18 @@ way.
     ```
 
     1. You can just pass in your callback and it will be called when the
-    scheduler emits the [`STARTED`][byop.scheduling.Scheduler.STARTED] event.
+    scheduler emits the [`STARTED`][amltk.scheduling.Scheduler.STARTED] event.
 
 There's a variety of parameters you can use to customize the behavior of
-the callback. You can find the full list of parameters [here][byop.events.Subscriber.__call__].
+the callback. You can find the full list of parameters [here][amltk.events.Subscriber.__call__].
 
 === "`name=`"
 
     Register a custom name with the callback to use for logging
-    or to [`remove`][byop.events.Subscriber.remove] the callback later.
+    or to [`remove`][amltk.events.Subscriber.remove] the callback later.
 
     ```python hl_lines="5"
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -494,7 +494,7 @@ the callback. You can find the full list of parameters [here][byop.events.Subscr
 
     ```python hl_lines="10"
     import random
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -512,7 +512,7 @@ the callback. You can find the full list of parameters [here][byop.events.Subscr
     will be ignored.
 
     ```python hl_lines="6"
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -527,7 +527,7 @@ the callback. You can find the full list of parameters [here][byop.events.Subscr
     Repeat the callback a certain number of times, every time the event is emitted.
 
     ```python hl_lines="6"
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -543,7 +543,7 @@ the callback. You can find the full list of parameters [here][byop.events.Subscr
     includes the first time it's called.
 
     ```python hl_lines="6"
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -559,19 +559,19 @@ event. The source of indeterminism is the order in which the events are
 emitted, as discussed later in the [tasks section](#tasks).
 
 We can access all the counts of all events through the
-[`scheduler.counts`][byop.scheduling.Scheduler.counts] property.
+[`scheduler.counts`][amltk.scheduling.Scheduler.counts] property.
 This is a `dict` which has the events as keys and the amount of times
 it was emitted as the values.
 
 ??? info "Unnecessary Details"
 
     While not necessary to know, `on_start` is actually a callable object
-    called a [`Subscriber`][byop.events.Subscriber].
+    called a [`Subscriber`][amltk.events.Subscriber].
 
     You can create one of these quite easily!
 
     ```python hl_lines="3 6"
-    from byop.events import EventManager, Event
+    from amltk.events import EventManager, Event
 
     USER_JOINED: Event[str] = Event("user-joined")  # (1)!
 
@@ -591,22 +591,22 @@ it was emitted as the values.
 
 ### Running and Stopping the Scheduler
 We can run the scheduler in two different ways, synchronously with
-[`run()`][byop.scheduling.Scheduler.run]
-which is blocking, or with [`async_run()`][byop.scheduling.Scheduler.async_run]
+[`run()`][amltk.scheduling.Scheduler.run]
+which is blocking, or with [`async_run()`][amltk.scheduling.Scheduler.async_run]
 which runs the scheduler in an [`asyncio`][asyncio] loop, useful for
 interactive apps or servers.
 
-Once the scheduler finishes, it will return an [`ExitCode`][byop.scheduling.Scheduler.ExitCode], indicating why
+Once the scheduler finishes, it will return an [`ExitCode`][amltk.scheduling.Scheduler.ExitCode], indicating why
 the scheduler finished.
 
 === "`run()`"
 
     Default behavior is to run the scheduler until it's out of things
     to run as there will be no more events to fire. In this case
-    it will return [`ExitCode.EXHAUSTED`][byop.scheduling.Scheduler.ExitCode.EXHAUSTED].
+    it will return [`ExitCode.EXHAUSTED`][amltk.scheduling.Scheduler.ExitCode.EXHAUSTED].
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -616,11 +616,11 @@ the scheduler finished.
 === "`stop()`"
 
     We can always forcibly stop the scheduler with
-    [`stop()`][byop.scheduling.Scheduler.stop], whether it be in a callback
+    [`stop()`][amltk.scheduling.Scheduler.stop], whether it be in a callback
     or elsewhere.
 
     ```python hl_lines="7"
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -638,10 +638,10 @@ the scheduler finished.
     `timeout=` seconds. We explicitly pass `end_on_empty=False` here to prevent
     the scheduler from shutting down due to being out of fuel. In this
     case the scheduler will return
-    [`ExitCode.TIMEOUT`][byop.scheduling.Scheduler.ExitCode.TIMEOUT].
+    [`ExitCode.TIMEOUT`][amltk.scheduling.Scheduler.ExitCode.TIMEOUT].
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -654,10 +654,10 @@ the scheduler finished.
     currently running compute to finish if it stopped for whatever reason.
     In this case the scheduler will return attempt to shutdown the executor
     but you can pass in `terminate` to
-    [`Scheduler`][byop.scheduling.Scheduler] to define how this is done.
+    [`Scheduler`][amltk.scheduling.Scheduler] to define how this is done.
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -667,8 +667,8 @@ the scheduler finished.
 === "`run(end_on_exception=..., raises=...)`"
 
     By setting `end_on_exception` (default: `#!python True`), we can control what
-    happens when an exception occurs in a [`Task`][byop.scheduling.Task]. This
-    will trigger a [`STOP`][byop.scheduling.Scheduler.STOP] event when a task
+    happens when an exception occurs in a [`Task`][amltk.scheduling.Task]. This
+    will trigger a [`STOP`][amltk.scheduling.Scheduler.STOP] event when a task
     has an error occur and begin shutting down the scheduler.
 
     You can control whether this should explicitly raise the exception with
@@ -677,7 +677,7 @@ the scheduler finished.
     is that an exception occured.
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -696,7 +696,7 @@ the scheduler finished.
     `#!python end_on_empty=False`.
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -706,14 +706,14 @@ the scheduler finished.
 === "`async_run()`"
 
     For running applications such as servers or interactive apps, we can use
-    [`async_run()`][byop.scheduling.Scheduler.async_run] which runs the scheduler
+    [`async_run()`][amltk.scheduling.Scheduler.async_run] which runs the scheduler
     in an [`asyncio`][asyncio] loop. This is useful for running the scheduler
     in the background while you do other things, such as respond to incoming
     HTTP requests or draw and manage UI components. This takes the same arguments
-    as [`run()`][byop.scheduling.Scheduler.run].
+    as [`run()`][amltk.scheduling.Scheduler.run].
 
     ```python
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
@@ -726,8 +726,8 @@ the scheduler finished.
 ### Submitting Compute to the Scheduler
 One thing that's missing from all of this is actually running something
 with the scheduler. We first introduce the manual way to do so with
-[`submit()`][byop.scheduling.Scheduler.submit] and follow up with
-the final part of this guide by introducing [`Tasks`][byop.scheduling.Task],
+[`submit()`][amltk.scheduling.Scheduler.submit] and follow up with
+the final part of this guide by introducing [`Tasks`][amltk.scheduling.Task],
 supercharging functions with events.
 
 ```python hl_lines="18"
@@ -735,7 +735,7 @@ import time
 import random
 
 from asnycio import Future
-from byop.scheduling import Scheduler
+from amltk.scheduling import Scheduler
 
 def long_running_function(x: int) -> int:
     if x == 0:
@@ -771,10 +771,10 @@ Notice that working with `Futures` is not very convenient and this sample above
 does not start to account for cancelled of failed futures. We also have no way
 to actually process a `Future` while the scheduler is running which is very inconvenient.
 
-[`Tasks`][byop.scheduling.Task] can help us with this.
+[`Tasks`][amltk.scheduling.Task] can help us with this.
 
 ## Tasks
-[`Tasks`][byop.scheduling.Task] are a powerful way to run compute functions
+[`Tasks`][amltk.scheduling.Task] are a powerful way to run compute functions
 with the scheduler. In their simplest form, they are wrapped functions
 which when called, are sent off to the work to be computed. In practice,
 they hook your functions into the event system, provide methods to limit
@@ -789,9 +789,9 @@ as introduce new custom events.
 
 !!! info "Provided Extensions of `Task`"
 
-    * [`Trial.Task`][byop.optimization.Trial.Task]s are tasks particular to
-    optimization in AutoML-toolkit, which are given an optimization [`Trial`][byop.optimization.Trial]
-    as their first argument and should return a [`Trial.Report`][byop.optimization.Trial.Report]
+    * [`Trial.Task`][amltk.optimization.Trial.Task]s are tasks particular to
+    optimization in AutoML-toolkit, which are given an optimization [`Trial`][amltk.optimization.Trial]
+    as their first argument and should return a [`Trial.Report`][amltk.optimization.Trial.Report]
     for reporting how the optimization run went.
 
 ### Creating a Task
@@ -802,7 +802,7 @@ in the scheduler we will use for managing the distribution.
 import time
 import random
 
-from byop.scheduling import Scheduler, Task
+from amltk.scheduling import Scheduler, Task
 
 def long_running_function(x: int) -> int:
     if x == 0:
@@ -836,7 +836,7 @@ test our system and add functionality with small incremental changes.
     import time
     import random
 
-    from byop.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
         if x == 0:
@@ -874,7 +874,7 @@ test our system and add functionality with small incremental changes.
     import time
     import random
 
-    from byop.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
         if x == 0:
@@ -918,7 +918,7 @@ test our system and add functionality with small incremental changes.
     import time
     import random
 
-    from byop.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
         if x == 0:
@@ -964,7 +964,7 @@ test our system and add functionality with small incremental changes.
     import time
     import random
 
-    from byop.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
         if x == 0:
@@ -1009,7 +1009,7 @@ test our system and add functionality with small incremental changes.
     import time
     import random
 
-    from byop.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler, Task
 
     def long_running_function(x: int) -> int:
         if x == 0:
@@ -1065,11 +1065,11 @@ test our system and add functionality with small incremental changes.
     to undetermined behavior based on your computations and executor.
 
 ### Task Events
-As the [`Task`][byop.scheduling.Task] is the main unit of abstraction for submitting
+As the [`Task`][amltk.scheduling.Task] is the main unit of abstraction for submitting
 a function to be computed, we try to provide an extensive set of events to capture
 the different events that can happen during the execution of a task.
 
-[`Events`][byop.events.Event] are typed with the arguments that are passed to the
+[`Events`][amltk.events.Event] are typed with the arguments that are passed to the
 callback, such that they can be type check.
 
 This looks like `#!python Event[Arg1, Arg2, ...]` such that a callback registering to such an
@@ -1080,7 +1080,7 @@ of arguments and can return anything.
 
     Any return value from a callback will be ignored.
 
-Below are all the events that can be subscribed to with the [`Task`][byop.scheduling.Task]:
+Below are all the events that can be subscribed to with the [`Task`][amltk.scheduling.Task]:
 
 === "`SUBMITTED`"
 
@@ -1137,11 +1137,11 @@ Below are all the events that can be subscribed to with the [`Task`][byop.schedu
     You can subscribe to this event with `on_f_exception()`.
 
 ### Task Plugins
-Tasks can be augmented with new capabilities by passing in [`TaskPlugins`][byop.TaskPlugin]
+Tasks can be augmented with new capabilities by passing in [`TaskPlugins`][amltk.TaskPlugin]
 to `Task(..., plugins=...)`.
 
 Here we demonstrate just one plugins, for limiting how often a task can be called with
-the [`CallLimiter`][byop.CallLimiter]. Check out the [reference](../reference/index.md) for
+the [`CallLimiter`][amltk.CallLimiter]. Check out the [reference](../reference/index.md) for
 a list of other plugins, such as a [weights and biases plugin](../reference/wandb.md) for
 integrating with weights and biases, [pynisher plugin](../reference/pynisher.md)
 for limiting walltime, memory and/or cputime for your task and [comm plugin](../reference/comms.md)
@@ -1149,11 +1149,11 @@ for limiting walltime, memory and/or cputime for your task and [comm plugin](../
 !!! example "CallLimiter"
 
     We can limit the number of times a function is called or how many concurrent
-    instances of it can be running. To do so, we create the [`CallLimiter`][byop.CallLimiter]
+    instances of it can be running. To do so, we create the [`CallLimiter`][amltk.CallLimiter]
     and pass it in as a plugin. This plugin also introduces some new events that can be listened to.
 
     ```python
-    from byop.scheduling import Task, CallLimiter
+    from amltk.scheduling import Task, CallLimiter
 
     limiter = CallLimiter(max_calls=10, max_concurrent=2)
     task = Task(..., plugins=[limiter])
@@ -1191,7 +1191,7 @@ def random_task(seed: int) -> tuple[int, int]:
 ```
 
 We can think about what events we would like to emit for this task. We could of course emit
-an event for the task completing but we can already use [`RETURNED`][byop.scheduling.Task.RETURNED]
+an event for the task completing but we can already use [`RETURNED`][amltk.scheduling.Task.RETURNED]
 for this.
 
 After some thinking, you might decide an interesting event is that we have found a seed
@@ -1204,7 +1204,7 @@ some variable `best_count_seed` to track both the `count` and the `seed` that pr
 === "No types"
 
     ```python hl_lines="3 5 9"
-    from byop.scheduling import Task, Event
+    from amltk.scheduling import Task, Event
 
     class SeedTask(Task):  # (1)!
 
@@ -1215,13 +1215,13 @@ some variable `best_count_seed` to track both the `count` and the `seed` that pr
           self.best_count_seed = None
     ```
 
-    1. We inherit from the [`Task`][byop.scheduling.Task] class.
+    1. We inherit from the [`Task`][amltk.scheduling.Task] class.
     2. We make the `LONGEST_RUN` event an attribute of the `SeedTask` class for easy access.
 
 === "With types"
 
     ```python hl_lines="3 5 9"
-    from byop.scheduling import Task, Event
+    from amltk.scheduling import Task, Event
 
     class SeedTask(Task[[int], tuple[int, int]]):  # (1)!
 
@@ -1240,7 +1240,7 @@ some variable `best_count_seed` to track both the `count` and the `seed` that pr
        We can also specify the type of the event. This is useful to identify why callbacks
        which subscribe to this event should have as their signature.
 
-Our next step is that we need to hook into the [`RETURNED`][byop.scheduling.Task.RETURNED]
+Our next step is that we need to hook into the [`RETURNED`][amltk.scheduling.Task.RETURNED]
 event so that the `SeedTask` itself can update the `best_count_seed` variable.
 If we do update the variable, we should then also `emit` the `LONGEST_RUN` event
 as well as the updated variables.
@@ -1248,7 +1248,7 @@ as well as the updated variables.
 === "No types"
 
     ```python hl_lines="11 13 14 15 16 17"
-    from byop.scheduling import Task, Event
+    from amltk.scheduling import Task, Event
 
     class SeedTask(Task):
 
@@ -1276,7 +1276,7 @@ as well as the updated variables.
 === "With types"
 
     ```python hl_lines="11 13 14 15 16 17"
-    from byop.scheduling import Task, Event
+    from amltk.scheduling import Task, Event
 
     class SeedTask(Task[[int], tuple[int, int]]):
 
@@ -1307,7 +1307,7 @@ and printing the results.
 
 ```python hl_lines="17 18 19 20 21 23 24 25 26 27"
 import random
-from byop.scheduling import Scheduler, Task, Event
+from amltk.scheduling import Scheduler, Task, Event
 
 def random_task(seed: int) -> tuple[int, int]:
     rng = random.Random(seed)
@@ -1342,13 +1342,13 @@ print(task.best_count_seed)
 Now with some careful though readers may have noticed we now have to implement something
 along the lines of `on_longest_run()` to be able to subscribe callbacks to the emitted event.
 This is rather a repetitive process when defining new tasks so we provide a convenience function
-for this, namely [`subscriber()`][byop.scheduling.Task.subscriber]. This allows us to conveniently
-make a [`Subscriber`][byop.events.Subscriber] which handles all of this for us.
+for this, namely [`subscriber()`][amltk.scheduling.Task.subscriber]. This allows us to conveniently
+make a [`Subscriber`][amltk.events.Subscriber] which handles all of this for us.
 
 === "No types"
 
     ```python hl_lines="13 19"
-    from byop.scheduling import Scheduler, Task, Event
+    from amltk.scheduling import Scheduler, Task, Event
 
     class SeedTask(Task):
 
@@ -1369,14 +1369,14 @@ make a [`Subscriber`][byop.events.Subscriber] which handles all of this for us.
               self.on_longest_run.emit((count, seed))
     ```
 
-    1. We can also use the [`Subscriber.emit()`][byop.events.Subscriber.emit] method
+    1. We can also use the [`Subscriber.emit()`][amltk.events.Subscriber.emit] method
        to automatically emit the corresponding event but this is only for convenience
        and is up to you.
 
 === "With types"
 
     ```python hl_lines="13 19"
-    from byop.scheduling import Scheduler, Task, Event, Subscriber
+    from amltk.scheduling import Scheduler, Task, Event, Subscriber
 
     class SeedTask(Task[[int], tuple[int, int]]):
 
@@ -1398,7 +1398,7 @@ make a [`Subscriber`][byop.events.Subscriber] which handles all of this for us.
     ```
 
 
-    1. We can also use the [`Subscriber.emit()`][byop.events.Subscriber.emit] method
+    1. We can also use the [`Subscriber.emit()`][amltk.events.Subscriber.emit] method
        to automatically emit the corresponding event but this is only for convenience
        and is up to you.
 
@@ -1406,7 +1406,7 @@ Now we can use this task as before but now we can subscribe to the `on_longest_r
 
 ```python hl_lines="29 30 31 32"
 import random
-from byop.scheduling import Scheduler, Task, Event
+from amltk.scheduling import Scheduler, Task, Event
 
 def random_task(seed):
     rng = random.Random(seed)
@@ -1443,7 +1443,7 @@ scheduler.run()
 
 This short demonstration showed you how to define your own `Task` and custom `Event`s
 and seamlessly hook them into the scheduler and event system. You may wish to check
-out [`Trial.Task`][byop.optimization.Trial.Task] for a more complete example of how we
+out [`Trial.Task`][amltk.optimization.Trial.Task] for a more complete example of how we
 extended `Task` to implement the optimization part of AutoML-Toolkit.
 
 ---
