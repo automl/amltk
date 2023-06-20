@@ -1,6 +1,6 @@
 site_name: "<code>Build Your Own Pipeline</code>"
-repo_url: https://github.com/automl/byop/
-repo_name: automl/byop
+repo_url: https://github.com/automl/amltk/
+repo_name: automl/amltk
 
 theme:
   name: material
@@ -54,7 +54,7 @@ extra_css:
   - stylesheets/custom.css
 
 watch:
-  - src/byop
+  - src/amltk
   - docs
   - examples
   - CONTRIBUTING.md
@@ -73,7 +73,7 @@ markdown_extensions:
       repo_url_shortener: true
       repo_url_shorthand: true
       user: automl
-      repo: byop
+      repo: amltk
   - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.snippets

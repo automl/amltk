@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from byop import step
-from byop.pipeline import Component, Step
+from amltk import step
+from amltk.pipeline import Component, Step
 
 
 def test_step_component() -> None:

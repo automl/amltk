@@ -10,8 +10,8 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from byop.pynisher import PynisherPlugin
-from byop.scheduling import Scheduler, Task
+from amltk.pynisher import PynisherPlugin
+from amltk.scheduling import Scheduler, Task
 
 
 @case(tags=["executor"])

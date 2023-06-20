@@ -75,9 +75,9 @@ What you can use it for depends on what you want to do.
 
     We provide a __declarative__ way to define entire machine learning pipelines and any
     hyperparameters that go along with it. Rapidly experiment with different setups,
-    get their search [`space()`][byop.Pipeline.space], get concrete configurations with a quick
-    [`configure()`][byop.Pipeline.configure]
-    and finally [`build()`][byop.Pipeline.build] out a real
+    get their search [`space()`][amltk.Pipeline.space], get concrete configurations with a quick
+    [`configure()`][amltk.Pipeline.configure]
+    and finally [`build()`][amltk.Pipeline.build] out a real
     [sklearn.pipeline.Pipeline][], [torch.nn.Sequential][] or
     your own custom pipeline objects.
 
@@ -87,7 +87,7 @@ What you can use it for depends on what you want to do.
     check out the [Pipelines guide](./guides/pipelines.md) documentation.
 
     ```python
-    from byop.pipeline import Pipeline, step, split, choice
+    from amltk.pipeline import Pipeline, step, split, choice
 
     from sklearn.preprocessing import StandardScaler, MinMaxScaler
     from sklearn.svm import SVC
@@ -148,10 +148,10 @@ What you can use it for depends on what you want to do.
     of features, follow the [Optimization](./guides/optimization.md) documentation.
 
     ```python
-    from byop.pipeline import Pipeline
-    from byop.optimization import Trial
-    from byop.scheduling import Scheduler
-    from byop.smac import SMACOptimizer
+    from amltk.pipeline import Pipeline
+    from amltk.optimization import Trial
+    from amltk.scheduling import Scheduler
+    from amltk.smac import SMACOptimizer
 
     def evaluate(trial: Trial, pipeline: Pipeline) -> Trial.Report:
         model = pipeline.configure(trial.config).build()
@@ -214,7 +214,7 @@ What you can use it for depends on what you want to do.
     10. And let the system run!
 
     You can wrap this in a class, create more complicated control flows and even utilize
-    some more of the functionality of a [`Trial.Task`][byop.optimization.Trial.Task] to do
+    some more of the functionality of a [`Trial.Task`][amltk.optimization.Trial.Task] to do
     much more. We don't tell you how the control flow should or where data goes, this gives
     you as much flexibility as you need to get your research done.
 

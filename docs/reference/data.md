@@ -9,11 +9,11 @@ suited for most tasks. However sometimes this can be prohibitive, especially in 
 memory compute regimes.
 
 To measure the memory consumption of a data container, we can
-use [`byte_size()`][byop.data.byte_size]. While independant methods exist for each of these
+use [`byte_size()`][amltk.data.byte_size]. While independant methods exist for each of these
 structures, we wrap them together in a single function for convenience.
 
 ```python exec="true" source="material-block" result="python" title="ref-data-bytesize"
-from byop.data import byte_size
+from amltk.data import byte_size
 
 import pandas as pd
 import numpy as np
@@ -30,14 +30,14 @@ print("combined: ", byte_size([x, y, z]))
 ```
 
 Now that we can measure the size of our data, we can use the
-[`reduce_dtypes()`][byop.data.reduce_dtypes] function to reduce the memory of our
+[`reduce_dtypes()`][amltk.data.reduce_dtypes] function to reduce the memory of our
 data by:
 
 * Find the smallest `int` dtype that can represent integer data
 * Reduce the percision of floating point data by one step. i.e. `float64` -> `float32`
 
 ```python exec="true" source="material-block" result="python" title="ref-data-reducedtypes"
-from byop.data import reduce_dtypes, byte_size
+from amltk.data import reduce_dtypes, byte_size
 
 import pandas as pd
 import numpy as np

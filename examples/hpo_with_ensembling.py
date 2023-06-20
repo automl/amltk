@@ -26,7 +26,7 @@ to create an ensemble using the
     https://www.cs.cornell.edu/~caruana/ctp/ct.papers/caruana.icml04.icdm06long.pdf
 
 This makes heavy use of the pipelines and the optimization faculties of
-byop. You can fine the [pipeline guide here](../../guides/pipelines)
+amltk. You can fine the [pipeline guide here](../../guides/pipelines)
 and the [optimization guide here](../../guides/optimization) to learn more.
 
 You can skip the imports sections and go straight to the
@@ -59,13 +59,13 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVC
 
-from byop.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
-from byop.optimization import History, Trial
-from byop.pipeline import Pipeline, choice, group, split, step
-from byop.scheduling import Scheduler, Task
-from byop.sklearn.data import split_data
-from byop.smac import SMACOptimizer
-from byop.store import PathBucket
+from amltk.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
+from amltk.optimization import History, Trial
+from amltk.pipeline import Pipeline, choice, group, split, step
+from amltk.scheduling import Scheduler, Task
+from amltk.sklearn.data import split_data
+from amltk.smac import SMACOptimizer
+from amltk.store import PathBucket
 
 """
 Below is just a small function to help us get the dataset from OpenML
@@ -97,7 +97,7 @@ def get_dataset(seed: int) -> tuple[np.ndarray, ...]:
 #   [sklearn integrations](../../sklearn) to split the data into
 #   a custom amount of splits, in this case
 #   `#!python "train", "val", "test"`. You could also use the
-#   dedicated [`train_val_test_split()`][byop.sklearn.data.train_val_test_split]
+#   dedicated [`train_val_test_split()`][amltk.sklearn.data.train_val_test_split]
 #   function instead.
 """
 ## Pipeline Definition
@@ -206,12 +206,12 @@ Next we establish the actual target function we wish to evaluate, that is,
 the function we wish to optimize. In this case, we are optimizing the
 accuracy of the model on the validation set.
 
-The target function takes a [`Trial`][byop.optimization.Trial] object, which
+The target function takes a [`Trial`][amltk.optimization.Trial] object, which
 has the configuration of the pipeline to evaluate and provides utility
 to time, and return the results of the evaluation, whether it be a success
 or failure.
 
-We make use of a [`PathBucket`][byop.store.PathBucket]
+We make use of a [`PathBucket`][amltk.store.PathBucket]
 to store and load the data, and the `Pipeline` we defined above to
 configure the pipeline with the hyperparameters we are optimizing over.
 
@@ -284,15 +284,15 @@ def target_function(
     return trial.success(cost=1 - val_accuracy)  # <!> (6)!
 
 
-# 1. We can easily load data from a [`PathBucket`][byop.store.PathBucket]
+# 1. We can easily load data from a [`PathBucket`][amltk.store.PathBucket]
 #   using the `load` method.
 # 2. We configure the pipeline with a specific set of hyperparameters suggested
-#  by the optimizer through the [`Trial`][byop.optimization.Trial] object.
+#  by the optimizer through the [`Trial`][amltk.optimization.Trial] object.
 # 3. We begin the trial by timing the execution of the target function and capturing
 #  any potential exceptions.
 # 4. If the trial failed, we return a failed report with a cost of infinity.
 # 5. We save the results of the trial using
-#   [`Trial.store`][byop.optimization.Trial.store], creating a subdirectory
+#   [`Trial.store`][amltk.optimization.Trial.store], creating a subdirectory
 #   for this trial.
 # 6. We return a successful report with the cost of the trial, which is the
 # inverse of the validation accuracy.
@@ -305,7 +305,7 @@ trial at that point in the trajectory. Finally, we store the configuration
 of each trial in the ensemble.
 
 We could of course add extra functionality to the Ensemble, give it references
-to the [`PathBucket`][byop.store.PathBucket] and [`Pipeline`][byop.pipeline.Pipeline]
+to the [`PathBucket`][amltk.store.PathBucket] and [`Pipeline`][amltk.pipeline.Pipeline]
 objects, and even add methods to train the ensemble, but for the sake of
 simplicity we will leave it as is.
 """
@@ -456,31 +456,31 @@ print("Best ensemble:")
 print(best_ensemble)
 # 1. We use `#!python get_dataset()` defined earlier to load the
 #  dataset.
-# 2. We use [`store()`][byop.store.Bucket.store] to store the data in the bucket, with
+# 2. We use [`store()`][amltk.store.Bucket.store] to store the data in the bucket, with
 # each key being the name of the file and the value being the data.
-# 3. We use [`Scheduler.with_sequential()`][byop.scheduling.Scheduler.with_sequential]
-#  create a [`Scheduler`][byop.scheduling.Scheduler] that runs everything
+# 3. We use [`Scheduler.with_sequential()`][amltk.scheduling.Scheduler.with_sequential]
+#  create a [`Scheduler`][amltk.scheduling.Scheduler] that runs everything
 #  sequentially. You can of course use a different backend if you want.
-# 4. We use [`SMACOptimizer.create()`][byop.smac.SMACOptimizer.create] to create a
-#  [`SMACOptimizer`][byop.smac.SMACOptimizer] given the space from the pipeline
+# 4. We use [`SMACOptimizer.create()`][amltk.smac.SMACOptimizer.create] to create a
+#  [`SMACOptimizer`][amltk.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
-# 5. We use [`Trial.Objective()`][byop.optimization.Trial.Objective] to wrap our
-# `target_function` in a [`Trial.Task`][byop.optimization.Trial.Task].
+# 5. We use [`Trial.Objective()`][amltk.optimization.Trial.Objective] to wrap our
+# `target_function` in a [`Trial.Task`][amltk.optimization.Trial.Task].
 #
 #     !!! note "`Trial.Objective`"
 #
 #         While a [partial][functools.partial] also works, using
-#         [`Trial.Objective`][byop.optimization.Trial.Objective] let's us
+#         [`Trial.Objective`][amltk.optimization.Trial.Objective] let's us
 #         maintain some type safety with mypy.
 #
-# 6. We use [`Trial.Task()`][byop.optimization.Trial.Task] to on our objective
-#   to create a [`Task`][byop.scheduling.Task] that will run our objective.
-# 7. We use [`Task()`][byop.scheduling.Task] to create a [`Task`][byop.scheduling.Task]
+# 6. We use [`Trial.Task()`][amltk.optimization.Trial.Task] to on our objective
+#   to create a [`Task`][amltk.scheduling.Task] that will run our objective.
+# 7. We use [`Task()`][amltk.scheduling.Task] to create a [`Task`][amltk.scheduling.Task]
 #   for the `create_ensemble` method above. This will also run in parallel with the hpo
 #   trials if using a non-sequential scheduling mode.
 # 8. We use `Scheduler.on_start()` hook to register a
 #  callback that will be called when the scheduler starts. We can use the
 #  `repeat` argument to make sure it's called many times if we want.
-# 9. We use [`Scheduler.run()`][byop.scheduling.Scheduler.run] to run the scheduler.
+# 9. We use [`Scheduler.run()`][amltk.scheduling.Scheduler.run] to run the scheduler.
 #  Here we set it to run briefly for 5 seconds and wait for remaining tasks to finish
 #  before continuing.

@@ -5,8 +5,8 @@
 """
 from __future__ import annotations
 
-from byop.pipeline import choice, step
-from byop.smac.optimizer import SMACOptimizer
+from amltk.pipeline import choice, step
+from amltk.smac.optimizer import SMACOptimizer
 
 pipeline = choice(
     "choice",

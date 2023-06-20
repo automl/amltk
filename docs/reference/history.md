@@ -1,21 +1,21 @@
 # History
 ??? note "API links"
 
-    * [`History`][byop.optimization.History]
-    * [`Trace`][byop.optimization.Trace]
-    * [`IncumbentTrace`][byop.optimization.IncumbentTrace]
-    * [`Report`][byop.optimization.Trial.Report]
+    * [`History`][amltk.optimization.History]
+    * [`Trace`][amltk.optimization.Trace]
+    * [`IncumbentTrace`][amltk.optimization.IncumbentTrace]
+    * [`Report`][amltk.optimization.Trial.Report]
 
 ## Basic Usage
-The [`History`][byop.optimization.History] class is used to store
-[`Report`][byop.optimization.trial.Trial.Report]s from [`Trial`][byop.optimization.Trial]s.
+The [`History`][amltk.optimization.History] class is used to store
+[`Report`][amltk.optimization.trial.Trial.Report]s from [`Trial`][amltk.optimization.Trial]s.
 
-In it's most simple usage, you can simply [`add()`][byop.optimization.History.add]
-a `Report` as you recieve them and then use the [`df()`][byop.optimization.History.df]
+In it's most simple usage, you can simply [`add()`][amltk.optimization.History.add]
+a `Report` as you recieve them and then use the [`df()`][amltk.optimization.History.df]
 method to get a [`pandas.DataFrame`][pandas.DataFrame] of the history.
 
 ```python exec="true" source="material-block" result="python" title="Reference History" session="ref-history"
-from byop.optimization import Trial, History
+from amltk.optimization import Trial, History
 
 def quadratic(x):
     return x**2
@@ -37,14 +37,14 @@ print(history.df())
 ```
 
 Typically, to use this inside of an optimization run, you would add the reports inside
-of a callback from your [`Trial.Task`][byop.optimization.Trial.Task]s. Please
+of a callback from your [`Trial.Task`][amltk.optimization.Trial.Task]s. Please
 see the [optimization guide](../guides/optimization.md) for more details.
 
 ??? example "With an Optimizer and Scheduler"
 
     ```python
-    from byop.optimization import RandomSearch, Trial, History, searchable
-    from byop.scheduling import Scheduler
+    from amltk.optimization import RandomSearch, Trial, History, searchable
+    from amltk.scheduling import Scheduler
 
     search_space = searchable("quad", space={"x": (-5, 5)})
     n_workers = 2
@@ -81,10 +81,10 @@ see the [optimization guide](../guides/optimization.md) for more details.
     ```
 
 ### Querying
-The [`History`][byop.optimization.History] acts like
+The [`History`][amltk.optimization.History] acts like
 a [`Mapping[str, Trial.Report]`][collections.abc.Mapping],
 where the keys are the `trial.name` and the values are its
-associated [`Report`][byop.optimization.Trial.Report]
+associated [`Report`][amltk.optimization.Trial.Report]
 
 
 ```python exec="true" source="material-block" result="python" title="History as a Mapping" session="ref-history"
@@ -101,10 +101,10 @@ print(f"best = {sorted_reports[0]}")
 ```
 
 ### Filtering
-You can filter the history by using the [`filter()`][byop.optimization.History.filter]
+You can filter the history by using the [`filter()`][amltk.optimization.History.filter]
 method. This method takes a [`Callable[[Trial.Report], bool]`][typing.Callable]
-and returns a new [`History`][byop.optimization.History] with only the
-[`Report`][byop.optimization.Trial.Report]s that return `True` from the
+and returns a new [`History`][amltk.optimization.History] with only the
+[`Report`][amltk.optimization.Trial.Report]s that return `True` from the
 given function.
 
 ```python exec="true" source="material-block" result="python" title="Filtering" session="ref-history"
@@ -117,17 +117,17 @@ print(even_history_df[["results:cost", "config:x"]])
 ```
 
 ## Trace
-A [`Trace`][byop.optimization.Trace] is just the history
+A [`Trace`][amltk.optimization.Trace] is just the history
 but ordered in some particular way. This means it acts `list`-like,
 specifically a [`Sequence[Trial.Report]`][collections.abc.Sequence], meaning
 it has an order, we can index it and we can iterate over it.
 
-We obtain a [`Trace`][byop.optimization.Trace] by using
-the [`sortby()`][byop.optimization.History.sortby] method to
-order the [`History`][byop.optimization.History] in some way.
+We obtain a [`Trace`][amltk.optimization.Trace] by using
+the [`sortby()`][amltk.optimization.History.sortby] method to
+order the [`History`][amltk.optimization.History] in some way.
 
 ```python exec="true" source="material-block" result="python" title="Trace" session="ref-history"
-from byop.optimization import Trace
+from amltk.optimization import Trace
 
 trace = history.sortby(lambda report: report.time.end)
 print(trace.df())
@@ -149,16 +149,16 @@ print(f"best = {sorted_reports[0]}")
 ```
 
 ## Incumbent Trace
-An [`IncumbentTrace`][byop.optimization.IncumbentTrace] is a
-[`Trace`][byop.optimization.Trace] that only contains the
-**best** [`Trial.Report`][byop.optimization.Trial.Report]s
+An [`IncumbentTrace`][amltk.optimization.IncumbentTrace] is a
+[`Trace`][amltk.optimization.Trace] that only contains the
+**best** [`Trial.Report`][amltk.optimization.Trial.Report]s
 along a given axis. For example, if we have
 the numbers `#!python [10, 8, 5, 7, 7, 2, 8]` and we define
 the **best** as the smallest number, then the
 an incumbany trace would look like `#!python [10, 8, 5, 2]`.
 
-We can do the same for our [`Trace`][byop.optimization.Trace]
-objects by using the [`incumbents()`][byop.optimization.Trace.incumbents]
+We can do the same for our [`Trace`][amltk.optimization.Trace]
+objects by using the [`incumbents()`][amltk.optimization.Trace.incumbents]
 method.
 
 ```python exec="true" source="material-block" result="python" title="Incumbent Trace" session="ref-history"
@@ -172,7 +172,7 @@ print(incumbent_trace.df())
 
 !!! note "Defining Best"
 
-    By default, the [`incumbents()`][byop.optimization.Trace.incumbents]
+    By default, the [`incumbents()`][amltk.optimization.Trace.incumbents]
     method uses the [`lt`][operator.lt] which says that the **best**
     is the smallest value. You can change this by passing in a different
     [`Callable[[Any, Any], bool]`][typing.Callable] as the `op` argument.

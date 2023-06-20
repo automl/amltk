@@ -4,12 +4,12 @@ of a given type. This lets you easily store and retrieve objects of varying
 types in a single location.
 
 The main implementation we provide is the
-[`PathBucket`][byop.store.paths.path_bucket.PathBucket], which is a dict-like
+[`PathBucket`][amltk.store.paths.path_bucket.PathBucket], which is a dict-like
 view over a directory to quickly store many files of different types and also
 retrieve them.
 
 ```python
-from byop.store.paths import PathBucket
+from amltk.store.paths import PathBucket
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -66,7 +66,7 @@ del bucket["model.pkl"]
 
 1. The `=` is a shortcut for `bucket["myarray.npy"].put(array)`
 2. The extension is used to determine which
-    [`PathLoader`][byop.store.paths.path_loaders.PathLoader] to use
+    [`PathLoader`][amltk.store.paths.path_loaders.PathLoader] to use
     and how to save it.
 3. The `get` method acts like the [`dict.load`][dict] method.
 4. The `get` method can be used to check the type of the loaded object.

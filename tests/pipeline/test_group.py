@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from byop.pipeline import group, step
+from amltk.pipeline import group, step
 
 
 def test_group_path_to_simple() -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pytest_cases import parametrize
 
-from byop import Pipeline, step
+from amltk import Pipeline, step
 
 
 @parametrize("size", [1, 3, 10])

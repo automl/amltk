@@ -6,7 +6,7 @@ import pytest
 from more_itertools import first, last
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from byop.pipeline import Pipeline, Step, choice, split, step
+from amltk.pipeline import Pipeline, Step, choice, split, step
 
 
 @case(tags="shallow")

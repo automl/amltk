@@ -3,8 +3,8 @@ of AutoML-Toolkit. Notably, we have three core concepts at the heart of
 AutoML-Toolkit, with supporting types and auxiliary functionality to
 enable these concepts.
 
-These take the form of a [`Task`][byop.scheduling.Task], a [`Pipeline`][byop.pipeline.Pipeline]
-and an [`Optimizer`][byop.optimization.Optimizer] which combines the two
+These take the form of a [`Task`][amltk.scheduling.Task], a [`Pipeline`][amltk.pipeline.Pipeline]
+and an [`Optimizer`][amltk.optimization.Optimizer] which combines the two
 to create the most flexible optimization framework we could imagine.
 
 ---
@@ -13,7 +13,7 @@ to create the most flexible optimization framework we could imagine.
 
     A `Task` is a function which we want to run _somewhere_, whether it be a local
     process, on some node of a cluster or out in the cloud. Equipped with an
-    [`asyncio`][asyncio] **event-system** and a [`Scheduler`][byop.scheduling.Scheduler]
+    [`asyncio`][asyncio] **event-system** and a [`Scheduler`][amltk.scheduling.Scheduler]
     to drive the gears of the system, we can provide a truly flexible and performant framework
     upon to which to build an AutoML system.
 
@@ -32,10 +32,10 @@ to create the most flexible optimization framework we could imagine.
 
 -   **Pipeline**
 
-    A [`Pipeline`][byop.pipeline.Pipeline] is a definition,
+    A [`Pipeline`][amltk.pipeline.Pipeline] is a definition,
     defining what your **pipeline** will do and how
-    it can be parametrized. By piecing together [`steps`][byop.pipeline.api.step],
-    [`choices`][byop.pipeline.api.choice] and [`splits`][byop.pipeline.api.split], you can
+    it can be parametrized. By piecing together [`steps`][amltk.pipeline.api.step],
+    [`choices`][amltk.pipeline.api.choice] and [`splits`][amltk.pipeline.api.split], you can
     say how your pipeline should look and how it's parametrized. We'll take care
     of creating the search space to optimize over, configuring it and finally assembling
     it into something you can actually use.
@@ -56,14 +56,14 @@ to create the most flexible optimization framework we could imagine.
 
 -   **Optimizer**
 
-    An [`Optimizer`][byop.optimization.Optimizer] is the capstone of the preceding two
+    An [`Optimizer`][amltk.optimization.Optimizer] is the capstone of the preceding two
     fundamental systems. By leveraging an _"ask-and-tell"_ interface, we put you back
     in control of how your system interacts with the optimizer. You run what you want,
     wherever you want, telling the optimizer what you want and you storing what you want,
     wherever you want.
     This makes leveraging different optimizers easier than ever. By capturing the high-level
-    core loop of black box optimization into a simple [`Trial`][byop.optimization.Trial] and
-    a [`Report`][byop.optimization.Trial.Report], integrating your own optimizer is easy and
+    core loop of black box optimization into a simple [`Trial`][amltk.optimization.Trial] and
+    a [`Report`][amltk.optimization.Trial.Report], integrating your own optimizer is easy and
     provides the entire system that AutoML-Toolkit offers with little cost.
 
     !!! tip "Notable Features"

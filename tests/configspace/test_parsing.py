@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from byop.configspace import ConfigSpaceParser
+from amltk.configspace import ConfigSpaceParser
 
 try:
     from ConfigSpace import ConfigurationSpace, EqualsCondition, ForbiddenEqualsClause
@@ -11,7 +11,7 @@ except ImportError:
 
 from pytest_cases import case, parametrize_with_cases
 
-from byop.pipeline import Choice, Pipeline, Split, Step, choice, split, step
+from amltk.pipeline import Choice, Pipeline, Split, Step, choice, split, step
 
 
 @case

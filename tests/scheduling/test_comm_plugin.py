@@ -10,8 +10,8 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from byop.scheduling import Scheduler, Task
-from byop.scheduling.comms import Comm
+from amltk.scheduling import Scheduler, Task
+from amltk.scheduling.comms import Comm
 
 logger = logging.getLogger(__name__)
 

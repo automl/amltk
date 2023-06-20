@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from ConfigSpace import ConfigurationSpace, EqualsCondition
 
-from byop import Pipeline, choice, step
-from byop.configspace import ConfigSpaceParser
+from amltk import Pipeline, choice, step
+from amltk.configspace import ConfigSpaceParser
 
 
 def test_pipeline_with_2_pipeline_modules() -> None:

@@ -10,8 +10,8 @@ during development of AutoML tools such as
 [AutoSklearn](https://automl.github.io/auto-sklearn/master/).
 
 ## Pipeline Builder
-The `byop.sklearn` module provides a `build_pipeline` function
-that can be passed to [`Pipeline.build()`][byop.pipeline.Pipeline.build]
+The `amltk.sklearn` module provides a `build_pipeline` function
+that can be passed to [`Pipeline.build()`][amltk.pipeline.Pipeline.build]
 to create a pure [sklearn.pipeline.Pipeline][] from your definition.
 
 ### A simple Pipeline
@@ -20,8 +20,8 @@ to create a pure [sklearn.pipeline.Pipeline][] from your definition.
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
 
-from byop.pipeline import step, Pipeline
-from byop.sklearn import sklearn_pipeline
+from amltk.pipeline import step, Pipeline
+from amltk.sklearn import sklearn_pipeline
 
 pipeline = Pipeline.create(
     step("imputer", SimpleImputer, config={"strategy": "median"}),
@@ -35,7 +35,7 @@ print(sklearn_pipeline)
 !!! note "Implicit building"
 
     By default, AutoML-Toolkit will try to infer how to build your
-    pipeline when you call [`Pipeline.build()`][byop.pipeline.Pipeline.build].
+    pipeline when you call [`Pipeline.build()`][amltk.pipeline.Pipeline.build].
     If all the components contained in the `Pipeline` are from
     `sklearn`, then it will use the `sklearn_pipeline` automatically.
 
@@ -51,7 +51,7 @@ feeding `#!python "categoricals"` through a
 [VarianceThreshold][sklearn.feature_selection.VarianceThreshold]
 and possibly a [StandardScaler][sklearn.preprocessing.StandardScaler].
 
-This is done using the [`split()`][byop.pipeline.split] operator
+This is done using the [`split()`][amltk.pipeline.split] operator
 from AutoML-toolkit, which allows you to split your data into
 multiple branches and then combine them back together.
 
@@ -83,8 +83,8 @@ from sklearn.preprocessing import (
 )
 from sklearn.svm import SVC
 
-from byop.sklearn import sklearn_pipeline
-from byop.pipeline import step, split, choice, group, Pipeline
+from amltk.sklearn import sklearn_pipeline
+from amltk.pipeline import step, split, choice, group, Pipeline
 
 pipeline = Pipeline.create(
     split(
@@ -155,9 +155,9 @@ print(sklearn_pipeline)
 
 ## Data Splitting
 We also provide two convenience functions often required in AutoML
-systems, namely [`train_val_test_split()`][byop.sklearn.train_val_test_split]
+systems, namely [`train_val_test_split()`][amltk.sklearn.train_val_test_split]
 for creating three splits of your data and
-[`split_data()`][byop.sklearn.split_data] for creating an arbitrary number
+[`split_data()`][amltk.sklearn.split_data] for creating an arbitrary number
 of splits.
 
 ### Train, Val, Test Split
@@ -171,7 +171,7 @@ would like, e.g. `(0.5, 0.3, 0.2)` would indicate a train size of `50%`,
 a val size of `30%` and a test size of `20%`.
 
 ```python exec="true" source="material-block" result="python" title="Train, Val, Test Split"
-from byop.sklearn.data import train_val_test_split
+from amltk.sklearn.data import train_val_test_split
 
 x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 y = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
@@ -191,7 +191,7 @@ have a proportionate amount of each value in `stratify=`.
 
 ```python exec="true" source="material-block" result="python" title="Train, Val, Test Split with Shuffle and Stratify" hl_lines="10 11"
 
-from byop.sklearn.data import train_val_test_split
+from amltk.sklearn.data import train_val_test_split
 
 x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 y = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
@@ -211,12 +211,12 @@ print(test_x, test_y)
 
 ### Arbitrary Data Splitting
 Sometimes you need to create more than 3 splits. For this we provide
-[`split_data()`][byop.sklearn.split_data], which has an identical function
+[`split_data()`][amltk.sklearn.split_data], which has an identical function
 signature, except the `splits=` you specify is a dictionary from the name
 of the split to the percentage you wish.
 
 ```python exec="true" source="material-block" result="python" title="Arbitrary Data Splitting"
-from byop.sklearn import split_data
+from amltk.sklearn import split_data
 
 x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 y = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1]

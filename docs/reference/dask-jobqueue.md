@@ -4,15 +4,15 @@ scheduling jobs across common clusters setups such as PBS, Slurm, MOAB,
 SGE, LSF, and HTCondor.
 
 You can access most of these directly through the _factory_ methods
-of the [`Scheduler`][byop.Scheduler], forwarding on arguments to them.
+of the [`Scheduler`][amltk.Scheduler], forwarding on arguments to them.
 
 !!! note "Factory Methods"
 
-    * [`Scheduler.with_pbs()`][byop.scheduling.Scheduler.with_pbs]
-    * [`Scheduler.with_lsf()`][byop.scheduling.Scheduler.with_lsf]
-    * [`Scheduler.with_moab()`][byop.scheduling.Scheduler.with_moab]
-    * [`Scheduler.with_sge()`][byop.scheduling.Scheduler.with_sge]
-    * [`Scheduler.with_htcondor()`][byop.scheduling.Scheduler.with_htcondor]
+    * [`Scheduler.with_pbs()`][amltk.scheduling.Scheduler.with_pbs]
+    * [`Scheduler.with_lsf()`][amltk.scheduling.Scheduler.with_lsf]
+    * [`Scheduler.with_moab()`][amltk.scheduling.Scheduler.with_moab]
+    * [`Scheduler.with_sge()`][amltk.scheduling.Scheduler.with_sge]
+    * [`Scheduler.with_htcondor()`][amltk.scheduling.Scheduler.with_htcondor]
 
 Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
 In particular, we only control the parameter `#!python n_workers=` to
@@ -29,7 +29,7 @@ to leave a PR or simply an issue!
 === "Slurm"
 
     ```python hl_lines="3 4 5 6 7 8 9"
-    from byop.scheduling import Scheduler
+    from amltk.scheduling import Scheduler
 
     scheduler = Scheduler.with_slurm(
         n_workers=10,  # (1)!
@@ -49,7 +49,7 @@ to leave a PR or simply an issue!
        and pass it to the `Scheduler` constructor.
        ```python hl_lines="10"
        from dask_jobqueue import SLURMCluster
-       from byop.scheduling import Scheduler
+       from amltk.scheduling import Scheduler
 
        cluster = SLURMCluster(
            queue=...,
@@ -78,7 +78,7 @@ to leave a PR or simply an issue!
         You can use the following to do so:
 
         ```python
-        from byop.scheduling import Scheduler
+        from amltk.scheduling import Scheduler
 
         scheduler = Scheduler.with_slurm(n_workers=..., submit_command="sbatch --extra"
         ```
