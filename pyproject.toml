@@ -31,7 +31,6 @@ license = { file = "LICENSE" }
 dev = [
   "commitizen",
   "pre-commit",
-  "commitizen",
   "black",
   "ruff",
   "mypy",
@@ -242,6 +241,8 @@ force-wrap-aliases = true
 [tool.ruff.pydocstyle]
 convention = "google"
 
+[tool.ruff.pylint]
+max-args = 10  # Changed from default of 5
 
 [tool.mypy]
 python_version = "3.8"

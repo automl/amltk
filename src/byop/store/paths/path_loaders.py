@@ -15,7 +15,17 @@ import json
 import pickle
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Literal,
+    Mapping,
+    Protocol,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -133,11 +143,11 @@ class PDLoader(PathLoader[pd.DataFrame]):
     name: ClassVar[Literal["pd"]] = "pd"
     """See [`Loader.name`][byop.store.loader.Loader.name]."""
 
-    _load_methods = {
+    _load_methods: Mapping[str, Callable] = {
         ".csv": partial(pd.read_csv, index_col=0),
         ".parquet": pd.read_parquet,
     }
-    _save_methods = {
+    _save_methods: Mapping[str, Callable] = {
         ".csv": partial(pd.DataFrame.to_csv, index=True),
         ".parquet": pd.DataFrame.to_parquet,
     }

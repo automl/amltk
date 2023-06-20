@@ -529,8 +529,7 @@ class Trial(Generic[Info]):
                 index=[0],
             )
             present_cols = {k: v for k, v in self.DF_COLUMN_TYPES.items() if k in _df}
-            _df = _df.astype(present_cols)
-            return _df
+            return _df.astype(present_cols)
 
         @overload
         def retrieve(
