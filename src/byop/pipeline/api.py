@@ -23,6 +23,7 @@ def searchable(
     space: None = None,
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Step[None]:
     ...
 
@@ -34,6 +35,7 @@ def searchable(
     space: Space,
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Step[Space]:
     ...
 
@@ -44,6 +46,7 @@ def searchable(
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = None,
+    meta: Mapping[str, Any] | None = None,
 ) -> Step[Space] | Step[None]:
     """A set of searachble items.
 
@@ -63,11 +66,18 @@ def searchable(
             A fidelity associated with this searchable. This can be a single range
             indicated as a tuple, an ordered list or a mapping from a name to
             any of the above.
+        meta: Any metadata to associate with this
 
     Returns:
         Step
     """
-    return Step(name=name, config=config, search_space=space, fidelity_space=fidelities)
+    return Step(
+        name=name,
+        config=config,
+        search_space=space,
+        fidelity_space=fidelities,
+        meta=meta,
+    )
 
 
 @overload
@@ -77,6 +87,7 @@ def step(
     *,
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Component[T, None]:
     ...
 
@@ -89,6 +100,7 @@ def step(
     space: Space,
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Component[T, Space]:
     ...
 
@@ -100,6 +112,7 @@ def step(
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = None,
+    meta: Mapping[str, Any] | None = None,
 ) -> Component[T, Space] | Component[T, None]:
     """A step in a pipeline.
 
@@ -128,6 +141,7 @@ def step(
             A fidelity associated with this searchable. This can be a single range
             indicated as a tuple, an ordered list or a mapping from a name to
             any of the above.
+        meta: Any metadata to associate with this
 
     Returns:
         The component describing this step
@@ -138,6 +152,7 @@ def step(
         config=config,
         search_space=space,
         fidelity_space=fidelities,
+        meta=meta,
     )
 
 
@@ -145,6 +160,7 @@ def choice(
     name: str,
     *choices: Step,
     weights: Iterable[float] | None = None,
+    meta: Mapping[str, Any] | None = None,
 ) -> Choice[None]:
     """Define a choice in a pipeline.
 
@@ -152,6 +168,7 @@ def choice(
         name: The unique name of this step
         *choices: The choices that can be taken
         weights: Weights to assign to each choice
+        meta: Any metadata to associate with this
 
     Returns:
         Choice: Choice component with your choices as possibilities
@@ -160,13 +177,14 @@ def choice(
     if weights and len(weights) != len(choices):
         raise ValueError("Weights must be the same length as choices")
 
-    return Choice(name=name, paths=list(choices), weights=weights)
+    return Choice(name=name, paths=list(choices), weights=weights, meta=meta)
 
 
 @overload
 def split(
     name: str,
     *paths: Step,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Split[None, None]:
     ...
 
@@ -177,6 +195,7 @@ def split(
     *paths: Step,
     item: T | Callable[..., T],
     config: Mapping[str, Any] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Split[T, None]:
     ...
 
@@ -188,6 +207,7 @@ def split(
     item: T | Callable[..., T],
     space: Space,
     config: Mapping[str, Any] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
 ) -> Split[T, Space]:
     ...
 
@@ -198,6 +218,7 @@ def split(
     item: T | Callable[..., T] | None = None,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
+    meta: Mapping[str, Any] | None = None,
 ) -> Split[T, Space] | Split[T, None] | Split[None, None]:
     """Create a Split component, allowing data to flow multiple paths.
 
@@ -209,6 +230,7 @@ def split(
             A config of set values to pass. If any parameter here is also present in
             the space, this will be removed from the space.
         space: A space with which this step can be searched over.
+        meta: Any metadata to associate with this
 
     Returns:
         Split: Split component with your choices as possibilities
@@ -219,17 +241,23 @@ def split(
         item=item,
         search_space=space,
         config=config,
+        meta=meta,
     )
 
 
-def group(name: str, *paths: Step[Space]) -> Group[Space]:
+def group(
+    name: str,
+    *paths: Step[Space],
+    meta: Mapping[str, Any] | None = None,
+) -> Group[Space]:
     """Create a Group component, allowing to namespace one or multiple steps.
 
     Args:
         name: The unique name of this step
         *paths: The different paths
+        meta: Any metadata to associate with this
 
     Returns:
         Group component with your choices as possibilities
     """
-    return Group(name=name, paths=list(paths))
+    return Group(name=name, paths=list(paths), meta=meta)

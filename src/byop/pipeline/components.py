@@ -46,6 +46,7 @@ class Component(Step[Space], Generic[Item, Space]):
         hash=False,
         repr=False,
     )
+    meta: Mapping[str, Any] | None = None
 
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
@@ -86,6 +87,7 @@ class Group(Mapping[str, Step], Step[Space]):
         hash=False,
         repr=False,
     )
+    meta: Mapping[str, Any] | None = None
 
     def __attrs_post_init__(self) -> None:
         """Ensure that the paths are all unique."""
@@ -367,6 +369,7 @@ class Split(Group[Space], Generic[Item, Space]):
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    meta: Mapping[str, Any] | None = None
 
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
@@ -410,6 +413,7 @@ class Choice(Group[Space]):
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    meta: Mapping[str, Any] | None = None
 
     def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""
