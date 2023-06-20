@@ -294,15 +294,11 @@ class Pipeline:
         if isinstance(step, Step):
             step = step.name
 
-        path = self.head.path_to(step)
-        if path is None:
+        found = self.find(step)
+        if found is None:
             raise ValueError(f"Step {step} not found in pipeline")
 
-        *preceeding, found_step = path
-
-        groups = [step for step in preceeding if isinstance(step, Group)]
-
-        return delimiter.join([group.name for group in groups] + [found_step.name])
+        return found.qualified_name(delimiter=delimiter)
 
     @overload
     def space(

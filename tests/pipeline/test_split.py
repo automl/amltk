@@ -186,26 +186,39 @@ def test_configure_chained() -> None:
 def test_qualified_name() -> None:
     head = split(
         "split",
-        step("1", 2),
-        split("subsplit", step("2", 1) | step("3", 3)),
+        step("0", 0),
+        split("subsplit1", step("1", 1) | step("2", 3)),
+        split("subsplit2", step("3", 1) | step("4", 3)),
     )
     assert head.qualified_name() == "split"
 
+    s0 = head.find("0")
+    assert s0 is not None
+    assert s0.qualified_name() == "split:0"
+
+    subsplit1 = head.find("subsplit1")
+    assert subsplit1 is not None
+    assert subsplit1.qualified_name() == "split:subsplit1"
+
     s1 = head.find("1")
     assert s1 is not None
-    assert s1.qualified_name() == "split:1"
-
-    subsplit = head.find("subsplit")
-    assert subsplit is not None
-    assert subsplit.qualified_name() == "split:subsplit"
+    assert s1.qualified_name() == "split:subsplit1:1"
 
     s2 = head.find("2")
     assert s2 is not None
-    assert s2.qualified_name() == "split:subsplit:2"
+    assert s2.qualified_name() == "split:subsplit1:2"
+
+    subsplit2 = head.find("subsplit2")
+    assert subsplit2 is not None
+    assert subsplit2.qualified_name() == "split:subsplit2"
 
     s3 = head.find("3")
     assert s3 is not None
-    assert s3.qualified_name() == "split:subsplit:3"
+    assert s3.qualified_name() == "split:subsplit2:3"
+
+    s4 = head.find("4")
+    assert s4 is not None
+    assert s4.qualified_name() == "split:subsplit2:4"
 
 
 def test_path_to() -> None:
