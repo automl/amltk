@@ -27,7 +27,7 @@ COLUMN_TRANSFORMER_ARGS = [
 # However sklearn operates in a bit more of a general level so it would
 # require creating protocols to type this properly and work with sklearn's
 # duck-typing.
-SklearnItem: TypeAlias = Union[Any, ColumnTransformer]
+SklearnItem: TypeAlias = Union[Any, type[ColumnTransformer]]
 
 
 def process_component(
@@ -92,6 +92,13 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
             " as the item.",
         )
 
+    if isinstance(split.item, type) and not issubclass(split.item, ColumnTransformer):
+        raise NotImplementedError(
+            f"Can't handle split as it has a ColumnTransformer as the item: {split}.",
+            " Sklearn builder requires all splits to have a subclass ColumnTransformer",
+            " as the item.",
+        )
+
     if split.config is None:
         raise NotImplementedError(
             f"Can't handle split as it has no config attached: {split}.",
@@ -146,7 +153,7 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
         split_item = (path.name, sklearn_step, split_config)
         transformers.append(split_item)
 
-    column_transformer = ColumnTransformer(transformers, **ct_config)
+    column_transformer = split.item(transformers, **ct_config)
     yield (split.name, column_transformer)
 
     if split.nxt is not None:
