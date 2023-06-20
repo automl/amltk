@@ -201,6 +201,10 @@ def test_qualified_name() -> None:
     pipeline = Pipeline.create(
         step("1", 1)
         | step("2", 2)
+        | split(
+            "split",
+            step("split1", "split1") | step("split2", "split2"),
+        )
         | choice(
             "3",
             step("4", 4),
@@ -209,6 +213,9 @@ def test_qualified_name() -> None:
     )
     assert pipeline.qualified_name("1") == "1"
     assert pipeline.qualified_name("2") == "2"
+    assert pipeline.qualified_name("split") == "split"
+    assert pipeline.qualified_name("split1") == "split:split1"
+    assert pipeline.qualified_name("split2") == "split:split2"
     assert pipeline.qualified_name("3") == "3"
     assert pipeline.qualified_name("4") == "3:4"
     assert pipeline.qualified_name("5") == "3:5"

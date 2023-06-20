@@ -170,7 +170,11 @@ class Step(Generic[Space]):
         """
         from byop.pipeline.components import Group
 
-        groups = [s for s in self.climb(include_self=False) if isinstance(s, Group)]
+        groups = [
+            s.parent
+            for s in self.climb(include_self=True)
+            if s.parent is not None and isinstance(s.parent, Group)
+        ]
         names = [*reversed([group.name for group in groups]), self.name]
         return delimiter.join(names)
 
