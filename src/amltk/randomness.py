@@ -35,6 +35,30 @@ def as_rng(seed: Seed | None = None) -> np.random.Generator:
     raise ValueError(f"Can't use {seed=} to create a numpy.random.Generator instance")
 
 
+def as_randomstate(seed: Seed | None = None) -> np.random.RandomState:
+    """Converts a valid seed arg into a numpy.random.RandomState instance.
+
+    Args:
+        seed: The seed to use
+
+    Returns:
+        A valid np.random.RandomSTate object to use
+    """
+    if isinstance(seed, np.random.RandomState):
+        return seed
+
+    if isinstance(seed, np.random.Generator):
+        seed = seed.integers(0, MAX_INT)
+
+    if isinstance(seed, np.integer):
+        seed = int(seed)
+
+    if seed is None or isinstance(seed, int):
+        return np.random.RandomState(seed)
+
+    raise ValueError(f"Can't use {seed=} to create a numpy.random.Generator instance")
+
+
 def as_int(seed: Seed | None = None) -> int:
     """Converts a valid seed arg into an integer.
 
