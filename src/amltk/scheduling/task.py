@@ -98,14 +98,16 @@ class Task(Generic[P, R]):
         scheduler: Scheduler,
         *,
         name: str | None = None,
+        stop_on: Event | Iterable[Event] | None = None,
         plugins: Iterable[TaskPlugin[P, R]] = (),
     ) -> None:
         """Initialize a task.
 
         Args:
-            name: The name of the task.
             function: The function of this task
             scheduler: The scheduler that this task is registered with.
+            name: The name of the task.
+            stop_on: An event to stop the scheduler on.
             plugins: The plugins to use for this task.
         """
         self.plugins = plugins
@@ -143,6 +145,20 @@ class Task(Generic[P, R]):
 
         self.on_exception: Subscriber[BaseException]
         self.on_exception = self.subscriber(self.EXCEPTION)
+
+        # Re
+        if stop_on is not None:
+            stop_on = {stop_on} if isinstance(stop_on, Event) else set(stop_on)
+            for _event in stop_on:
+                subscriber: Subscriber = self.subscriber(_event)
+                callback = lambda *args, _event=_event, **kwargs: self.scheduler.stop(
+                    *args,
+                    stop_msg=f"Task {self.name} emitted {_event} and was told to stop",
+                    **kwargs,
+                )
+                subscriber(callback)
+
+        self._stop_on = stop_on
 
         for plugin in self.plugins:
             plugin.attach_task(self)

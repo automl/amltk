@@ -893,13 +893,28 @@ class Scheduler:
         return result
 
     def stop(self, *args: Any, **kwargs: Any) -> None:
-        """Stop the scheduler."""
-        # NOTE: we allow args and kwargs to allow it to be easily
-        # included in any callback.
+        """Stop the scheduler.
+
+        The scheduler will stop, finishing currently running tasks depending
+        on the `wait=` parameter to [`Scheduler.run`][amltk.Scheduler.run].
+
+        The call signature is kept open with `*args, **kwargs` to make it
+        easier to include in any callback.
+
+        Args:
+            *args: Logged in a debug message
+            **kwargs: Logged in a debug message
+                **stop_msg**: The message to pass to the stop event which
+                    gets logged as the stop reason.
+                **exception**: The exception to pass to the stop event which
+                gets logged as the stop reason.
+        """
         if not self.running():
             return
 
-        self._stop_event.set(msg="stop() called", exception=kwargs.get("exception"))
+        msg = kwargs.get("stop_msg", "stop() called")
+
+        self._stop_event.set(msg=msg, exception=kwargs.get("exception"))
         logger.debug(f"Stop event set with {args=} and {kwargs=}")
         self._running_event.clear()
 

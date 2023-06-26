@@ -231,7 +231,7 @@ class History(Mapping[str, Trial.Report]):
 
         trace = (
             history
-            .filter(lambda report: report.successful)
+            .filter(lambda report: report.status == "success")
             .sortby(lambda report: report.time.end)
         )
 
@@ -435,7 +435,7 @@ class Trace(Sequence[Trial.Report]):
 
         trace = (
             history
-            .filter(lambda report: report.successful)
+            .filter(lambda report: report.status == "success")
             .sortby(lambda report: report.time.end)
         )
         print(f"Length pre-filter: {len(trace)}")
@@ -479,7 +479,7 @@ class Trace(Sequence[Trial.Report]):
 
         trace = (
             history
-            .filter(lambda report: report.successful)
+            .filter(lambda report: report.status == "success")
             .sortby(lambda report: report.time.end)
         )
         print("--trace--")
@@ -556,7 +556,7 @@ class Trace(Sequence[Trial.Report]):
 
         trace = (
             history
-            .filter(lambda report: report.successful)
+            .filter(lambda report: report.status == "success")
             .sortby(lambda report: report.time.end)
         )
 
