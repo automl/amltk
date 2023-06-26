@@ -292,3 +292,34 @@ def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
 
     result = scheduler.run(end_on_exception=False)
     assert result == Scheduler.ExitCode.EXHAUSTED
+
+
+def test_task_stop_on(scheduler: Scheduler) -> None:
+    task = Task(raise_exception, scheduler, stop_on=Task.EXCEPTION)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task()
+
+    result = scheduler.run(end_on_exception=False)
+
+    assert task.counts == {
+        Task.SUBMITTED: 1,
+        Task.F_SUBMITTED: 1,
+        Task.EXCEPTION: 1,
+        Task.F_EXCEPTION: 1,
+        Task.DONE: 1,
+    }
+
+    assert scheduler.counts == {
+        (Task.SUBMITTED, "raise_exception"): 1,
+        (Task.F_SUBMITTED, "raise_exception"): 1,
+        (Task.EXCEPTION, "raise_exception"): 1,
+        (Task.F_EXCEPTION, "raise_exception"): 1,
+        (Task.DONE, "raise_exception"): 1,
+        Scheduler.STARTED: 1,
+        Scheduler.FINISHING: 1,
+        Scheduler.FINISHED: 1,
+        Scheduler.STOP: 1,
+    }
+    assert result == Scheduler.ExitCode.STOPPED

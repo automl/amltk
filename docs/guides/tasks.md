@@ -1082,59 +1082,144 @@ of arguments and can return anything.
 
 Below are all the events that can be subscribed to with the [`Task`][amltk.scheduling.Task]:
 
-=== "`SUBMITTED`"
+!!! note "Events"
 
-    `#!python SUBMITTED: Event[Future] = Event("task-submitted")`
+    === "`SUBMITTED`"
 
-    The task has been submitted to the scheduler. You can subscribe to this event
-    with `on_submitted()`.
+        `#!python SUBMITTED: Event[Future] = Event("task-submitted")`
 
-=== "`DONE`"
+        The task has been submitted to the scheduler. You can subscribe to this event
+        with `on_submitted()`.
 
-    `#!python DONE: Event[Future] = Event("task-done")`
+        ```python
+        @task.on_submitted
+        def do_something(future: Future) -> None:
+            ...
+        ```
 
-    The task has finished running. You can subscribe to this event
-    with `on_done()`.
+    === "`DONE`"
 
-=== "`CANCELLED`"
+        `#!python DONE: Event[Future] = Event("task-done")`
 
-    `#!python CANCELLED: Event[Future] = Event("task-cancelled")`
+        The task has finished running. You can subscribe to this event
+        with `on_done()`.
 
-    The task has been cancelled. You can subscribe to this event
-    with `on_cancelled()`.
+        ```python
+        @task.on_done
+        def do_something(future: Future) -> None:
+            ...
+        ```
 
-=== "`RETURNED`"
+    === "`CANCELLED`"
 
-    `#!python RETURNED: Event[Any] = Event("task-returned")`
+        `#!python CANCELLED: Event[Future] = Event("task-cancelled")`
 
-    The task has successfully returned a value. You can subscribe to this event
-    with `on_returned()`.
+        The task has been cancelled. You can subscribe to this event
+        with `on_cancelled()`.
 
-=== "`EXCEPTION`"
+        ```python
+        @task.on_cancelled
+        def do_something(future: Future) -> None:
+            ...
+        ```
 
-    `#!python EXCEPTION: Event[BaseException] = Event("task-exception")`
+    === "`RETURNED`"
 
-    The task raised an Exception and failed to return a value.
-    You can subscribe to this event with `on_exception()`.
+        `#!python RETURNED: Event[Any] = Event("task-returned")`
 
-=== "`F_RETURNED`"
+        The task has successfully returned a value. You can subscribe to this event
+        with `on_returned()`.
 
-    `#!python F_RETURNED: Event[Future, Any] = Event("task-future-returned")`
+        ```python
+        @task.on_returned
+        def do_something(result: Any) -> None:
+            ...
+        ```
 
-    The task has successfully returned a value. This also passes the future along with
-    the result which can be useful during debugging and retrieving of the arguments the
-    task was submitted with as a `Future` can be used as a dictionary key.
-    You can subscribe to this event with `on_f_returned()`.
+    === "`EXCEPTION`"
 
-=== "`F_EXCEPTION`"
+        `#!python EXCEPTION: Event[BaseException] = Event("task-exception")`
 
-    `#!python F_EXCEPTION: Event[Future, BaseException] = Event("task-future-exception")`
+        The task raised an Exception and failed to return a value.
+        You can subscribe to this event with `on_exception()`.
 
-    The task raised an Exception and failed to return a value.
-    This also passes the future along with the exception which can be useful during
-    debugging and retrieving of the arguments the task was submitted with as a `Future`
-    can be used as a dictionary key.
-    You can subscribe to this event with `on_f_exception()`.
+        ```python
+        @task.on_exception
+        def do_something(exception: BaseException) -> None:
+            ...
+        ```
+
+    === "`F_RETURNED`"
+
+        `#!python F_RETURNED: Event[Future, Any] = Event("task-future-returned")`
+
+        The task has successfully returned a value. This also passes the future along with
+        the result which can be useful during debugging and retrieving of the arguments the
+        task was submitted with as a `Future` can be used as a dictionary key.
+        You can subscribe to this event with `on_f_returned()`.
+
+        ```python
+        @task.on_f_returned
+        def do_something(future: Future, result: Any) -> None:
+            ...
+        ```
+
+    === "`F_EXCEPTION`"
+
+        `#!python F_EXCEPTION: Event[Future, BaseException] = Event("task-future-exception")`
+
+        The task raised an Exception and failed to return a value.
+        This also passes the future along with the exception which can be useful during
+        debugging and retrieving of the arguments the task was submitted with as a `Future`
+        can be used as a dictionary key.
+        You can subscribe to this event with `on_f_exception()`.
+
+        ```python
+        @task.on_submitted
+        def do_something(future: Future, exception: BaseException) -> None:
+            ...
+        ```
+
+#### Stop on Event
+While debugging and setting up, it may be useful to automatically stop on certain events.
+This is straightforward enough to do using [`scheduler.stop()`][amltk.Scheduler.stop] but
+this use case is prominent enough to warrant it's own utility. This will stop
+the entire scheduler when these events occur, not just the current task.
+
+=== "`stop_on=`"
+
+    ```python hl_lines="6"
+    from amltk import Scheduler, Task
+
+    def func() -> None:
+        raise NotImplementedError
+
+    task = Task(func, scheduler, stop_on=[Task.EXCEPTION, Task.CANCELLED])
+
+    exitcode = scheduler.run(func)
+
+    assert exitcode == Scheduler.STOPPED
+    ```
+
+=== "equivalently"
+
+    ```python hl_lines="8,9,10,11"
+    from amltk import Scheduler, Task
+
+    def func() -> None:
+        raise NotImplementedError
+
+    task = Task(func, scheduler)
+
+    @task.on_exception
+    @task.on_cancelled
+    def stop_scheduler(_: *args) -> None:
+        scheduler.stop()
+
+    exitcode = scheduler.run(func)
+
+    assert exitcode == Scheduler.STOPPED
+    ```
 
 ### Task Plugins
 Tasks can be augmented with new capabilities by passing in [`TaskPlugins`][amltk.TaskPlugin]

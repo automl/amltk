@@ -779,6 +779,7 @@ class Trial(Generic[Info]):
             scheduler: Scheduler,
             *,
             name: str | None = None,
+            stop_on: Event | Iterable[Event] | None = None,
             plugins: Iterable[
                 TaskPlugin[[Trial[InfoInner]], Trial.Report[InfoInner]]
             ] = (),
@@ -791,6 +792,7 @@ class Trial(Generic[Info]):
                 function: The function to run.
                 scheduler: The scheduler to use.
                 name: The name of the task.
+                stop_on: An event to stop the scheduler on.
                 plugins: Any plugins to attach to the task.
             """
             # NOTE: It's important these are here to setup up the subscribers
@@ -812,7 +814,13 @@ class Trial(Generic[Info]):
 
             self.trial_lookup: dict[Future, Trial] = {}
 
-            super().__init__(function, scheduler, name=name, plugins=plugins)
+            super().__init__(
+                function,
+                scheduler,
+                name=name,
+                plugins=plugins,
+                stop_on=stop_on,
+            )
 
             self.on_f_returned(self._emit_report)
             self.on_f_exception(self._emit_report)
