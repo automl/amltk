@@ -508,6 +508,7 @@ class Trial(Generic[Info]):
                 * `summary`: Entries will be prefixed with `#!python "summary:"`
                 * `config`: Entries will be prefixed with `#!python "config:"`
                 * `results`: Entries will be prefixed with `#!python "results:"`
+                * `fidelity`: Entries will be prefixed with `#!python "fidelity:"`
                 * `time`: Entries will be prefixed with `#!python "time:"`
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
             """
@@ -516,8 +517,9 @@ class Trial(Generic[Info]):
                     "name": self.name,
                     "status": self.status,
                     "trial_seed": self.trial.seed if self.trial.seed else np.nan,
-                    **prefix_keys(self.trial.summary, "summary:"),
                     **prefix_keys(self.results or {}, "results:"),
+                    **prefix_keys(self.trial.fidelities or {}, "fidelity:"),
+                    **prefix_keys(self.trial.summary, "summary:"),
                     **prefix_keys(self.trial.config, "config:"),
                     **prefix_keys(
                         self.time.dict_for_dataframe() if self.time else {},
