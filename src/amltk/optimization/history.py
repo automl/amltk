@@ -213,7 +213,7 @@ class History(Mapping[str, Trial.Report]):
         self,
         key: Callable[[Trial.Report], Comparable] | str,
         *,
-        reversed: bool = False,  # noqa: A002
+        reverse: bool = False,  # noqa: A002
     ) -> Trace:
         """Sorts the history by a key and returns a Trace.
 
@@ -243,7 +243,7 @@ class History(Mapping[str, Trial.Report]):
             key: The key to sort by. If given a str, it will sort by
                 the value of that key in the summary and also filter
                 out anything that does not contain this key.
-            reversed: Whether to sort in reverse order. By default,
+            reverse: Whether to sort in reverse order. By default,
                 this is `False` meaning smaller items are sorted first.
 
         Returns:
