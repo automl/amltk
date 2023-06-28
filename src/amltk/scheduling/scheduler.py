@@ -575,10 +575,6 @@ class Scheduler:
             logger.info(f"Scheduler is not running, cannot submit task {function}")
             return None
 
-        if self._timeout_timer is not None and self._timeout_timer.finished.is_set():
-            logger.info(f"Timeout has elapsed, cannot submit task {function}")
-            return None
-
         try:
             sync_future: SyncFuture = self.executor.submit(function, *args, **kwargs)
         except RuntimeError:
@@ -739,6 +735,7 @@ class Scheduler:
         await asyncio.wait(all_tasks, return_when=asyncio.ALL_COMPLETED)
 
         self.event_manager.emit(Scheduler.FINISHING)
+        logging.error("Scheduler is finished")
 
         logger.debug(f"Shutting down scheduler executor with {wait=}")
 
