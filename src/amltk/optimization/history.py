@@ -257,7 +257,7 @@ class History(Mapping[str, Trial.Report]):
             history = self
             sort_key = key
 
-        return Trace(sorted(history.reports.values(), key=sort_key, reverse=reversed))
+        return Trace(sorted(history.reports.values(), key=sort_key, reverse=reverse))
 
     def __getitem__(self, key: str) -> Trial.Report:
         return self.reports[key]
