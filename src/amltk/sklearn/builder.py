@@ -1,18 +1,18 @@
 """Builds an sklearn.pipeline.Pipeline from a amltk.pipeline.Pipeline."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Union
+from typing import TYPE_CHECKING, Any, Iterable, Type, Union
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
-from amltk.pipeline.components import Component, Group, Split, Step
-from amltk.types import Any
+from amltk.pipeline.components import Component, Group, Split
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
 
     from amltk.pipeline.pipeline import Pipeline
+    from amltk.pipeline.step import Step
 
 COLUMN_TRANSFORMER_ARGS = [
     "remainder",
@@ -27,7 +27,7 @@ COLUMN_TRANSFORMER_ARGS = [
 # However sklearn operates in a bit more of a general level so it would
 # require creating protocols to type this properly and work with sklearn's
 # duck-typing.
-SklearnItem: TypeAlias = Union[Any, type[ColumnTransformer]]
+SklearnItem: TypeAlias = Union[Any, Type[ColumnTransformer]]
 
 
 def process_component(
