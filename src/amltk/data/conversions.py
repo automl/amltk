@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -43,3 +44,16 @@ def probabilities_to_classes(
             for class_index in range(n_outputs)
         ],
     ).T
+
+
+def to_numpy(
+    x: np.ndarray | pd.DataFrame | pd.Series,
+    *,
+    flatten_if_1d: bool = False,
+) -> np.ndarray:
+    _x = x.to_numpy() if isinstance(x, (pd.DataFrame, pd.Series)) else x
+
+    if flatten_if_1d and x.ndim == 2 and x.shape[1] == 1:  # noqa: PLR2004
+        _x = np.ravel(_x)
+
+    return _x
