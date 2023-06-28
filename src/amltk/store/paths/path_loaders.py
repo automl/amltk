@@ -12,6 +12,7 @@ these loaders rely on checking the file extension of the path for
 from __future__ import annotations
 
 import json
+import logging
 import pickle
 from functools import partial
 from pathlib import Path
@@ -44,6 +45,8 @@ except ImportError:
     yaml = None
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class PathLoader(Loader[Path, T], Protocol[T]):
@@ -102,6 +105,7 @@ class NPYLoader(PathLoader[np.ndarray]):
     @classmethod
     def load(cls, path: Path, /) -> np.ndarray:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         item = np.load(path)
         if not isinstance(item, np.ndarray):
             msg = f"Expected `np.ndarray` from {path=} but got `{type(item).__name__}`."
@@ -112,6 +116,7 @@ class NPYLoader(PathLoader[np.ndarray]):
     @classmethod
     def save(cls, obj: np.ndarray, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         np.save(path, obj)
 
 
@@ -175,12 +180,14 @@ class PDLoader(PathLoader[pd.DataFrame]):
     @classmethod
     def load(cls, path: Path, /) -> pd.DataFrame:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         load_method = cls._load_methods[path.suffix]
         return load_method(path)
 
     @classmethod
     def save(cls, obj: pd.Series | pd.DataFrame, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         save_method = cls._save_methods[path.suffix]
         if obj.index.name is None and obj.index.nlevels == 1:
             obj.index.name = "index"
@@ -217,6 +224,7 @@ class JSONLoader(PathLoader[Union[dict, list]]):
     @classmethod
     def load(cls, path: Path, /) -> dict | list:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         with path.open("r") as f:
             item = json.load(f)
 
@@ -229,6 +237,7 @@ class JSONLoader(PathLoader[Union[dict, list]]):
     @classmethod
     def save(cls, obj: dict | list, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         with path.open("w") as f:
             json.dump(obj, f)
 
@@ -264,6 +273,7 @@ class YAMLLoader(PathLoader[Union[dict, list]]):
     @classmethod
     def load(cls, path: Path, /) -> dict | list:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         if yaml is None:
             raise ModuleNotFoundError("PyYAML is not installed")
 
@@ -279,6 +289,7 @@ class YAMLLoader(PathLoader[Union[dict, list]]):
     @classmethod
     def save(cls, obj: dict | list, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         if yaml is None:
             raise ModuleNotFoundError("PyYAML is not installed")
 
@@ -328,12 +339,14 @@ class PickleLoader(PathLoader[Any]):
     @classmethod
     def load(cls, path: Path, /) -> Any:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         with path.open("rb") as f:
             return pickle.load(f)  # noqa: S301
 
     @classmethod
     def save(cls, obj: Any, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         with path.open("wb") as f:
             pickle.dump(obj, f)
 
@@ -368,12 +381,14 @@ class TxtLoader(PathLoader[str]):
     @classmethod
     def load(cls, path: Path, /) -> str:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         with path.open("r") as f:
             return f.read()
 
     @classmethod
     def save(cls, obj: str, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         with path.open("w") as f:
             f.write(obj)
 
@@ -407,11 +422,13 @@ class ByteLoader(PathLoader[bytes]):
     @classmethod
     def load(cls, path: Path, /) -> bytes:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
+        logger.debug(f"Loading {path=}")
         with path.open("rb") as f:
             return f.read()
 
     @classmethod
     def save(cls, obj: bytes, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
         with path.open("wb") as f:
             f.write(obj)
