@@ -174,7 +174,7 @@ class Drop(Generic[KeyT]):
         *,
         check: type[T],
         how: Callable[[KeyT], T] = ...,
-    ) -> T:
+    ) -> T | None:
         ...
 
     @overload
@@ -228,9 +228,15 @@ class Drop(Generic[KeyT]):
             return self.load(check=check, how=how)
         except TypeError as e:
             raise e
-        except Exception as e:  # noqa: BLE001
-            logger.debug(f"Failed to load {self.key=}: {e}")
+        except FileNotFoundError:
             return default
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                f"Failed to load {self.key=} from {self.loaders=}: {e}",
+                exc_info=True,
+            )
+
+        return None
 
     def remove(self, *, how: Callable[[KeyT], Any] | None = None) -> None:
         """Remove the resource from the bucket.

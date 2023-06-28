@@ -101,7 +101,7 @@ class Timer:
     @classmethod
     def start(
         cls,
-        kind: TimeKind | Literal["cpu", "wall", "process"] = TimeKind.CPU,
+        kind: TimeKind | Literal["cpu", "wall", "process"] = TimeKind.WALL,
     ) -> Timer:
         """Start a timer.
 

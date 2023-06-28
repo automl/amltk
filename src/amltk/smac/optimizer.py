@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal, Mapping, Sequence
 
+import numpy as np
 from smac import HyperparameterOptimizationFacade, MultiFidelityFacade, Scenario
 from smac.runhistory import (
     StatusType,
@@ -135,7 +136,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         logger.debug(f"{trial=}")
         return trial
 
-    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:
+    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # noqa: PLR0912, C901
         """Tell the optimizer the result of the sampled config.
 
         Args:
@@ -148,6 +149,16 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             if "cost" not in report.results:
                 raise ValueError(
                     f"Report must have 'cost' if successful but got {report}."
+                    " Use `trial.success(cost=...)` to set the results of the trial.",
+                )
+
+            reported_costs = report.results["cost"]
+            if isinstance(reported_costs, np.number):
+                reported_costs = float(reported_costs)
+
+            if not isinstance(reported_costs, (float, Sequence)):
+                raise ValueError(
+                    f"Cost must be a float or sequence of floats, got {reported_costs}."
                     " Use `trial.success(cost=...)` to set the results of the trial.",
                 )
 
