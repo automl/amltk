@@ -9,6 +9,11 @@ We extend these capabilities with what we found helpful
 during development of AutoML tools such as
 [AutoSklearn](https://automl.github.io/auto-sklearn/master/).
 
+!!! note "Threads and Multiprocessing"
+
+    If running multiple trainings across multiple processes, please
+    also check out [`ThreadPoolCTL`](../reference/threadpoolctl.md)
+
 ## Pipeline Builder
 The `amltk.sklearn` module provides a `build_pipeline` function
 that can be passed to [`Pipeline.build()`][amltk.pipeline.Pipeline.build]

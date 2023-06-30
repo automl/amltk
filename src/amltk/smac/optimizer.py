@@ -153,7 +153,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 )
 
             reported_costs = report.results["cost"]
-            if isinstance(reported_costs, np.number):
+            if isinstance(reported_costs, (np.number, int)):
                 reported_costs = float(reported_costs)
 
             if not isinstance(reported_costs, (float, Sequence)):

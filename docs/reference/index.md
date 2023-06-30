@@ -29,6 +29,9 @@
     use, highly suitable for creating AutoML systems.
 * [wandb](./wandb.md) - A plugin for a [`Trial.Task`][amltk.Trial.Task] that automatically
     logs your runs to [weights and biases](https://wandb.ai/site)!
+* [threadpoolctl](./threadpoolctl.md) - A plugin that uses
+[`threadpoolctl`](https://github.com/joblib/threadpoolctl) to limit the number of threads used
+by certain numerical libraries within a tasks execution.
 
 ## Utility
 
