@@ -735,7 +735,7 @@ class Scheduler:
         await asyncio.wait(all_tasks, return_when=asyncio.ALL_COMPLETED)
 
         self.event_manager.emit(Scheduler.FINISHING)
-        logging.error("Scheduler is finished")
+        logging.info("Scheduler is finished")
 
         logger.debug(f"Shutting down scheduler executor with {wait=}")
 
@@ -780,6 +780,7 @@ class Scheduler:
         wait: bool = True,
         end_on_exception: bool = True,
         raises: bool = True,
+        asyncio_debug_mode: bool = False,
     ) -> ExitCode | BaseException:
         """Run the scheduler.
 
@@ -794,6 +795,8 @@ class Scheduler:
             raises: Whether to raise an exception if the scheduler
                 ends due to an exception. Has no effect if `end_on_exception`
                 is `False`.
+            asyncio_debug_mode: Whether to run the async loop in debug mode.
+                Defaults to `False`. Please see [`asyncio.run`][] for more.
 
         Returns:
             The reason for the scheduler ending.
@@ -801,46 +804,16 @@ class Scheduler:
         Raises:
             RuntimeError: If the scheduler is already running.
         """
-        if self.running():
-            raise RuntimeError("Scheduler already seems to be running")
-
-        logger.debug("Starting scheduler")
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        # Make sure the flag is set
-        self._end_on_exception_flag.set(value=end_on_exception)
-
-        # NOTE(eddiebergman): Code duplication with `async_run`.
-        #
-        #   We can't use the `async_run` method
-        #   above because once we encapsulate with `run_until_complete`
-        #   we can't get the exception back out of it. Hence, the code
-        #   duplication.
-        #
-        result = loop.run_until_complete(
-            self._run_scheduler(
+        return asyncio.run(
+            self.async_run(
                 timeout=timeout,
                 end_on_empty=end_on_empty,
                 wait=wait,
+                end_on_exception=end_on_exception,
+                raises=raises,
             ),
+            debug=asyncio_debug_mode,
         )
-
-        # Reset it back to its default
-        self._end_on_exception_flag.reset()
-
-        # If we were meant to end on an exception and the result
-        # we got back from the scheduler was an exception, raise it
-        if isinstance(result, BaseException):
-            if end_on_exception and raises:
-                raise result
-
-            return result
-
-        return result
 
     async def async_run(
         self,
@@ -867,6 +840,11 @@ class Scheduler:
         Returns:
             The reason for the scheduler ending.
         """
+        if self.running():
+            raise RuntimeError("Scheduler already seems to be running")
+
+        logger.debug("Starting scheduler")
+
         # Make sure the flag is set
         self._end_on_exception_flag.set(value=end_on_exception)
 
@@ -926,6 +904,9 @@ class Scheduler:
 
         EXHAUSTED = auto()
         """The scheduler finished because it exhausted its queue."""
+
+        CANCELLED = auto()
+        """The scheduler was cancelled."""
 
         UNKNOWN = auto()
         """The scheduler finished for an unknown reason."""
