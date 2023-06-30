@@ -131,7 +131,7 @@ def target_function(
     trial: Trial,
     /,
     bucket: PathBucket,
-    pipeline: Pipeline,
+    _pipeline: Pipeline,
 ) -> Trial.Report:
     # Load in data
     X_train, X_val, X_test, y_train, y_val, y_test = (
@@ -144,8 +144,8 @@ def target_function(
     )
 
     # Configure the pipeline with the trial config before building it.
-    pipeline = pipeline.configure(trial.config)
-    sklearn_pipeline = pipeline.build()
+    configured_pipeline = _pipeline.configure(trial.config)
+    sklearn_pipeline = configured_pipeline.build()
 
     # Fit the pipeline, indicating when you want to start the trial timing and error
     # catchnig.
@@ -201,7 +201,8 @@ def target_function(
 """
 ## Running the Whole Thing
 
-Now we can run the whole thing. We will use the [`Scheduler`][amltk.scheduling.Scheduler]
+Now we can run the whole thing. We will use the
+[`Scheduler`][amltk.scheduling.Scheduler]
 to run the optimization, and the [`SMACOptimizer`][amltk.smac.SMACOptimizer] to
 to optimize the pipeline.
 
@@ -261,16 +262,17 @@ of [`Task`][amltk.scheduling.Task] that is used for optimization. We pass it
 in the function we want to run (`objective`) and the scheduler we will run it
 in.
 """
-objective = Trial.Objective(target_function, bucket=bucket, pipeline=pipeline)
+objective = Trial.Objective(target_function, bucket=bucket, _pipeline=pipeline)
 
 task = Trial.Task(objective, scheduler)
 
 print(task)
 """
 We use the callback decorators of the [`Scheduler`][amltk.scheduling.Scheduler] and
-the [`Trial.Task`][amltk.optimization.Trial.Task] to add callbacks that get called during
-events that happen during the running of the scheduler. Using this, we can control the
-flow of how things run. Check out the [task guide](../../guides/tasks) for more.
+the [`Trial.Task`][amltk.optimization.Trial.Task] to add callbacks that get called
+during events that happen during the running of the scheduler. Using this, we can
+control the flow of how things run.
+Check out the [task guide](../../guides/tasks) for more.
 
 This one here asks the optimizer for a new trial when the scheduler starts and
 launches the task we created earlier with this trial.
@@ -318,12 +320,17 @@ def add_to_history(report: Trial.Report) -> None:
 
 
 """
-We also use it to launch another trial.
+We launch a new task when the scheduler is empty, i.e. when all the tasks have
+finished. This will keep going until we hit the timeout we set on the scheduler.
+
+If you want to run the optimization in parallel, you can use the
+`task.on_report` callback to launch a new task when you get a report. This will
+launch a new task as soon as one finishes.
 """
 
 
-@task.on_report
-def launch_another_task(_: Trial.Report) -> None:
+@scheduler.on_empty
+def launch_another_task() -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
     task(trial)
@@ -335,7 +342,7 @@ def launch_another_task(_: Trial.Report) -> None:
 Lastly we use [`Scheduler.run`][amltk.scheduling.Scheduler.run] to run the
 scheduler. We pass in a timeout of 5 seconds.
 """
-scheduler.run(timeout=5)
+scheduler.run(timeout=20)
 
 print("Trial history:")
 history_df = trial_history.df()

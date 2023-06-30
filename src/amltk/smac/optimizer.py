@@ -166,7 +166,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 time=report.time.duration,
                 starttime=report.time.start,
                 endtime=report.time.end,
-                cost=report.results["cost"],
+                cost=reported_costs,
                 status=StatusType.SUCCESS,
                 additional_info=report.results.get("additional_info", {}),
             )
