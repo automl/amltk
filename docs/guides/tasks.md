@@ -377,6 +377,16 @@ in a sequential manner!
     scheduler = Scheduler(executor=SequentialExecutor())
     ```
 
+!!! warning "Recursion"
+
+    If you use The `SequentialExecutor`, be careful that the stack
+    of function calls can get quite large, quite quick. If you are
+    using this for debugging, keep the number of submitted tasks
+    from callbacks small and focus in on debugging. If using this
+    for sequential ordering of operations, prefer to use
+    `with_processes(1)` as this will still maintain order but not
+    have these stack issues.
+
 
 
 ### Subscribing to Scheduler Events
