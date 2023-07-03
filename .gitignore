@@ -6,6 +6,7 @@ __pycache__
 .ruff_cache
 .idea
 .uml
+.venv*
 site
 examples/results
 smac3_output
