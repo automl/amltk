@@ -170,9 +170,12 @@ class TimeInterval:
         """The duration of the time interval."""
         return self.end - self.start
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, prefix: str = "") -> dict[str, Any]:
         """Convert the time interval to a dictionary."""
-        return {**asdict(self), "duration": self.duration}
+        return {
+            **{f"{prefix}{k}": v for k, v in asdict(self).items()},
+            f"{prefix}duration": self.duration,
+        }
 
     def dict_for_dataframe(self) -> dict[str, Any]:
         """Convert the time interval to a dictionary for a dataframe."""
