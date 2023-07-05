@@ -12,7 +12,7 @@ dependencies = [
 requires-python = ">=3.8"
 authors = [{ name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com" }]
 readme = "README.md"
-description = "Build Your Own Pipeline: a toolkit for building automl system"
+description = "AutoML Toolkit: a toolkit for building automl system"
 classifiers = [
   'Intended Audience :: Science/Research',
   'Intended Audience :: Developers',
