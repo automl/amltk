@@ -1,3 +1,4 @@
+from amltk.events import Emitter, Subscriber
 from amltk.optimization import (
     History,
     IncumbentTrace,
@@ -11,6 +12,7 @@ from amltk.scheduling import (
     CallLimiter,
     Comm,
     Scheduler,
+    SequentialExecutor,
     Task,
     TaskPlugin,
 )
@@ -60,4 +62,7 @@ __all__ = [
     "CallLimiter",
     "Scheduler",
     "TaskPlugin",
+    "Subscriber",
+    "SequentialExecutor",
+    "Emitter",
 ]

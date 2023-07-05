@@ -193,7 +193,7 @@ We also integrate Optuna using the [`Optimizer`][amltk.optimization.Optimizer] i
 This requires us to support two keys methods, [`ask()`][amltk.optimization.Optimizer.ask]
 and [`tell()`][amltk.optimization.Optimizer.tell].
 
-```python exec="true" source="material-block" result="python" title="Using Optuna with Optimizer"
+```python
 from amltk.optuna import OptunaOptimizer, OptunaSpaceAdapter
 from amltk.pipeline import step
 

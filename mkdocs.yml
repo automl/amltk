@@ -123,6 +123,12 @@ plugins:
             - 'https://pytorch.org/docs/stable/objects.inv'
             - 'https://jobqueue.dask.org/en/latest/objects.inv'
           options:  # https://mkdocstrings.github.io/python/usage/
+            docstring_section_style: spacy
+            docstring_options:
+              ignore_init_summary: true
+              trim_doctest_flags: true
+            show_docstring_attributes: true
+            show_docstring_description: true
             show_root_heading: false
             show_root_toc_entry: false
             show_object_full_path: false
@@ -132,12 +138,12 @@ plugins:
             show_bases: true
             show_source: true
             members_order: "source"
-            group_by_category: false
-            show_category_heading: false
+            # Would like to set `group_by_category` to false
+            # https://github.com/mkdocstrings/mkdocstrings/issues/579
+            group_by_category: true
             show_signature: true
             separate_signature: false
             show_signature_annotations: false
-            docstring_section_style: spacy
             filters:
               - "!^_[^_]"
               - "_sample"  # Kind of a hack to have this render a private method

@@ -84,23 +84,20 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
     assert before == inside_info
     assert before == after
 
-    assert task.counts == {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
-        Task.F_RETURNED: 1,
+    assert task.event_counts == {
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.DONE: 1,
+        task.RETURNED: 1,
+        task.F_RETURNED: 1,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "f"): 1,
-        (Task.F_SUBMITTED, "f"): 1,
-        (Task.DONE, "f"): 1,
-        (Task.RETURNED, "f"): 1,
-        (Task.F_RETURNED, "f"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }
 
 
@@ -131,21 +128,18 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
     assert before != inside_info
     assert before == after
 
-    assert task.counts == {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
-        Task.F_RETURNED: 1,
+    assert task.event_counts == {
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.DONE: 1,
+        task.RETURNED: 1,
+        task.F_RETURNED: 1,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "f"): 1,
-        (Task.F_SUBMITTED, "f"): 1,
-        (Task.DONE, "f"): 1,
-        (Task.RETURNED, "f"): 1,
-        (Task.F_RETURNED, "f"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }

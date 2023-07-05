@@ -79,25 +79,21 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
     end_status = scheduler.run(end_on_empty=True)
     assert end_status == Scheduler.ExitCode.EXHAUSTED
 
-    assert task.counts == {
+    assert task.event_counts == {
         CallLimiter.CONCURRENT_LIMIT_REACHED: 8,
-        Task.SUBMITTED: 2,
-        Task.F_SUBMITTED: 2,
-        Task.DONE: 2,
-        Task.RETURNED: 2,
-        Task.F_RETURNED: 2,
+        task.SUBMITTED: 2,
+        task.F_SUBMITTED: 2,
+        task.DONE: 2,
+        task.RETURNED: 2,
+        task.F_RETURNED: 2,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "time_wasting_function"): 2,
-        (Task.F_SUBMITTED, "time_wasting_function"): 2,
-        (CallLimiter.CONCURRENT_LIMIT_REACHED, "time_wasting_function"): 8,
-        (Task.DONE, "time_wasting_function"): 2,
-        (Task.RETURNED, "time_wasting_function"): 2,
-        (Task.F_RETURNED, "time_wasting_function"): 2,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 2,
+        scheduler.FUTURE_DONE: 2,
     }
 
 
@@ -115,23 +111,19 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
     end_status = scheduler.run(end_on_empty=True)
     assert end_status == Scheduler.ExitCode.EXHAUSTED
 
-    assert task.counts == {
+    assert task.event_counts == {
         CallLimiter.CALL_LIMIT_REACHED: 8,
-        Task.SUBMITTED: 2,
-        Task.F_SUBMITTED: 2,
-        Task.DONE: 2,
-        Task.RETURNED: 2,
-        Task.F_RETURNED: 2,
+        task.SUBMITTED: 2,
+        task.F_SUBMITTED: 2,
+        task.DONE: 2,
+        task.RETURNED: 2,
+        task.F_RETURNED: 2,
     }
 
-    assert scheduler.counts == {
-        (CallLimiter.CALL_LIMIT_REACHED, "time_wasting_function"): 8,
-        (Task.SUBMITTED, "time_wasting_function"): 2,
-        (Task.F_SUBMITTED, "time_wasting_function"): 2,
-        (Task.DONE, "time_wasting_function"): 2,
-        (Task.RETURNED, "time_wasting_function"): 2,
-        (Task.F_RETURNED, "time_wasting_function"): 2,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 2,
+        scheduler.FUTURE_DONE: 2,
     }

@@ -136,7 +136,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         logger.debug(f"{trial=}")
         return trial
 
-    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # noqa: PLR0912, C901
+    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # noqa: PLR, C901
         """Tell the optimizer the result of the sampled config.
 
         Args:
@@ -155,8 +155,9 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             reported_costs = report.results["cost"]
             if isinstance(reported_costs, (np.number, int)):
                 reported_costs = float(reported_costs)
-
-            if not isinstance(reported_costs, (float, Sequence)):
+            elif isinstance(reported_costs, Sequence):
+                reported_costs = [float(c) for c in reported_costs]
+            else:
                 raise ValueError(
                     f"Cost must be a float or sequence of floats, got {reported_costs}."
                     " Use `trial.success(cost=...)` to set the results of the trial.",

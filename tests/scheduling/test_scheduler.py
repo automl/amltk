@@ -91,24 +91,21 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
     end_status = scheduler.run(timeout=0.1, wait=True)
     assert results == [sleep_time]
 
-    assert task.counts == {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
-        Task.F_RETURNED: 1,
+    assert task.event_counts == {
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.DONE: 1,
+        task.RETURNED: 1,
+        task.F_RETURNED: 1,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "sleep"): 1,
-        (Task.F_SUBMITTED, "sleep"): 1,
-        (Task.DONE, "sleep"): 1,
-        (Task.RETURNED, "sleep"): 1,
-        (Task.F_RETURNED, "sleep"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
-        Scheduler.TIMEOUT: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.TIMEOUT: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }
     assert end_status == Scheduler.ExitCode.TIMEOUT
     assert scheduler.empty()
@@ -140,30 +137,37 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
     # will raise an error for the tasks
     if isinstance(scheduler.executor, ProcessPoolExecutor):
         expected_task_counts = {
-            Task.SUBMITTED: 1,
-            Task.F_SUBMITTED: 1,
-            Task.EXCEPTION: 1,
-            Task.F_EXCEPTION: 1,
-            Task.DONE: 1,
+            task.SUBMITTED: 1,
+            task.F_SUBMITTED: 1,
+            task.EXCEPTION: 1,
+            task.F_EXCEPTION: 1,
+            task.DONE: 1,
         }
     else:
         expected_task_counts = {
-            Task.SUBMITTED: 1,
-            Task.F_SUBMITTED: 1,
-            Task.CANCELLED: 1,
+            task.SUBMITTED: 1,
+            task.F_SUBMITTED: 1,
+            task.CANCELLED: 1,
         }
 
-    assert task.counts == expected_task_counts
+    assert task.event_counts == expected_task_counts
 
     expected_scheduler_counts: dict[Hashable, int] = {
-        **{(k, "sleep"): v for k, v in expected_task_counts.items()},
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
-        Scheduler.TIMEOUT: 1,
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.TIMEOUT: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }
 
-    assert scheduler.counts == expected_scheduler_counts
+    # NOTE: This is because Dask can cancel currently running tasks which is not
+    # something that can be done with Python's default executors.
+    if isinstance(scheduler.executor, ClientExecutor):
+        expected_scheduler_counts[scheduler.FUTURE_CANCELLED] = 1
+        del expected_scheduler_counts[scheduler.FUTURE_DONE]
+
+    assert scheduler.event_counts == expected_scheduler_counts
     assert end_status == Scheduler.ExitCode.TIMEOUT
     assert scheduler.empty()
     assert not scheduler.running()
@@ -184,29 +188,21 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
     end_status = scheduler.run(wait=True)
 
     expected_counts = {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
-        Task.F_RETURNED: 1,
+        task_1.SUBMITTED: 1,
+        task_1.F_SUBMITTED: 1,
+        task_1.DONE: 1,
+        task_1.RETURNED: 1,
+        task_1.F_RETURNED: 1,
     }
-    assert task_1.counts == expected_counts
-    assert task_2.counts == expected_counts
+    assert task_1.event_counts == expected_counts
+    assert task_2.event_counts == expected_counts
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "first"): 1,
-        (Task.F_SUBMITTED, "first"): 1,
-        (Task.DONE, "first"): 1,
-        (Task.RETURNED, "first"): 1,
-        (Task.F_RETURNED, "first"): 1,
-        (Task.SUBMITTED, "second"): 1,
-        (Task.F_SUBMITTED, "second"): 1,
-        (Task.DONE, "second"): 1,
-        (Task.RETURNED, "second"): 1,
-        (Task.F_RETURNED, "second"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 2,
+        scheduler.FUTURE_DONE: 2,
     }
     assert results == [0.1, 0.1]
     assert end_status == Scheduler.ExitCode.EXHAUSTED
@@ -218,36 +214,33 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
     task = Task(sleep_and_return, scheduler, name="sleep")
 
     # Reload on the first empty
-    @scheduler.on_empty(when=lambda: scheduler.counts[Scheduler.EMPTY] == 1)
+    @scheduler.on_empty(when=lambda: scheduler.event_counts[scheduler.EMPTY] == 1)
     def launch_first() -> None:
         task(sleep_time=0.1)
 
     # Stop on the second empty
-    @scheduler.on_empty(when=lambda: scheduler.counts[Scheduler.EMPTY] == 2)
+    @scheduler.on_empty(when=lambda: scheduler.event_counts[scheduler.EMPTY] == 2)
     def stop_scheduler() -> None:
         scheduler.stop()
 
     end_status = scheduler.run(timeout=3, end_on_empty=False)
 
-    assert task.counts == {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
-        Task.F_RETURNED: 1,
+    assert task.event_counts == {
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.DONE: 1,
+        task.RETURNED: 1,
+        task.F_RETURNED: 1,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "sleep"): 1,
-        (Task.F_SUBMITTED, "sleep"): 1,
-        (Task.DONE, "sleep"): 1,
-        (Task.RETURNED, "sleep"): 1,
-        (Task.F_RETURNED, "sleep"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
-        Scheduler.EMPTY: 2,
-        Scheduler.STOP: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.EMPTY: 2,
+        scheduler.STOP: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }
     assert end_status == Scheduler.ExitCode.STOPPED
     assert scheduler.empty()
@@ -262,10 +255,10 @@ def test_repeat_on_start(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run()
 
-    assert scheduler.counts == {
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
     }
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     assert scheduler.empty()
@@ -303,23 +296,20 @@ def test_task_stop_on(scheduler: Scheduler) -> None:
 
     result = scheduler.run(end_on_exception=False)
 
-    assert task.counts == {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.EXCEPTION: 1,
-        Task.F_EXCEPTION: 1,
-        Task.DONE: 1,
+    assert task.event_counts == {
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.EXCEPTION: 1,
+        task.F_EXCEPTION: 1,
+        task.DONE: 1,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "raise_exception"): 1,
-        (Task.F_SUBMITTED, "raise_exception"): 1,
-        (Task.EXCEPTION, "raise_exception"): 1,
-        (Task.F_EXCEPTION, "raise_exception"): 1,
-        (Task.DONE, "raise_exception"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
-        Scheduler.STOP: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.STOP: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }
     assert result == Scheduler.ExitCode.STOPPED

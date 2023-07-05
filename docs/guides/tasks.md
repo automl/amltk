@@ -569,7 +569,7 @@ event. The source of indeterminism is the order in which the events are
 emitted, as discussed later in the [tasks section](#tasks).
 
 We can access all the counts of all events through the
-[`scheduler.counts`][amltk.scheduling.Scheduler.counts] property.
+[`scheduler.event_counts`][amltk.events.Emitter.event_counts] property.
 This is a `dict` which has the events as keys and the amount of times
 it was emitted as the values.
 
@@ -1262,6 +1262,46 @@ for limiting walltime, memory and/or cputime for your task and [comm plugin](../
         print(f"Task already running at max concurrency")
     ```
 
+### Batching Tasks
+You can batch together calling a task with multiple arguments, for cases where
+you'd like to parallelize a task but only wish to be informed once all of them have
+returned. To accomplish this, we can use a [`Task.Batch`][amltk.scheduling.Task.Batch],
+created by calling `task.batch(args=[(...), (...), ...])`.
+
+!!! tip "When you need all the tasks to succeed"
+
+    When a single task within the batch fails, the remaining tasks that are running or
+    queued will remain to be so. Use [`.cancel()`][amltk.Task.Batch.cancel] to make
+    sure the remaining tasks that can be cancelled are cancelled.
+
+```python
+from amltk import Task, Scheduler
+
+def f(x: int, y: int) -> int:
+    return x + y
+
+scheduler = Scheduler.with_processes(2)
+
+task = Task(f, scheduler)
+batch = task.batch([(1, 1), (2, 2), (3, 3)])
+
+@scheduler.on_start
+def start():
+    batch.submit()
+
+@batch.on_batch_returned
+def batch_returned(results: list[int]):
+    print(results)
+
+@batch.on_any_exception
+@batch.on_any_cancelled
+def cancel_the_batch(_):
+    batch.cancel()
+
+scheduler.run()
+```
+
+Check out the documentation to find out much more!
 
 ## Extending `Task`
 The goal of task was to provide a simple interface for submitting functions to the `Scheduler`
@@ -1437,8 +1477,8 @@ print(task.best_count_seed)
 Now with some careful though readers may have noticed we now have to implement something
 along the lines of `on_longest_run()` to be able to subscribe callbacks to the emitted event.
 This is rather a repetitive process when defining new tasks so we provide a convenience function
-for this, namely [`subscriber()`][amltk.scheduling.Task.subscriber]. This allows us to conveniently
-make a [`Subscriber`][amltk.events.Subscriber] which handles all of this for us.
+for this, namely [`subscriber()`][amltk.Emitter.subscriber]. This allows us to conveniently
+make a [`Subscriber`][amltk.Subscriber] which handles all of this for us.
 
 === "No types"
 

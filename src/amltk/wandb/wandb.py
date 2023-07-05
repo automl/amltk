@@ -14,7 +14,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from typing_extensions import ParamSpec, TypeAlias
+from typing_extensions import ParamSpec, Self, TypeAlias
 
 import numpy as np
 import wandb
@@ -216,6 +216,10 @@ class WandbTrialTracker(TaskPlugin[[Trial], Trial.Report]):
         """
         fn = WandbLiveRunWrap(self.params, fn, modify=self.modify)
         return fn, (trial,), {}
+
+    def copy(self) -> Self:
+        """Copy the plugin."""
+        return self.__class__(modify=self.modify, params=replace(self.params))
 
     def _check_explicit_reinit_arg_with_executor(
         self,

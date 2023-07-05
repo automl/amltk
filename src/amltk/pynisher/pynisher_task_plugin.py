@@ -10,7 +10,7 @@ which are [listed here](https://github.com/automl/pynisher#features).
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, TypeVar
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, Self
 
 from amltk.events import Event
 from amltk.scheduling.task_plugin import TaskPlugin
@@ -143,6 +143,17 @@ class PynisherPlugin(TaskPlugin):
 
         # Check the exception and emit pynisher specific ones too
         task.on_exception(self._check_to_emit_pynisher_exception)
+
+    def copy(self) -> Self:
+        """Return a copy of the plugin.
+
+        Please see [`TaskPlugin.copy()`][amltk.TaskPlugin.copy].
+        """
+        return self.__class__(
+            memory_limit=self.memory_limit,
+            cpu_time_limit=self.cpu_time_limit,
+            wall_time_limit=self.wall_time_limit,
+        )
 
     def _check_to_emit_pynisher_exception(self, exception: BaseException) -> None:
         """Check if the exception is a pynisher exception and emit it."""

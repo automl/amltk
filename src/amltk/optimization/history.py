@@ -213,7 +213,7 @@ class History(Mapping[str, Trial.Report]):
         self,
         key: Callable[[Trial.Report], Comparable] | str,
         *,
-        reverse: bool = False,  # noqa: A002
+        reverse: bool = False,
     ) -> Trace:
         """Sorts the history by a key and returns a Trace.
 

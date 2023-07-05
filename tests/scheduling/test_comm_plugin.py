@@ -106,30 +106,25 @@ def test_sending_worker(scheduler: Scheduler) -> None:
     end_status = scheduler.run()
 
     task_counts: dict[Hashable, int] = {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.DONE: 1,
+        task.RETURNED: 1,
         Comm.MESSAGE: len(replies),
-        Task.F_RETURNED: 1,
+        task.F_RETURNED: 1,
         Comm.CLOSE: 1,
     }
-    assert task.counts == task_counts
+    assert task.event_counts == task_counts
 
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     scheduler_counts = {
-        (Task.SUBMITTED, "sending_worker"): 1,
-        (Task.F_SUBMITTED, "sending_worker"): 1,
-        (Task.DONE, "sending_worker"): 1,
-        (Task.RETURNED, "sending_worker"): 1,
-        (Comm.MESSAGE, "sending_worker"): len(replies),
-        (Comm.CLOSE, "sending_worker"): 1,
-        (Task.F_RETURNED, "sending_worker"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }
-    assert scheduler.counts == scheduler_counts
+    assert scheduler.event_counts == scheduler_counts
     assert results == [1, 2, 3]
 
 
@@ -158,27 +153,21 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
 
     assert results == [2, 4, 6]
 
-    assert task.counts == {
-        Task.SUBMITTED: 1,
-        Task.F_SUBMITTED: 1,
-        Task.DONE: 1,
-        Task.RETURNED: 1,
-        Task.F_RETURNED: 1,
+    assert task.event_counts == {
+        task.SUBMITTED: 1,
+        task.F_SUBMITTED: 1,
+        task.DONE: 1,
+        task.RETURNED: 1,
+        task.F_RETURNED: 1,
         Comm.MESSAGE: len(results),
         Comm.REQUEST: len(requests),
         Comm.CLOSE: 1,
     }
 
-    assert scheduler.counts == {
-        (Task.SUBMITTED, "requesting_worker"): 1,
-        (Task.F_SUBMITTED, "requesting_worker"): 1,
-        (Task.DONE, "requesting_worker"): 1,
-        (Task.RETURNED, "requesting_worker"): 1,
-        (Task.F_RETURNED, "requesting_worker"): 1,
-        (Comm.MESSAGE, "requesting_worker"): len(results),
-        (Comm.REQUEST, "requesting_worker"): len(requests),
-        (Comm.CLOSE, "requesting_worker"): 1,
-        Scheduler.STARTED: 1,
-        Scheduler.FINISHING: 1,
-        Scheduler.FINISHED: 1,
+    assert scheduler.event_counts == {
+        scheduler.STARTED: 1,
+        scheduler.FINISHING: 1,
+        scheduler.FINISHED: 1,
+        scheduler.FUTURE_SUBMITTED: 1,
+        scheduler.FUTURE_DONE: 1,
     }

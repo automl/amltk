@@ -322,6 +322,13 @@ class Comm:
             self.comms[worker_comm.id] = (host_comm, worker_comm)
             return fn, args, kwargs
 
+        def copy(self) -> Self:
+            """Return a copy of the plugin.
+
+            Please see [`TaskPlugin.copy()`][amltk.TaskPlugin.copy].
+            """
+            return self.__class__(create_comms=self.create_comms)
+
         def _establish_connection(
             self,
             f: Future,
