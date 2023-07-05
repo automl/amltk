@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Callable, ClassVar, Generic, TypeVar
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, Self
 
 from amltk.scheduling.task_plugin import TaskPlugin
 
@@ -102,3 +102,10 @@ class ThreadPoolCTLPlugin(TaskPlugin[P, R]):
             user_api=self.user_api,
         )
         return fn, args, kwargs
+
+    def copy(self) -> Self:
+        """Return a copy of the plugin.
+
+        Please see [`TaskPlugin.copy()`][amltk.TaskPlugin.copy].
+        """
+        return self.__class__(max_threads=self.max_threads, user_api=self.user_api)

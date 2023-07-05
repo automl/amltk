@@ -20,6 +20,7 @@ from typing import (
     overload,
 )
 from typing_extensions import ParamSpec
+from uuid import uuid4
 
 from amltk.fluid import ChainPredicate
 from amltk.functional import callstring, funcname
@@ -56,13 +57,14 @@ class RegisteredTimeCallOrderStrategy:
 
 
 @dataclass(frozen=True)
-class Event(Hashable, Generic[P]):
-    """An event that can be emitted."""
+class Event(Generic[P]):
+    """An event that can be emitted.
+
+    Attributes:
+        name: The name of the event.
+    """
 
     name: str
-
-    def __hash__(self) -> int:
-        return hash(id(self))
 
 
 @dataclass
@@ -560,3 +562,99 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
             A subscriber for the event.
         """
         return Subscriber(self, event)
+
+
+class Emitter:
+    """An event emitter.
+
+    This is a convenience class that wraps an event manager and provides
+    a way to emit events. The events emitter and subscribed to will be
+    identified by a UUID, such that two objects emitting the same event
+    will have a different set of listeners who will be called. For
+    downstream users, this means they must subscribe to events directly
+    from the object they are using.
+    """
+
+    def __init__(self, event_manager: EventManager | str | None = None) -> None:
+        """Initialise the emitter.
+
+        Args:
+            event_manager: The event manager to use. If a `str` is given
+                then a new event manager will be created with the given
+                name. If the event manager is `None` then a new
+                event manager will be created with a random uuid as the name.
+        """
+        if isinstance(event_manager, str):
+            event_manager = EventManager(name=event_manager)
+        elif event_manager is None:
+            event_manager = EventManager(name=f"Emitter-{uuid4()}")
+
+        self.event_manager = event_manager
+        self.emitted_events: set[Event] = set()
+
+    def emit(self, event: Event[P], *args: P.args, **kwargs: P.kwargs) -> None:
+        """Emit an event.
+
+        Args:
+            event: The event to emit.
+            args: The positional arguments to pass to the event handlers.
+            kwargs: The keyword arguments to pass to the event handlers.
+        """
+        self.event_manager.emit(event, *args, **kwargs)
+
+    def emit_many(
+        self,
+        events: dict[Event, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
+    ) -> None:
+        """Emit many events at once.
+
+        This is useful for cases where you don't want to favour one callback
+        over another, and so uses the time a callback was registered to call
+        the callback instead.
+
+        ```python
+        task.emit_many({
+            "event1": ((1, 2, 3), {"x": 4, "y": 5}), # (1)!
+            "event2": (("hello", "world"), None), # (2)!
+            "event3": (None, None),  # (3)!
+        })
+        ```
+        1. Pass the positional and keyword arguments as a tuple and a dictionary
+        2. Specify None for the keyword arguments if you don't want to pass any.
+        3. Specify None for both if you don't want to pass any arguments to the event
+
+        Args:
+            events: A dictionary of events to emit. The keys are the events
+                to emit, and the values are tuples of the positional and
+                keyword arguments to pass to the event handlers.
+        """
+        self.event_manager.emit_many(
+            dict(events.items()),
+        )
+
+    def subscriber(self, event: Event[P]) -> Subscriber[P]:
+        """Create a subscriber for an event.
+
+        Args:
+            event: The event that will be subscribed to
+
+        Returns:
+            A subscriber for the event.
+        """
+        return self.event_manager.subscriber(event)
+
+    @property
+    def event_counts(self) -> dict[Hashable, int]:
+        """The event counter.
+
+        Useful for predicates, for example
+        ```python
+        from amltk.scheduling import Task
+
+        my_scheduler.on_task_finished(
+            do_something,
+            when=lambda sched: sched.event_counts[Task.FINISHED] > 10
+        )
+        ```
+        """
+        return dict(self.event_manager.counts)

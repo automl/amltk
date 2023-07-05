@@ -51,9 +51,19 @@ def to_numpy(
     *,
     flatten_if_1d: bool = False,
 ) -> np.ndarray:
+    """Convert to numpy array.
+
+    Args:
+        x: The data to convert
+        flatten_if_1d: Whether to flatten the array if it is 1d
+
+    Returns:
+        The converted data
+    """
     _x = x.to_numpy() if isinstance(x, (pd.DataFrame, pd.Series)) else x
 
     if flatten_if_1d and x.ndim == 2 and x.shape[1] == 1:  # noqa: PLR2004
         _x = np.ravel(_x)
 
+    assert isinstance(_x, np.ndarray)
     return _x

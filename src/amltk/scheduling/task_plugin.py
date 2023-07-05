@@ -1,10 +1,10 @@
 """This module contains the TaskPlugin class."""
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, TypeVar
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, Self
 
 from amltk.events import Event
 
@@ -99,6 +99,17 @@ class TaskPlugin(ABC, Generic[P, R]):
             vars(cls).values() for cls in self.__class__.__mro__
         )
         return [attr for attr in inherited_attrs if isinstance(attr, Event)]
+
+    @abstractmethod
+    def copy(self) -> Self:
+        """Return a copy of the plugin.
+
+        This method is used to create a copy of the plugin when a task is
+        copied. This is useful if the plugin stores a reference to the task
+        it is attached to, as the copy will need to store a reference to the
+        copy of the task.
+        """
+        ...
 
 
 class CallLimiter(TaskPlugin[P, R]):
@@ -195,6 +206,13 @@ class CallLimiter(TaskPlugin[P, R]):
             return None
 
         return fn, args, kwargs
+
+    def copy(self) -> Self:
+        """Return a copy of the plugin."""
+        return self.__class__(
+            max_calls=self.max_calls,
+            max_concurrent=self.max_concurrent,
+        )
 
     def _increment_call_count(self, _: Any) -> None:
         self._calls += 1

@@ -15,10 +15,10 @@ from concurrent.futures import (
 )
 from enum import Enum, auto
 from threading import Timer
-from typing import TYPE_CHECKING, Any, Callable, Hashable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from amltk.asyncm import ContextEvent
-from amltk.events import Event, EventManager, Subscriber
+from amltk.events import Emitter, Event
 from amltk.functional import Flag
 from amltk.scheduling.sequential_executor import SequentialExecutor
 from amltk.scheduling.termination_strategies import termination_strategy
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Scheduler:
+class Scheduler(Emitter):
     """A scheduler for submitting tasks to an Executor.
 
     ```python
@@ -63,20 +63,71 @@ class Scheduler:
 
     Attributes:
         executor: The executor to use to run tasks.
-        event_manager: The event manager used to manage events.
         queue: The queue of tasks running
-        on_start: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when the scheduler starts.
-        on_finishing: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when the scheduler is finishing up.
-        on_finish: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when the scheduler finishes.
-        on_stop: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when the scheduler is stopped.
-        on_timeout: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when the scheduler reaches the timeout.
-        on_empty: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when the queue is empty.
+        on_submission: A [`Subscriber`][amltk.events.Subscriber] which is called when
+            a future is submitted.
+            ```python
+            @task.on_submission
+            def _(future: Future[R]):
+                ...
+            ```
+        on_finishing: A [`Subscriber`][amltk.events.Subscriber] which is called when the
+            scheduler is finishing up.
+            ```python
+            @task.on_finishing
+            def _():
+                ...
+            ```
+        on_start: A [`Subscriber`][amltk.events.Subscriber] which is called when the
+            scheduler starts.
+
+            ```python
+            @task.on_start
+            def _():
+                ...
+            ```
+        on_future_done: A [`Subscriber`][amltk.events.Subscriber] which is called when
+            a future is done.
+            ```python
+            @task.on_future_done
+            def _(future: Future[R]):
+                ...
+            ```
+        on_future_cancelled: A [`Subscriber`][amltk.events.Subscriber] which is called
+            when a future is cancelled.
+            ```python
+            @task.on_future_cancelled
+            def _(future: Future[R]):
+                ...
+            ```
+        on_finished: A [`Subscriber`][amltk.events.Subscriber] which is called when
+            the scheduler finishes.
+            ```python
+            @task.on_finished
+            def _():
+                ...
+            ```
+        on_stop: A [`Subscriber`][amltk.events.Subscriber] which is called when the
+            scheduler is stopped.
+            ```python
+            @task.on_stop
+            def _():
+                ...
+            ```
+        on_timeout: A [`Subscriber`][amltk.events.Subscriber] which is called when
+            the scheduler reaches the timeout.
+            ```python
+            @task.on_timeout
+            def _():
+                ...
+            ```
+        on_empty: A [`Subscriber`][amltk.events.Subscriber] which is called when the
+            queue is empty.
+            ```python
+            @task.on_empty
+            def _():
+                ...
+            ```
     """
 
     STARTED: Event[[]] = Event("scheduler-started")
@@ -128,12 +179,20 @@ class Scheduler:
     was used to start the scheduler.
     """
 
+    FUTURE_SUBMITTED: Event[SyncFuture] = Event("scheduler-future-submitted")
+    """The scheduler has had a future submitted to it."""
+
+    FUTURE_DONE: Event[SyncFuture] = Event("scheduler-future-done")
+    """A future submitted by the scheduler is done."""
+
+    FUTURE_CANCELLED: Event[SyncFuture] = Event("scheduler-future-cancelled")
+    """A future submitted by the scheduler was cancelled."""
+
     def __init__(
         self,
         executor: Executor,
         *,
         terminate: Callable[[Executor], None] | bool = True,
-        event_manager: EventManager | None = None,
     ) -> None:
         """Initialize a scheduler.
 
@@ -167,32 +226,32 @@ class Scheduler:
                 function for custom worker termination.
                 If False, shutdown will not be called and the executor will
                 remain active.
-            event_manager: An event manager to use for managing events.
-                If not provided, a new one will be created.
-
         """
+        super().__init__(event_manager="Scheduler")
         self.executor = executor
 
+        # The current state of things and references to them
+        self.queue: list[SyncFuture] = []
+
+        self.on_start = self.subscriber(self.STARTED)
+        self.on_finishing = self.subscriber(self.FINISHING)
+        self.on_submission = self.subscriber(self.FUTURE_SUBMITTED)
+        self.on_future_done = self.subscriber(self.FUTURE_DONE)
+        self.on_future_cancelled = self.subscriber(self.FUTURE_CANCELLED)
+        self.on_finished = self.subscriber(self.FINISHED)
+        self.on_stop = self.subscriber(self.STOP)
+        self.on_timeout = self.subscriber(self.TIMEOUT)
+        self.on_empty = self.subscriber(self.EMPTY)
         self._terminate: Callable[[Executor], None] | None
         if terminate is True:
             self._terminate = termination_strategy(executor)
         else:
             self._terminate = terminate if callable(terminate) else None
 
-        # An event managers which handles task status and calls callbacks
-        if event_manager is None:
-            self.event_manager = EventManager(name="Scheduler-Events")
-        else:
-            self.event_manager = event_manager
-
-        # The current state of things and references to them
-        self.queue: list[SyncFuture] = []
-
         # This can be triggered either by `scheduler.stop` in a callback
         self._stop_event = ContextEvent()
 
-        # This is a condition to make sure monitoring the queue will wait
-        # properly
+        # This is a condition to make sure monitoring the queue will wait properly
         self._queue_has_items_event = asyncio.Event()
 
         # This is triggered when run is called
@@ -207,15 +266,6 @@ class Scheduler:
         # because the sync code of submit could possibly keep calling itself
         # endlessly, preventing any of the async code from running.
         self._timeout_timer: Timer | None = None
-
-        em = self.event_manager
-
-        self.on_start: Subscriber[[]] = em.subscriber(self.STARTED)
-        self.on_finishing: Subscriber[[]] = em.subscriber(self.FINISHING)
-        self.on_finished: Subscriber[[]] = em.subscriber(self.FINISHED)
-        self.on_stop: Subscriber[[]] = em.subscriber(self.STOP)
-        self.on_timeout: Subscriber[[]] = em.subscriber(self.TIMEOUT)
-        self.on_empty: Subscriber[[]] = em.subscriber(self.EMPTY)
 
     @classmethod
     def with_processes(
@@ -537,22 +587,6 @@ class Scheduler:
         """
         return self._running_event.is_set()
 
-    @property
-    def counts(self) -> dict[Hashable, int]:
-        """The event counter.
-
-        Useful for predicates, for example
-        ```python
-        from amltk.scheduling import Task
-
-        my_scheduler.on_task_finished(
-            do_something,
-            when=lambda sched: sched.counts[Task.FINISHED] > 10
-        )
-        ```
-        """
-        return dict(self.event_manager.counts)
-
     def submit(
         self,
         function: Callable[P, R],
@@ -581,10 +615,15 @@ class Scheduler:
             logger.warning(f"Executor is not running, cannot submit task {function}")
             return None
 
-        self.queue.append(sync_future)
-        self._queue_has_items_event.set()
-        sync_future.add_done_callback(self._register_complete)
+        self._register_future(sync_future)
         return sync_future
+
+    def _register_future(self, future: SyncFuture) -> None:
+        self.queue.append(future)
+        self._queue_has_items_event.set()
+
+        self.emit(self.FUTURE_SUBMITTED, future)
+        future.add_done_callback(self._register_complete)
 
     def _register_complete(self, future: SyncFuture) -> None:
         try:
@@ -592,6 +631,12 @@ class Scheduler:
 
         except ValueError as e:
             logger.error(f"{future=} was not found in the queue {self.queue}: {e}!")
+
+        if future.cancelled():
+            self.emit(self.FUTURE_CANCELLED, future)
+            return
+
+        self.emit(self.FUTURE_DONE, future)
 
         exception = future.exception()
         if self._end_on_exception_flag and future.done() and exception:
@@ -617,7 +662,7 @@ class Scheduler:
 
             # Signal that the queue is now empty
             self._queue_has_items_event.clear()
-            self.event_manager.emit(Scheduler.EMPTY)
+            self.emit(Scheduler.EMPTY)
 
             # Wait for an item to be in the queue
             await self._queue_has_items_event.wait()
@@ -653,7 +698,7 @@ class Scheduler:
             self._timeout_timer = Timer(timeout, lambda: None)
             self._timeout_timer.start()
 
-        self.event_manager.emit(Scheduler.STARTED)
+        self.emit(Scheduler.STARTED)
 
         # Our stopping criterion of the scheduler
         stop_criterion: list[asyncio.Task] = []
@@ -698,7 +743,10 @@ class Scheduler:
             else:
                 msg = "Scheduler had `stop()` called on it."
 
-            self.event_manager.emit(Scheduler.STOP)
+            if msg:
+                logger.debug(msg)
+
+            self.emit(Scheduler.STOP)
             if self._end_on_exception_flag and exception:
                 stop_reason = exception
             else:
@@ -710,7 +758,7 @@ class Scheduler:
         elif timeout is not None:
             logger.debug(f"Scheduler stopping as {timeout=} reached.")
             stop_reason = Scheduler.ExitCode.TIMEOUT
-            self.event_manager.emit(Scheduler.TIMEOUT)
+            self.emit(Scheduler.TIMEOUT)
         else:
             logger.warning("Scheduler stopping for unknown reason!")
             stop_reason = Scheduler.ExitCode.UNKNOWN
@@ -734,7 +782,7 @@ class Scheduler:
 
         await asyncio.wait(all_tasks, return_when=asyncio.ALL_COMPLETED)
 
-        self.event_manager.emit(Scheduler.FINISHING)
+        self.emit(Scheduler.FINISHING)
         logging.info("Scheduler is finished")
 
         logger.debug(f"Shutting down scheduler executor with {wait=}")
@@ -763,7 +811,7 @@ class Scheduler:
         wait_futures(current_futures)
         self.executor.shutdown(wait=wait)
 
-        self.event_manager.emit(Scheduler.FINISHED)
+        self.emit(Scheduler.FINISHED)
         logger.info(f"Scheduler finished with status {stop_reason}")
 
         # Clear all events

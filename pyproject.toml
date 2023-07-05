@@ -60,10 +60,7 @@ doc = [
   "cairosvg",
   "amltk[smac, sklearn]",
 ]
-docs-examples = [
-  "openml",
-  "amltk[smac]"
-]
+docs-examples = ["openml", "amltk[smac]"]
 
 sklearn = ["scikit-learn", "threadpoolctl"]
 smac = ["smac>=2.0", "amltk[configspace]"]
@@ -244,7 +241,7 @@ force-wrap-aliases = true
 convention = "google"
 
 [tool.ruff.pylint]
-max-args = 10  # Changed from default of 5
+max-args = 10 # Changed from default of 5
 
 [tool.mypy]
 python_version = "3.8"
@@ -274,7 +271,15 @@ disallow_untyped_decorators = false # Test decorators are not properly typed
 disallow_incomplete_defs = false    # Sometimes we just want to ignore verbose types
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "ConfigSpace.*", "pandas.*", "more_itertools.*", "dask_jobqueue.*", "wandb.*"]
+module = [
+  "sklearn.*",
+  "ConfigSpace.*",
+  "pandas.*",
+  "more_itertools.*",
+  "dask_jobqueue.*",
+  "wandb.*",
+  "threadpoolctl.*",
+]
 ignore_missing_imports = true
 
 [tool.pyright]

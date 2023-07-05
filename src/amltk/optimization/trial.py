@@ -27,7 +27,7 @@ from typing_extensions import Concatenate, ParamSpec
 import numpy as np
 import pandas as pd
 
-from amltk.events import Event, Subscriber, funcname
+from amltk.events import Event
 from amltk.functional import mapping_select, prefix_keys
 from amltk.scheduling.task import Task as TaskBase
 from amltk.store import Bucket, PathBucket
@@ -446,19 +446,25 @@ class Trial(Generic[Info]):
 
             * [`CrashReport`][amltk.optimization.Trial.CrashReport] -
                 Created with [`crashed()`][amltk.optimization.Trial.crashed]
-
-
-        Attributes:
-            trial: The trial that was run.
         """
 
-        exception: BaseException | None
         results: dict[str, Any] | None
+        """The results of the trial, if any."""
+
         time: TimeInterval | None
+        """The time interval of the trial, if any."""
+
+        exception: BaseException | None
+        """The exception that was raised, if any."""
+
         traceback: str | None
+        """The traceback of the exception, if any."""
+
         trial: Trial[InfoInner]
+        """The trial that was run."""
 
         status: str
+        """The status of the trial."""
 
         DF_COLUMN_TYPES: ClassVar[dict] = {
             "name": pd.StringDtype(),
@@ -759,7 +765,37 @@ class Trial(Generic[Info]):
             return self.f(trial, *self.args, **self.kwargs)
 
     class Task(TaskBase):
-        """A Task specifically for Trials."""
+        """A Task specifically for Trials.
+
+        Attributes:
+            on_report: A [`Subscriber`][amltk.Subscriber] called when a trial succeeds,
+                fails or crashes.
+                ```python
+                @trial.on_report
+                def on_report(report: Trial.Report):
+                    print(report)
+                ```
+            on_success: A [`Subscriber`][amltk.Subscriber] called when a trial succeeds
+                ```python
+                @trial.on_success
+                def on_success(report: Trial.SuccessReport):
+                    print(report)
+                ```
+            on_failed: A [`Subscriber`][amltk.Subscriber] called when a trial reported
+                as failed.
+                ```python
+                @trial.on_failed
+                def on_report(report: Trial.FailReport):
+                    print(report)
+                ```
+            on_crashed: A [`Subscriber`][amltk.Subscriber]
+                called when a trial crashes and failed to report
+                ```python
+                @trial.on_crashed
+                def on_crashed(report: Trial.CrashReport):
+                    print(crashed)
+                ```
+        """
 
         SUCCESS: Event[Trial.SuccessReport] = Event("trial-success")
         """The event that is triggered when a trial succeeds."""
@@ -783,6 +819,7 @@ class Trial(Generic[Info]):
             plugins: Iterable[
                 TaskPlugin[[Trial[InfoInner]], Trial.Report[InfoInner]]
             ] = (),
+            init_plugins: bool = True,
         ) -> None:
             """Initialize a task.
 
@@ -794,37 +831,34 @@ class Trial(Generic[Info]):
                 name: The name of the task.
                 stop_on: An event to stop the scheduler on.
                 plugins: Any plugins to attach to the task.
+                init_plugins: Whether to initialize the plugins.
             """
-            # NOTE: It's important these are here to setup up the subscribers
-            # properly
-            self.name = funcname(function) if name is None else name
-            self.scheduler = scheduler
-
-            self.on_report: Subscriber[Trial.Report[InfoInner]]
-            self.on_report = self.subscriber(self.REPORT)
-
-            self.on_failed: Subscriber[Trial.FailReport[InfoInner]]
-            self.on_failed = self.subscriber(self.FAILURE)
-
-            self.on_success: Subscriber[Trial.SuccessReport[InfoInner]]
-            self.on_success = self.subscriber(self.SUCCESS)
-
-            self.on_crashed: Subscriber[Trial.CrashReport[InfoInner]]
-            self.on_crashed = self.subscriber(self.CRASHED)
-
-            self.trial_lookup: dict[Future, Trial] = {}
-
             super().__init__(
                 function,
                 scheduler,
                 name=name,
                 plugins=plugins,
                 stop_on=stop_on,
+                # NOTE: Important as we should do it here ourselves, if we let
+                # the base class do it, it will initialize plugins before we
+                # have created the subscribers for events. However creating these
+                # subscribers relies on functionality in the base class to have ran
+                init_plugins=False,
             )
+            self.on_report = self.subscriber(self.REPORT)
+            self.on_failed = self.subscriber(self.FAILURE)
+            self.on_success = self.subscriber(self.SUCCESS)
+            self.on_crashed = self.subscriber(self.CRASHED)
+
+            self._trial_lookup: dict[Future, Trial] = {}
 
             self.on_f_returned(self._emit_report)
             self.on_f_exception(self._emit_report)
             self.on_f_submitted(self._register_future)
+
+            if init_plugins:
+                for plugin in self.plugins:
+                    plugin.attach_task(self)
 
         def _emit_report(
             self,
@@ -834,7 +868,7 @@ class Trial(Generic[Info]):
             """Emit a report for a trial based on the type of the report."""
             # Emit the fact a report happened
             if isinstance(report, BaseException):
-                trial = self.trial_lookup.get(future)
+                trial = self._trial_lookup.get(future)
                 if trial is None:
                     logger.error(f"No trial found for future {future}!")
                     return
@@ -866,4 +900,4 @@ class Trial(Generic[Info]):
             *args: Any,  # noqa: ARG002
             **kwargs: Any,  # noqa: ARG002
         ) -> None:
-            self.trial_lookup[future] = trial
+            self._trial_lookup[future] = trial

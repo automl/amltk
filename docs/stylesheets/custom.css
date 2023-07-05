@@ -1,7 +1,62 @@
-/* render large width annotations */
-:root {
-    --md-tooltip-width: 500px
+[data-md-color-scheme="default"] {
+  --doc-label-instance-attribute-fg-color: #0079ff;
+  --doc-label-property-fg-color: #00dfa2;
+  --doc-label-class-attribute-fg-color: #d1b619;
+  --doc-label-dataclass-fg-color: #ff0060;
+
+  --doc-label-instance-attribute-bg-color: #0079ff1a;
+  --doc-label-property-bg-color: #00dfa21a;
+  --doc-label-class-attribute-bg-color: #d1b6191a;
+  --doc-label-dataclass-bg-color: #ff00601a;
 }
+
+[data-md-color-scheme="slate"] {
+  --doc-label-instance-attribute-fg-color: #963fb8;
+  --doc-label-property-fg-color: #6d67e4;
+  --doc-label-class-attribute-fg-color: #46c2cb;
+  --doc-label-dataclass-fg-color: #f2f7a1;
+
+  --doc-label-instance-attribute-bg-color: #963fb81a;
+  --doc-label-property-bg-color: #6d67e41a;
+  --doc-label-class-attribute-bg-color: #46c2cb1a;
+  --doc-label-dataclass-bg-color: #f2f7a11a;
+}
+:root {
+    --md-tooltip-width: 500px;
+}
+
+.doc.doc-label.doc-label-instance-attribute code {
+  background-color: var(--doc-label-instance-attribute-bg-color);
+  color: var(--doc-label-instance-attribute-fg-color);
+}
+.doc.doc-label.doc-label-class-attribute code {
+  background-color: var(--doc-label-class-attribute-bg-color);
+  color: var(--doc-label-class-attribute-fg-color);
+}
+.doc.doc-label.doc-label-classmethod code {
+  background-color: var(--doc-label-class-attribute-bg-color);
+  color: var(--doc-label-classattribute-fg-color);
+}
+.doc.doc-label.doc-label-property code {
+  background-color: var(--doc-label-property-bg-color);
+  color: var(--doc-label-property-fg-color);
+}
+.doc.doc-label.doc-label-dataclass code {
+  background-color: var(--doc-label-dataclass-bg-color);
+  color: var(--doc-label-dataclass-fg-color);
+}
+.doc.doc-label code {
+  font-weight: bold;
+}
+.doc.doc-labels {
+  margin-left: 10px;
+  border-radius: 10px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
 
 body[data-md-color-primary="black"] .excalidraw  svg  {
   filter: invert(100%) hue-rotate(180deg);
@@ -54,44 +109,3 @@ h3 .doc-heading code {
     monospace;
 }
 
-.doc.doc-label code {
-  border-radius: 10px;
-  padding-top: 1px;
-  padding-bottom: 1px;
-  padding-right: 10px;
-  padding-left: 10px;
-  font-size: 100%;
-  background-color: var(--md-accent-fg-color);
-  color: var(--md-default-fg-color)
-}
-
-.doc.doc-labels {
-  margin-left: 10px;
-}
-
-/* Indentation. */
-div.doc-contents:not(.first) {
-  padding-left: 25px;
-  /* border-left: .05rem solid var(--md-typeset-table-color); */
-}
-
-/* Mark external links as such. */
-a.autorefs-external::after {
-  /* https://primer.style/octicons/arrow-up-right-24 */
-  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="rgb(0, 0, 0)" d="M18.25 15.5a.75.75 0 00.75-.75v-9a.75.75 0 00-.75-.75h-9a.75.75 0 000 1.5h7.19L6.22 16.72a.75.75 0 101.06 1.06L17.5 7.56v7.19c0 .414.336.75.75.75z"></path></svg>');
-  content: ' ';
-
-  display: inline-block;
-  position: relative;
-  top: 0.1em;
-  margin-left: 0.2em;
-  margin-right: 0.1em;
-
-  height: 1em;
-  width: 1em;
-  border-radius: 100%;
-  background-color: var(--md-typeset-a-color);
-}
-a.autorefs-external:hover::after {
-  background-color: var(--md-accent-fg-color);
-}

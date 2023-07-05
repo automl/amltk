@@ -10,7 +10,7 @@ P = ParamSpec("P")
 
 
 class SequentialExecutor(Executor):
-    """An concurrent.futures.Executor interface that forces sequential execution."""
+    """A [Executor][concurrent.futures.Executor] interface for sequential execution."""
 
     def submit(
         self,
