@@ -67,6 +67,12 @@ pr-chore name:
   git checkout -b chore-{{name}} main
   git push --set-upstream origin chore-{{name}}
 
+# Create a `refactor` PR with <name>
+pr-refactor name:
+  git pull origin main
+  git checkout -b refactor-{{name}} main
+  git push --set-upstream origin refactor-{{name}}
+
 # Create an `other` PR with <name>
 pr-other name:
   git pull origin main
