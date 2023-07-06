@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from enum import Enum, auto
-from typing import Any, ClassVar, Literal, Mapping, TypeVar
+from typing import Any, ClassVar, Iterator, Literal, Mapping, TypeVar
 from typing_extensions import assert_never
 
 import numpy as np
@@ -97,6 +98,26 @@ class Timer:
 
     start_time: float
     kind: TimeKind
+
+    @contextmanager
+    @classmethod
+    def time(
+        cls,
+        kind: TimeKind | Literal["cpu", "wall", "process"] = TimeKind.WALL,
+    ) -> Iterator[TimeInterval]:
+        """Time a block of code.
+
+        Args:
+            kind: The type of timer to use.
+
+        Yields:
+            The timer.
+        """
+        timer = cls.start(kind=kind)
+        interval = timer.stop()
+        yield interval
+        _interval = timer.stop()
+        interval.end = _interval.end
 
     @classmethod
     def start(
