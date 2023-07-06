@@ -1205,47 +1205,6 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
             ...
         ```
 
-#### Stop on Event
-While debugging and setting up, it may be useful to automatically stop on certain events.
-This is straightforward enough to do using [`scheduler.stop()`][amltk.Scheduler.stop] but
-this use case is prominent enough to warrant it's own utility. This will stop
-the entire scheduler when these events occur, not just the current task.
-
-=== "`stop_on=`"
-
-    ```python hl_lines="6"
-    from amltk import Scheduler, Task
-
-    def func() -> None:
-        raise NotImplementedError
-
-    task = Task(func, scheduler, stop_on=[Task.EXCEPTION, Task.CANCELLED])
-
-    exitcode = scheduler.run(func)
-
-    assert exitcode == Scheduler.STOPPED
-    ```
-
-=== "equivalently"
-
-    ```python hl_lines="8,9,10,11"
-    from amltk import Scheduler, Task
-
-    def func() -> None:
-        raise NotImplementedError
-
-    task = Task(func, scheduler)
-
-    @task.on_exception
-    @task.on_cancelled
-    def stop_scheduler(_: *args) -> None:
-        scheduler.stop()
-
-    exitcode = scheduler.run(func)
-
-    assert exitcode == Scheduler.STOPPED
-    ```
-
 ### Task Plugins
 Tasks can be augmented with new capabilities by passing in [`TaskPlugins`][amltk.TaskPlugin]
 to `Task(..., plugins=...)`.

@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from typing_extensions import ParamSpec
 
-from amltk.optimization.optimizer import Optimizer, Trial
+from amltk.optimization.optimizer import Optimizer
+from amltk.optimization.trial import Trial
 from amltk.pipeline.sampler import Sampler
 from amltk.randomness import as_rng
 from amltk.types import Space

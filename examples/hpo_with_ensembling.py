@@ -380,12 +380,7 @@ bucket.store(  # (2)!
 scheduler = Scheduler.with_sequential()  # (3)!
 optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)  # (4)!
 
-objective = Trial.Objective(  # (5)!
-    target_function,
-    bucket=bucket,
-    pipeline=pipeline,
-)
-task = Trial.Task(objective, scheduler)  # (6)!
+task = Trial.task(target_function, scheduler)  # (6)!
 
 ensemble_task = Task(create_ensemble, scheduler)  # (7)!
 
@@ -397,7 +392,7 @@ ensembles: list[Ensemble] = []
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
-    task(trial)
+    task.submit(trial, bucket=bucket, pipeline=pipeline)
 
 
 @task.on_report
@@ -422,7 +417,7 @@ def launch_ensemble_task(_: Trial.SuccessReport) -> None:
 def launch_another_task(_: Trial.Report) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
-    task(trial)
+    task(trial, bucket=bucket, pipeline=pipeline)
 
 
 @ensemble_task.on_returned
@@ -464,18 +459,11 @@ print(best_ensemble)
 # 4. We use [`SMACOptimizer.create()`][amltk.smac.SMACOptimizer.create] to create a
 #  [`SMACOptimizer`][amltk.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
-# 5. We use [`Trial.Objective()`][amltk.optimization.Trial.Objective] to wrap our
-# `target_function` in a [`Trial.Task`][amltk.optimization.Trial.Task].
-#
-#     !!! note "`Trial.Objective`"
-#
-#         While a [partial][functools.partial] also works, using
-#         [`Trial.Objective`][amltk.optimization.Trial.Objective] let's us
-#         maintain some type safety with mypy.
-#
-# 6. We use [`Trial.Task()`][amltk.optimization.Trial.Task] to on our objective
-#   to create a [`Task`][amltk.scheduling.Task] that will run our objective.
-# 7. We use [`Task()`][amltk.scheduling.Task] to create a [`Task`][amltk.scheduling.Task]
+# 6. We use [`Trial.task()`][amltk.optimization.Trial.task] to create a
+#   [`Task`][amltk.scheduling.Task] that will run our objective, passing
+#   in the function to run and the scheduler for where to run it
+# 7. We use [`Task()`][amltk.scheduling.Task] to create a
+#   [`Task`][amltk.scheduling.Task]
 #   for the `create_ensemble` method above. This will also run in parallel with the hpo
 #   trials if using a non-sequential scheduling mode.
 # 8. We use `Scheduler.on_start()` hook to register a
