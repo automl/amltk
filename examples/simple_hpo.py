@@ -253,18 +253,11 @@ optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)
 
 
 """
-Here we create an [`Objective`][amltk.optimization.Trial.Objective] which is nothing but
-a [partial][functools.partial] with some type safety added on. You could also
-just use a [partial][functools.partial] here if you prefer.
-
 Next we create a [`Trial.Task`][amltk.optimization.Trial.Task] which is a special kind
-of [`Task`][amltk.scheduling.Task] that is used for optimization. We pass it
-in the function we want to run (`objective`) and the scheduler we will run it
-in.
+of [`Task`][amltk.scheduling.Task] with events that are useful for optimization loops.
+We pass it in the function we want to run and the scheduler we will run it in.
 """
-objective = Trial.Objective(target_function, bucket=bucket, _pipeline=pipeline)
-
-task = Trial.Task(objective, scheduler)
+task = Trial.task(target_function, scheduler)
 
 print(task)
 """
@@ -283,7 +276,7 @@ launches the task we created earlier with this trial.
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
-    task(trial)
+    task(trial, bucket=bucket, _pipeline=pipeline)
 
 
 """
@@ -334,7 +327,7 @@ launch a new task as soon as one finishes.
 def launch_another_task() -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
-    task(trial)
+    task(trial, bucket=bucket, _pipeline=pipeline)
 
 
 """

@@ -169,7 +169,6 @@ class Task(Generic[P, R], Emitter):
         scheduler: Scheduler,
         *,
         name: str | None = None,
-        stop_on: Event | Iterable[Event] | None = None,
         plugins: Iterable[TaskPlugin[P, R]] = (),
         init_plugins: bool = True,
     ) -> None:
@@ -179,7 +178,6 @@ class Task(Generic[P, R], Emitter):
             function: The function of this task
             scheduler: The scheduler that this task is registered with.
             name: The name of the task.
-            stop_on: An event to stop the scheduler on.
             plugins: The plugins to use for this task.
             init_plugins: Whether to initialize the plugins or not.
         """
@@ -207,21 +205,6 @@ class Task(Generic[P, R], Emitter):
 
         # Used to keep track of any events emitted out of this task
         self._emitted_events: set[Event] = set()
-
-        if stop_on is not None:
-            stop_on = {stop_on} if isinstance(stop_on, Event) else set(stop_on)
-            for _event in stop_on:
-                subscriber: Subscriber = self.subscriber(_event)
-                callback = lambda *args, _event=_event, **kwargs: self.scheduler.stop(
-                    *args,
-                    stop_msg=(
-                        f"Task {self.unique_ref} emitted {_event} and was told to stop",
-                    ),
-                    **kwargs,
-                )
-                subscriber(callback)
-
-        self._stop_on = stop_on
 
         if init_plugins:
             for plugin in self.plugins:
@@ -307,7 +290,6 @@ class Task(Generic[P, R], Emitter):
             self.function,
             self.scheduler,
             name=self.name,
-            stop_on=self._stop_on,
             plugins=tuple(p.copy() for p in self.plugins),
             init_plugins=init_plugins,
         )

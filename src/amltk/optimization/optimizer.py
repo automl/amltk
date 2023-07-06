@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Generic
+from typing import TYPE_CHECKING, Generic, TypeVar
 
-from amltk.optimization.trial import Info, Trial
+if TYPE_CHECKING:
+    from amltk.optimization.trial import Trial
+
+I = TypeVar("I")  # noqa: E741
 
 
-class Optimizer(Generic[Info]):
+class Optimizer(Generic[I]):
     """An optimizer protocol.
 
     An optimizer is an object that can be asked for a trail using `ask` and a
@@ -15,7 +18,7 @@ class Optimizer(Generic[Info]):
     """
 
     @abstractmethod
-    def tell(self, report: Trial.Report[Info]) -> None:
+    def tell(self, report: Trial.Report[I]) -> None:
         """Tell the optimizer the report for an asked trial.
 
         Args:
@@ -23,7 +26,7 @@ class Optimizer(Generic[Info]):
         """
 
     @abstractmethod
-    def ask(self) -> Trial[Info]:
+    def ask(self) -> Trial[I]:
         """Ask the optimizer for a trial to evaluate.
 
         Returns:

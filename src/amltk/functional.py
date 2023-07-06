@@ -124,7 +124,7 @@ def rgetattr(obj: Any, attr: str, *args: Any) -> Any:
     return reduce(_getattr, [obj, *attr.split(".")])
 
 
-def funcname(func: Callable, default: str | None = None) -> str:
+def funcname(func: Callable, default: str | None = None) -> str:  # noqa: PLR0911
     """Get the name of a function.
 
     Args:
@@ -135,11 +135,13 @@ def funcname(func: Callable, default: str | None = None) -> str:
     Returns:
         The name of the function.
     """
-    from amltk.optimization import Trial
+    from amltk.optimization.trial import Trial
+    from amltk.scheduling.task import Task
 
-    if isinstance(func, Trial.Objective):
-        return funcname(func.f)
-
+    if isinstance(func, Trial.Task):
+        return funcname(func.task)
+    if isinstance(func, Task):
+        return funcname(func.function)
     if isinstance(func, partial):
         return func.func.__name__
     if hasattr(func, "__qualname__"):

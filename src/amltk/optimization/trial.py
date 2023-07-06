@@ -28,31 +28,42 @@ from typing_extensions import Concatenate, ParamSpec
 import numpy as np
 import pandas as pd
 
-from amltk.events import Event, Subscriber
+from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import mapping_select, prefix_keys
-from amltk.scheduling.task import Task as TaskBase
+from amltk.scheduling.task import (
+    Task as TaskBase,
+)
 from amltk.store import Bucket, PathBucket
 from amltk.timing import TimeInterval, TimeKind, Timer
 
 if TYPE_CHECKING:
     from concurrent.futures import Future
 
-    from amltk.scheduling.scheduler import Scheduler
-    from amltk.scheduling.task_plugin import TaskPlugin
+    from amltk.scheduling.task import (
+        Scheduler,
+        TaskPlugin,
+    )
 
 
-Info = TypeVar("Info")
-InfoInner = TypeVar("InfoInner")
+# Inner trial info object
+I = TypeVar("I")  # noqa: E741
+I2 = TypeVar("I2")
 
+# Parameters to task
 P = ParamSpec("P")
-T = TypeVar("T")
+P2 = ParamSpec("P2")
+
+# Return type of task
 R = TypeVar("R")
+
+# Random TypeVar
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class Trial(Generic[Info]):
+class Trial(Generic[I]):
     """A trial as suggested by an optimizer.
 
     You can modify the Trial as you see fit, specifically
@@ -75,7 +86,7 @@ class Trial(Generic[Info]):
     config: Mapping[str, Any]
     """The config of the trial provided by the optimizer."""
 
-    info: Info = field(repr=False)
+    info: I = field(repr=False)
     """The info of the trial provided by the optimizer."""
 
     seed: int | None = None
@@ -156,7 +167,7 @@ class Trial(Generic[Info]):
             if self.time is None:
                 self.time = self.timer.stop()
 
-    def success(self, **results: Any) -> Trial.SuccessReport[Info]:
+    def success(self, **results: Any) -> Trial.SuccessReport[I]:
         """Generate a success report.
 
         ```python exec="true" source="material-block" result="python" title="success" hl_lines="7"
@@ -190,7 +201,7 @@ class Trial(Generic[Info]):
             traceback=None,
         )
 
-    def fail(self, **results: Any) -> Trial.FailReport[Info]:
+    def fail(self, **results: Any) -> Trial.FailReport[I]:
         """Generate a failure report.
 
         ```python exec="true" source="material-block" result="python" title="fail" hl_lines="6 9 10"
@@ -234,7 +245,7 @@ class Trial(Generic[Info]):
         self,
         exception: BaseException | None = None,
         traceback: str | None = None,
-    ) -> Trial.CrashReport[Info]:
+    ) -> Trial.CrashReport[I]:
         """Generate a crash report.
 
         !!! note
@@ -447,8 +458,39 @@ class Trial(Generic[Info]):
         """
         self.plugins[name] = plugin_item
 
+    @classmethod
+    def task(
+        cls,
+        function: Callable[Concatenate[Trial[T], P], Trial.Report[T]],
+        scheduler: Scheduler,
+        *,
+        name: str | None = None,
+        plugins: Iterable[TaskPlugin[Concatenate[Trial[T], P], Trial.Report[T]]] = (),
+        init_plugins: bool = True,
+    ) -> Trial.Task[T, P]:
+        """Initialize a task.
+
+        Uses the same arguments as [`Task`][amltk.Task].
+
+        Args:
+            function: The function of this task
+            scheduler: The scheduler that this task is registered with.
+            name: The name of the task.
+            plugins: The plugins to use for this task.
+            init_plugins: Whether to initialize the plugins or not.
+        """
+        task: TaskBase[Concatenate[Trial[T], P], Trial.Report[T]]
+        task = TaskBase(
+            function=function,
+            scheduler=scheduler,
+            name=name,
+            plugins=plugins,  # type: ignore
+            init_plugins=init_plugins,
+        )
+        return Trial.Task[T, P](task)
+
     @dataclass
-    class Report(Generic[InfoInner]):
+    class Report(Generic[I2]):
         """A report for a trial.
 
         !!! note "Specific Instansiations"
@@ -475,7 +517,7 @@ class Trial(Generic[Info]):
         traceback: str | None
         """The traceback of the exception, if any."""
 
-        trial: Trial[InfoInner]
+        trial: Trial[I2]
         """The trial that was run."""
 
         status: str
@@ -517,7 +559,7 @@ class Trial(Generic[Info]):
             return self.trial.storage
 
         @property
-        def info(self) -> InfoInner | None:
+        def info(self) -> I2 | None:
             """The info of the trial, specific to the optimizer that issued it."""
             return self.trial.info
 
@@ -720,69 +762,45 @@ class Trial(Generic[Info]):
             )
 
     @dataclass
-    class CrashReport(Report[InfoInner]):
+    class CrashReport(Report[I2]):
         """A report for a crashed trial."""
 
         exception: BaseException
         results: None
         time: TimeInterval
         traceback: str | None
-        trial: Trial[InfoInner]
+        trial: Trial[I2]
 
         status: str = "crashed"
 
     @dataclass
-    class SuccessReport(Report[InfoInner]):
+    class SuccessReport(Report[I2]):
         """A report for a successful trial."""
 
         exception: None
         results: dict[str, Any]
         time: TimeInterval
         traceback: None
-        trial: Trial[InfoInner]
+        trial: Trial[I2]
 
         status: str = "success"
 
     @dataclass
-    class FailReport(Report[InfoInner]):
+    class FailReport(Report[I2]):
         """A report for a failed trial."""
 
         exception: BaseException | None
         results: dict[str, Any]
         time: TimeInterval
         traceback: str | None
-        trial: Trial[InfoInner]
+        trial: Trial[I2]
 
         status: str = "fail"
 
-    class Objective(Generic[P, InfoInner]):
-        """Attach static information to a function to be optimized."""
-
-        def __init__(
-            self,
-            f: Callable[Concatenate[Trial[InfoInner], P], Trial.Report[InfoInner]],
-            *args: P.args,
-            **kwargs: P.kwargs,
-        ):
-            """Initialize the objective.
-
-            Args:
-                f: The function to optimize.
-                args: The positional arguments to pass to `f` after trial.
-                kwargs: The keyword arguments to pass to `f`.
-            """
-            self.f = f
-            self.args = args
-            self.kwargs = kwargs
-
-        def __call__(self, trial: Trial[InfoInner]) -> Trial.Report[InfoInner]:
-            """Call the objective."""
-            return self.f(trial, *self.args, **self.kwargs)
-
-    class Task(TaskBase, Generic[InfoInner]):
+    class Task(Generic[I2, P2], Emitter):
         """A Task specifically for Trials."""
 
-        on_report: Subscriber[Trial.Report[InfoInner]]
+        on_report: Subscriber[Trial.Report[I2]]
         """
         A [`Subscriber`][amltk.Subscriber] called on a trial succeeds, fails or crashes.
         ```python
@@ -792,7 +810,7 @@ class Trial(Generic[Info]):
         ```
         """
 
-        on_failed: Subscriber[Trial.FailReport[InfoInner]]
+        on_failed: Subscriber[Trial.FailReport[I2]]
         """
         A [`Subscriber`][amltk.Subscriber] called when a trial reported as failed.
         ```python
@@ -802,7 +820,7 @@ class Trial(Generic[Info]):
         ```
         """
 
-        on_success: Subscriber[Trial.SuccessReport[InfoInner]]
+        on_success: Subscriber[Trial.SuccessReport[I2]]
         """
         A [`Subscriber`][amltk.Subscriber] called when a trial succeeds.
         ```python
@@ -812,7 +830,7 @@ class Trial(Generic[Info]):
         ```
         """
 
-        on_crashed: Subscriber[Trial.CrashReport[InfoInner]]
+        on_crashed: Subscriber[Trial.CrashReport[I2]]
         """
         A [`Subscriber`][amltk.Subscriber] called when a trial crashes and failed to
         report.
@@ -822,7 +840,7 @@ class Trial(Generic[Info]):
             print(report)
         ```
         """
-        on_cancelled: Subscriber[Trial.CrashReport[InfoInner]]
+        on_cancelled: Subscriber[Trial.CrashReport[I2]]
         """
         A [`Subscriber`][amltk.Subscriber] called when a trial was cancelled. This
         will still return a [`CrashReport`][amltk.optimization.Trial.CrashReport],
@@ -834,65 +852,75 @@ class Trial(Generic[Info]):
         ```
         """
 
-        SUCCESS: Event[Trial.SuccessReport] = Event("trial-success")
-        FAILURE: Event[Trial.FailReport] = Event("trial-failure")
-        CRASHED: Event[Trial.CrashReport] = Event("trial-crashed")
-        REPORT: Event[Trial.Report] = Event("trial-report")
-        CANCELLED: Event[Trial] = Event("trial-cancelled")
+        SUCCESS: Event[Trial.SuccessReport[I2]] = Event("trial-success")
+        FAILURE: Event[Trial.FailReport[I2]] = Event("trial-failure")
+        CRASHED: Event[Trial.CrashReport[I2]] = Event("trial-crashed")
+        REPORT: Event[Trial.Report[I2]] = Event("trial-report")
+        CANCELLED: Event[Trial[I2]] = Event("trial-cancelled")
 
         def __init__(
             self,
-            function: Callable[[Trial[InfoInner]], Trial.Report[InfoInner]],
-            scheduler: Scheduler,
-            *,
-            name: str | None = None,
-            stop_on: Event | Iterable[Event] | None = None,
-            plugins: Iterable[
-                TaskPlugin[[Trial[InfoInner]], Trial.Report[InfoInner]]
-            ] = (),
-            init_plugins: bool = True,
+            task: TaskBase[Concatenate[Trial[I2], P2], Trial.Report[I2]],
         ) -> None:
             """Initialize a task.
 
             See [`Task`][amltk.scheduling.task.Task] for more details.
 
             Args:
-                function: The function to run.
-                scheduler: The scheduler to use.
-                name: The name of the task.
-                stop_on: An event to stop the scheduler on.
-                plugins: Any plugins to attach to the task.
-                init_plugins: Whether to initialize the plugins.
+                task: The task to wrap.
             """
-            super().__init__(
-                function,
-                scheduler,
-                name=name,
-                plugins=plugins,
-                stop_on=stop_on,
-                # NOTE: Important as we should do it here ourselves, if we let
-                # the base class do it, it will initialize plugins before we
-                # have created the subscribers for events. However creating these
-                # subscribers relies on functionality in the base class to have ran
-                init_plugins=False,
-            )
+            super().__init__(event_manager=task.event_manager)
             self.on_report = self.subscriber(self.REPORT)
             self.on_failed = self.subscriber(self.FAILURE)
             self.on_success = self.subscriber(self.SUCCESS)
             self.on_crashed = self.subscriber(self.CRASHED)
-            self.on_f_cancelled = self.subscriber(self.F_CANCELLED)
 
+            self.task = task
             self._trial_lookup: dict[Future, Trial] = {}
 
-            self.on_f_submitted(self._register_future)
+            self.task.on_f_returned(self._emit_report)
+            self.task.on_f_exception(self._emit_report)
+            self.task.on_f_cancelled(self._emit_report)
 
-            self.on_f_returned(self._emit_report)
-            self.on_f_exception(self._emit_report)
-            self.on_f_cancelled(self._emit_report)
+        def __call__(
+            self,
+            trial: Trial[I2],
+            *args: P2.args,
+            **kwargs: P2.kwargs,
+        ) -> Future | None:
+            """Submit a trial to the task.
 
-            if init_plugins:
-                for plugin in self.plugins:
-                    plugin.attach_task(self)
+            Args:
+                trial: The trial to submit.
+                args: The positional arguments to pass to the task.
+                kwargs: The keyword arguments to pass to the task.
+
+            Returns:
+                The future for the trial.
+            """
+            future = self.task(trial, *args, **kwargs)
+            if future is not None:
+                self._trial_lookup[future] = trial
+
+            return future
+
+        def submit(
+            self,
+            trial: Trial[I2],
+            *args: P2.args,
+            **kwargs: P2.kwargs,
+        ) -> Future | None:
+            """Submit a trial to the task.
+
+            Args:
+                trial: The trial to submit.
+                args: The positional arguments to pass to the task.
+                kwargs: The keyword arguments to pass to the task.
+
+            Returns:
+                The future for the trial.
+            """
+            return self.__call__(trial, *args, **kwargs)
 
         def _emit_report(
             self,
@@ -937,12 +965,3 @@ class Trial(Generic[Info]):
 
             emit_items[event] = ((report,), None)
             self.emit_many(emit_items)  # type: ignore
-
-        def _register_future(
-            self,
-            future: Future[Any],
-            trial: Trial,
-            *args: Any,  # noqa: ARG002
-            **kwargs: Any,  # noqa: ARG002
-        ) -> None:
-            self._trial_lookup[future] = trial
