@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import traceback
+from concurrent.futures import CancelledError
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,7 +28,7 @@ from typing_extensions import Concatenate, ParamSpec
 import numpy as np
 import pandas as pd
 
-from amltk.events import Event
+from amltk.events import Event, Subscriber
 from amltk.functional import mapping_select, prefix_keys
 from amltk.scheduling.task import Task as TaskBase
 from amltk.store import Bucket, PathBucket
@@ -66,37 +67,51 @@ class Trial(Generic[Info]):
         config: The config for the trial.
         info: The info of the trial.
         seed: The seed to use if suggested by the optimizer.
-
-    Attributes:
-        summary: The summary of the trial. These are for
-            summary statistics of a trial and are single values.
-        stored: Anything stored in the trial, the elements
-            of the list are keys that can be used to retrieve them
-            later, such as a Path.
-        time: The time taken by the trial, once ended.
-        timer: The timer used to time the trial, once begun.
-        exception: The exception raised by the trial, if any.
-        traceback: The traceback of the exception, if any.
-        plugins: Any plugins attached to the trial.
     """
 
     name: str
+    """The unique name of the trial."""
+
     config: Mapping[str, Any]
+    """The config of the trial provided by the optimizer."""
+
     info: Info = field(repr=False)
+    """The info of the trial provided by the optimizer."""
+
     seed: int | None = None
+    """The seed to use if suggested by the optimizer."""
+
     fidelities: dict[str, Any] | None = None
+    """The fidelities at which to evaluate the trial, if any."""
 
     time: TimeInterval | None = field(repr=False, default=None)
+    """The time taken by the trial, once ended."""
+
     timer: Timer | None = field(repr=False, default=None)
+    """The timer used to time the trial, once begun."""
 
     summary: dict[str, Any] = field(default_factory=dict)
+    """The summary of the trial. These are for summary statistics of a trial and
+    are single values."""
+
     results: dict[str, Any] = field(default_factory=dict)
+    """The results of the trial. These are what will be reported to the optimizer.
+    These are mainly set by the [`success()`][amltk.optimization.trial.Trial.success]
+    and [`fail()`][amltk.optimization.trial.Trial.fail] methods."""
 
     exception: Exception | None = field(repr=True, default=None)
+    """The exception raised by the trial, if any."""
+
     traceback: str | None = field(repr=False, default=None)
+    """The traceback of the exception, if any."""
 
     storage: set[Any] = field(default_factory=set)
+    """Anything stored in the trial, the elements of the list are keys that can be
+    used to retrieve them later, such as a Path.
+    """
+
     plugins: dict[str, Any] = field(default_factory=dict)
+    """Any plugins attached to the trial."""
 
     @contextmanager
     def begin(
@@ -764,50 +779,66 @@ class Trial(Generic[Info]):
             """Call the objective."""
             return self.f(trial, *self.args, **self.kwargs)
 
-    class Task(TaskBase):
-        """A Task specifically for Trials.
+    class Task(TaskBase, Generic[InfoInner]):
+        """A Task specifically for Trials."""
 
-        Attributes:
-            on_report: A [`Subscriber`][amltk.Subscriber] called when a trial succeeds,
-                fails or crashes.
-                ```python
-                @trial.on_report
-                def on_report(report: Trial.Report):
-                    print(report)
-                ```
-            on_success: A [`Subscriber`][amltk.Subscriber] called when a trial succeeds
-                ```python
-                @trial.on_success
-                def on_success(report: Trial.SuccessReport):
-                    print(report)
-                ```
-            on_failed: A [`Subscriber`][amltk.Subscriber] called when a trial reported
-                as failed.
-                ```python
-                @trial.on_failed
-                def on_report(report: Trial.FailReport):
-                    print(report)
-                ```
-            on_crashed: A [`Subscriber`][amltk.Subscriber]
-                called when a trial crashes and failed to report
-                ```python
-                @trial.on_crashed
-                def on_crashed(report: Trial.CrashReport):
-                    print(crashed)
-                ```
+        on_report: Subscriber[Trial.Report[InfoInner]]
+        """
+        A [`Subscriber`][amltk.Subscriber] called on a trial succeeds, fails or crashes.
+        ```python
+        @trial.on_report
+        def on_report(report: Trial.Report):
+            print(report)
+        ```
+        """
+
+        on_failed: Subscriber[Trial.FailReport[InfoInner]]
+        """
+        A [`Subscriber`][amltk.Subscriber] called when a trial reported as failed.
+        ```python
+        @trial.on_failed
+        def on_report(report: Trial.FailReport):
+            print(report)
+        ```
+        """
+
+        on_success: Subscriber[Trial.SuccessReport[InfoInner]]
+        """
+        A [`Subscriber`][amltk.Subscriber] called when a trial succeeds.
+        ```python
+        @trial.on_success
+        def on_success(report: Trial.SuccessReport):
+            print(report)
+        ```
+        """
+
+        on_crashed: Subscriber[Trial.CrashReport[InfoInner]]
+        """
+        A [`Subscriber`][amltk.Subscriber] called when a trial crashes and failed to
+        report.
+        ```python
+        @trial.on_crashed
+        def on_crashed(report: Trial.CrashReport):
+            print(report)
+        ```
+        """
+        on_cancelled: Subscriber[Trial.CrashReport[InfoInner]]
+        """
+        A [`Subscriber`][amltk.Subscriber] called when a trial was cancelled. This
+        will still return a [`CrashReport`][amltk.optimization.Trial.CrashReport],
+        but should likely not be reported as a crash.
+        ```python
+        @trial.on_cancelled
+        def on_cancelled(report: Trial.CrashReport):
+            print(report)
+        ```
         """
 
         SUCCESS: Event[Trial.SuccessReport] = Event("trial-success")
-        """The event that is triggered when a trial succeeds."""
-
         FAILURE: Event[Trial.FailReport] = Event("trial-failure")
-        """The event that is triggered when a trial fails."""
-
         CRASHED: Event[Trial.CrashReport] = Event("trial-crashed")
-        """The event that is triggered when a trial crashes."""
-
         REPORT: Event[Trial.Report] = Event("trial-report")
-        """The event that is triggered when a trial reports anything."""
+        CANCELLED: Event[Trial] = Event("trial-cancelled")
 
         def __init__(
             self,
@@ -849,12 +880,15 @@ class Trial(Generic[Info]):
             self.on_failed = self.subscriber(self.FAILURE)
             self.on_success = self.subscriber(self.SUCCESS)
             self.on_crashed = self.subscriber(self.CRASHED)
+            self.on_f_cancelled = self.subscriber(self.F_CANCELLED)
 
             self._trial_lookup: dict[Future, Trial] = {}
 
+            self.on_f_submitted(self._register_future)
+
             self.on_f_returned(self._emit_report)
             self.on_f_exception(self._emit_report)
-            self.on_f_submitted(self._register_future)
+            self.on_f_cancelled(self._emit_report)
 
             if init_plugins:
                 for plugin in self.plugins:
@@ -863,10 +897,16 @@ class Trial(Generic[Info]):
         def _emit_report(
             self,
             future: Future,
-            report: Trial.Report | BaseException,
+            report: Trial.Report | BaseException | None = None,
         ) -> None:
             """Emit a report for a trial based on the type of the report."""
-            # Emit the fact a report happened
+            # If we didn't get a report, it means it was cancelled
+            if report is None:
+                report = CancelledError()
+                was_cancelled = True
+            else:
+                was_cancelled = False
+
             if isinstance(report, BaseException):
                 trial = self._trial_lookup.get(future)
                 if trial is None:
@@ -879,8 +919,13 @@ class Trial(Generic[Info]):
                 self.REPORT: ((report,), None),
             }
 
+            if was_cancelled:
+                emit_items[self.CANCELLED] = ((report,), None)
+
             # Emit the specific type of report
             event: Event
+            if was_cancelled:
+                event = self.CANCELLED
             if isinstance(report, Trial.SuccessReport):
                 event = self.SUCCESS
             elif isinstance(report, Trial.FailReport):

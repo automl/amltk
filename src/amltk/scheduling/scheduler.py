@@ -18,7 +18,7 @@ from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from amltk.asyncm import ContextEvent
-from amltk.events import Emitter, Event
+from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import Flag
 from amltk.scheduling.sequential_executor import SequentialExecutor
 from amltk.scheduling.termination_strategies import termination_strategy
@@ -60,133 +60,104 @@ class Scheduler(Emitter):
 
     scheduler.run(timeout=10)
     ```
+    """
 
-    Attributes:
-        executor: The executor to use to run tasks.
-        queue: The queue of tasks running
-        on_submission: A [`Subscriber`][amltk.events.Subscriber] which is called when
-            a future is submitted.
-            ```python
-            @task.on_submission
-            def _(future: Future[R]):
-                ...
-            ```
-        on_finishing: A [`Subscriber`][amltk.events.Subscriber] which is called when the
-            scheduler is finishing up.
-            ```python
-            @task.on_finishing
-            def _():
-                ...
-            ```
-        on_start: A [`Subscriber`][amltk.events.Subscriber] which is called when the
-            scheduler starts.
+    executor: Executor
+    """The executor to use to run tasks."""
+    queue: list[SyncFuture]
+    """The queue of tasks running."""
+    on_finishing: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
+        scheduler is finishing up.
+        ```python
+        @task.on_finishing
+        def on_finishing():
+            ...
+        ```
+    """
+    on_start: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
+    scheduler starts.
 
-            ```python
-            @task.on_start
-            def _():
-                ...
-            ```
-        on_future_done: A [`Subscriber`][amltk.events.Subscriber] which is called when
-            a future is done.
-            ```python
-            @task.on_future_done
-            def _(future: Future[R]):
-                ...
-            ```
-        on_future_cancelled: A [`Subscriber`][amltk.events.Subscriber] which is called
-            when a future is cancelled.
-            ```python
-            @task.on_future_cancelled
-            def _(future: Future[R]):
-                ...
-            ```
-        on_finished: A [`Subscriber`][amltk.events.Subscriber] which is called when
-            the scheduler finishes.
-            ```python
-            @task.on_finished
-            def _():
-                ...
-            ```
-        on_stop: A [`Subscriber`][amltk.events.Subscriber] which is called when the
-            scheduler is stopped.
-            ```python
-            @task.on_stop
-            def _():
-                ...
-            ```
-        on_timeout: A [`Subscriber`][amltk.events.Subscriber] which is called when
-            the scheduler reaches the timeout.
-            ```python
-            @task.on_timeout
-            def _():
-                ...
-            ```
-        on_empty: A [`Subscriber`][amltk.events.Subscriber] which is called when the
-            queue is empty.
-            ```python
-            @task.on_empty
-            def _():
-                ...
-            ```
+    ```python
+    @task.on_start
+    def on_start():
+        ...
+    ```
+    """
+    on_future_submitted: Subscriber[SyncFuture]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    a future is submitted.
+    ```python
+    @task.on_submission
+    def on_submission(future: Future):
+        ...
+    ```
+    """
+    on_future_done: Subscriber[SyncFuture]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    a future is done.
+    ```python
+    @task.on_future_done
+    def on_future_done(future: Future):
+        ...
+    ```
+    """
+    on_future_cancelled: Subscriber[SyncFuture]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called
+    when a future is cancelled.
+    ```python
+    @task.on_future_cancelled
+    def on_future_cancelled(future: Future):
+        ...
+    ```
+    """
+    on_finished: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    the scheduler finishes.
+    ```python
+    @task.on_finished
+    def on_finished():
+        ...
+    ```
+    """
+    on_stop: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
+    scheduler is stopped.
+    ```python
+    @task.on_stop
+    def on_stop():
+        ...
+    ```
+    """
+    on_timeout: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    the scheduler reaches the timeout.
+    ```python
+    @task.on_timeout
+    def on_timeout():
+        ...
+    ```
+    """
+    on_empty: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
+    queue is empty.
+    ```python
+    @task.on_empty
+    def on_empty():
+        ...
+    ```
     """
 
     STARTED: Event[[]] = Event("scheduler-started")
-    """The scheduler has started.
-
-    This means the scheduler has started up the executor and is ready to
-    start deploying tasks to the executor.
-    """
-
     FINISHING: Event[[]] = Event("scheduler-finishing")
-    """The scheduler is finishing.
-
-    This means the executor is still running but the stopping criterion
-    for the scheduler are no longer monitored. If using `run(..., wait=True)`
-    which is the deafult, the scheduler will wait until the queue as been
-    emptied before reaching FINISHED.
-    """
-
     FINISHED: Event[[]] = Event("scheduler-finished")
-    """The scheduler has finished.
-
-    This means the scheduler has stopped running the executor and
-    has processed all futures and events. This is the last event
-    that will be emitted from the scheduler before ceasing.
-    """
-
     STOP: Event[[]] = Event("scheduler-stop")
-    """The scheduler has been stopped explicitly.
-
-    This means the executor is no longer running so no further tasks can be
-    dispatched. The scheduler is in a state where it will wait for the current
-    queue to empty out (if `run(..., wait=True)`) and for any futures to be
-    processed.
-    """
-
     TIMEOUT: Event[[]] = Event("scheduler-timeout")
-    """The scheduler has reached the timeout.
-
-    This means the scheduler reached the timeout stopping criterion, which
-    is only active when `run(..., timeout: float)` was used to start the
-    scheduler.
-    """
-
     EMPTY: Event[[]] = Event("scheduler-empty")
-    """The scheduler has an empty queue.
-
-    This means the scheduler has no more running tasks in it's queue.
-    This event will only trigger when `run(..., end_on_empty=False)`
-    was used to start the scheduler.
-    """
-
     FUTURE_SUBMITTED: Event[SyncFuture] = Event("scheduler-future-submitted")
-    """The scheduler has had a future submitted to it."""
-
     FUTURE_DONE: Event[SyncFuture] = Event("scheduler-future-done")
-    """A future submitted by the scheduler is done."""
-
     FUTURE_CANCELLED: Event[SyncFuture] = Event("scheduler-future-cancelled")
-    """A future submitted by the scheduler was cancelled."""
 
     def __init__(
         self,
@@ -235,7 +206,7 @@ class Scheduler(Emitter):
 
         self.on_start = self.subscriber(self.STARTED)
         self.on_finishing = self.subscriber(self.FINISHING)
-        self.on_submission = self.subscriber(self.FUTURE_SUBMITTED)
+        self.on_future_submitted = self.subscriber(self.FUTURE_SUBMITTED)
         self.on_future_done = self.subscriber(self.FUTURE_DONE)
         self.on_future_cancelled = self.subscriber(self.FUTURE_CANCELLED)
         self.on_finished = self.subscriber(self.FINISHED)
