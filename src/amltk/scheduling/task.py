@@ -196,14 +196,14 @@ class Task(Generic[P, R], Emitter):
         self.queue: list[Future[R]] = []
 
         # Set up subscription methods to events
-        self.on_f_submitted = self.subscriber(self.F_SUBMITTED)  # type: ignore
         self.on_submitted = self.subscriber(self.SUBMITTED)
         self.on_done = self.subscriber(self.DONE)
+        self.on_returned = self.subscriber(self.RETURNED)
+        self.on_exception = self.subscriber(self.EXCEPTION)
+        self.on_f_submitted = self.subscriber(self.F_SUBMITTED)  # type: ignore
         self.on_f_cancelled = self.subscriber(self.F_CANCELLED)
         self.on_f_returned = self.subscriber(self.F_RETURNED)
         self.on_f_exception = self.subscriber(self.F_EXCEPTION)
-        self.on_returned = self.subscriber(self.RETURNED)
-        self.on_exception = self.subscriber(self.EXCEPTION)
 
         # Used to keep track of any events emitted out of this task
         self._emitted_events: set[Event] = set()

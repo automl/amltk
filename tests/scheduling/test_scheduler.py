@@ -147,7 +147,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
         expected_task_counts = {
             task.SUBMITTED: 1,
             task.F_SUBMITTED: 1,
-            task.CANCELLED: 1,
+            task.F_CANCELLED: 1,
         }
 
     assert task.event_counts == expected_task_counts

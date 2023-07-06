@@ -66,15 +66,6 @@ class Scheduler(Emitter):
     """The executor to use to run tasks."""
     queue: list[SyncFuture]
     """The queue of tasks running."""
-    on_submission: Subscriber[SyncFuture]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
-    a future is submitted.
-    ```python
-    @task.on_submission
-    def on_submission(future: Future):
-        ...
-    ```
-    """
     on_finishing: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when the
         scheduler is finishing up.
@@ -91,6 +82,15 @@ class Scheduler(Emitter):
     ```python
     @task.on_start
     def on_start():
+        ...
+    ```
+    """
+    on_future_submitted: Subscriber[SyncFuture]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    a future is submitted.
+    ```python
+    @task.on_submission
+    def on_submission(future: Future):
         ...
     ```
     """
@@ -206,7 +206,7 @@ class Scheduler(Emitter):
 
         self.on_start = self.subscriber(self.STARTED)
         self.on_finishing = self.subscriber(self.FINISHING)
-        self.on_submission = self.subscriber(self.FUTURE_SUBMITTED)
+        self.on_future_submitted = self.subscriber(self.FUTURE_SUBMITTED)
         self.on_future_done = self.subscriber(self.FUTURE_DONE)
         self.on_future_cancelled = self.subscriber(self.FUTURE_CANCELLED)
         self.on_finished = self.subscriber(self.FINISHED)

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import traceback
+from concurrent.futures import CancelledError
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -818,7 +819,18 @@ class Trial(Generic[Info]):
         ```python
         @trial.on_crashed
         def on_crashed(report: Trial.CrashReport):
-            print(crashed)
+            print(report)
+        ```
+        """
+        on_cancelled: Subscriber[Trial.CrashReport[InfoInner]]
+        """
+        A [`Subscriber`][amltk.Subscriber] called when a trial was cancelled. This
+        will still return a [`CrashReport`][amltk.optimization.Trial.CrashReport],
+        but should likely not be reported as a crash.
+        ```python
+        @trial.on_cancelled
+        def on_cancelled(report: Trial.CrashReport):
+            print(report)
         ```
         """
 
@@ -826,6 +838,7 @@ class Trial(Generic[Info]):
         FAILURE: Event[Trial.FailReport] = Event("trial-failure")
         CRASHED: Event[Trial.CrashReport] = Event("trial-crashed")
         REPORT: Event[Trial.Report] = Event("trial-report")
+        CANCELLED: Event[Trial] = Event("trial-cancelled")
 
         def __init__(
             self,
@@ -867,12 +880,15 @@ class Trial(Generic[Info]):
             self.on_failed = self.subscriber(self.FAILURE)
             self.on_success = self.subscriber(self.SUCCESS)
             self.on_crashed = self.subscriber(self.CRASHED)
+            self.on_f_cancelled = self.subscriber(self.F_CANCELLED)
 
             self._trial_lookup: dict[Future, Trial] = {}
 
+            self.on_f_submitted(self._register_future)
+
             self.on_f_returned(self._emit_report)
             self.on_f_exception(self._emit_report)
-            self.on_f_submitted(self._register_future)
+            self.on_f_cancelled(self._emit_report)
 
             if init_plugins:
                 for plugin in self.plugins:
@@ -881,10 +897,16 @@ class Trial(Generic[Info]):
         def _emit_report(
             self,
             future: Future,
-            report: Trial.Report | BaseException,
+            report: Trial.Report | BaseException | None = None,
         ) -> None:
             """Emit a report for a trial based on the type of the report."""
-            # Emit the fact a report happened
+            # If we didn't get a report, it means it was cancelled
+            if report is None:
+                report = CancelledError()
+                was_cancelled = True
+            else:
+                was_cancelled = False
+
             if isinstance(report, BaseException):
                 trial = self._trial_lookup.get(future)
                 if trial is None:
@@ -897,8 +919,13 @@ class Trial(Generic[Info]):
                 self.REPORT: ((report,), None),
             }
 
+            if was_cancelled:
+                emit_items[self.CANCELLED] = ((report,), None)
+
             # Emit the specific type of report
             event: Event
+            if was_cancelled:
+                event = self.CANCELLED
             if isinstance(report, Trial.SuccessReport):
                 event = self.SUCCESS
             elif isinstance(report, Trial.FailReport):

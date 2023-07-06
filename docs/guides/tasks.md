@@ -392,58 +392,72 @@ in a sequential manner!
 ### Subscribing to Scheduler Events
 
 The `Scheduler` defines many events which are emitted depending on its state.
-One example of this is [`STARTED`][amltk.scheduling.Scheduler.STARTED], an
-event to signal the scheduler has started and ready to accept tasks.
-We can subscribe to this event and trigger our callback with `on_start()`.
+One example of this is `STARTED`, an event to signal the scheduler has started and ready to
+accept tasks. We can subscribe to this event and trigger our callback with
+[`.on_start()`][amltk.scheduling.Scheduler.on_start].
 
 !!! info inline end "Events"
 
     The `Scheduler` defines even more events which we can subscribe to:
 
     ---
-    [`STARTED`][amltk.scheduling.Scheduler.STARTED] : `on_start()`.
+    `STARTED` : [`.on_start()`][amltk.scheduling.Scheduler.on_start].
 
     An event to signal that the scheduler is now up and running.
 
     ---
 
-    [`FINISHING`][amltk.scheduling.Scheduler.FINISHING] : `on_finishing()`.
+    `FINISHING` : [`on_finishing()`][amltk.scheduling.Scheduler.on_finishing]
 
     An event to signal the scheduler is still running but is waiting for
     currently running tasks to finish.
 
     ---
 
-    [`FINISHED`][amltk.scheduling.Scheduler.FINISHING] : `on_finished()`.
+    `FINISHED` : [`on_finished()`][amltk.scheduling.Scheduler.on_finished]
 
     An event to signal the scheduler is no longer running and this is
     the last event it will emit.
 
     ---
 
-    [`EMPTY`][amltk.scheduling.Scheduler.EMPTY] : `on_empty()`.
+    `EMPTY` : [`on_empty()`][amltk.scheduling.Scheduler.on_empty]
 
     An event to signal that there is nothing currently running in the scheduler.
 
     ---
 
-    [`TIMEOUT`][amltk.scheduling.Scheduler.TIMEOUT] : `on_timeout()`.
+    `TIMEOUT` : [`on_timeout()`][amltk.scheduling.Scheduler.on_timeout]
 
     An event to signal the scheduler has reached its time limit.
 
     ---
 
-    [`STOP`][amltk.scheduling.Scheduler.STOP] : `on_stop()`.
+    `STOP` : [`on_stop()`][amltk.scheduling.Scheduler.on_stop]
 
     An event to signal the scheduler has been stopped explicitly with
     [`scheduler.stop()`][amltk.scheduling.Scheduler.stop].
 
     ---
 
-    In general, each event can be listened to with `on_event_name` where
-    `event_name()` is the lowercase version of the `Event`.
+    `FUTURE_SUBMITTED`: [`on_future_submitted()`][amltk.scheduling.Scheduler.on_future_submitted].
 
-    The complete list of events for [`Scheduler`][amltk.scheduling.Scheduler].
+    An event to signal a future has been submitted to the scheduler.
+
+    ---
+
+    `FUTURE_DONE`: [`on_future_done()`][amltk.scheduling.Scheduler.on_future_done].
+
+    An event to signal a future is done, having a result or an exception.
+
+    ---
+
+    `FUTURE_CANCELLED`: [`on_future_cancelled()`][amltk.scheduling.Scheduler.on_future_cancelled].
+
+    An event to signal that a future has been cancelled.
+
+    ---
+
 
 We provide two ways to do so, one with _decorators_ and another in a _functional_
 way.
@@ -461,7 +475,7 @@ way.
     ```
 
     1. You can decorate your callback and it will be called when the
-    scheduler emits the [`STARTED`][amltk.scheduling.Scheduler.STARTED] event.
+    scheduler emits the `STARTED` event.
 
 === "Functional"
 
@@ -477,7 +491,7 @@ way.
     ```
 
     1. You can just pass in your callback and it will be called when the
-    scheduler emits the [`STARTED`][amltk.scheduling.Scheduler.STARTED] event.
+    scheduler emits the `STARTED` event.
 
 There's a variety of parameters you can use to customize the behavior of
 the callback. You can find the full list of parameters [here][amltk.events.Subscriber.__call__].
@@ -678,7 +692,7 @@ the scheduler finished.
 
     By setting `end_on_exception` (default: `#!python True`), we can control what
     happens when an exception occurs in a [`Task`][amltk.scheduling.Task]. This
-    will trigger a [`STOP`][amltk.scheduling.Scheduler.STOP] event when a task
+    will trigger a `STOP` event when a task
     has an error occur and begin shutting down the scheduler.
 
     You can control whether this should explicitly raise the exception with
@@ -1099,7 +1113,7 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
         `#!python SUBMITTED: Event[Future] = Event("task-submitted")`
 
         The task has been submitted to the scheduler. You can subscribe to this event
-        with `on_submitted()`.
+        with [`.on_submitted()`][amltk.scheduling.Task.on_submitted].
 
         ```python
         @task.on_submitted
@@ -1112,7 +1126,7 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
         `#!python DONE: Event[Future] = Event("task-done")`
 
         The task has finished running. You can subscribe to this event
-        with `on_done()`.
+        with [`.on_done()`][amltk.scheduling.Task.on_done].
 
         ```python
         @task.on_done
@@ -1120,25 +1134,13 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
             ...
         ```
 
-    === "`CANCELLED`"
-
-        `#!python CANCELLED: Event[Future] = Event("task-cancelled")`
-
-        The task has been cancelled. You can subscribe to this event
-        with `on_cancelled()`.
-
-        ```python
-        @task.on_cancelled
-        def do_something(future: Future) -> None:
-            ...
-        ```
 
     === "`RETURNED`"
 
         `#!python RETURNED: Event[Any] = Event("task-returned")`
 
         The task has successfully returned a value. You can subscribe to this event
-        with `on_returned()`.
+        with `.on_returned()`.
 
         ```python
         @task.on_returned
@@ -1151,11 +1153,24 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
         `#!python EXCEPTION: Event[BaseException] = Event("task-exception")`
 
         The task raised an Exception and failed to return a value.
-        You can subscribe to this event with `on_exception()`.
+        You can subscribe to this event with [`.on_exception()`][amltk.scheduling.Task.on_exception].
 
         ```python
         @task.on_exception
         def do_something(exception: BaseException) -> None:
+            ...
+        ```
+
+    === "`F_CANCELLED`"
+
+        `#!python F_CANCELLED: Event[Future] = Event("task-cancelled")`
+
+        The task has been cancelled. You can subscribe to this event
+        with [`.on_f_cancelled()`][amltk.scheduling.Task.on_f_cancelled].
+
+        ```python
+        @task.on_cancelled
+        def do_something(future: Future) -> None:
             ...
         ```
 
@@ -1166,7 +1181,7 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
         The task has successfully returned a value. This also passes the future along with
         the result which can be useful during debugging and retrieving of the arguments the
         task was submitted with as a `Future` can be used as a dictionary key.
-        You can subscribe to this event with `on_f_returned()`.
+        You can subscribe to this event with [`.on_f_returned()`][amltk.scheduling.Task.on_f_returned].
 
         ```python
         @task.on_f_returned
@@ -1182,7 +1197,7 @@ Below are all the events that can be subscribed to with the [`Task`][amltk.sched
         This also passes the future along with the exception which can be useful during
         debugging and retrieving of the arguments the task was submitted with as a `Future`
         can be used as a dictionary key.
-        You can subscribe to this event with `on_f_exception()`.
+        You can subscribe to this event with [`.on_f_exception()`][amltk.scheduling.Task.on_f_exception].
 
         ```python
         @task.on_submitted
@@ -1326,8 +1341,7 @@ def random_task(seed: int) -> tuple[int, int]:
 ```
 
 We can think about what events we would like to emit for this task. We could of course emit
-an event for the task completing but we can already use [`RETURNED`][amltk.scheduling.Task.RETURNED]
-for this.
+an event for the task completing but we can already use `RETURNED` for this.
 
 After some thinking, you might decide an interesting event is that we have found a seed
 that produces the longest seen running count. Let's call this event, `LONGEST_RUN` which
@@ -1375,7 +1389,7 @@ some variable `best_count_seed` to track both the `count` and the `seed` that pr
        We can also specify the type of the event. This is useful to identify why callbacks
        which subscribe to this event should have as their signature.
 
-Our next step is that we need to hook into the [`RETURNED`][amltk.scheduling.Task.RETURNED]
+Our next step is that we need to hook into the `RETURNED`
 event so that the `SeedTask` itself can update the `best_count_seed` variable.
 If we do update the variable, we should then also `emit` the `LONGEST_RUN` event
 as well as the updated variables.
