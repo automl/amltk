@@ -292,7 +292,7 @@ class Step(Generic[Space]):
         Returns:
             Self: The copied step
         """
-        return evolve(self)  # type: ignore
+        return deepcopy(self)  # type: ignore
 
     def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """Remove the given steps from this chain.

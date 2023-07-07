@@ -4,6 +4,7 @@ TODO: Populate more here.
 """
 from __future__ import annotations
 
+import copy
 import logging
 import traceback
 from concurrent.futures import CancelledError
@@ -23,7 +24,7 @@ from typing import (
     TypeVar,
     overload,
 )
-from typing_extensions import Concatenate, ParamSpec
+from typing_extensions import Concatenate, ParamSpec, Self
 
 import numpy as np
 import pandas as pd
@@ -353,6 +354,14 @@ class Trial(Generic[I]):
 
         # Add the keys to storage
         self.storage.update(items.keys())
+
+    def copy(self) -> Self:
+        """Create a copy of the trial.
+
+        Returns:
+            The copy of the trial.
+        """
+        return copy.deepcopy(self)
 
     @overload
     def retrieve(
