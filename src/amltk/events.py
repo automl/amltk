@@ -216,6 +216,15 @@ class Subscriber(Generic[P]):
         )
         return callback
 
+    def forward(self, to: Subscriber[P]) -> None:
+        """Forward events to another subscriber.
+
+        Args:
+            to: The subscriber to forward events to.
+        """
+        forward_function = to.emit
+        self(forward_function)
+
     def remove(self, callback_or_name: Callable | str) -> bool:
         """Remove a callback from this subscribers event.
 
