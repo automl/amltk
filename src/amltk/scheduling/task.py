@@ -325,14 +325,14 @@ class Task(Generic[P, R], Emitter):
 
         # To allow any subclasses time to react to the future before emitting
         # events or scheduling callbacks.
-        self.emit(self.F_SUBMITTED, future, *args, **kwargs)
+        self.on_f_submitted.emit(future, *args, **kwargs)
 
         # We have the function wrapped in something will
         # attach tracebacks to errors, so we need to get the
         # original function name.
         msg = f"Submitted {callstring(self.function, *args, **kwargs)} from {self}."
         logger.debug(msg)
-        self.emit(self.SUBMITTED, future)
+        self.on_submitted.emit(future)
 
         # Process the task once it's completed
         # NOTE: If the task is done super quickly or in the sequential mode,
@@ -348,10 +348,10 @@ class Task(Generic[P, R], Emitter):
             raise ValueError(f"{future=} not found in task queue {self.queue=}") from e
 
         if future.cancelled():
-            self.emit(self.F_CANCELLED, future)
+            self.on_f_cancelled.emit(future)
             return
 
-        self.emit(self.DONE, future)
+        self.on_done.emit(future)
 
         exception = future.exception()
         if exception is not None:
@@ -446,6 +446,7 @@ class Task(Generic[P, R], Emitter):
         ```python
         @batch.on_batch_done
         def batch_done(
+            batch: Task.Batch[P, R],
             results: list[R],
             exceptions: list[BaseException],
             cancelled: list[Future[R]],
@@ -463,7 +464,7 @@ class Task(Generic[P, R], Emitter):
 
             ```python
             @batch.on_any_exception
-            def batch_cancel(exception: BaseException):
+            def batch_cancel(batch: Task.Batch, exception: BaseException):
                 batch.cancel()
             ```
 
@@ -486,7 +487,7 @@ class Task(Generic[P, R], Emitter):
 
         ```python
         @batch.on_batch_failed
-        def batch_failed():
+        def batch_failed(batch: Batch[P, R]):
             ...
         ```
 
@@ -527,13 +528,14 @@ class Task(Generic[P, R], Emitter):
         """An iterable of iterables, i.e. `[(1, 2), (3, 4)]`, where the first
             task will be called with `f(1, 2)` and the second with `f(3, 4)`.
         """
-        on_batch_done: Subscriber[list[R2], list[BaseException], list[Future[R2]]]
+        on_batch_done: Subscriber[Self, list[R2], list[BaseException], list[Future[R2]]]
         """A [`Subscriber`][amltk.Subscriber] called
         when all subtasks have completed, raised an exception or were
         cancelled.
         ```python
         @batch.on_batch_done
         def on_batch_done(
+            batch: Batch[P,
             results: list[R],
             failed: list[BaseException],
             cancelled: list[Future[R]],
@@ -541,101 +543,102 @@ class Task(Generic[P, R], Emitter):
             ...
         ```
         """
-        on_batch_returned: Subscriber[list[R2]]
+        on_batch_returned: Subscriber[Self, list[R2]]
         """A [`Subscriber`][amltk.Subscriber] called
         when all subtasks have completed successfully.
         ```python
         @batch.on_batch_returned
-        def on_batch_returned(results: list[R]) -> None:
+        def on_batch_returned(batch: Batch[P, R], results: list[R]) -> None:
             ...
         ```
         """
-        on_batch_submitted: Subscriber[list[Future[R2]]]
+        on_batch_submitted: Subscriber[Self, list[Future[R2]]]
         """A [`Subscriber`][amltk.Subscriber] called when all subtasks have been
         submitted.
         ```python
         @batch.on_batch_submitted
-        def on_batch_submitted(futures: list[Future[R]]) -> None:
+        def on_batch_submitted(batch: Batch[P, R], futures: list[Future[R]]) -> None:
             ...
         ```
         """
-        on_batch_failed: Subscriber[[]]
+        on_batch_failed: Subscriber[Self]
         """A [`Subscriber`][amltk.Subscriber] called when the batch failed to submit
         in its entirety and `cancel_on_failed_submission=True`.
         ```python
         @batch.on_batch_failed
-        def on_batch_failed() -> None:
+        def on_batch_failed(batch: Task.Batch[P, R]) -> None:
             ...
         ```
         """
-        on_batch_cancelled: Subscriber[[]]
+        on_batch_cancelled: Subscriber[Self]
         """A [`Subscriber`][amltk.Subscriber] called when
         [`.cancel()`][amltk.Task.Batch.cancel] is called or when
         `cancel_on_failed_submission=True` and the batch failed to submit
         ```python
         @batch.on_batch_cancelled
-        def on_batch_cancelled() -> None:
+        def on_batch_cancelled(batch: Batch[P, R]) -> None:
             ...
         ```
         """
-        on_any_exception: Subscriber[BaseException]
+        on_any_exception: Subscriber[Self, BaseException]
         """A [`Subscriber`][amltk.Subscriber] called when any subtask raises an
         exception.
         ```python
         @batch.on_any_exception
-        def on_any_exception(exception: BaseException) -> None:
+        def on_any_exception(batch: Batch[P, R], exception: BaseException) -> None:
             ...
         ```
         """
-        on_any_cancelled: Subscriber[Future[R2]]
+        on_any_cancelled: Subscriber[Self, Future[R2]]
         """A [`Subscriber`][amltk.Subscriber] called when any subtask is cancelled.
         ```python
         @batch.on_any_cancelled
-        def on_any_cancelled(future: Future[R]) -> None:
+        def on_any_cancelled(batch: Batch[P, R], future: Future[R]) -> None:
             ...
         ```
         """
-        on_any_returned: Subscriber[R2]
+        on_any_returned: Subscriber[Self, R2]
         """A [`Subscriber`][amltk.Subscriber] called when any subtask completes
         successfully.
         ```python
         @batch.on_any_returned
-        def on_any_returned(result: R) -> None:
+        def on_any_returned(batch: Batch[P, R], result: R) -> None:
             ...
         ```
         """
-        on_any_submitted: Subscriber[Future[R2]]
+        on_any_submitted: Subscriber[Self, Future[R2]]
         """A [`Subscriber`][amltk.Subscriber] called when any subtask is submitted.
         ```python
         @batch.on_any_submitted
-        def on_any_submitted(future: Future[R]) -> None:
+        def on_any_submitted(batch: Batch[P, R], future: Future[R]) -> None:
             ...
         ```
         """
-        on_any_done: Subscriber[Future[R2]]
+        on_any_done: Subscriber[Self, Future[R2]]
         """A [`Subscriber`][amltk.Subscriber] called when any subtask completes
         or raises an exception.
         ```python
         @batch.on_any_done
-        def on_any_done(future: Future[R]) -> None:
+        def on_any_done(batch: Batch[P, R], future: Future[R]) -> None:
             ...
         ```
         """
 
         BATCH_DONE: Event[
+            Self,
             list[R2],
             list[BaseException],
             list[Future[R2]],
         ] = Event("BATCH_DONE")
-        BATCH_RETURNED: Event[list[R2]] = Event("BATCH_RETURNED")
-        BATCH_SUBMITTED: Event[list[Future[R2]]] = Event("BATCH_SUBMITTED")
-        BATCH_CANCELLED: Event[[]] = Event("BATCH_CANCELLED")
-        BATCH_FAILED: Event[[]] = Event("BATCH_FAILED")
-        ANY_SUBMITTED: Event[Future[R2]] = Event("ANY_SUBMITTED")
-        ANY_EXCEPTION: Event[BaseException] = Event("ANY_EXCEPTION")
-        ANY_RETURNED: Event[R2] = Event("ANY_RETURNED")
-        ANY_CANCELLED: Event[Future[R2]] = Event("ANY_CANCELLED")
-        ANY_DONE: Event[Future[R2]] = Event("ANY_DONE")
+        BATCH_RETURNED: Event[Self, list[R2]] = Event("BATCH_RETURNED")
+        BATCH_SUBMITTED: Event[Self, list[Future[R2]]] = Event("BATCH_SUBMITTED")
+        BATCH_CANCELLED: Event[Self] = Event("BATCH_CANCELLED")
+        BATCH_FAILED: Event[Self] = Event("BATCH_FAILED")
+        ANY_SUBMITTED: Event[Self, Future[R2]] = Event("ANY_SUBMITTED")
+        ANY_EXCEPTION: Event[Self, BaseException] = Event("ANY_EXCEPTION")
+        ANY_RETURNED: Event[Self, R2] = Event("ANY_RETURNED")
+        ANY_CANCELLED: Event[Self, Future[R2]] = Event("ANY_CANCELLED")
+        ANY_DONE: Event[Self, Future[R2]] = Event("ANY_DONE")
 
         def __init__(
             self,
@@ -709,41 +712,45 @@ class Task(Generic[P, R], Emitter):
             self.task.on_f_exception(self._on_exception)
             self.task.on_f_cancelled(self._on_cancelled)
 
-        def _on_returned(self, future: Future[R2], result: R2) -> None:
+        def _on_returned(self: Self, future: Future[R2], result: R2) -> None:
             if self.failed_submission or self.cancel_triggered:
                 logger.debug(f"Ignoring due to cancelled/failed submission of {self}.")
                 return
 
             self._results[future] = result
-            self.emit(self.ANY_RETURNED, result)
+            self.on_any_returned.emit(self, result)
             self._maybe_finish()
 
-        def _on_exception(self, future: Future[R2], exception: BaseException) -> None:
+        def _on_exception(
+            self: Self,
+            future: Future[R2],
+            exception: BaseException,
+        ) -> None:
             if self.failed_submission or self.cancel_triggered:
                 logger.debug(f"Ignoring due to cancelled/failed submission of {self}.")
                 return
 
             self._exceptions[future] = exception
-            self.emit(self.ANY_EXCEPTION, exception)
+            self.on_any_exception.emit(self, exception)
             self._maybe_finish()
 
-        def _on_cancelled(self, future: Future[R2]) -> None:
+        def _on_cancelled(self: Self, future: Future[R2]) -> None:
             if self.failed_submission or self.cancel_triggered:
                 logger.debug(f"Ignoring due to cancelled/failed submission of {self}.")
                 return
 
             self._cancelled.append(future)
-            self.emit(self.ANY_CANCELLED, future)
+            self.on_any_cancelled.emit(self, future)
             self._maybe_finish()
 
-        def _on_done(self, future: Future[R2]) -> None:
+        def _on_done(self: Self, future: Future[R2]) -> None:
             if self.failed_submission or self.cancel_triggered:
                 logger.debug(f"Ignoring due to cancelled/failed submission of {self}.")
                 return
 
-            self.emit(self.ANY_DONE, future)
+            self.on_any_done.emit(self, future)
 
-        def cancel(self) -> None:
+        def cancel(self: Self) -> None:
             """Cancel all subtasks."""
             # Already been cancelled, ignore this call
             if self.cancel_triggered:
@@ -753,7 +760,7 @@ class Task(Generic[P, R], Emitter):
             for future in self._submitted:
                 future.cancel()
 
-            self.emit(self.BATCH_CANCELLED)
+            self.on_batch_cancelled.emit(self)
 
         def submit(self) -> list[Future[R2]]:
             """Submit the batch of tasks.
@@ -763,7 +770,7 @@ class Task(Generic[P, R], Emitter):
             """
             return self.__call__()
 
-        def __call__(self) -> list[Future[R2]]:
+        def __call__(self: Self) -> list[Future[R2]]:
             """Submit the batch of tasks.
 
             Returns:
@@ -777,7 +784,7 @@ class Task(Generic[P, R], Emitter):
                     continue
                 if (future := self.task.submit(*_args)) is not None:  # type: ignore
                     self._submitted.append(future)
-                    self.emit(self.ANY_SUBMITTED, future)
+                    self.on_any_submitted.emit(self, future)
                 else:
                     logger.info(f"Was not able to submit all tasks for {self}.")
                     if self.cancel_on_failed_submission:
@@ -786,7 +793,7 @@ class Task(Generic[P, R], Emitter):
                         self.cancel()
 
             if self.failed_submission:
-                self.emit(self.BATCH_FAILED)
+                self.on_batch_failed.emit(self)
                 return list(self._submitted)
 
             if self.cancel_triggered:
@@ -794,14 +801,14 @@ class Task(Generic[P, R], Emitter):
                 return list(self._submitted)
 
             submitted = list(self._submitted)
-            self.emit(self.BATCH_SUBMITTED, submitted)
+            self.on_batch_submitted.emit(self, submitted)
 
             return submitted
 
         def __repr__(self) -> str:
             return f"{self.__class__.__name__}({self.task})"
 
-        def _maybe_finish(self) -> None:
+        def _maybe_finish(self: Self) -> None:
             """Emit results if finished, removing callbacks if so."""
             n_done = len(self._results) + len(self._exceptions) + len(self._cancelled)
             n_submitted = len(self._submitted)
@@ -814,9 +821,9 @@ class Task(Generic[P, R], Emitter):
             elif n_submitted == n_done:
                 results, exceptions, cancelled = self._collect()
                 if len(exceptions) == 0 and len(cancelled) == 0:
-                    self.emit(self.BATCH_RETURNED, results)
+                    self.on_batch_returned.emit(self, results)
 
-                self.emit(self.BATCH_DONE, results, exceptions, cancelled)
+                self.on_batch_done.emit(self, results, exceptions, cancelled)
 
         def _collect(self) -> tuple[list[R2], list[BaseException], list[Future[R2]]]:
             """Collect the results of the batch.

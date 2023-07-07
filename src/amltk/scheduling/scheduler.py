@@ -593,7 +593,7 @@ class Scheduler(Emitter):
         self.queue.append(future)
         self._queue_has_items_event.set()
 
-        self.emit(self.FUTURE_SUBMITTED, future)
+        self.on_future_submitted.emit(future)
         future.add_done_callback(self._register_complete)
 
     def _register_complete(self, future: SyncFuture) -> None:
@@ -604,10 +604,10 @@ class Scheduler(Emitter):
             logger.error(f"{future=} was not found in the queue {self.queue}: {e}!")
 
         if future.cancelled():
-            self.emit(self.FUTURE_CANCELLED, future)
+            self.on_future_cancelled.emit(future)
             return
 
-        self.emit(self.FUTURE_DONE, future)
+        self.on_future_done.emit(future)
 
         exception = future.exception()
         if self._end_on_exception_flag and future.done() and exception:
@@ -633,7 +633,7 @@ class Scheduler(Emitter):
 
             # Signal that the queue is now empty
             self._queue_has_items_event.clear()
-            self.emit(Scheduler.EMPTY)
+            self.on_empty.emit()
 
             # Wait for an item to be in the queue
             await self._queue_has_items_event.wait()
@@ -669,7 +669,7 @@ class Scheduler(Emitter):
             self._timeout_timer = Timer(timeout, lambda: None)
             self._timeout_timer.start()
 
-        self.emit(Scheduler.STARTED)
+        self.on_start.emit()
 
         # Our stopping criterion of the scheduler
         stop_criterion: list[asyncio.Task] = []
@@ -717,7 +717,7 @@ class Scheduler(Emitter):
             if msg:
                 logger.debug(msg)
 
-            self.emit(Scheduler.STOP)
+            self.on_stop.emit()
             if self._end_on_exception_flag and exception:
                 stop_reason = exception
             else:
@@ -729,7 +729,7 @@ class Scheduler(Emitter):
         elif timeout is not None:
             logger.debug(f"Scheduler stopping as {timeout=} reached.")
             stop_reason = Scheduler.ExitCode.TIMEOUT
-            self.emit(Scheduler.TIMEOUT)
+            self.on_timeout.emit()
         else:
             logger.warning("Scheduler stopping for unknown reason!")
             stop_reason = Scheduler.ExitCode.UNKNOWN
@@ -753,7 +753,7 @@ class Scheduler(Emitter):
 
         await asyncio.wait(all_tasks, return_when=asyncio.ALL_COMPLETED)
 
-        self.emit(Scheduler.FINISHING)
+        self.on_finishing.emit()
         logging.info("Scheduler is finished")
 
         logger.debug(f"Shutting down scheduler executor with {wait=}")
@@ -782,7 +782,7 @@ class Scheduler(Emitter):
         wait_futures(current_futures)
         self.executor.shutdown(wait=wait)
 
-        self.emit(Scheduler.FINISHED)
+        self.on_finished.emit()
         logger.info(f"Scheduler finished with status {stop_reason}")
 
         # Clear all events

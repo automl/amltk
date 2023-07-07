@@ -80,7 +80,7 @@ def test_batch_all_successful(scheduler: Scheduler) -> None:
         batch.submit()
 
     @batch.on_batch_returned
-    def on_batch_returned(_results: list[float]) -> None:
+    def on_batch_returned(_: Task.Batch, _results: list[float]) -> None:
         results.extend(_results)
 
     end_status = scheduler.run()
@@ -119,7 +119,7 @@ def test_batch_any_returned(scheduler: Scheduler) -> None:
         batch.submit()
 
     @batch.on_any_returned
-    def on_batch_returned(_results: float) -> None:
+    def on_batch_returned(_: Task.Batch, _results: float) -> None:
         results.append(_results)
 
     end_status = scheduler.run()
@@ -158,7 +158,7 @@ def test_batch_any_exception(scheduler: Scheduler) -> None:
         batch.submit()
 
     @batch.on_any_exception
-    def on_any_exception(exception: BaseException) -> None:
+    def on_any_exception(_: Task.Batch, exception: BaseException) -> None:
         results.append(exception)
 
     end_status = scheduler.run(end_on_exception=False)
@@ -198,12 +198,12 @@ def test_batch_any_cancelled(scheduler: Scheduler) -> None:
 
     # Make sure to cancel the batch when the first task is submitted
     @batch.on_any_submitted
-    def on_any_submitted(_: Future[float]) -> None:
+    def on_any_submitted(_: Task.Batch, fut: Future[float]) -> None:  # noqa: ARG001
         batch.cancel()
 
     # Only one should get here
     @batch.on_any_returned
-    def on_any_returned(_results: float) -> None:
+    def on_any_returned(_: Task.Batch, _results: float) -> None:
         results.append(_results)
 
     end_status = scheduler.run()
@@ -254,7 +254,7 @@ def test_batch_task_does_not_share_events_with_single_task(
         task.submit(0.2)
 
     @batch.on_any_returned
-    def on_any_returned(x: float) -> None:
+    def on_any_returned(_: Task.Batch, x: float) -> None:
         batch_results.append(x)
 
     @task.on_returned
