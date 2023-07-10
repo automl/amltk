@@ -620,7 +620,7 @@ class Scheduler(Emitter):
             async_futures = [asyncio.wrap_future(f) for f in self.queue]
             await asyncio.wait(async_futures, return_when=asyncio.ALL_COMPLETED)
 
-        logger.debug("Scheduler queue is empty")
+        logger.info("Scheduler queue is empty")
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
@@ -718,7 +718,7 @@ class Scheduler(Emitter):
                 msg = "Scheduler had `stop()` called on it."
 
             if msg:
-                logger.debug(msg)
+                logger.info(msg)
 
             self.on_stop.emit()
             if self._end_on_exception_flag and exception:
@@ -727,10 +727,10 @@ class Scheduler(Emitter):
                 stop_reason = Scheduler.ExitCode.STOPPED
 
         elif queue_empty and queue_empty.done():
-            logger.debug("Scheduler stopped due to being empty.")
+            logger.info("Scheduler stopped due to being empty.")
             stop_reason = Scheduler.ExitCode.EXHAUSTED
         elif timeout is not None:
-            logger.debug(f"Scheduler stopping as {timeout=} reached.")
+            logger.info(f"Scheduler stopping as {timeout=} reached.")
             stop_reason = Scheduler.ExitCode.TIMEOUT
             self.on_timeout.emit()
         else:
@@ -759,11 +759,11 @@ class Scheduler(Emitter):
         self.on_finishing.emit()
         logging.info("Scheduler is finished")
 
-        logger.debug(f"Shutting down scheduler executor with {wait=}")
+        logger.info(f"Shutting down scheduler executor with {wait=}")
 
         # The scheduler is now refusing jobs
         self._running_event.clear()
-        logger.debug("Scheduler has shutdown and declared as no longer running")
+        logger.info("Scheduler has shutdown and declared as no longer running")
 
         if not wait:
             if self._terminate is not None:
@@ -777,7 +777,7 @@ class Scheduler(Emitter):
                         logger.debug(f"Cancelling {future=}")
                         future.cancel()
         else:
-            logger.debug("Waiting for currently running tasks to finish.")
+            logger.info("Waiting for currently running tasks to finish.")
 
         # Here we wait, if we could terminate or cancel, then we wait for that
         # to happen, otherwise we are just waiting as anticipated.
@@ -865,7 +865,7 @@ class Scheduler(Emitter):
         if self.running():
             raise RuntimeError("Scheduler already seems to be running")
 
-        logger.debug("Starting scheduler")
+        logger.info("Starting scheduler")
 
         # Make sure the flag is set
         self._end_on_exception_flag.set(value=end_on_exception)
