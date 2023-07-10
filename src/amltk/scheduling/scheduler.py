@@ -219,8 +219,9 @@ class Scheduler(Emitter):
         else:
             self._terminate = terminate if callable(terminate) else None
 
-        # This can be triggered either by `scheduler.stop` in a callback
-        self._stop_event = ContextEvent()
+        # This can be triggered either by `scheduler.stop` in a callback.
+        # Has to be created inside the event loop so there's no issues
+        self._stop_event: ContextEvent | None = None
 
         # This is a condition to make sure monitoring the queue will wait properly
         self._queue_has_items_event = asyncio.Event()
@@ -639,14 +640,14 @@ class Scheduler(Emitter):
             await self._queue_has_items_event.wait()
             logger.debug("Queue has been filled again")
 
-    async def _stop_when_triggered(self) -> bool:
+    async def _stop_when_triggered(self, stop_event: ContextEvent) -> bool:
         """Stop the scheduler when the stop event is set."""
         if not self.running():
             raise RuntimeError("The scheduler is not running!")
 
-        await self._stop_event.wait()
+        await stop_event.wait()
 
-        logger.debug("Stop event triggered, stopping scheduler")
+        logger.info("Stop event triggered, stopping scheduler")
         return True
 
     async def _run_scheduler(  # noqa: PLR0912, C901, PLR0915
@@ -657,7 +658,7 @@ class Scheduler(Emitter):
         wait: bool = True,
     ) -> ExitCode | BaseException:
         self.executor.__enter__()
-
+        self._stop_event = ContextEvent()
         # Declare we are running
         self._running_event.set()
 
@@ -675,7 +676,9 @@ class Scheduler(Emitter):
         stop_criterion: list[asyncio.Task] = []
 
         # Monitor for `stop` being triggered
-        stop_triggered = asyncio.create_task(self._stop_when_triggered())
+        stop_triggered = asyncio.create_task(
+            self._stop_when_triggered(self._stop_event),
+        )
         stop_criterion.append(stop_triggered)
 
         # Monitor for the queue being empty
@@ -905,6 +908,8 @@ class Scheduler(Emitter):
         """
         if not self.running():
             return
+
+        assert self._stop_event is not None
 
         msg = kwargs.get("stop_msg", "stop() called")
 
