@@ -131,8 +131,18 @@ class History(Mapping[str, Trial.Report]):
             and "time:end" in history_df.columns
         ):
             min_time = history_df[["time:start", "time:end"]].min().min()
-            history_df["time:relative_start"] = history_df["time:start"] - min_time
-            history_df["time:relative_end"] = history_df["time:end"] - min_time
+            history_df = pd.concat(
+                [
+                    history_df,
+                    pd.DataFrame(
+                        {
+                            "time:relative_start": history_df["time:start"] - min_time,
+                            "time:relative_end": history_df["time:end"] - min_time,
+                        },
+                    ),
+                ],
+                axis=1,
+            )
 
         return history_df
 
@@ -577,8 +587,18 @@ class Trace(Sequence[Trial.Report]):
             and "time:end" in trace_df.columns
         ):
             min_time = trace_df[["time:start", "time:end"]].min().min()
-            trace_df["time:relative_start"] = trace_df["time:start"] - min_time
-            trace_df["time:relative_end"] = trace_df["time:end"] - min_time
+            trace_df = pd.concat(
+                [
+                    trace_df,
+                    pd.DataFrame(
+                        {
+                            "time:relative_start": trace_df["time:start"] - min_time,
+                            "time:relative_end": trace_df["time:end"] - min_time,
+                        },
+                    ),
+                ],
+                axis=1,
+            )
 
         return trace_df
 
