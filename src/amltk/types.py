@@ -2,7 +2,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Iterator, List, Mapping, Protocol, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Iterator,
+    List,
+    Mapping,
+    NewType,
+    Protocol,
+    Tuple,
+    TypeVar,
+    Union,
+)
 from typing_extensions import TypeAlias
 
 import numpy as np
@@ -20,6 +30,8 @@ Seed: TypeAlias = Union[int, np.random.RandomState, np.random.Generator]
 """Type alias for kinds of Seeded objects"""
 
 FidT = Union[Tuple[int, int], Tuple[float, float], List[Any]]
+
+UniqueRef = NewType("UniqueRef", str)
 
 
 class Comparable(Protocol):

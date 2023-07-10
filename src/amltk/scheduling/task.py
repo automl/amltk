@@ -21,6 +21,7 @@ from uuid import uuid4 as uuid
 from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import callstring, funcname
 from amltk.scheduling.sequential_executor import SequentialExecutor
+from amltk.types import UniqueRef
 
 if TYPE_CHECKING:
     from amltk.scheduling.scheduler import Scheduler
@@ -71,7 +72,7 @@ class Task(Generic[P, R], Emitter):
     """The name of the task."""
     uuid: str
     """A unique identifier for this task."""
-    unique_ref: str
+    unique_ref: UniqueRef
     """A unique reference to this task."""
     plugins: list[TaskPlugin[P, R]]
     """The plugins to use for this task."""
@@ -183,7 +184,7 @@ class Task(Generic[P, R], Emitter):
         """
         self.name = name if name is not None else funcname(function)
         self.uuid = str(uuid())
-        self.unique_ref = f"{self.name}-{self.uuid}"
+        self.unique_ref = UniqueRef(f"{self.name}-{self.uuid}")
 
         super().__init__(event_manager=self.unique_ref)
 
@@ -508,7 +509,7 @@ class Task(Generic[P, R], Emitter):
         """The unique identifier for this batch."""
         name: str
         """The name of this batch."""
-        unique_ref: str
+        unique_ref: UniqueRef
         """The unique reference for this batch."""
         cancel_on_failed_submission: bool
         """Whether to stop submitting tasks if one fails to submit."""
@@ -680,13 +681,13 @@ class Task(Generic[P, R], Emitter):
                 )
 
             self.uuid = str(uuid())
-            self.name = f"batch-{task.name}"
-            self.unique_ref = f"{self.name}-{self.uuid}"
+            self.name = f"Batch-{task.name}"
+            self.unique_ref = UniqueRef(f"{self.name}-{self.uuid}")
             self.cancel_on_failed_submission = cancel_on_failed_submission
             self.failed_submission = False
             self.cancel_triggered = False
 
-            super().__init__(event_manager=f"Batch-{self.unique_ref}")
+            super().__init__(event_manager=self.unique_ref)
 
             # NOTE: We need to copy the task to prevent events from the original
             # task from being mixed up with this particular batch
