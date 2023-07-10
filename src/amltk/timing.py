@@ -99,8 +99,8 @@ class Timer:
     start_time: float
     kind: TimeKind
 
-    @contextmanager
     @classmethod
+    @contextmanager
     def time(
         cls,
         kind: TimeKind | Literal["cpu", "wall", "process"] = TimeKind.WALL,
