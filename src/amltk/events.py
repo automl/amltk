@@ -275,7 +275,8 @@ class Handler(Generic[P]):
             return
 
         self.n_called += 1
-        logger.debug(f"Calling: {callstring(self.callback, *args, **kwargs)}")
+        logger.info(f"Calling: {callstring(self.callback)}")
+        logger.debug(f"... with {callstring(self.callback, *args, **kwargs)}")
         self.callback(*args, **kwargs)
 
 
@@ -438,7 +439,8 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         Returns:
             A list of the results from the handlers.
         """
-        logger.debug(f"{self.name}: Emitting {event} with {args=} and {kwargs=}")
+        logger.info(f"{self.name}: Emitting {event}")
+        logger.debug(f"... with {args=} and {kwargs=}")
 
         self.counts[event] += 1
 
@@ -450,7 +452,7 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         if event in self.forwards:
             fwds: list[Hashable] = self.forwards[event]
             for fwd in fwds:
-                logger.debug(f"Forwarding {event} to {fwd}")
+                logger.info(f"Forwarding {event} to {fwd}")
                 self.emit(fwd, *args, **kwargs)
 
     def emit_many(
@@ -477,11 +479,12 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         ]
 
         header = f"{self.name}: Emitting many events"
+        logger.info(header)
+        logger.info(",".join(str(event) for event in events))
         body = [
             f"Emitting {name}: {args=} {kwargs=}"
             for name, (args, kwargs) in events.items()
         ]
-        logger.debug(header)
         for line in body:
             logger.debug(line)
         RegisteredTimeCallOrderStrategy.execute(items)
