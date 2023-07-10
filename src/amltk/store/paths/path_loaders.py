@@ -14,15 +14,12 @@ from __future__ import annotations
 import json
 import logging
 import pickle
-from functools import partial
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     ClassVar,
     Literal,
-    Mapping,
     Protocol,
     TypeVar,
     Union,
@@ -148,27 +145,18 @@ class PDLoader(PathLoader[pd.DataFrame]):
     name: ClassVar[Literal["pd"]] = "pd"
     """See [`Loader.name`][amltk.store.loader.Loader.name]."""
 
-    _load_methods: Mapping[str, Callable] = {
-        ".csv": partial(pd.read_csv, index_col=0),
-        ".parquet": pd.read_parquet,
-    }
-    _save_methods: Mapping[str, Callable] = {
-        ".csv": partial(pd.DataFrame.to_csv, index=True),
-        ".parquet": pd.DataFrame.to_parquet,
-    }
-
     @classmethod
     def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
         """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
         passes_check = check in (pd.DataFrame, None)
-        return path.suffix in cls._load_methods and passes_check
+        return path.suffix in (".csv", ".parquet") and passes_check
 
     @classmethod
     def can_save(cls, obj: Any, path: Path, /) -> bool:
         """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        if path.suffix not in cls._save_methods:
+        if path.suffix not in (".csv", ".parquet"):
             return False
-        if not isinstance(obj, pd.DataFrame):
+        if not isinstance(obj, (pd.DataFrame, pd.Series)):
             return False
 
         # TODO: https://github.com/automl/amltk/issues/4
@@ -181,17 +169,42 @@ class PDLoader(PathLoader[pd.DataFrame]):
     def load(cls, path: Path, /) -> pd.DataFrame:
         """See [`Loader.load`][amltk.store.loader.Loader.load]."""
         logger.debug(f"Loading {path=}")
-        load_method = cls._load_methods[path.suffix]
-        return load_method(path)
+        if path.suffix == ".csv":
+            return pd.read_csv(path, index_col=0)
+
+        if path.suffix == ".parquet":
+            return pd.read_parquet(path)
+
+        raise ValueError(f"Unknown file extension {path.suffix}")
 
     @classmethod
     def save(cls, obj: pd.Series | pd.DataFrame, path: Path, /) -> None:
         """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        # Most pandas methods only seem to support dataframes
+        if isinstance(obj, pd.Series):
+            obj = obj.to_frame()
+
         logger.debug(f"Saving {path=}")
-        save_method = cls._save_methods[path.suffix]
         if obj.index.name is None and obj.index.nlevels == 1:
             obj.index.name = "index"
-        save_method(obj, path)
+
+        cls._save(obj, path, path.suffix)
+
+    @classmethod
+    def _save(cls, obj: pd.DataFrame, path: Path, ext: str, /) -> None:
+        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        logger.debug(f"Saving {path=}")
+        if ext == ".csv":
+            obj.to_csv(path, index=True)
+            return
+
+        if ext == ".parquet":
+            obj.to_parquet(path)
+            pd.read_parquet(path)
+            logger.info("yo")
+            return
+
+        raise ValueError(f"Unknown extension {ext=}")
 
 
 class JSONLoader(PathLoader[Union[dict, list]]):

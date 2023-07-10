@@ -135,6 +135,7 @@ class Drop(Generic[KeyT]):
             )
             if loader is None:
                 raise ValueError(f"Can't load {self.key=} from {self.loaders=}")
+
             value = loader.load(self.key)
             loader_name = loader.name
 
