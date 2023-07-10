@@ -865,7 +865,7 @@ class Trial(Generic[I]):
         FAILURE: Event[Trial.FailReport[I2]] = Event("trial-failure")
         CRASHED: Event[Trial.CrashReport[I2]] = Event("trial-crashed")
         REPORT: Event[Trial.Report[I2]] = Event("trial-report")
-        CANCELLED: Event[Trial[I2]] = Event("trial-cancelled")
+        CANCELLED: Event[Trial.CrashReport[I2]] = Event("trial-cancelled")
 
         def __init__(
             self,
@@ -883,6 +883,7 @@ class Trial(Generic[I]):
             self.on_failed = self.subscriber(self.FAILURE)
             self.on_success = self.subscriber(self.SUCCESS)
             self.on_crashed = self.subscriber(self.CRASHED)
+            self.on_cancelled = self.subscriber(self.CANCELLED)
 
             self.task = task
             self._trial_lookup: dict[Future, Trial] = {}
