@@ -200,8 +200,6 @@ class PDLoader(PathLoader[pd.DataFrame]):
 
         if ext == ".parquet":
             obj.to_parquet(path)
-            pd.read_parquet(path)
-            logger.info("yo")
             return
 
         raise ValueError(f"Unknown extension {ext=}")
