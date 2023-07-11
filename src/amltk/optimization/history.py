@@ -124,7 +124,7 @@ class History(Mapping[str, Trial.Report]):
         if len(self) == 0:
             return pd.DataFrame()
 
-        history_df = pd.concat([report.df() for report in self.reports.values()])
+        history_df = pd.concat([report.df() for report in list(self.reports.values())])
         if (
             len(history_df) > 0
             and "time:start" in history_df.columns
