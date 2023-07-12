@@ -751,17 +751,25 @@ class Task(Generic[P, R], Emitter):
 
             self.on_any_done.emit(self, future)
 
-        def cancel(self: Self) -> None:
-            """Cancel all subtasks."""
+        def cancel(self: Self, *, fire_event: bool | None = None) -> None:
+            """Cancel all subtasks.
+
+            Args:
+                fire_event: Whether to emit the `BATCH_CANCELLED` event
+                    through [`.on_batch_cancelled`][amltk.Task.Batch.on_batch_cancelled]
+            """
             # Already been cancelled, ignore this call
             if self.cancel_triggered:
+                if fire_event is True:
+                    self.on_batch_cancelled.emit(self)
                 return
 
             self.cancel_triggered = True
             for future in self._submitted:
                 future.cancel()
 
-            self.on_batch_cancelled.emit(self)
+            if fire_event is None or fire_event is True:
+                self.on_batch_cancelled.emit(self)
 
         def submit(self) -> list[Future[R2]]:
             """Submit the batch of tasks.
