@@ -24,12 +24,6 @@ to the callback. This object contains the `data` that was transmitted.
 Below we show an example of both `send()` and
 `request()` in action and how to use the plugin.
 
-!!! warning "Usage with Task.Trial"
-
-    If you are using the plugin with a [`Trial.Task`][amltk.optimization.Trial.Task],
-    i.e. for optimization, the comm will accessible from `trial.plugins["comm"]` and
-    you do **not** need the `comm` as an argument.
-
 === "`send()`"
 
     ```python hl_lines="7 9 12 16 17 18 19 20 21"

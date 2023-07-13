@@ -191,21 +191,14 @@ class TimeInterval:
         """The duration of the time interval."""
         return self.end - self.start
 
-    def to_dict(self, *, prefix: str = "") -> dict[str, Any]:
+    def to_dict(self, *, prefix: str = "", ensure_str: bool = True) -> dict[str, Any]:
         """Convert the time interval to a dictionary."""
         return {
-            **{f"{prefix}{k}": v for k, v in asdict(self).items()},
+            **{
+                f"{prefix}{k}": (str(v) if ensure_str else v)
+                for k, v in asdict(self).items()
+            },
             f"{prefix}duration": self.duration,
-        }
-
-    def dict_for_dataframe(self) -> dict[str, Any]:
-        """Convert the time interval to a dictionary for a dataframe."""
-        return {
-            "start": self.start,
-            "end": self.end,
-            "kind": str(self.kind),
-            "unit": str(self.unit),
-            "duration": self.duration,
         }
 
     @classmethod

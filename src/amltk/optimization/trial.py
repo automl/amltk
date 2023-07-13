@@ -7,44 +7,28 @@ from __future__ import annotations
 import copy
 import logging
 import traceback
-from concurrent.futures import CancelledError
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
     Generic,
-    Iterable,
     Iterator,
     Literal,
     Mapping,
     TypeVar,
     overload,
 )
-from typing_extensions import Concatenate, ParamSpec, Self
+from typing_extensions import ParamSpec, Self
 
 import numpy as np
 import pandas as pd
 
-from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import mapping_select, prefix_keys
-from amltk.scheduling.task import (
-    Task as TaskBase,
-)
 from amltk.store import Bucket, PathBucket
 from amltk.timing import TimeInterval, TimeKind, Timer
-
-if TYPE_CHECKING:
-    from concurrent.futures import Future
-
-    from amltk.scheduling.task import (
-        Scheduler,
-        TaskPlugin,
-    )
-
 
 # Inner trial info object
 I = TypeVar("I")  # noqa: E741
@@ -467,37 +451,6 @@ class Trial(Generic[I]):
         """
         self.plugins[name] = plugin_item
 
-    @classmethod
-    def task(
-        cls,
-        function: Callable[Concatenate[Trial[T], P], Trial.Report[T]],
-        scheduler: Scheduler,
-        *,
-        name: str | None = None,
-        plugins: Iterable[TaskPlugin[Concatenate[Trial[T], P], Trial.Report[T]]] = (),
-        init_plugins: bool = True,
-    ) -> Trial.Task[T, P]:
-        """Initialize a task.
-
-        Uses the same arguments as [`Task`][amltk.Task].
-
-        Args:
-            function: The function of this task
-            scheduler: The scheduler that this task is registered with.
-            name: The name of the task.
-            plugins: The plugins to use for this task.
-            init_plugins: Whether to initialize the plugins or not.
-        """
-        task: TaskBase[Concatenate[Trial[T], P], Trial.Report[T]]
-        task = TaskBase(
-            function=function,
-            scheduler=scheduler,
-            name=name,
-            plugins=plugins,  # type: ignore
-            init_plugins=init_plugins,
-        )
-        return Trial.Task[T, P](task)
-
     @dataclass
     class Report(Generic[I2]):
         """A report for a trial.
@@ -591,10 +544,7 @@ class Trial(Generic[I]):
                     **prefix_keys(self.trial.summary, "summary:"),
                     **prefix_keys(self.results or {}, "results:"),
                     **prefix_keys(self.trial.config, "config:"),
-                    **prefix_keys(
-                        self.time.dict_for_dataframe() if self.time else {},
-                        "time:",
-                    ),
+                    **prefix_keys(self.time.to_dict() if self.time else {}, "time:"),
                     "exception": str(self.exception) if self.exception else None,
                     "traceback": self.traceback,
                 },
@@ -805,173 +755,3 @@ class Trial(Generic[I]):
         trial: Trial[I2]
 
         status: str = "fail"
-
-    class Task(Generic[I2, P2], Emitter):
-        """A Task specifically for Trials."""
-
-        on_report: Subscriber[Trial.Report[I2]]
-        """
-        A [`Subscriber`][amltk.Subscriber] called on a trial succeeds, fails or crashes.
-        ```python
-        @trial.on_report
-        def on_report(report: Trial.Report):
-            print(report)
-        ```
-        """
-
-        on_failed: Subscriber[Trial.FailReport[I2]]
-        """
-        A [`Subscriber`][amltk.Subscriber] called when a trial reported as failed.
-        ```python
-        @trial.on_failed
-        def on_report(report: Trial.FailReport):
-            print(report)
-        ```
-        """
-
-        on_success: Subscriber[Trial.SuccessReport[I2]]
-        """
-        A [`Subscriber`][amltk.Subscriber] called when a trial succeeds.
-        ```python
-        @trial.on_success
-        def on_success(report: Trial.SuccessReport):
-            print(report)
-        ```
-        """
-
-        on_crashed: Subscriber[Trial.CrashReport[I2]]
-        """
-        A [`Subscriber`][amltk.Subscriber] called when a trial crashes and failed to
-        report.
-        ```python
-        @trial.on_crashed
-        def on_crashed(report: Trial.CrashReport):
-            print(report)
-        ```
-        """
-        on_cancelled: Subscriber[Trial.CrashReport[I2]]
-        """
-        A [`Subscriber`][amltk.Subscriber] called when a trial was cancelled. This
-        will still return a [`CrashReport`][amltk.optimization.Trial.CrashReport],
-        but should likely not be reported as a crash.
-        ```python
-        @trial.on_cancelled
-        def on_cancelled(report: Trial.CrashReport):
-            print(report)
-        ```
-        """
-
-        SUCCESS: Event[Trial.SuccessReport[I2]] = Event("trial-success")
-        FAILURE: Event[Trial.FailReport[I2]] = Event("trial-failure")
-        CRASHED: Event[Trial.CrashReport[I2]] = Event("trial-crashed")
-        REPORT: Event[Trial.Report[I2]] = Event("trial-report")
-        CANCELLED: Event[Trial.CrashReport[I2]] = Event("trial-cancelled")
-
-        def __init__(
-            self,
-            task: TaskBase[Concatenate[Trial[I2], P2], Trial.Report[I2]],
-        ) -> None:
-            """Initialize a task.
-
-            See [`Task`][amltk.scheduling.task.Task] for more details.
-
-            Args:
-                task: The task to wrap.
-            """
-            super().__init__(event_manager=task.event_manager)
-            self.on_report = self.subscriber(self.REPORT)
-            self.on_failed = self.subscriber(self.FAILURE)
-            self.on_success = self.subscriber(self.SUCCESS)
-            self.on_crashed = self.subscriber(self.CRASHED)
-            self.on_cancelled = self.subscriber(self.CANCELLED)
-
-            self.task = task
-            self._trial_lookup: dict[Future, Trial] = {}
-
-            self.task.on_f_returned(self._emit_report)
-            self.task.on_f_exception(self._emit_report)
-            self.task.on_f_cancelled(self._emit_report)
-
-        def __call__(
-            self,
-            trial: Trial[I2],
-            *args: P2.args,
-            **kwargs: P2.kwargs,
-        ) -> Future | None:
-            """Submit a trial to the task.
-
-            Args:
-                trial: The trial to submit.
-                args: The positional arguments to pass to the task.
-                kwargs: The keyword arguments to pass to the task.
-
-            Returns:
-                The future for the trial.
-            """
-            future = self.task(trial, *args, **kwargs)
-            if future is not None:
-                self._trial_lookup[future] = trial
-
-            return future
-
-        def submit(
-            self,
-            trial: Trial[I2],
-            *args: P2.args,
-            **kwargs: P2.kwargs,
-        ) -> Future | None:
-            """Submit a trial to the task.
-
-            Args:
-                trial: The trial to submit.
-                args: The positional arguments to pass to the task.
-                kwargs: The keyword arguments to pass to the task.
-
-            Returns:
-                The future for the trial.
-            """
-            return self.__call__(trial, *args, **kwargs)
-
-        def _emit_report(
-            self,
-            future: Future,
-            report: Trial.Report | BaseException | None = None,
-        ) -> None:
-            """Emit a report for a trial based on the type of the report."""
-            # If we didn't get a report, it means it was cancelled
-            if report is None:
-                report = CancelledError()
-                was_cancelled = True
-            else:
-                was_cancelled = False
-
-            if isinstance(report, BaseException):
-                trial = self._trial_lookup.get(future)
-                if trial is None:
-                    logger.error(f"No trial found for future {future}!")
-                    return
-
-                report = trial.crashed(report)
-
-            emit_items: dict[Event, Any] = {
-                self.REPORT: ((report,), None),
-            }
-
-            if was_cancelled:
-                emit_items[self.CANCELLED] = ((report,), None)
-
-            # Emit the specific type of report
-            event: Event
-            if was_cancelled:
-                event = self.CANCELLED
-            if isinstance(report, Trial.SuccessReport):
-                event = self.SUCCESS
-            elif isinstance(report, Trial.FailReport):
-                event = self.FAILURE
-            elif isinstance(report, Trial.CrashReport):
-                event = self.CRASHED
-            else:
-                raise TypeError(f"Unexpected report type: {type(report)}")
-
-            emit_items[event] = ((report,), None)
-            self.emit_many(emit_items)  # type: ignore

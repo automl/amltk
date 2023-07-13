@@ -23,9 +23,9 @@ def byte_size(data: Any | Iterable[Any]) -> int:
     if isinstance(data, np.ndarray):
         return data.nbytes
     if isinstance(data, pd.DataFrame):
-        return data.memory_usage(deep=True).sum()
+        return int(data.memory_usage(deep=True).sum())
     if isinstance(data, pd.Series):
-        return data.memory_usage(deep=True)
+        return int(data.memory_usage(deep=True))
     if isinstance(data, Iterable):
         return sum(byte_size(d) for d in data)
 

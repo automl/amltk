@@ -112,7 +112,7 @@ class Task(Generic[P, R], Emitter):
         print(f"Future {future} is done")
     ```
     """
-    on_f_cancelled: Subscriber[Future[R]]
+    on_cancelled: Subscriber[Future[R]]
     """Called when a task is cancelled.
     ```python
     @task.on_cancelled
@@ -200,7 +200,7 @@ class Task(Generic[P, R], Emitter):
         self.on_returned = self.subscriber(self.RETURNED)
         self.on_exception = self.subscriber(self.EXCEPTION)
         self.on_f_submitted = self.subscriber(self.F_SUBMITTED)  # type: ignore
-        self.on_f_cancelled = self.subscriber(self.F_CANCELLED)
+        self.on_cancelled = self.subscriber(self.F_CANCELLED)
         self.on_f_returned = self.subscriber(self.F_RETURNED)
         self.on_f_exception = self.subscriber(self.F_EXCEPTION)
 
@@ -349,7 +349,7 @@ class Task(Generic[P, R], Emitter):
             raise ValueError(f"{future=} not found in task queue {self.queue=}") from e
 
         if future.cancelled():
-            self.on_f_cancelled.emit(future)
+            self.on_cancelled.emit(future)
             return
 
         self.on_done.emit(future)
@@ -711,7 +711,7 @@ class Task(Generic[P, R], Emitter):
             self.task.on_done(self._on_done)
             self.task.on_f_returned(self._on_returned)
             self.task.on_f_exception(self._on_exception)
-            self.task.on_f_cancelled(self._on_cancelled)
+            self.task.on_cancelled(self._on_cancelled)
 
         def _on_returned(self: Self, future: Future[R2], result: R2) -> None:
             if self.failed_submission or self.cancel_triggered:

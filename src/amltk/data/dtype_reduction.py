@@ -37,10 +37,13 @@ def reduce_floating_precision(x: D) -> D:
         return x
 
     _reduction_map = {
+        # Base numpy dtypes
         "float128": "float64",
         "float96": "float64",
         "float64": "float32",
         "float32": "float16",
+        # Nullable pandas dtypes (only supports 64 and 32 bit)
+        "Float64": "Float32",
     }
 
     if (dtype := _reduction_map.get(x.dtype.name)) is not None:
@@ -94,6 +97,9 @@ def reduce_dtypes(x: D, *, reduce_int: bool = True, reduce_float: bool = True) -
     """
     if not isinstance(x, (pd.DataFrame, pd.Series, np.ndarray)):
         raise TypeError(f"Cannot reduce data of type {type(x)}.")
+
+    if isinstance(x, (pd.Series, pd.DataFrame)):
+        x = x.convert_dtypes()
 
     if reduce_int:
         x = reduce_int_span(x)

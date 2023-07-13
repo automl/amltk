@@ -37,7 +37,7 @@ from sklearn.preprocessing import (
 
 from amltk.optimization import History, Trial
 from amltk.pipeline import Pipeline, split, step
-from amltk.scheduling import Scheduler
+from amltk.scheduling import Scheduler, Task
 from amltk.sklearn.data import split_data
 from amltk.smac import SMACOptimizer
 from amltk.store import PathBucket
@@ -238,9 +238,9 @@ print(X_train.shape)
 
 """
 ### Setting up the Scheduler, Task and Optimizer
-We use the [`Scheduler.with_sequential`][amltk.scheduling.Scheduler.with_sequential]
+We use the [`Scheduler.with_processes`][amltk.scheduling.Scheduler.with_processes]
 method to create a [`Scheduler`][amltk.scheduling.Scheduler] that will run the
-optimization sequentially and in the same process. This is useful for debugging.
+optimization.
 
 Please check out the full [guides](../../guides) to learn more!
 
@@ -248,21 +248,20 @@ We then create an [`SMACOptimizer`][amltk.smac.SMACOptimizer] which will
 optimize the pipeline. We pass in the space of the pipeline, which is the space of
 the hyperparameters we want to optimize.
 """
-scheduler = Scheduler.with_sequential()
+scheduler = Scheduler.with_processes(2)
 optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)
 
 
 """
-Next we create a [`Trial.Task`][amltk.optimization.Trial.Task] which is a special kind
-of [`Task`][amltk.scheduling.Task] with events that are useful for optimization loops.
-We pass it in the function we want to run and the scheduler we will run it in.
+Next we create a [`Task`][amltk.Task], passing in the function we
+want to run and the scheduler we will run it in.
 """
-task = Trial.task(target_function, scheduler)
+task = Task(target_function, scheduler)
 
 print(task)
 """
 We use the callback decorators of the [`Scheduler`][amltk.scheduling.Scheduler] and
-the [`Trial.Task`][amltk.optimization.Trial.Task] to add callbacks that get called
+the [`Task`][amltk.Task] to add callbacks that get called
 during events that happen during the running of the scheduler. Using this, we can
 control the flow of how things run.
 Check out the [task guide](../../guides/tasks) for more.
@@ -280,20 +279,17 @@ def launch_initial_tasks() -> None:
 
 
 """
-When a [`Trial.Task`][amltk.optimization.Trial.Task] returns and we get a report, i.e.
+When a [`Task`][amltk.Trial] returns and we get a report, i.e.
 with [`task.success()`][amltk.optimization.Trial.success] or
 [`task.fail()`][amltk.optimization.Trial.fail], the `task` will fire off the
-callbacks registered with [`.on_success()`][amltk.optimization.Trial.Task.on_success] or
-[`.on_failed()`][amltk.optimization.Trial.Task.on_failed]
-respectively, with a general [`.on_report()`][amltk.optimization.Trial.Task.on_report]
-callback for both. We can use these to add callbacks that get called when these
-events happen.
+callbacks registered with [`.on_returned()`][amltk.Task.on_returned].
+We can use these to add callbacks that get called when these events happen.
 
 Here we use it to update the optimizer with the report we got.
 """
 
 
-@task.on_report
+@task.on_returned
 def tell_optimizer(report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
@@ -301,13 +297,13 @@ def tell_optimizer(report: Trial.Report) -> None:
 
 """
 We can use the [`History`][amltk.optimization.History] class to store the reports we get
-from the [`Trial.Task`][amltk.optimization.Trial.Task]. We can then use this to analyze
-the results of the optimization afterwords.
+from the [`Task`][amltk.Task]. We can then use this to analyze the results of the
+optimization afterwords.
 """
 trial_history = History()
 
 
-@task.on_report
+@task.on_returned
 def add_to_history(report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
@@ -318,17 +314,28 @@ We launch a new task when the scheduler is empty, i.e. when all the tasks have
 finished. This will keep going until we hit the timeout we set on the scheduler.
 
 If you want to run the optimization in parallel, you can use the
-`task.on_report` callback to launch a new task when you get a report. This will
-launch a new task as soon as one finishes.
+[`task.on_returned`][amltk.Task.on_returned] callback to launch a new task when you get
+a report. This will launch a new task as soon as one finishes.
 """
 
 
-@scheduler.on_empty
-def launch_another_task() -> None:
+@task.on_returned
+def launch_another_task(_) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
     task(trial, bucket=bucket, _pipeline=pipeline)
 
+"""
+If something goes wrong, we likely want to stop the scheduler.
+"""
+
+@task.on_exception
+def stop_scheduler_on_exception(_: Any) -> None:
+    scheduler.stop()
+
+@task.on_cancelled
+def stop_scheduler_on_cancelled(_: Any) -> None:
+    scheduler.stop()
 
 """
 ### Setting the system to run

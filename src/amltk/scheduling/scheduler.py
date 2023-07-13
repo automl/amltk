@@ -15,7 +15,7 @@ from concurrent.futures import (
 )
 from enum import Enum, auto
 from threading import Timer
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
 from amltk.asyncm import ContextEvent
 from amltk.events import Emitter, Event, Subscriber
@@ -243,7 +243,7 @@ class Scheduler(Emitter):
     def with_processes(
         cls,
         max_workers: int | None = None,
-        mp_context: BaseContext | None = None,
+        mp_context: BaseContext | Literal["fork", "spawn", "forkserver"] | None = None,
         initializer: Callable[..., Any] | None = None,
         initargs: tuple[Any, ...] = (),
     ) -> Self:
@@ -252,6 +252,11 @@ class Scheduler(Emitter):
         See [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor]
         for more details.
         """
+        if isinstance(mp_context, str):
+            from multiprocessing import get_context
+
+            mp_context = get_context(mp_context)
+
         executor = ProcessPoolExecutor(
             max_workers=max_workers,
             mp_context=mp_context,

@@ -9,12 +9,13 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Generic,
     Literal,
     Mapping,
     TypeVar,
     Union,
 )
-from typing_extensions import ParamSpec, Self, TypeAlias
+from typing_extensions import Concatenate, ParamSpec, Self, TypeAlias
 
 import numpy as np
 import wandb
@@ -113,7 +114,7 @@ class WandbParams:
         return run
 
 
-class WandbLiveRunWrap:
+class WandbLiveRunWrap(Generic[P]):
     """Wrap a function to log the results to a wandb run.
 
     This class is used to wrap a function that returns a report to log the
@@ -125,7 +126,7 @@ class WandbLiveRunWrap:
     def __init__(
         self,
         params: WandbParams,
-        fn: Callable[[Trial], Trial.Report],
+        fn: Callable[Concatenate[Trial, P], Trial.Report],
         *,
         modify: Callable[[Trial, WandbParams], WandbParams] | None = None,
     ):
@@ -141,14 +142,14 @@ class WandbLiveRunWrap:
         self.fn = fn
         self.modify = modify
 
-    def __call__(self, trial: Trial) -> Trial.Report:
+    def __call__(self, trial: Trial, *args: P.args, **kwargs: P.kwargs) -> Trial.Report:
         """Call the wrapped function and log the results to a wandb run."""
         params = self.params if self.modify is None else self.modify(trial, self.params)
         with params.run(name=trial.name, config=trial.config) as run:
             # Make sure the run is available from the trial
             trial.attach_plugin_item("wandb", run)
 
-            report = self.fn(trial)
+            report = self.fn(trial, *args, **kwargs)
 
             report_df = report.df()
             run.log({"table": wandb.Table(dataframe=report_df)})
@@ -190,16 +191,14 @@ class WandbTrialTracker(TaskPlugin[[Trial], Trial.Report]):
 
     def attach_task(self, task: Task) -> None:
         """Use the task to register several callbacks."""
-        if not isinstance(task, Trial.Task):
-            raise ValueError(
-                "WandbTrialTracker requires that it's attached to a `Trial.Task`.",
-            )
         self._check_explicit_reinit_arg_with_executor(task.scheduler)
 
     def pre_submit(
         self,
         fn: Callable[[Trial], Trial.Report],
         trial: Trial,
+        *args: Any,
+        **kwargs: Any,
     ) -> tuple[Callable[[Trial], Trial.Report], tuple, dict] | None:
         """Wrap the target function to log the results to a wandb run.
 
@@ -209,13 +208,15 @@ class WandbTrialTracker(TaskPlugin[[Trial], Trial.Report]):
         Args:
             fn: The target function.
             trial: The trial to run.
+            args: The positional arguments of the target function.
+            kwargs: The keyword arguments of the target function.
 
         Returns:
             The wrapped function, the positional arguments and the keyword
             arguments.
         """
         fn = WandbLiveRunWrap(self.params, fn, modify=self.modify)
-        return fn, (trial,), {}
+        return fn, (trial, *args), {**kwargs}
 
     def copy(self) -> Self:
         """Copy the plugin."""
@@ -252,7 +253,7 @@ class WandbPlugin:
 
     This class is the entry point to log trials using wandb. It
     can be used to create a [`trial_tracker()`][amltk.wandb.WandbPlugin.trial_tracker]
-    to pass into a [`Trial.Task(plugins=...)`][amltk.optimization.Trial.Task] or to
+    to pass into a [`Task(plugins=...)`][amltk.Task] or to
     create `wandb.Run`'s for custom purposes with
     [`run()`][amltk.wandb.WandbPlugin.run].
     """

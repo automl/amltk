@@ -150,7 +150,7 @@ What you can use it for depends on what you want to do.
     ```python
     from amltk.pipeline import Pipeline
     from amltk.optimization import Trial
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
     from amltk.smac import SMACOptimizer
 
     def evaluate(trial: Trial, pipeline: Pipeline) -> Trial.Report:
@@ -170,28 +170,30 @@ What you can use it for depends on what you want to do.
 
     n_workers = 8
     scheduler = Scheduler.with_processes(n_workers)  # (3)!
-    task = Trial.Task(evaluate, scheduler, call_limit=10)
+    task = Task(evaluate, scheduler, call_limit=10)
 
     @scheduler.on_start(repeat=n_workers) # (6)!
     def start_optimizing():
         trial = optimizer.ask()
         task(trial=trial, pipeline=my_pipeline)  # (5)!
 
-    @task.on_report
-    def tell_optimizer(report: Trial.Report):
-        optimizer.tell(report)
-
-    @task.on_report
+    @task.on_done
     def start_another_trial(_):
           trial = optimizer.ask()
           task(trial=trial, pipeline=my_pipeline)
 
-    @task.on_success
-    def store_result(report: Trial.SuccessReport):
+    @task.on_returned
+    def tell_optimizer(report: Trial.Report):
+        optimizer.tell(report)
+
+    @task.on_returned
+    def store_result(report: Trial.Report):
         ...  # (8)!
 
-    @task.on_crash
-    def stop_optimizing(report: Trial.CrashedReport):
+    @task.on_exception
+    @task.on_cancelled
+    def stop_optimizing(exception):
+        print(exception)
         scheduler.stop() # (9)!
 
     scheduler.run(timeout=60) # (10)!
@@ -214,7 +216,7 @@ What you can use it for depends on what you want to do.
     10. And let the system run!
 
     You can wrap this in a class, create more complicated control flows and even utilize
-    some more of the functionality of a [`Trial.Task`][amltk.optimization.Trial.Task] to do
+    some more of the functionality of a [`Task`][amltk.Task] to do
     much more. We don't tell you how the control flow should or where data goes, this gives
     you as much flexibility as you need to get your research done.
 

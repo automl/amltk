@@ -520,7 +520,7 @@ the `Trial` and return the `Report`.
 ### Running the Optimizer in a parallel fashion
 
 Now that we've seen the basic optimization loop, it's time to parallelize it with
-a [`Scheduler`][amltk.scheduling.Scheduler] and the [`Trial.Task`][amltk.optimization.Trial.Task].
+a [`Scheduler`][amltk.scheduling.Scheduler] and the [`Task`][amltk.Task].
 We cover the [`Scheduler`][amltk.scheduling.Scheduler] and [`Tasks`][amltk.scheduling.Task]
 in the [Tasks guide](./tasks.md) if you'd like to know more about how this works.
 
@@ -528,10 +528,10 @@ We first create a [`Scheduler`][amltk.scheduling.Scheduler] to run with `#!pytho
 process and run it for `#!python 5` seconds.
 Using the event system of AutoML-Toolkit,
 we define what happens through _callbacks_, registering to certain events, such
-as launch a single trial on `scheduler.on_start`, _tell_ the optimizer with `task.on_report`
-and save results with `task.on_success`. 
+as launch a single trial on `scheduler.on_start`, _tell_ the optimizer whenever we get
+something returned with [`task.on_returned`][amltk.Task.on_returned].
 
-=== "Creating a `Trial.Task`"
+=== "Creating a `Task` for a trial"
 
     ```python hl_lines="19 23 24 25 26 28 29 30 32 33 34 35 37 38 39 40 42"
     from amltk.optimization import RandomSearch, Trial
@@ -552,7 +552,7 @@ and save results with `task.on_success`.
     random_search = RandomSearch(space=space, seed=42)
     scheduler = Scheduler.with_processes(1)
 
-    task = Trial.Task(poly)  # (5)!
+    task = Task(poly)  # (5)!
 
     results = []
 
@@ -561,16 +561,16 @@ and save results with `task.on_success`.
         trial = random_search.ask()
         task(trial)
 
-    @task.on_report  # (2)!
+    @task.on_returned  # (2)!
     def tell_optimizer(report):
         random_search.tell(report)
 
-    @task.on_report
+    @task.on_returned
     def launch_another_trial(_):
         trial = random_search.ask()
         task(trial)
 
-    @task.on_success  # (3)!
+    @task.on_returned  # (3)!
     def save_result(report):
         cost = report["cost"]
         results.append(cost)  # (4)!
@@ -589,7 +589,7 @@ and save results with `task.on_success`.
     4. We don't store anything more than the optmimizer needs. Saving results
     that you wish to access later is up to you.
     5. Here we wrap the function we want to run in another process in a
-    [`Trial.Task`][amltk.optimization.Trial]. There are other backends than
+    [`Task`][amltk.Trial]. There are other backends than
     processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
 
 === "Typed"
@@ -597,7 +597,7 @@ and save results with `task.on_success`.
     ```python hl_lines="19 23 24 25 26 28 29 30 32 33 34 35 37 38 39 40 42"
     from amltk.optimization import RandomSearch, Trial, RSTrialInfo
     from amltk.pipeline import searchable
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
         x = trial.config["x"]
@@ -613,7 +613,7 @@ and save results with `task.on_success`.
     random_search = RandomSearch(space=space, seed=42)
     scheduler = Scheduler.with_processes(1)
 
-    task = Trial.Task(poly)  # (5)!
+    task = Task(poly)  # (5)!
 
     results: list[float] = []
 
@@ -622,16 +622,16 @@ and save results with `task.on_success`.
         trial = random_search.ask()
         task(trial)
 
-    @task.on_report  # (2)!
+    @task.on_returned  # (2)!
     def tell_optimizer(report: Trial.Report) -> None:
         random_search.tell(report)
 
-    @task.on_report
+    @task.on_returned
     def launch_another_trial(_: Trial.Report) -> None:
         trial = random_search.ask()
         task(trial)
 
-    @task.on_success  # (3)!
+    @task.on_returned  # (3)!
     def save_result(report: Trial.SuccessReport) -> None:
         cost = report["cost"]
         results.append(cost)  # (4)!
@@ -650,164 +650,8 @@ and save results with `task.on_success`.
     4. We don't store anything more than the optmimizer needs. Saving results
     that you wish to access later is up to you.
     5. Here we wrap the function we want to run in another process in a
-    [`Trial.Task`][amltk.optimization.Trial]. There are other backends than
+    [`Task`][amltk.optimization.Trial]. There are other backends than
     processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
-
-??? tip "What Events you can subscribe to for a `Trial.Task`"
-
-    The `scheduler.on_start`, `task.on_report` and `task.on_success` methods
-    define how our system runs. These are part of the event system of AutoML-Toolkit which
-    are covered in more detail in the [Tasks guide](./tasks.md). Below we list some of the events
-    related to a [`Trial.Task`][amltk.optimization.Trial.Task].
-
-    === "`on_success`"
-
-        Any function decorated with this will be called when the wrapped function returns
-        with [`trial.success()`][amltk.optimization.Trial.success], passing on the
-        [`Trial.SuccessReport`][amltk.optimization.Trial.SuccessReport].
-
-        === "Use"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_success
-            def do_something_with_report(report):
-                original_trial = report.trial
-                original_config = report.trial.config
-                time = report.time
-                results = report.results
-            ```
-
-        === "Typed"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_success
-            def do_something_with_report(report: Trial.SuccessReport) -> None:
-                original_trial: Trial = report.trial
-                original_config: dict[str, Any] = report.trial.config
-                time: TimeInterval = report.time
-                results: dict[str, Any] = report.results
-            ```
-
-    === "`on_failure`"
-
-        Any function decorated with this will be called when the wrapped function returns
-        with [`trial.fail()`][amltk.optimization.Trial.fail], passing on the
-        [`Trial.FailReport`][amltk.optimization.Trial.FailReport].
-
-        === "Use"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_failure
-            def do_something_with_report(report):
-                original_trial = report.trial
-                original_config = report.trial.config
-                time = report.time
-                results = report.results
-                exception = report.exception
-            ```
-
-        === "Typed"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_failure
-            def do_something_with_report(report: Trial.FailReport) -> None:
-                original_trial: Trial = report.trial
-                original_config: dict[str, Any] = report.trial.config
-                time: TimeInterval = report.time
-                results: dict[str, Any] | None = report.results
-                exception: BaseException | None = report.exception
-            ```
-
-
-    === "`on_crashed`"
-
-        Any function decorated with this will be called when the wrapped function crashes
-        outside of [`trial.begin()`][amltk.optimization.Trial.begin]. In this case,
-        we got nothing back from the called function exception an exception.
-        We pass on this exception with a
-        [`Trial.CrashReport`][amltk.optimization.Trial.CrashReport].
-
-        === "Use"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_crashed
-            def do_something_with_report(report):
-                original_trial = report.trial
-                original_config = report.trial.config
-                exception = report.exception
-                traceback = report.traceback
-            ```
-
-        === "Typed"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_crashed
-            def do_something_with_report(report: Trial.CrashReport) -> None:
-                original_trial: Trial = report.trial
-                original_config: dict[str, Any] = report.trial.config
-                exception: Exception = report.exception
-                traceback: str = report.traceback
-            ```
-
-    === "`on_report`"
-
-        Any function decorated with this will be called whenever any of the other
-        events is triggered. It will pass on one of:
-
-        * [SuccessReport][amltk.optimization.Trial.SuccessReport]
-        * [FailReport][amltk.optimization.Trial.FailReport]
-        * [CrashReport][amltk.optimization.Trial.CrashReport]
-
-        === "Use"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_report
-            def do_something_with_report(report):
-                original_trial = report.trial
-                original_config = report.trial.config
-            ```
-
-        === "Typed"
-
-            ```python
-            from amltk.optimization import Trial
-
-            task = Trial.Task(...)
-
-            @task.on_report
-            def do_something_with_report(report: Trial.Report) -> None:
-                original_trial: Trial = report.trial
-                original_config: dict[str, Any] = report.trial.config
-            ```
-
 
 Now, to scale up, we trivially increase the number of initial trails launched with `scheduler.on_start`
 and the number of processes in our `Scheduler`. That's it.
@@ -817,7 +661,7 @@ and the number of processes in our `Scheduler`. That's it.
     ```python hl_lines="18 19 25"
     from amltk.optimization import RandomSearch, Trial
     from amltk.pipeline import searchable
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
 
     def poly(trial):
         x = trial.config["x"]
@@ -835,7 +679,7 @@ and the number of processes in our `Scheduler`. That's it.
     n_workers = 4
     scheduler = Scheduler.with_processes(n_workers)
 
-    task = Trial.Task(poly)
+    task = Task(poly)
 
     results = []
 
@@ -844,16 +688,16 @@ and the number of processes in our `Scheduler`. That's it.
         trial = random_search.ask()
         task(trial)
 
-    @task.on_report
+    @task.on_returned
     def tell_optimizer(report):
         random_search.tell(report)
 
-    @task.on_report
+    @task.on_returned
     def launch_another_trial(_):
         trial = random_search.ask()
         task(trial)
 
-    @task.on_success
+    @task.on_returned
     def save_result(report):
         cost = report["cost"]
         results.append(cost)
@@ -866,7 +710,7 @@ and the number of processes in our `Scheduler`. That's it.
     ```python hl_lines="18 19 25"
     from amltk.optimization import RandomSearch, Trial, RSTrialInfo
     from amltk.pipeline import searchable
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
         x = trial.config["x"]
@@ -893,16 +737,16 @@ and the number of processes in our `Scheduler`. That's it.
         trial = random_search.ask()
         task(trial)
 
-    @task.on_report
+    @task.on_returned
     def tell_optimizer(report: Trial.Report) -> None:
         random_search.tell(report)
 
-    @task.on_report
+    @task.on_returned
     def launch_another_trial(_: Trial.Report) -> None:
         trial = random_search.ask()
         task(trial)
 
-    @task.on_success
+    @task.on_returned
     def save_result(report: Trial.SuccessReport) -> None:
         cost = report["cost"]
         results.append(cost)

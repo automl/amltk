@@ -377,11 +377,10 @@ bucket.store(  # (2)!
     },
 )
 
-scheduler = Scheduler.with_sequential()  # (3)!
+scheduler = Scheduler.with_processes()  # (3)!
 optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)  # (4)!
 
-task = Trial.task(target_function, scheduler)  # (6)!
-
+task = Task(target_function, scheduler)  # (6)!
 ensemble_task = Task(create_ensemble, scheduler)  # (7)!
 
 trial_history = History()
@@ -395,25 +394,26 @@ def launch_initial_tasks() -> None:
     task.submit(trial, bucket=bucket, pipeline=pipeline)
 
 
-@task.on_report
+@task.on_returned
 def tell_optimizer(report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
 
-@task.on_report
+@task.on_returned
 def add_to_history(report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
 
 
-@task.on_success
-def launch_ensemble_task(_: Trial.SuccessReport) -> None:
+@task.on_returned
+def launch_ensemble_task(report: Trial.Report) -> None:
     """When a task successfully completes, launch an ensemble task."""
-    ensemble_task(trial_history, bucket)
+    if isinstance(report, Trial.SuccessReport):
+        ensemble_task(trial_history, bucket)
 
 
-@task.on_report
+@task.on_returned
 def launch_another_task(_: Trial.Report) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
@@ -427,8 +427,9 @@ def save_ensemble(ensemble: Ensemble) -> None:
 
 
 @ensemble_task.on_exception
+@task.on_exception
 def print_ensemble_exception(exception: BaseException) -> None:
-    """When an ensemble task throws an exception, log it."""
+    """When an exception occurs, log it and stop."""
     print(exception)
     scheduler.stop()
 
@@ -453,14 +454,13 @@ print(best_ensemble)
 #  dataset.
 # 2. We use [`store()`][amltk.store.Bucket.store] to store the data in the bucket, with
 # each key being the name of the file and the value being the data.
-# 3. We use [`Scheduler.with_sequential()`][amltk.scheduling.Scheduler.with_sequential]
+# 3. We use [`Scheduler.with_processes()`][amltk.scheduling.Scheduler.with_processes]
 #  create a [`Scheduler`][amltk.scheduling.Scheduler] that runs everything
-#  sequentially. You can of course use a different backend if you want.
+#  in a different process. You can of course use a different backend if you want.
 # 4. We use [`SMACOptimizer.create()`][amltk.smac.SMACOptimizer.create] to create a
 #  [`SMACOptimizer`][amltk.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
-# 6. We use [`Trial.task()`][amltk.optimization.Trial.task] to create a
-#   [`Task`][amltk.scheduling.Task] that will run our objective, passing
+# 6. We create a [`Task`][amltk.scheduling.Task] that will run our objective, passing
 #   in the function to run and the scheduler for where to run it
 # 7. We use [`Task()`][amltk.scheduling.Task] to create a
 #   [`Task`][amltk.scheduling.Task]

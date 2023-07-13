@@ -37,7 +37,7 @@ print(history.df())
 ```
 
 Typically, to use this inside of an optimization run, you would add the reports inside
-of a callback from your [`Trial.Task`][amltk.optimization.Trial.Task]s. Please
+of a callback from your [`Task`][amltk.Task]s. Please
 see the [optimization guide](../guides/optimization.md) for more details.
 
 ??? example "With an Optimizer and Scheduler"
@@ -68,11 +68,11 @@ see the [optimization guide](../guides/optimization.md) for more details.
         trial = optimizer.ask()
         task(trial)
 
-    @task.on_report
+    @task.on_returned
     def add_to_history(report):
         history.add(report)
 
-    @task.on_report
+    @task.on_done
     def launch_another(_):
         trial = optimizer.ask()
         task(trial)
