@@ -7,7 +7,10 @@ configurable pipelines, agnostic to:
 
 ... yet providing sensible defaults and options to plug in your own.
 
+Please see the [docs](#docs) for how to view locally.
+
 ## Installation
+Installing [`just`](https://github.com/casey/just#installation)
 ```bash
 git clone git@github.com:automl/amltk.git
 
@@ -22,8 +25,10 @@ pip install -e ".[dev, test, doc, doc-examples]"
 This library uses [`mkdocs`](https://squidfunk.github.io/mkdocs-material/getting-started/) for markdown style documentation.
 ```bash
 just docs
+```
 
-# Otherwise
+Otherwise if you don't have just installed
+```bash
 python -m webbrowser -t "http://127.0.0.1:8000/" \
     AMLTK_DOC_RENDER_EXAMPLES={{example}} \
     AMLTK_DOCS_OFFLINNE={{offline}} \
