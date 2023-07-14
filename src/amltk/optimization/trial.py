@@ -27,8 +27,9 @@ import numpy as np
 import pandas as pd
 
 from amltk.functional import mapping_select, prefix_keys
+from amltk.memory import Memory
 from amltk.store import Bucket, PathBucket
-from amltk.timing import TimeInterval, TimeKind, Timer
+from amltk.timing import Timer
 
 # Inner trial info object
 I = TypeVar("I")  # noqa: E741
@@ -80,11 +81,17 @@ class Trial(Generic[I]):
     fidelities: dict[str, Any] | None = None
     """The fidelities at which to evaluate the trial, if any."""
 
-    time: TimeInterval | None = field(repr=False, default=None)
-    """The time taken by the trial, once ended."""
-
     timer: Timer | None = field(repr=False, default=None)
     """The timer used to time the trial, once begun."""
+
+    time: Timer.Interval | None = field(repr=False, default=None)
+    """The time taken by the trial, once ended."""
+
+    memory_tracker: Memory | None = field(repr=False, default=None)
+    """The memory tracker used by the trial, once begun."""
+
+    memory: Memory.Interval | None = field(repr=False, default=None)
+    """The memory used by the trial, once ended."""
 
     summary: dict[str, Any] = field(default_factory=dict)
     """The summary of the trial. These are for summary statistics of a trial and
@@ -112,7 +119,9 @@ class Trial(Generic[I]):
     @contextmanager
     def begin(
         self,
-        time: TimeKind | Literal["wall", "cpu", "process"] = "cpu",
+        time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
+        memory_kind: Memory.Kind | Literal["rss", "vms"] = "rss",
+        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
     ) -> Iterator[None]:
         """Begin the trial with a `contextmanager`.
 
@@ -141,8 +150,11 @@ class Trial(Generic[I]):
 
         Args:
             time: The timer kind to use for the trial.
+            memory_kind: The memory kind to use for the trial.
+            memory_unit: The memory unit to use for the trial.
         """  # noqa: E501
         self.timer = Timer.start(kind=time)
+        self.memory_tracker = Memory.start(kind=memory_kind, unit=memory_unit)
         try:
             yield
         except Exception as error:  # noqa: BLE001
@@ -151,6 +163,8 @@ class Trial(Generic[I]):
         finally:
             if self.time is None:
                 self.time = self.timer.stop()
+            if self.memory is None:
+                self.memory = self.memory_tracker.stop()
 
     def success(self, **results: Any) -> Trial.SuccessReport[I]:
         """Generate a success report.
@@ -170,17 +184,23 @@ class Trial(Generic[I]):
         Returns:
             The result of the trial.
         """  # noqa: E501
-        if self.timer is None:
-            raise RuntimeError(
-                "Cannot succeed a trial that has not been started."
-                " Please use `with trial.begin():` to start the trial.",
-            )
+        if self.timer is not None:
+            time = self.time if self.time is not None else self.timer.stop()
+        else:
+            time = Timer.Interval.na_time_interval()
 
-        time = self.time if self.time is not None else self.timer.stop()
+        if self.memory_tracker is not None:
+            memory = (
+                self.memory if self.memory is not None else self.memory_tracker.stop()
+            )
+        else:
+            memory = Memory.Interval.na_memory_interval()
+
         self.results = results
         return Trial.SuccessReport(
             trial=self,
             time=time,
+            memory=memory,
             results=results,
             exception=None,
             traceback=None,
@@ -207,13 +227,18 @@ class Trial(Generic[I]):
         Returns:
             The result of the trial.
         """  # noqa: E501
-        if self.timer is None:
-            raise RuntimeError(
-                "Cannot fail a trial that has not been started."
-                " Please use `with trial.begin():` to start the trial.",
-            )
+        if self.timer is not None:
+            time = self.time if self.time is not None else self.timer.stop()
+        else:
+            time = Timer.Interval.na_time_interval()
 
-        time = self.time if self.time is not None else self.timer.stop()
+        if self.memory_tracker is not None:
+            memory = (
+                self.memory if self.memory is not None else self.memory_tracker.stop()
+            )
+        else:
+            memory = Memory.Interval.na_memory_interval()
+
         exception = self.exception
         traceback = self.traceback
         self.results = results
@@ -221,6 +246,7 @@ class Trial(Generic[I]):
         return Trial.FailReport(
             trial=self,
             time=time,
+            memory=memory,
             exception=exception,
             traceback=traceback,
             results=results,
@@ -264,7 +290,8 @@ class Trial(Generic[I]):
             trial=self,
             exception=exception,
             traceback=traceback,
-            time=TimeInterval.na_time_interval(),
+            time=Timer.Interval.na_time_interval(),
+            memory=Memory.Interval.na_memory_interval(),
             results=None,
         )
 
@@ -470,8 +497,11 @@ class Trial(Generic[I]):
         results: dict[str, Any] | None
         """The results of the trial, if any."""
 
-        time: TimeInterval | None
+        time: Timer.Interval | None
         """The time interval of the trial, if any."""
+
+        memory: Memory.Interval | None
+        """The memory usage of the trial, if any."""
 
         exception: BaseException | None
         """The exception that was raised, if any."""
@@ -487,7 +517,7 @@ class Trial(Generic[I]):
 
         DF_COLUMN_TYPES: ClassVar[dict] = {
             "name": pd.StringDtype(),
-            "status": pd.StringDtype(),
+            "status": pd.CategoricalDtype(["success", "fail", "crash"]),
             # As trial_seed can be None, we can't represent this in an int column.
             # Tried np.nan but that only works with floats
             "trial_seed": pd.Int64Dtype(),
@@ -496,8 +526,13 @@ class Trial(Generic[I]):
             "time:start": float,
             "time:end": float,
             "time:duration": float,
-            "time:kind": pd.StringDtype(),
-            "time:unit": pd.StringDtype(),
+            "time:kind": pd.CategoricalDtype([str(k) for k in Timer.Kind]),
+            "time:unit": pd.CategoricalDtype([str(k) for k in Timer.Unit]),
+            "memory:start": float,
+            "memory:end": float,
+            "memory:usage": float,
+            "memory:kind": pd.CategoricalDtype([str(k) for k in Memory.Kind]),
+            "memory:unit": pd.CategoricalDtype([str(k) for k in Memory.Unit]),
         }
 
         @property
@@ -535,6 +570,7 @@ class Trial(Generic[I]):
                 * `results`: Entries will be prefixed with `#!python "results:"`
                 * `time`: Entries will be prefixed with `#!python "time:"`
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
+                * `memory`: Entries will be prefixed with `#!python "memory:"`
             """
             _df = pd.DataFrame(
                 {
@@ -545,6 +581,10 @@ class Trial(Generic[I]):
                     **prefix_keys(self.results or {}, "results:"),
                     **prefix_keys(self.trial.config, "config:"),
                     **prefix_keys(self.time.to_dict() if self.time else {}, "time:"),
+                    **prefix_keys(
+                        self.memory.to_dict() if self.memory else {},
+                        "memory:",
+                    ),
                     "exception": str(self.exception) if self.exception else None,
                     "traceback": self.traceback,
                 },
@@ -687,7 +727,7 @@ class Trial(Generic[I]):
                 The created report.
             """
             # The relative_ here is inserted in `df()` method of history, however
-            # TimeInterval doesn't know about it, so we remove it here.
+            # Timer.Interval doesn't know about it, so we remove it here.
             time_interval = {
                 k: v
                 for k, v in mapping_select(d, "time:").items()
@@ -697,6 +737,7 @@ class Trial(Generic[I]):
             config = mapping_select(d, "config:")
             summary = mapping_select(d, "summary:")
             results = mapping_select(d, "results:")
+            memory = mapping_select(d, "memory:")
 
             trial: Trial[Any] = Trial(
                 name=d["name"],
@@ -704,8 +745,9 @@ class Trial(Generic[I]):
                 info=None,  # We don't save this to disk so we load it back as None
                 seed=d["trial_seed"],
                 fidelities=fidelities,
-                time=TimeInterval.from_dict(time_interval) if time_interval else None,
+                time=Timer.Interval.from_dict(time_interval) if time_interval else None,
                 timer=None,
+                memory=Memory.Interval.from_dict(memory) if memory else None,
                 results=results,
                 summary=summary,
                 exception=d["exception"],
@@ -714,6 +756,7 @@ class Trial(Generic[I]):
             return cls(
                 status=d["status"],
                 trial=trial,
+                memory=trial.memory,
                 exception=d["exception"],
                 traceback=d["traceback"],
                 time=trial.time,
@@ -726,7 +769,7 @@ class Trial(Generic[I]):
 
         exception: BaseException
         results: None
-        time: TimeInterval
+        time: Timer.Interval
         traceback: str | None
         trial: Trial[I2]
 
@@ -738,7 +781,7 @@ class Trial(Generic[I]):
 
         exception: None
         results: dict[str, Any]
-        time: TimeInterval
+        time: Timer.Interval
         traceback: None
         trial: Trial[I2]
 
@@ -750,7 +793,7 @@ class Trial(Generic[I]):
 
         exception: BaseException | None
         results: dict[str, Any]
-        time: TimeInterval
+        time: Timer.Interval
         traceback: str | None
         trial: Trial[I2]
 

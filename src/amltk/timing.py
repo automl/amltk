@@ -5,79 +5,11 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from enum import Enum, auto
-from typing import Any, ClassVar, Iterator, Literal, Mapping, TypeVar
-from typing_extensions import assert_never
+from typing import Any, Iterator, Literal, Mapping, TypeVar
 
 import numpy as np
 
 T = TypeVar("T")
-
-
-class TimeUnit(Enum):
-    """An enum for the units of time."""
-
-    SECONDS = auto()
-    MILLISECONDS = auto()
-    MICROSECONDS = auto()
-    NANOSECONDS = auto()
-    UNKNOWN = auto()
-
-    def __str__(self) -> str:
-        return self.name.lower()
-
-    def __repr__(self) -> str:
-        return self.name.lower()
-
-    @classmethod
-    def get(cls, key: Any) -> TimeUnit:
-        """Get the enum value from a string.
-
-        Args:
-            key: The string to convert.
-
-        Returns:
-            The enum value.
-        """
-        if isinstance(key, str):
-            try:
-                return TimeUnit[key.upper()]
-            except KeyError:
-                return TimeUnit.UNKNOWN
-
-        return TimeUnit.UNKNOWN
-
-
-class TimeKind(Enum):
-    """An enum for the type of timer."""
-
-    WALL = auto()
-    CPU = auto()
-    PROCESS = auto()
-    UNKNOWN = auto()
-
-    def __str__(self) -> str:
-        return self.name.lower()
-
-    def __repr__(self) -> str:
-        return self.name.lower()
-
-    @classmethod
-    def get(cls, key: Any) -> TimeKind:
-        """Get the enum value from a string.
-
-        Args:
-            key: The string to convert.
-
-        Returns:
-            The enum value.
-        """
-        if isinstance(key, str):
-            try:
-                return TimeKind[key.upper()]
-            except KeyError:
-                return TimeKind.UNKNOWN
-
-        return TimeKind.UNKNOWN
 
 
 @dataclass
@@ -89,22 +21,136 @@ class Timer:
         kind: The method of timing.
     """
 
-    WALL: ClassVar[Literal[TimeKind.WALL]] = TimeKind.WALL
-    CPU: ClassVar[Literal[TimeKind.CPU]] = TimeKind.CPU
-    PROCESS: ClassVar[Literal[TimeKind.PROCESS]] = TimeKind.PROCESS
-
-    units: ClassVar[type[TimeUnit]] = TimeUnit
-    kinds: ClassVar[type[TimeKind]] = TimeKind
-
     start_time: float
-    kind: TimeKind
+    kind: Timer.Kind
+
+    class Kind(Enum):
+        """An enum for the type of timer."""
+
+        WALL = auto()
+        CPU = auto()
+        PROCESS = auto()
+        NOTSET = auto()
+
+        def __str__(self) -> str:
+            return self.name.lower()
+
+        def __repr__(self) -> str:
+            return self.name.lower()
+
+        @classmethod
+        def from_str(cls, key: Any) -> Timer.Kind:
+            """Get the enum value from a string.
+
+            Args:
+                key: The string to convert.
+
+            Returns:
+                The enum value.
+            """
+            if isinstance(key, str):
+                try:
+                    return Timer.Kind[key.upper()]
+                except KeyError:
+                    return Timer.Kind.NOTSET
+
+            return Timer.Kind.NOTSET
+
+    class Unit(Enum):
+        """An enum for the units of time."""
+
+        SECONDS = auto()
+        MILLISECONDS = auto()
+        MICROSECONDS = auto()
+        NANOSECONDS = auto()
+        NOTSET = auto()
+
+        def __str__(self) -> str:
+            return self.name.lower()
+
+        def __repr__(self) -> str:
+            return self.name.lower()
+
+        @classmethod
+        def from_str(cls, key: Any) -> Timer.Unit:
+            """Get the enum value from a string.
+
+            Args:
+                key: The string to convert.
+
+            Returns:
+                The enum value.
+            """
+            if isinstance(key, str):
+                try:
+                    return Timer.Unit[key.upper()]
+                except KeyError:
+                    return Timer.Unit.NOTSET
+
+            return Timer.Unit.NOTSET
+
+    @dataclass
+    class Interval:
+        """A time interval.
+
+        Attributes:
+            start: The start time.
+            end: The end time.
+            kind: The type of timer used.
+            unit: The unit of time.
+        """
+
+        start: float
+        end: float
+        kind: Timer.Kind
+        unit: Timer.Unit
+
+        @property
+        def duration(self) -> float:
+            """The duration of the time interval."""
+            return self.end - self.start
+
+        def to_dict(
+            self,
+            *,
+            prefix: str = "",
+            ensure_str: bool = True,
+        ) -> dict[str, Any]:
+            """Convert the time interval to a dictionary."""
+            return {
+                **{
+                    f"{prefix}{k}": (str(v) if ensure_str else v)
+                    for k, v in asdict(self).items()
+                },
+                f"{prefix}duration": self.duration,
+            }
+
+        @classmethod
+        def from_dict(cls, d: Mapping[str, Any]) -> Timer.Interval:
+            """Create a time interval from a dictionary."""
+            return cls(
+                start=d["start"],
+                end=d["end"],
+                kind=Timer.Kind.from_str(d["kind"]),
+                unit=Timer.Unit.from_str(d["unit"]),
+            )
+
+        @classmethod
+        def na_time_interval(cls) -> Timer.Interval:
+            """Create a time interval with all values set to `None`."""
+            return cls(
+                start=np.nan,
+                end=np.nan,
+                kind=Timer.Kind.NOTSET,
+                unit=Timer.Unit.NOTSET,
+            )
 
     @classmethod
     @contextmanager
     def time(
         cls,
-        kind: TimeKind | Literal["cpu", "wall", "process"] = TimeKind.WALL,
-    ) -> Iterator[TimeInterval]:
+        kind: Timer.Kind | Literal["cpu", "wall", "process"] = "wall",
+    ) -> Iterator[Interval]:
         """Time a block of code.
 
         Args:
@@ -122,7 +168,7 @@ class Timer:
     @classmethod
     def start(
         cls,
-        kind: TimeKind | Literal["cpu", "wall", "process"] = TimeKind.WALL,
+        kind: Timer.Kind | Literal["cpu", "wall", "process"] = "wall",
     ) -> Timer:
         """Start a timer.
 
@@ -132,91 +178,48 @@ class Timer:
         Returns:
             The timer.
         """
-        if kind in (TimeKind.WALL, "wall"):
-            return Timer(time.time(), TimeKind.WALL)
+        if kind in (Timer.Kind.WALL, "wall"):
+            return Timer(time.time(), Timer.Kind.WALL)
 
-        if kind in (TimeKind.CPU, "cpu"):
-            return Timer(time.perf_counter(), TimeKind.CPU)
+        if kind in (Timer.Kind.CPU, "cpu"):
+            return Timer(time.perf_counter(), Timer.Kind.CPU)
 
-        if kind in (TimeKind.PROCESS, "process"):
-            return Timer(time.process_time(), TimeKind.PROCESS)
+        if kind in (Timer.Kind.PROCESS, "process"):
+            return Timer(time.process_time(), Timer.Kind.PROCESS)
 
         raise ValueError(f"Unknown timer type: {kind}")
 
-    def stop(self) -> TimeInterval:
+    def stop(self) -> Interval:
         """Stop the timer.
 
         Returns:
             A tuple of the start time, end time, and duration.
         """
-        if self.kind == TimeKind.WALL:
+        if self.kind == Timer.Kind.WALL:
             end = time.time()
-            return TimeInterval(self.start_time, end, TimeKind.WALL, TimeUnit.SECONDS)
-
-        if self.kind == TimeKind.CPU:
-            end = time.perf_counter()
-            return TimeInterval(self.start_time, end, TimeKind.CPU, TimeUnit.SECONDS)
-
-        if self.kind == TimeKind.PROCESS:
-            end = time.process_time()
-            return TimeInterval(
+            return Timer.Interval(
                 self.start_time,
                 end,
-                TimeKind.PROCESS,
-                TimeUnit.SECONDS,
+                Timer.Kind.WALL,
+                Timer.Unit.SECONDS,
             )
 
-        # NOTE: this only seems to work with `match` statements from python 3.10
-        assert_never(self.kind)  # type: ignore
+        if self.kind == Timer.Kind.CPU:
+            end = time.perf_counter()
+            return Timer.Interval(
+                self.start_time,
+                end,
+                Timer.Kind.CPU,
+                Timer.Unit.SECONDS,
+            )
 
+        if self.kind == Timer.Kind.PROCESS:
+            end = time.process_time()
+            return Timer.Interval(
+                self.start_time,
+                end,
+                Timer.Kind.PROCESS,
+                Timer.Unit.SECONDS,
+            )
 
-@dataclass
-class TimeInterval:
-    """A time interval.
-
-    Attributes:
-        start: The start time.
-        end: The end time.
-        kind: The type of timer used.
-        unit: The unit of time.
-    """
-
-    start: float
-    end: float
-    kind: TimeKind
-    unit: TimeUnit
-
-    @property
-    def duration(self) -> float:
-        """The duration of the time interval."""
-        return self.end - self.start
-
-    def to_dict(self, *, prefix: str = "", ensure_str: bool = True) -> dict[str, Any]:
-        """Convert the time interval to a dictionary."""
-        return {
-            **{
-                f"{prefix}{k}": (str(v) if ensure_str else v)
-                for k, v in asdict(self).items()
-            },
-            f"{prefix}duration": self.duration,
-        }
-
-    @classmethod
-    def from_dict(cls, d: Mapping[str, Any]) -> TimeInterval:
-        """Create a time interval from a dictionary."""
-        return cls(
-            start=d["start"],
-            end=d["end"],
-            kind=TimeKind.get(d["kind"]),
-            unit=TimeUnit.get(d["unit"]),
-        )
-
-    @classmethod
-    def na_time_interval(cls) -> TimeInterval:
-        """Create a time interval with all values set to `None`."""
-        return cls(
-            start=np.nan,
-            end=np.nan,
-            kind=TimeKind.UNKNOWN,
-            unit=TimeUnit.UNKNOWN,
-        )
+        raise ValueError(f"Unknown timer type: {self.kind}")
