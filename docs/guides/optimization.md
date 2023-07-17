@@ -368,14 +368,14 @@ information you want to store should be stored in the `trial.info` property.
                 return Trial(name=unique_name, config=config, info=smac_trial_info)  # (4)!
 
             def tell(self, report: Trial.Report) -> None:  # (5)!
-                if isinstance(report, (Trial.SuccessReport, Trial.FailReport)):
+                if report.status in (Trial.Status.SUCCESS, Trial.Status.FAIL):
                     duration = report.time.duration
                     start = report.time.start,
                     endtime = report.time.end,
                     cost = report.results.get("cost", np.inf)
                     status = (
                         StatusType.SUCCESS
-                        if isinstance(report, Trial.SuccessReport)
+                        if report.status is Trial.Status.SUCCESS
                         else StatusType.CRASHED
                     )
                     additional_info = report.results.get("additional_info", {})
@@ -509,10 +509,8 @@ the `Trial` and return the `Report`.
     you let us know where exactly your trial begins and we can handle
     all things related to exception handling and timing.
     2. If you can return a success, then do so with
-    [`trial.success()`][amltk.optimization.Trial.success]. This
-    returns a [`Trial.SuccessReport`].
+    [`trial.success()`][amltk.optimization.Trial.success].
     3. If you can't return a success, then do so with [`trial.fail()`][amltk.optimization.Trial.fail].
-    This returns a [`trial.FailReport`][amltk.optimization.Trial.FailReport].
     4. Here the inner type parameter `RSTrial` is the type of `trial.info` which
     contains the object returned by the ask of the wrapped `optimizer`. We'll
     see this in [integrating your own Optimizer](#integrating-your-own-optimizer).
@@ -632,7 +630,7 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
         task(trial)
 
     @task.on_returned  # (3)!
-    def save_result(report: Trial.SuccessReport) -> None:
+    def save_result(report: Trial.Report) -> None:
         cost = report["cost"]
         results.append(cost)  # (4)!
 
@@ -747,7 +745,7 @@ and the number of processes in our `Scheduler`. That's it.
         task(trial)
 
     @task.on_returned
-    def save_result(report: Trial.SuccessReport) -> None:
+    def save_result(report: Trial.Report) -> None:
         cost = report["cost"]
         results.append(cost)
 

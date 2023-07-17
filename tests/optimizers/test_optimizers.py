@@ -8,12 +8,12 @@ from amltk.optimization import Optimizer, RandomSearch, Trial
 from amltk.optuna import OptunaOptimizer, OptunaParser
 from amltk.pipeline import Pipeline, step
 from amltk.smac import SMACOptimizer
-from amltk.timing import TimeInterval, TimeKind
+from amltk.timing import Timer
 
 logger = logging.getLogger(__name__)
 
 
-def target_function(trial: Trial, /, time_kind: TimeKind, err=None) -> Trial.Report:
+def target_function(trial: Trial, /, time_kind: Timer.Kind, err=None) -> Trial.Report:
     """A target function for testing optimizers."""
     with trial.begin(time=time_kind):
         # Do stuff with trail.info here
@@ -27,7 +27,7 @@ def target_function(trial: Trial, /, time_kind: TimeKind, err=None) -> Trial.Rep
     return trial.fail(cost=2000)  # pyright: ignore
 
 
-def valid_time_interval(interval: TimeInterval) -> bool:
+def valid_time_interval(interval: Timer.Interval) -> bool:
     """Check if the start and end time are valid."""
     return interval.start <= interval.end
 
@@ -52,22 +52,22 @@ def opt_optuna() -> OptunaOptimizer:
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
-@parametrize("time_kind", [TimeKind.WALL, TimeKind.CPU, TimeKind.PROCESS])
-def test_report_success(optimizer: Optimizer, time_kind: TimeKind):
+@parametrize("time_kind", [Timer.Kind.WALL, Timer.Kind.CPU, Timer.Kind.PROCESS])
+def test_report_success(optimizer: Optimizer, time_kind: Timer.Kind):
     """Test that the optimizer can report a success."""
     trial = optimizer.ask()
     report = target_function(trial, time_kind=time_kind, err=None)
     optimizer.tell(report)
 
-    assert isinstance(report, Trial.SuccessReport)
+    assert report.status == Trial.Status.SUCCESS
     assert valid_time_interval(report.time)
     assert report.trial.info is trial.info
     assert report.results == {"cost": 1}
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
-@parametrize("time_kind", [TimeKind.WALL, TimeKind.CPU, TimeKind.PROCESS])
-def test_report_failure(optimizer: Optimizer, time_kind: TimeKind):
+@parametrize("time_kind", [Timer.Kind.WALL, Timer.Kind.CPU, Timer.Kind.PROCESS])
+def test_report_failure(optimizer: Optimizer, time_kind: Timer.Kind):
     """Test that the optimizer can report a success."""
     trial = optimizer.ask()
     report = target_function(
@@ -76,7 +76,7 @@ def test_report_failure(optimizer: Optimizer, time_kind: TimeKind):
         err=ValueError("ValueError happened"),
     )
     optimizer.tell(report)
-    assert isinstance(report, Trial.FailReport)
+    assert report.status is Trial.Status.FAIL
 
     assert valid_time_interval(report.time)
     assert isinstance(report.exception, ValueError)

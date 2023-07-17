@@ -223,11 +223,13 @@ def test_history_serialization(reports: list[Trial.Report], tmp_path: Path) -> N
     assert len(df) == len(reports)
 
     restored_df = History.from_df(df).df()
+
     pd.testing.assert_frame_equal(df, restored_df)
+    pd.set_option("display.precision", 8)
 
     tmpfile = tmp_path / "history.csv"
     history.to_csv(tmpfile)
 
     restored_history = History.from_csv(tmpfile)
     restored_df = restored_history.df()
-    pd.testing.assert_frame_equal(df, restored_df)
+    pd.testing.assert_frame_equal(df, restored_df, atol=1e-9)

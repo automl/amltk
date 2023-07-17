@@ -76,7 +76,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         """
         trial = report.trial.info
 
-        if isinstance(report, Trial.SuccessReport):
+        if report.status is Trial.Status.SUCCESS:
             trial_state = TrialState.COMPLETE
             values = self._verify_success_report_values(report)
         else:
@@ -87,7 +87,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
 
     def _verify_success_report_values(
         self,
-        report: Trial.SuccessReport[OptunaTrial],
+        report: Trial.Report[OptunaTrial],
     ) -> float | Sequence[float]:
         """Verify that the report is valid.
 
