@@ -225,6 +225,7 @@ def test_history_serialization(reports: list[Trial.Report], tmp_path: Path) -> N
     restored_df = History.from_df(df).df()
 
     pd.testing.assert_frame_equal(df, restored_df)
+    pd.set_option("display.precision", 8)
 
     tmpfile = tmp_path / "history.csv"
     history.to_csv(tmpfile)

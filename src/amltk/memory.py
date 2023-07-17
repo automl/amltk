@@ -104,7 +104,7 @@ class Memory:
             }
 
         @classmethod
-        def na_memory_interval(cls) -> Memory.Interval:
+        def na(cls) -> Memory.Interval:
             """Create a memory interval that represents NA."""
             return Memory.Interval(
                 start=0,

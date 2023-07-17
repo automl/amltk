@@ -59,7 +59,7 @@ def test_report_success(optimizer: Optimizer, time_kind: Timer.Kind):
     report = target_function(trial, time_kind=time_kind, err=None)
     optimizer.tell(report)
 
-    assert isinstance(report, Trial.SuccessReport)
+    assert report.status == Trial.Status.SUCCESS
     assert valid_time_interval(report.time)
     assert report.trial.info is trial.info
     assert report.results == {"cost": 1}
@@ -76,7 +76,7 @@ def test_report_failure(optimizer: Optimizer, time_kind: Timer.Kind):
         err=ValueError("ValueError happened"),
     )
     optimizer.tell(report)
-    assert isinstance(report, Trial.FailReport)
+    assert report.status is Trial.Status.FAIL
 
     assert valid_time_interval(report.time)
     assert isinstance(report.exception, ValueError)

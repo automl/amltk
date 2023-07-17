@@ -9,11 +9,11 @@ import logging
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
     Callable,
-    ClassVar,
     Generic,
     Iterator,
     Literal,
@@ -166,7 +166,7 @@ class Trial(Generic[I]):
             if self.memory is None:
                 self.memory = self.memory_tracker.stop()
 
-    def success(self, **results: Any) -> Trial.SuccessReport[I]:
+    def success(self, **results: Any) -> Trial.Report[I]:
         """Generate a success report.
 
         ```python exec="true" source="material-block" result="python" title="success" hl_lines="7"
@@ -187,26 +187,25 @@ class Trial(Generic[I]):
         if self.timer is not None:
             time = self.time if self.time is not None else self.timer.stop()
         else:
-            time = Timer.Interval.na_time_interval()
+            time = Timer.Interval.na()
 
         if self.memory_tracker is not None:
             memory = (
                 self.memory if self.memory is not None else self.memory_tracker.stop()
             )
         else:
-            memory = Memory.Interval.na_memory_interval()
+            memory = Memory.Interval.na()
 
         self.results = results
-        return Trial.SuccessReport(
+        return Trial.Report(
             trial=self,
+            status=Trial.Status.SUCCESS,
             time=time,
             memory=memory,
             results=results,
-            exception=None,
-            traceback=None,
         )
 
-    def fail(self, **results: Any) -> Trial.FailReport[I]:
+    def fail(self, **results: Any) -> Trial.Report[I]:
         """Generate a failure report.
 
         ```python exec="true" source="material-block" result="python" title="fail" hl_lines="6 9 10"
@@ -230,21 +229,22 @@ class Trial(Generic[I]):
         if self.timer is not None:
             time = self.time if self.time is not None else self.timer.stop()
         else:
-            time = Timer.Interval.na_time_interval()
+            time = Timer.Interval.na()
 
         if self.memory_tracker is not None:
             memory = (
                 self.memory if self.memory is not None else self.memory_tracker.stop()
             )
         else:
-            memory = Memory.Interval.na_memory_interval()
+            memory = Memory.Interval.na()
 
         exception = self.exception
         traceback = self.traceback
         self.results = results
 
-        return Trial.FailReport(
+        return Trial.Report(
             trial=self,
+            status=Trial.Status.FAIL,
             time=time,
             memory=memory,
             exception=exception,
@@ -256,7 +256,7 @@ class Trial(Generic[I]):
         self,
         exception: BaseException | None = None,
         traceback: str | None = None,
-    ) -> Trial.CrashReport[I]:
+    ) -> Trial.Report[I]:
         """Generate a crash report.
 
         !!! note
@@ -286,13 +286,11 @@ class Trial(Generic[I]):
         traceback = traceback if traceback else self.traceback
         assert exception is not None
 
-        return Trial.CrashReport(
+        return Trial.Report(
             trial=self,
+            status=Trial.Status.CRASHED,
             exception=exception,
             traceback=traceback,
-            time=Timer.Interval.na_time_interval(),
-            memory=Memory.Interval.na_memory_interval(),
-            results=None,
         )
 
     def store(
@@ -478,62 +476,48 @@ class Trial(Generic[I]):
         """
         self.plugins[name] = plugin_item
 
+    class Status(str, Enum):
+        """The status of a trial."""
+
+        SUCCESS = "success"
+        """The trial was successful."""
+
+        FAIL = "fail"
+        """The trial failed."""
+
+        CRASHED = "crashed"
+        """The trial crashed."""
+
+        UNKNOWN = "unknown"
+        """The status of the trial is unknown."""
+
+        def __str__(self) -> str:
+            return self.value
+
     @dataclass
     class Report(Generic[I2]):
-        """A report for a trial.
-
-        !!! note "Specific Instansiations"
-
-            * [`SuccessReport`][amltk.optimization.Trial.SuccessReport] -
-                Created with [`success()`][amltk.optimization.Trial.success]
-
-            * [`FailReport`][amltk.optimization.Trial.FailReport] -
-                Created with [`fail()`][amltk.optimization.Trial.fail]
-
-            * [`CrashReport`][amltk.optimization.Trial.CrashReport] -
-                Created with [`crashed()`][amltk.optimization.Trial.crashed]
-        """
-
-        results: dict[str, Any] | None
-        """The results of the trial, if any."""
-
-        time: Timer.Interval | None
-        """The time interval of the trial, if any."""
-
-        memory: Memory.Interval | None
-        """The memory usage of the trial, if any."""
-
-        exception: BaseException | None
-        """The exception that was raised, if any."""
-
-        traceback: str | None
-        """The traceback of the exception, if any."""
+        """A report for a trial."""
 
         trial: Trial[I2]
         """The trial that was run."""
 
-        status: str
+        status: Trial.Status
         """The status of the trial."""
 
-        DF_COLUMN_TYPES: ClassVar[dict] = {
-            "name": pd.StringDtype(),
-            "status": pd.CategoricalDtype(["success", "fail", "crash"]),
-            # As trial_seed can be None, we can't represent this in an int column.
-            # Tried np.nan but that only works with floats
-            "trial_seed": pd.Int64Dtype(),
-            "exception": pd.StringDtype(),
-            "traceback": pd.StringDtype(),
-            "time:start": float,
-            "time:end": float,
-            "time:duration": float,
-            "time:kind": pd.CategoricalDtype([str(k) for k in Timer.Kind]),
-            "time:unit": pd.CategoricalDtype([str(k) for k in Timer.Unit]),
-            "memory:start": float,
-            "memory:end": float,
-            "memory:usage": float,
-            "memory:kind": pd.CategoricalDtype([str(k) for k in Memory.Kind]),
-            "memory:unit": pd.CategoricalDtype([str(k) for k in Memory.Unit]),
-        }
+        results: dict[str, Any] = field(default_factory=dict)
+        """The results of the trial, if any."""
+
+        time: Timer.Interval = field(default_factory=Timer.Interval.na)
+        """The time interval of the trial, if any."""
+
+        memory: Memory.Interval = field(default_factory=Memory.Interval.na)
+        """The memory usage of the trial, if any."""
+
+        exception: BaseException | None = None
+        """The exception that was raised, if any."""
+
+        traceback: str | None = None
+        """The traceback of the exception, if any."""
 
         @property
         def name(self) -> str:
@@ -572,10 +556,10 @@ class Trial(Generic[I]):
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
                 * `memory`: Entries will be prefixed with `#!python "memory:"`
             """
-            _df = pd.DataFrame(
+            return pd.DataFrame(
                 {
                     "name": self.name,
-                    "status": self.status,
+                    "status": str(self.status),
                     "trial_seed": self.trial.seed if self.trial.seed else np.nan,
                     **prefix_keys(self.trial.summary, "summary:"),
                     **prefix_keys(self.results or {}, "results:"),
@@ -589,9 +573,7 @@ class Trial(Generic[I]):
                     "traceback": self.traceback,
                 },
                 index=[0],
-            )
-            present_cols = {k: v for k, v in self.DF_COLUMN_TYPES.items() if k in _df}
-            return _df.astype(present_cols)
+            ).astype(_REPORT_DF_COLUMN_TYPES)
 
         @overload
         def retrieve(
@@ -754,47 +736,32 @@ class Trial(Generic[I]):
                 traceback=d["traceback"],
             )
             return cls(
-                status=d["status"],
                 trial=trial,
-                memory=trial.memory,
+                status=Trial.Status(d["status"]),
+                memory=trial.memory if trial.memory else Memory.Interval.na(),
                 exception=d["exception"],
                 traceback=d["traceback"],
-                time=trial.time,
+                time=trial.time if trial.time else Timer.Interval.na(),
                 results=results,
             )
 
-    @dataclass
-    class CrashReport(Report[I2]):
-        """A report for a crashed trial."""
 
-        exception: BaseException
-        results: None
-        time: Timer.Interval
-        traceback: str | None
-        trial: Trial[I2]
-
-        status: str = "crashed"
-
-    @dataclass
-    class SuccessReport(Report[I2]):
-        """A report for a successful trial."""
-
-        exception: None
-        results: dict[str, Any]
-        time: Timer.Interval
-        traceback: None
-        trial: Trial[I2]
-
-        status: str = "success"
-
-    @dataclass
-    class FailReport(Report[I2]):
-        """A report for a failed trial."""
-
-        exception: BaseException | None
-        results: dict[str, Any]
-        time: Timer.Interval
-        traceback: str | None
-        trial: Trial[I2]
-
-        status: str = "fail"
+_REPORT_DF_COLUMN_TYPES = {
+    "name": pd.StringDtype(),
+    "status": pd.CategoricalDtype([str(s) for s in Trial.Status]),
+    # As trial_seed can be None, we can't represent this in an int column.
+    # Tried np.nan but that only works with floats
+    "trial_seed": pd.Int64Dtype(),
+    "exception": pd.StringDtype(),
+    "traceback": pd.StringDtype(),
+    "time:start": float,
+    "time:end": float,
+    "time:duration": float,
+    "time:kind": pd.CategoricalDtype([str(k) for k in Timer.Kind]),
+    "time:unit": pd.CategoricalDtype([str(k) for k in Timer.Unit]),
+    "memory:start": float,
+    "memory:end": float,
+    "memory:usage": float,
+    "memory:kind": pd.CategoricalDtype([str(k) for k in Memory.Kind]),
+    "memory:unit": pd.CategoricalDtype([str(k) for k in Memory.Unit]),
+}

@@ -145,7 +145,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         logger.info(f"Telling report for trial {report.trial.name}")
         logger.debug(f"{report=}")
         # If we're successful, get the cost and times and report them
-        if isinstance(report, Trial.SuccessReport):
+        if report.status is Trial.Status.SUCCESS:
             if "cost" not in report.results:
                 raise ValueError(
                     f"Report must have 'cost' if successful but got {report}."
@@ -174,7 +174,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             self.facade.tell(info=report.trial.info, value=trial_value, save=True)
             return
 
-        if isinstance(report, Trial.FailReport):
+        if report.status is Trial.Status.FAIL:
             duration = report.time.duration
             start = report.time.start
             end = report.time.end
@@ -194,7 +194,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         }
         status_type = StatusType.CRASHED
 
-        assert isinstance(report, (Trial.FailReport, Trial.CrashReport))
+        assert report.status in (Trial.Status.FAIL, Trial.Status.CRASHED)
         if report.exception is not None:
             status_type = status_types.get(type(report.exception), StatusType.CRASHED)
             additional_info["exception"] = str(report.exception)

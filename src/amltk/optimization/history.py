@@ -21,7 +21,7 @@ from typing import (
 import pandas as pd
 
 from amltk.functional import compare_accumulate
-from amltk.optimization.trial import Trial
+from amltk.optimization.trial import _REPORT_DF_COLUMN_TYPES, Trial
 from amltk.types import Comparable
 
 T = TypeVar("T")
@@ -307,12 +307,15 @@ class History(Mapping[str, Trial.Report]):
         Returns:
             A History.
         """
-        _df = pd.read_csv(path) if isinstance(path, (IO, str, Path)) else path
-
-        present_cols = {
-            k: v for k, v in Trial.Report.DF_COLUMN_TYPES.items() if k in _df
-        }
-        _df = _df.astype(present_cols)
+        _df = (
+            pd.read_csv(
+                path,
+                dtype=_REPORT_DF_COLUMN_TYPES,
+                float_precision="round_trip",
+            )
+            if isinstance(path, (IO, str, Path))
+            else path
+        )
 
         return cls.from_df(_df)
 

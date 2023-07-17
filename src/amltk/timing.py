@@ -136,7 +136,7 @@ class Timer:
             )
 
         @classmethod
-        def na_time_interval(cls) -> Timer.Interval:
+        def na(cls) -> Timer.Interval:
             """Create a time interval with all values set to `None`."""
             return cls(
                 start=np.nan,

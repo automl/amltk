@@ -409,7 +409,7 @@ def add_to_history(report: Trial.Report) -> None:
 @task.on_returned
 def launch_ensemble_task(report: Trial.Report) -> None:
     """When a task successfully completes, launch an ensemble task."""
-    if isinstance(report, Trial.SuccessReport):
+    if report.status is Trial.Status.SUCCESS:
         ensemble_task(trial_history, bucket)
 
 
