@@ -8,6 +8,7 @@ from typing import (
     List,
     Mapping,
     NewType,
+    NoReturn,
     Protocol,
     Tuple,
     TypeVar,
@@ -47,6 +48,12 @@ class Comparable(Protocol):
 
 
 _CT = TypeVar("_CT", bound=Comparable)
+
+
+def assert_never(value: NoReturn) -> NoReturn:
+    """Utility function for asserting that a value is never reached."""
+    # This also works in runtime as well:
+    raise AssertionError(f"This code should never be reached, got: {value}")
 
 
 def safe_issubclass(cls: type, classes: str | tuple[str, ...]) -> bool:

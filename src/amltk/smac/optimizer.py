@@ -194,7 +194,6 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         }
         status_type = StatusType.CRASHED
 
-        assert report.status in (Trial.Status.FAIL, Trial.Status.CRASHED)
         if report.exception is not None:
             status_type = status_types.get(type(report.exception), StatusType.CRASHED)
             additional_info["exception"] = str(report.exception)
