@@ -252,6 +252,25 @@ class Trial(Generic[I]):
             results=results,
         )
 
+    def cancelled(self) -> Trial.Report[I]:
+        """Generate a cancelled report.
+
+        !!! note
+
+            You will typically not create these manually and is usually handled
+            by the framework in charge of scheduling trials.
+
+        Returns:
+            The trial report that is signified as cancelled.
+        """
+        return Trial.Report(
+            trial=self,
+            status=Trial.Status.CANCELLED,
+            time=Timer.Interval.na(),
+            memory=Memory.Interval.na(),
+            results={},
+        )
+
     def crashed(
         self,
         exception: BaseException | None = None,
@@ -487,6 +506,9 @@ class Trial(Generic[I]):
 
         CRASHED = "crashed"
         """The trial crashed."""
+
+        CANCELLED = "cancelled"
+        """The trial was cancelled."""
 
         UNKNOWN = "unknown"
         """The status of the trial is unknown."""
