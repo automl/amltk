@@ -67,7 +67,7 @@ smac = ["smac>=2.0", "amltk[configspace]"]
 optuna = ["optuna"]
 configspace = ["configspace"]
 dask = ["dask<=2023.4"]
-pynisher = ["pynisher>=1.0.5"]
+pynisher = ["pynisher>=1.0.6"]
 wandb = ["wandb"]
 threadpoolctl = ["threadpoolctl"]
 

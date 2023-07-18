@@ -9,6 +9,7 @@ which are [listed here](https://github.com/automl/pynisher#features).
 """
 from __future__ import annotations
 
+from multiprocessing.context import BaseContext
 from typing import TYPE_CHECKING, Callable, TypeVar
 from typing_extensions import ParamSpec, Self
 
@@ -94,6 +95,7 @@ class PynisherPlugin(TaskPlugin):
         memory_limit: int | tuple[int, str] | None = None,
         cpu_time_limit: int | tuple[float, str] | None = None,
         wall_time_limit: int | tuple[float, str] | None = None,
+        context: BaseContext | None = None,
     ):
         """Initialize a `PynisherPlugin` instance.
 
@@ -107,10 +109,13 @@ class PynisherPlugin(TaskPlugin):
             wall_time_limit: The wall time limit for the task. Base unit is in seconds
                 but you can specify `(value, unit)` where `unit` is one of
                 `("s", "m", "h")`. Defaults to `None`.
+            context: The context to use for multiprocessing. Defaults to `None`.
+                See [`multiprocessing.get_context()`][multiprocessing.get_context]
         """
         self.memory_limit = memory_limit
         self.cpu_time_limit = cpu_time_limit
         self.wall_time_limit = wall_time_limit
+        self.context = context
 
         self.task: Task
 
@@ -133,6 +138,7 @@ class PynisherPlugin(TaskPlugin):
                 cpu_time=self.cpu_time_limit,
                 wall_time=self.wall_time_limit,
                 terminate_child_processes=True,
+                context=self.context,
             )
 
         return fn, args, kwargs
