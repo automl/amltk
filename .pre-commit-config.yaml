@@ -26,7 +26,7 @@ repos:
       - id: debug-statements
         files: '^src/.*\.py$'
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.3.0
+    rev: v1.4.1
     hooks:
       - id: mypy
         exclude: "test_comm_task"  # Pre-commit mypy hates this one, crashes on (l106)
@@ -39,12 +39,12 @@ repos:
           - "--ignore-missing-imports"
           - "--show-traceback"
   - repo: https://github.com/psf/black
-    rev: 23.3.0
+    rev: 23.7.0
     hooks:
       - id: black
         args: ["--config=pyproject.toml"]
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.23.2
+    rev: 0.23.3
     hooks:
       - id: check-github-workflows
         files: '^github/workflows/.*\.ya?ml$'
@@ -52,11 +52,11 @@ repos:
       - id: check-dependabot
         files: '^\.github/dependabot\.ya?ml$'
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: 3.4.0
+    rev: 3.5.3
     hooks:
       - id: commitizen
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.273
+    rev: v0.0.278
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --no-cache]

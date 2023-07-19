@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Protocol, TypeVar
 
-T = TypeVar("T", covariant=True)
-KeyT = TypeVar("KeyT", contravariant=True)
+T_co = TypeVar("T_co", covariant=True)
+KeyT_contra = TypeVar("KeyT_contra", contravariant=True)
 
 
-class Loader(Protocol[KeyT, T]):
+class Loader(Protocol[KeyT_contra, T_co]):
     """The base definition of a Loader.
 
     A Loader is a class that can save and load objects to and from a
@@ -30,7 +30,7 @@ class Loader(Protocol[KeyT, T]):
         """
         ...
 
-    def can_load(self, key: KeyT, /, *, check: type | None = None) -> bool:
+    def can_load(self, key: KeyT_contra, /, *, check: type | None = None) -> bool:
         """Return True if this loader supports the resource at key.
 
         This is used to determine which loader to use when loading a
@@ -43,7 +43,7 @@ class Loader(Protocol[KeyT, T]):
         """
         ...
 
-    def can_save(self, obj: Any, key: KeyT, /) -> bool:
+    def can_save(self, obj: Any, key: KeyT_contra, /) -> bool:
         """Return True if this loader can save this object.
 
         This is used to determine which loader to use when loading a
@@ -55,7 +55,7 @@ class Loader(Protocol[KeyT, T]):
         """
         ...
 
-    def save(self, obj: Any, key: KeyT, /) -> None:
+    def save(self, obj: Any, key: KeyT_contra, /) -> None:
         """Save an object to under the given key.
 
         Args:
@@ -64,7 +64,7 @@ class Loader(Protocol[KeyT, T]):
         """
         ...
 
-    def load(self, key: KeyT, /) -> T:
+    def load(self, key: KeyT_contra, /) -> T_co:
         """Load an object from the given key.
 
         Args:

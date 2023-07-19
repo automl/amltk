@@ -9,13 +9,13 @@ from amltk.types import Comparable
 
 V = TypeVar("V", bound=Comparable)
 P = ParamSpec("P")
-R = TypeVar("R", covariant=True)
+R_co = TypeVar("R_co", covariant=True)
 
 
-class Partial(Protocol[P, R]):
+class Partial(Protocol[P, R_co]):
     """A protocol for partial functions."""
 
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R_co:
         """Call the function."""
         ...
 
