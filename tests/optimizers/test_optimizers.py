@@ -88,7 +88,7 @@ def test_report_success(
     optimizer.tell(report)
 
     assert report.status == Trial.Status.SUCCESS
-    assert valid_time_interval(report.profile.time)
+    assert valid_time_interval(report.time)
     assert report.trial.info is trial.info
     assert report.results == {"cost": 1}
 
@@ -122,7 +122,7 @@ def test_report_failure(
     optimizer.tell(report)
     assert report.status is Trial.Status.FAIL
 
-    assert valid_time_interval(report.profile.time)
+    assert valid_time_interval(report.time)
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
     assert report.results == {"cost": 2000}

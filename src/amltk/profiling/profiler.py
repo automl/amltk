@@ -45,6 +45,7 @@ class Profiler:
     @contextmanager
     def measure(
         cls,
+        *,
         memory_kind: Memory.Kind | Literal["rss", "vms"] = "rss",
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
         time_kind: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",

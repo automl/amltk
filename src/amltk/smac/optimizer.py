@@ -136,7 +136,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         logger.debug(f"{trial=}")
         return trial
 
-    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # noqa: PLR, C901
+    def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # noqa: PLR0912, C901
         """Tell the optimizer the result of the sampled config.
 
         Args:
@@ -164,9 +164,9 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 )
 
             trial_value = SMACTrialValue(
-                time=report.profile.time.duration,
-                starttime=report.profile.time.start,
-                endtime=report.profile.time.end,
+                time=report.time.duration,
+                starttime=report.time.start,
+                endtime=report.time.end,
                 cost=reported_costs,
                 status=StatusType.SUCCESS,
                 additional_info=report.results.get("additional_info", {}),
@@ -175,9 +175,9 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             return
 
         if report.status is Trial.Status.FAIL:
-            duration = report.profile.time.duration
-            start = report.profile.time.start
-            end = report.profile.time.end
+            duration = report.time.duration
+            start = report.time.start
+            end = report.time.end
             reported_cost = report.results.get("cost", None)
             additional_info = report.results.get("additional_info", {})
         else:

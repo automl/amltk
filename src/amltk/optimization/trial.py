@@ -83,8 +83,14 @@ class Trial(Generic[I]):
     profiler: Profiler | None = field(repr=False, default=None)
     """The profiler used to profile the trial, once begun."""
 
-    profile: Profiler.Interval | None = field(repr=False, default=None)
+    time: Timer.Interval = field(repr=False, default_factory=Timer.na)
     """The time taken by the trial, once ended."""
+
+    memory: Memory.Interval = field(repr=False, default_factory=Memory.na)
+    """The memory used by the trial, once ended."""
+
+    profiles: dict[str, Profiler.Interval] = field(default_factory=dict)
+    """Any recorded profiles of the trial."""
 
     summary: dict[str, Any] = field(default_factory=dict)
     """The summary of the trial. These are for summary statistics of a trial and
@@ -125,7 +131,7 @@ class Trial(Generic[I]):
         with the traceback attached to the actual error message, such that it can
         be pickled and sent back to the main process loop.
 
-        ```python exec="true" source="material-block" result="python" title="begin" hl_lines="8 9 10"
+        ```python exec="true" source="material-block" result="python" title="begin" hl_lines="5"
         from amltk.optimization import Trial
 
         trial = Trial(name="trial", config={"x": 1}, info={})
@@ -134,7 +140,22 @@ class Trial(Generic[I]):
             # Do some work
             pass
 
-        print(trial.profile)
+        print(trial.memory)
+        print(trial.time)
+        ```
+
+        ```python exec="true" source="material-block" result="python" title="begin-fail" hl_lines="5"
+        from amltk.optimization import Trial
+
+        trial = Trial(name="trial", config={"x": -1}, info={})
+
+        with trial.begin():
+            raise ValueError("x must be positive")
+
+        print(trial.exception)
+        print(trial.traceback)
+        print(trial.memory)
+        print(trial.time)
         ```
 
         Args:
@@ -153,8 +174,53 @@ class Trial(Generic[I]):
             self.exception = error
             self.traceback = traceback.format_exc()
         finally:
-            if self.profile is not None:
-                self.profile = self.profiler.stop()
+            profile = self.profiler.stop()
+            self.time = profile.time
+            self.memory = profile.memory
+
+    @contextmanager
+    def measure(
+        self,
+        name: str,
+        *,
+        time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
+        memory_kind: Memory.Kind | Literal["rss", "vms"] = "rss",
+        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
+    ) -> Iterator[Profiler.Interval]:
+        """Measure some interval in the trial.
+
+        The results of the profiling will be available in the `.summary` attribute
+        with the name of the interval as the key.
+
+        ```python exec="true" source="material-block" result="python" title="measure"
+        from amltk.optimization import Trial
+        import time
+
+        trial = Trial(name="trial", config={"x": 1}, info={})
+
+        with trial.measure("some_interval"):
+            # Do some work
+            time.sleep(1)
+
+        print(trial.summary)
+        ```
+
+        Args:
+            name: The name of the interval.
+            time: The timer kind to use for the trial.
+            memory_kind: The memory kind to use for the trial.
+            memory_unit: The memory unit to use for the trial.
+
+        Yields:
+            The interval measured. Values will be nan until the with block is finished.
+        """
+        with Profiler.measure(
+            memory_kind=memory_kind,
+            memory_unit=memory_unit,
+            time_kind=time,
+        ) as profile:
+            yield profile
+            self.summary.update(profile.to_dict(prefix=name))
 
     def success(self, **results: Any) -> Trial.Report[I]:
         """Generate a success report.
@@ -174,18 +240,8 @@ class Trial(Generic[I]):
         Returns:
             The result of the trial.
         """  # noqa: E501
-        if self.profiler is not None:
-            profile = self.profile if self.profile is not None else self.profiler.stop()
-        else:
-            profile = Profiler.na()
-
         self.results = results
-        return Trial.Report(
-            trial=self,
-            status=Trial.Status.SUCCESS,
-            profile=profile,
-            results=self.results,
-        )
+        return Trial.Report(trial=self, status=Trial.Status.SUCCESS)
 
     def fail(self, **results: Any) -> Trial.Report[I]:
         """Generate a failure report.
@@ -208,20 +264,8 @@ class Trial(Generic[I]):
         Returns:
             The result of the trial.
         """  # noqa: E501
-        if self.profiler is not None:
-            profile = self.profile if self.profile is not None else self.profiler.stop()
-        else:
-            profile = Profiler.na()
-
         self.results = results
-        return Trial.Report(
-            trial=self,
-            status=Trial.Status.FAIL,
-            profile=profile,
-            exception=self.exception,
-            traceback=self.traceback,
-            results=self.results,
-        )
+        return Trial.Report(trial=self, status=Trial.Status.FAIL)
 
     def cancelled(self) -> Trial.Report[I]:
         """Generate a cancelled report.
@@ -234,16 +278,11 @@ class Trial(Generic[I]):
         Returns:
             The trial report that is signified as cancelled.
         """
-        if self.profiler is not None:
-            profile = self.profile if self.profile is not None else self.profiler.stop()
-        else:
-            profile = Profiler.na()
-
-        return Trial.Report(trial=self, status=Trial.Status.CANCELLED, profile=profile)
+        return Trial.Report(trial=self, status=Trial.Status.CANCELLED)
 
     def crashed(
         self,
-        exception: BaseException | None = None,
+        exception: Exception | None = None,
         traceback: str | None = None,
     ) -> Trial.Report[I]:
         """Generate a crash report.
@@ -271,22 +310,10 @@ class Trial(Generic[I]):
                 " the trial.",
             )
 
-        exception = exception if exception else self.exception
-        traceback = traceback if traceback else self.traceback
-        assert exception is not None
+        self.exception = exception if exception else self.exception
+        self.traceback = traceback if traceback else self.traceback
 
-        if self.profiler is not None:
-            profile = self.profile if self.profile is not None else self.profiler.stop()
-        else:
-            profile = Profiler.na()
-
-        return Trial.Report(
-            trial=self,
-            status=Trial.Status.CRASHED,
-            profile=profile,
-            exception=exception,
-            traceback=traceback,
-        )
+        return Trial.Report(trial=self, status=Trial.Status.CRASHED)
 
     def store(
         self,
@@ -502,17 +529,20 @@ class Trial(Generic[I]):
         status: Trial.Status
         """The status of the trial."""
 
-        results: dict[str, Any] = field(default_factory=dict)
-        """The results of the trial, if any."""
+        @property
+        def results(self) -> dict[str, Any]:
+            """The results of the trial, if any."""
+            return self.trial.results
 
-        profile: Profiler.Interval = field(default_factory=Profiler.na)
-        """The measured profile of the trial, if any."""
+        @property
+        def exception(self) -> Exception | None:
+            """The exception of the trial, if any."""
+            return self.trial.exception
 
-        exception: BaseException | None = None
-        """The exception that was raised, if any."""
-
-        traceback: str | None = None
-        """The traceback of the exception, if any."""
+        @property
+        def traceback(self) -> str | None:
+            """The traceback of the trial, if any."""
+            return self.trial.traceback
 
         @property
         def name(self) -> str:
@@ -525,6 +555,11 @@ class Trial(Generic[I]):
             return self.trial.config
 
         @property
+        def profiles(self) -> dict[str, Profiler.Interval]:
+            """The profiles of the trial."""
+            return self.trial.profiles
+
+        @property
         def summary(self) -> dict[str, Any]:
             """The summary of the trial."""
             return self.trial.summary
@@ -533,6 +568,16 @@ class Trial(Generic[I]):
         def storage(self) -> set[str]:
             """The storage of the trial."""
             return self.trial.storage
+
+        @property
+        def time(self) -> Timer.Interval:
+            """The time of the trial."""
+            return self.trial.time
+
+        @property
+        def memory(self) -> Memory.Interval:
+            """The memory of the trial."""
+            return self.trial.memory
 
         @property
         def info(self) -> I2 | None:
@@ -551,23 +596,22 @@ class Trial(Generic[I]):
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
                 * `memory`: Entries will be prefixed with `#!python "memory:"`
             """
-            _df = pd.DataFrame(
-                {
-                    "name": self.name,
-                    "status": str(self.status),
-                    "trial_seed": self.trial.seed if self.trial.seed else np.nan,
-                    **prefix_keys(self.trial.summary, "summary:"),
-                    **prefix_keys(self.results or {}, "results:"),
-                    **prefix_keys(self.trial.config, "config:"),
-                    **prefix_keys(
-                        self.profile.to_dict() if self.profile else {},
-                        "profile:",
-                    ),
-                    "exception": str(self.exception) if self.exception else None,
-                    "traceback": self.traceback,
-                },
-                index=[0],
-            )
+            items = {
+                "name": self.name,
+                "status": str(self.status),
+                "trial_seed": self.trial.seed if self.trial.seed else np.nan,
+                **prefix_keys(self.trial.summary, "summary:"),
+                **prefix_keys(self.results or {}, "results:"),
+                **prefix_keys(self.trial.config, "config:"),
+                **prefix_keys(self.time.to_dict(), "time:"),
+                **prefix_keys(self.memory.to_dict(), "memory:"),
+                "exception": str(self.exception) if self.exception else None,
+                "traceback": self.traceback,
+            }
+            for name, profile in self.profiles.items():
+                items.update(profile.to_dict(prefix=f"profile:{name}"))
+
+            _df = pd.DataFrame(items, index=[0])
             return _df.astype(_REPORT_DF_COLUMN_TYPES) if convert_dtypes else _df
 
         @overload
@@ -704,7 +748,14 @@ class Trial(Generic[I]):
                 The created report.
             """
             prof_dict = mapping_select(d, "profile:")
-            profile = Profiler.from_dict(prof_dict) if prof_dict else Profiler.na()
+            if any(prof_dict):
+                profile_names = {name.split(":", maxsplit=1)[0] for name in prof_dict}
+                profiles = {
+                    name: Profiler.from_dict(mapping_select(prof_dict, f"{name}:"))
+                    for name in profile_names
+                }
+            else:
+                profiles = {}
 
             trial: Trial[Any] = Trial(
                 name=d["name"],
@@ -712,39 +763,45 @@ class Trial(Generic[I]):
                 info=None,  # We don't save this to disk so we load it back as None
                 seed=d["trial_seed"],
                 fidelities=mapping_select(d, "fidelities:"),
-                profile=profile,
+                profiles=profiles,
                 profiler=None,
                 results=mapping_select(d, "results:"),
                 summary=mapping_select(d, "summary:"),
                 exception=d["exception"],
                 traceback=d["traceback"],
             )
-            return cls(
-                trial=trial,
-                status=Trial.Status(d["status"]),
-                profile=profile,
-                exception=d["exception"],
-                traceback=d["traceback"],
-                results=trial.results,
-            )
+            status = Trial.Status(d["status"])
+            if status == Trial.Status.SUCCESS:
+                return trial.success()
+
+            if status == Trial.Status.FAIL:
+                return trial.fail()
+
+            if status == Trial.Status.CRASHED:
+                return trial.crashed()
+
+            if status == Trial.Status.CANCELLED:
+                return trial.cancelled()
+
+            raise ValueError(f"Unknown status {status}")
 
 
 _REPORT_DF_COLUMN_TYPES = {
     "name": pd.StringDtype(),
-    "status": pd.CategoricalDtype([str(s) for s in Trial.Status]),
+    "status": pd.StringDtype(),
     # As trial_seed can be None, we can't represent this in an int column.
     # Tried np.nan but that only works with floats
     "trial_seed": pd.Int64Dtype(),
     "exception": pd.StringDtype(),
     "traceback": pd.StringDtype(),
-    "profile:time:start": float,
-    "profile:time:end": float,
-    "profile:time:duration": float,
-    "profile:time:kind": pd.CategoricalDtype([str(k) for k in Timer.Kind]),
-    "profile:time:unit": pd.CategoricalDtype([str(k) for k in Timer.Unit]),
-    "profile:memory:start": float,
-    "profile:memory:end": float,
-    "profile:memory:usage": float,
-    "profile:memory:kind": pd.CategoricalDtype([str(k) for k in Memory.Kind]),
-    "profile:memory:unit": pd.CategoricalDtype([str(k) for k in Memory.Unit]),
+    "time:start": float,
+    "time:end": float,
+    "time:duration": float,
+    "time:kind": pd.StringDtype(),
+    "time:unit": pd.StringDtype(),
+    "memory:start": float,
+    "memory:end": float,
+    "memory:usage": float,
+    "memory:kind": pd.StringDtype(),
+    "memory:unit": pd.StringDtype(),
 }
