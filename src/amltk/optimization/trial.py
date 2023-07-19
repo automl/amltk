@@ -179,7 +179,7 @@ class Trial(Generic[I]):
             self.memory = profile.memory
 
     @contextmanager
-    def measure(
+    def profile(
         self,
         name: str,
         *,
@@ -192,13 +192,13 @@ class Trial(Generic[I]):
         The results of the profiling will be available in the `.summary` attribute
         with the name of the interval as the key.
 
-        ```python exec="true" source="material-block" result="python" title="measure"
+        ```python exec="true" source="material-block" result="python" title="profile"
         from amltk.optimization import Trial
         import time
 
         trial = Trial(name="trial", config={"x": 1}, info={})
 
-        with trial.measure("some_interval"):
+        with trial.profile("some_interval"):
             # Do some work
             time.sleep(1)
 
