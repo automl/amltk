@@ -595,20 +595,22 @@ class Trial(Generic[I]):
                 * `time`: Entries will be prefixed with `#!python "time:"`
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
                 * `memory`: Entries will be prefixed with `#!python "memory:"`
+                * `profile:<name>`: Entries will be prefixed with
+                    `#!python "profile:<name>:"`
             """
             items = {
                 "name": self.name,
                 "status": str(self.status),
                 "trial_seed": self.trial.seed if self.trial.seed else np.nan,
-                **prefix_keys(self.trial.summary, "summary:"),
-                **prefix_keys(self.results or {}, "results:"),
+                **prefix_keys(self.results, "results:"),
                 **prefix_keys(self.trial.config, "config:"),
-                **prefix_keys(self.time.to_dict(), "time:"),
-                **prefix_keys(self.memory.to_dict(), "memory:"),
+                **prefix_keys(self.trial.summary, "summary:"),
+                **self.time.to_dict(prefix="time:"),
+                **self.memory.to_dict(prefix="memory:"),
                 "exception": str(self.exception) if self.exception else None,
                 "traceback": self.traceback,
             }
-            for name, profile in self.profiles.items():
+            for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
                 items.update(profile.to_dict(prefix=f"profile:{name}"))
 
             _df = pd.DataFrame(items, index=[0])
@@ -749,7 +751,9 @@ class Trial(Generic[I]):
             """
             prof_dict = mapping_select(d, "profile:")
             if any(prof_dict):
-                profile_names = {name.split(":", maxsplit=1)[0] for name in prof_dict}
+                profile_names = sorted(
+                    {name.split(":", maxsplit=1)[0] for name in prof_dict},
+                )
                 profiles = {
                     name: Profiler.from_dict(mapping_select(prof_dict, f"{name}:"))
                     for name in profile_names
@@ -757,12 +761,14 @@ class Trial(Generic[I]):
             else:
                 profiles = {}
 
-            trial: Trial[Any] = Trial(
+            trial: Trial[None] = Trial(
                 name=d["name"],
                 config=mapping_select(d, "config:"),
                 info=None,  # We don't save this to disk so we load it back as None
                 seed=d["trial_seed"],
                 fidelities=mapping_select(d, "fidelities:"),
+                time=Timer.from_dict(mapping_select(d, "time:")),
+                memory=Memory.from_dict(mapping_select(d, "memory:")),
                 profiles=profiles,
                 profiler=None,
                 results=mapping_select(d, "results:"),
@@ -772,10 +778,10 @@ class Trial(Generic[I]):
             )
             status = Trial.Status(d["status"])
             if status == Trial.Status.SUCCESS:
-                return trial.success()
+                return trial.success(**trial.results)
 
             if status == Trial.Status.FAIL:
-                return trial.fail()
+                return trial.fail(**trial.results)
 
             if status == Trial.Status.CRASHED:
                 return trial.crashed()

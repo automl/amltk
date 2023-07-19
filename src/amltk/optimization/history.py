@@ -292,8 +292,8 @@ class History(Mapping[str, Trial.Report]):
         _df = (
             pd.read_csv(
                 path,
-                dtype=_REPORT_DF_COLUMN_TYPES,
-                float_precision="round_trip",
+                dtype=_REPORT_DF_COLUMN_TYPES,  # type: ignore
+                float_precision="round_trip",  # type: ignore
             )
             if isinstance(path, (IO, str, Path))
             else path
