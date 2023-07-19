@@ -17,12 +17,11 @@ def target_function(
     trial: Trial,
     /,
     time_kind: Timer.Kind,
-    mem_kind: Memory.Kind,
     mem_unit: Memory.Unit,
     err=None,
 ) -> Trial.Report:
     """A target function for testing optimizers."""
-    with trial.begin(time=time_kind, memory_kind=mem_kind, memory_unit=mem_unit):
+    with trial.begin(time=time_kind, memory_unit=mem_unit):
         # Do stuff with trail.info here
         logger.debug(trial.info)
 
@@ -60,7 +59,6 @@ def opt_optuna() -> OptunaOptimizer:
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
 @parametrize("time_kind", [Timer.Kind.WALL, Timer.Kind.CPU, Timer.Kind.PROCESS])
-@parametrize("memory_kind", [Memory.Kind.RSS, Memory.Kind.VMS])
 @parametrize(
     "memory_unit",
     [
@@ -73,7 +71,6 @@ def opt_optuna() -> OptunaOptimizer:
 def test_report_success(
     optimizer: Optimizer,
     time_kind: Timer.Kind,
-    memory_kind: Memory.Kind,
     memory_unit: Memory.Unit,
 ) -> None:
     """Test that the optimizer can report a success."""
@@ -81,7 +78,6 @@ def test_report_success(
     report = target_function(
         trial,
         time_kind=time_kind,
-        mem_kind=memory_kind,
         mem_unit=memory_unit,
         err=None,
     )
@@ -95,7 +91,6 @@ def test_report_success(
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
 @parametrize("time_kind", [Timer.Kind.WALL, Timer.Kind.CPU, Timer.Kind.PROCESS])
-@parametrize("memory_kind", [Memory.Kind.RSS, Memory.Kind.VMS])
 @parametrize(
     "memory_unit",
     [
@@ -108,14 +103,12 @@ def test_report_success(
 def test_report_failure(
     optimizer: Optimizer,
     time_kind: Timer.Kind,
-    memory_kind: Memory.Kind,
     memory_unit: Memory.Unit,
 ):
     trial = optimizer.ask()
     report = target_function(
         trial,
         time_kind=time_kind,
-        mem_kind=memory_kind,
         mem_unit=memory_unit,
         err=ValueError("Error inside Target Function"),
     )

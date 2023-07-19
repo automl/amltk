@@ -119,7 +119,6 @@ class Trial(Generic[I]):
     def begin(
         self,
         time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
-        memory_kind: Memory.Kind | Literal["rss", "vms"] = "rss",
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
     ) -> Iterator[None]:
         """Begin the trial with a `contextmanager`.
@@ -160,14 +159,9 @@ class Trial(Generic[I]):
 
         Args:
             time: The timer kind to use for the trial.
-            memory_kind: The memory kind to use for the trial.
             memory_unit: The memory unit to use for the trial.
         """  # noqa: E501
-        self.profiler = Profiler.start(
-            time_kind=time,
-            memory_kind=memory_kind,
-            memory_unit=memory_unit,
-        )
+        self.profiler = Profiler.start(time_kind=time, memory_unit=memory_unit)
         try:
             yield
         except Exception as error:  # noqa: BLE001
@@ -184,7 +178,6 @@ class Trial(Generic[I]):
         name: str,
         *,
         time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
-        memory_kind: Memory.Kind | Literal["rss", "vms"] = "rss",
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
     ) -> Iterator[Profiler.Interval]:
         """Measure some interval in the trial.
@@ -208,19 +201,14 @@ class Trial(Generic[I]):
         Args:
             name: The name of the interval.
             time: The timer kind to use for the trial.
-            memory_kind: The memory kind to use for the trial.
             memory_unit: The memory unit to use for the trial.
 
         Yields:
             The interval measured. Values will be nan until the with block is finished.
         """
-        with Profiler.measure(
-            memory_kind=memory_kind,
-            memory_unit=memory_unit,
-            time_kind=time,
-        ) as profile:
+        with Profiler.measure(memory_unit=memory_unit, time_kind=time) as profile:
+            self.profiles[name] = profile
             yield profile
-            self.summary.update(profile.to_dict(prefix=name))
 
     def success(self, **results: Any) -> Trial.Report[I]:
         """Generate a success report.
@@ -805,9 +793,11 @@ _REPORT_DF_COLUMN_TYPES = {
     "time:duration": float,
     "time:kind": pd.StringDtype(),
     "time:unit": pd.StringDtype(),
-    "memory:start": float,
-    "memory:end": float,
-    "memory:usage": float,
-    "memory:kind": pd.StringDtype(),
+    "memory:start_rss": float,
+    "memory:end_rss": float,
+    "memory:diff_rss": float,
+    "memory:start_vms": float,
+    "memory:end_vms": float,
+    "memory:diff_vms": float,
     "memory:unit": pd.StringDtype(),
 }
