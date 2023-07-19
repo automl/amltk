@@ -343,7 +343,7 @@ def create_ensemble(
         metric=accuracy,  # <!>
         select=max,  # <!>
         seed=seed,  # <!>
-        is_probabilities=True,  # <!>
+        convert_to_classes=True,  # <!>
         classes=[0, 1],  # <!>
     )  # <!>
 
