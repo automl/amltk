@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 import time
 import warnings
-from concurrent.futures import Executor, Future, ProcessPoolExecutor, ThreadPoolExecutor
+from asyncio import Future
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 
 import pytest
 from dask.distributed import Client, LocalCluster, Worker
@@ -101,6 +102,7 @@ def test_batch_all_successful(scheduler: Scheduler) -> None:
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
+        scheduler.EMPTY: 1,
         scheduler.FINISHED: 1,
         scheduler.FUTURE_SUBMITTED: len(args),
         scheduler.FUTURE_DONE: len(args),
@@ -141,6 +143,7 @@ def test_batch_any_returned(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: len(args),
         scheduler.FUTURE_DONE: len(args),
     }
@@ -179,6 +182,7 @@ def test_batch_any_exception(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: len(args),
         scheduler.FUTURE_DONE: len(args),
     }
@@ -186,7 +190,7 @@ def test_batch_any_exception(scheduler: Scheduler) -> None:
 
 def test_batch_any_cancelled(scheduler: Scheduler) -> None:
     task = Task(sleep_and_return, scheduler)
-    args = [(0.2,), (0.2,), (0.2,)]
+    args = [(0.5,), (0.5,), (0.5,)]
 
     batch = task.batch(args)
 
@@ -201,7 +205,7 @@ def test_batch_any_cancelled(scheduler: Scheduler) -> None:
     def on_any_submitted(_: Task.Batch, fut: Future[float]) -> None:  # noqa: ARG001
         batch.cancel()
 
-    # Only one should get here
+    # None of the tasks should be submitted
     @batch.on_any_returned
     def on_any_returned(_: Task.Batch, _results: float) -> None:
         results.append(_results)
@@ -222,15 +226,10 @@ def test_batch_any_cancelled(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
+        scheduler.FUTURE_CANCELLED: 1,
     }
-
-    # NOTE: This is because Dask can cancel currently running tasks which is not
-    # something that can be done with Python's default executors.
-    if isinstance(scheduler.executor, ClientExecutor):
-        expected_scheduler_event_counts[scheduler.FUTURE_CANCELLED] = 1
-        del expected_scheduler_event_counts[scheduler.FUTURE_DONE]
 
     assert scheduler.event_counts == expected_scheduler_event_counts
 
@@ -287,6 +286,7 @@ def test_batch_task_does_not_share_events_with_single_task(
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 2,
         scheduler.FUTURE_DONE: 2,
     }
@@ -329,14 +329,9 @@ def test_batch_stop_on_failed_submission(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
+        scheduler.FUTURE_CANCELLED: 1,
     }
-
-    # NOTE: This is because Dask can cancel currently running tasks which is not
-    # something that can be done with Python's default executors.
-    if isinstance(scheduler.executor, ClientExecutor):
-        expected_scheduler_event_counts[scheduler.FUTURE_CANCELLED] = 1
-        del expected_scheduler_event_counts[scheduler.FUTURE_DONE]
 
     assert scheduler.event_counts == expected_scheduler_event_counts

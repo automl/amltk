@@ -92,6 +92,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 2,
         scheduler.FUTURE_DONE: 2,
     }
@@ -124,6 +125,7 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 2,
         scheduler.FUTURE_DONE: 2,
     }

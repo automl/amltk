@@ -93,6 +93,7 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
         scheduler.STOP: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }
@@ -110,7 +111,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(duration=3)
 
-    end_status = scheduler.run(raises=False)
+    end_status = scheduler.run(raises=False, end_on_exception=True)
 
     assert isinstance(end_status, PynisherPlugin.WallTimeoutException)
 
@@ -129,6 +130,7 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
         scheduler.STOP: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }
@@ -147,7 +149,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(iterations=int(1e16))
 
-    end_status = scheduler.run(raises=False)
+    end_status = scheduler.run(raises=False, end_on_exception=True)
     assert isinstance(end_status, PynisherPlugin.CpuTimeoutException)
 
     assert task.event_counts == {
@@ -165,6 +167,7 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
         scheduler.STOP: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }

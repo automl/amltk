@@ -201,6 +201,7 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 2,
         scheduler.FUTURE_DONE: 2,
     }
@@ -259,6 +260,7 @@ def test_repeat_on_start(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
     }
     assert end_status == Scheduler.ExitCode.EXHAUSTED
     assert scheduler.empty()

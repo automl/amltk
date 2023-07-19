@@ -121,6 +121,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }
@@ -168,6 +169,7 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }

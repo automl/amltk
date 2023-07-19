@@ -9,9 +9,7 @@ import asyncio
 import logging
 from concurrent.futures import (
     Executor,
-    Future as SyncFuture,
     ProcessPoolExecutor,
-    wait as wait_for,
 )
 from enum import Enum, auto
 from threading import Timer
@@ -64,7 +62,7 @@ class Scheduler(Emitter):
 
     executor: Executor
     """The executor to use to run tasks."""
-    queue: list[SyncFuture]
+    queue: list[asyncio.Future]
     """The queue of tasks running."""
     on_finishing: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when the
@@ -85,7 +83,7 @@ class Scheduler(Emitter):
         ...
     ```
     """
-    on_future_submitted: Subscriber[SyncFuture]
+    on_future_submitted: Subscriber[asyncio.Future]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when
     a future is submitted.
     ```python
@@ -94,7 +92,7 @@ class Scheduler(Emitter):
         ...
     ```
     """
-    on_future_done: Subscriber[SyncFuture]
+    on_future_done: Subscriber[asyncio.Future]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when
     a future is done.
     ```python
@@ -103,7 +101,7 @@ class Scheduler(Emitter):
         ...
     ```
     """
-    on_future_cancelled: Subscriber[SyncFuture]
+    on_future_cancelled: Subscriber[asyncio.Future]
     """A [`Subscriber`][amltk.events.Subscriber] which is called
     when a future is cancelled.
     ```python
@@ -155,9 +153,9 @@ class Scheduler(Emitter):
     STOP: Event[[]] = Event("scheduler-stop")
     TIMEOUT: Event[[]] = Event("scheduler-timeout")
     EMPTY: Event[[]] = Event("scheduler-empty")
-    FUTURE_SUBMITTED: Event[SyncFuture] = Event("scheduler-future-submitted")
-    FUTURE_DONE: Event[SyncFuture] = Event("scheduler-future-done")
-    FUTURE_CANCELLED: Event[SyncFuture] = Event("scheduler-future-cancelled")
+    FUTURE_SUBMITTED: Event[asyncio.Future] = Event("scheduler-future-submitted")
+    FUTURE_DONE: Event[asyncio.Future] = Event("scheduler-future-done")
+    FUTURE_CANCELLED: Event[asyncio.Future] = Event("scheduler-future-cancelled")
 
     def __init__(
         self,
@@ -202,7 +200,7 @@ class Scheduler(Emitter):
         self.executor = executor
 
         # The current state of things and references to them
-        self.queue: list[SyncFuture] = []
+        self.queue: list[asyncio.Future] = []
 
         self.on_start = self.subscriber(self.STARTED)
         self.on_finishing = self.subscriber(self.FINISHING)
@@ -569,7 +567,7 @@ class Scheduler(Emitter):
         function: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> SyncFuture[R] | None:
+    ) -> asyncio.Future[R] | None:
         """Submits a callable to be executed with the given arguments.
 
         Args:
@@ -587,27 +585,31 @@ class Scheduler(Emitter):
             return None
 
         try:
-            sync_future: SyncFuture = self.executor.submit(function, *args, **kwargs)
+            sync_future = self.executor.submit(function, *args, **kwargs)
+            future = asyncio.wrap_future(sync_future)
         except RuntimeError:
             logger.warning(f"Executor is not running, cannot submit task {function}")
             return None
 
-        self._register_future(sync_future)
-        return sync_future
+        self._register_future(future)
+        return future
 
-    def _register_future(self, future: SyncFuture) -> None:
+    def _register_future(self, future: asyncio.Future) -> None:
         self.queue.append(future)
         self._queue_has_items_event.set()
 
         self.on_future_submitted.emit(future)
         future.add_done_callback(self._register_complete)
 
-    def _register_complete(self, future: SyncFuture) -> None:
+    def _register_complete(self, future: asyncio.Future) -> None:
         try:
             self.queue.remove(future)
 
         except ValueError as e:
-            logger.error(f"{future=} was not found in the queue {self.queue}: {e}!")
+            logger.error(
+                f"{future=} was not found in the queue {self.queue}: {e}!",
+                exc_info=True,
+            )
 
         if future.cancelled():
             self.on_future_cancelled.emit(future)
@@ -624,37 +626,19 @@ class Scheduler(Emitter):
         if not self.running():
             raise RuntimeError("The scheduler is not running!")
 
-        wrapped_futures = []
+        while True:
+            while self.queue:
+                queue = self.queue[:]
+                await asyncio.wait(queue, return_when=asyncio.ALL_COMPLETED)
 
-        try:
-            while True:
-                while self.queue:
-                    wrapped_futures = [asyncio.wrap_future(f) for f in self.queue]
-                    done, _ = await asyncio.wait(
-                        wrapped_futures,
-                        return_when=asyncio.ALL_COMPLETED,
-                    )
-                    for d in done:
-                        d.exception()
+            # Signal that the queue is now empty
+            self._queue_has_items_event.clear()
+            self.on_empty.emit()
 
-                # Signal that the queue is now empty
-                self._queue_has_items_event.clear()
-                self.on_empty.emit()
+            # Wait for an item to be in the queue
+            await self._queue_has_items_event.wait()
 
-                # Wait for an item to be in the queue
-                await self._queue_has_items_event.wait()
-
-                logger.debug("Queue has been filled again")
-
-        except asyncio.CancelledError:
-            pass
-        finally:
-            done, _ = await asyncio.wait(
-                wrapped_futures,
-                return_when=asyncio.ALL_COMPLETED,
-            )
-            for d in done:
-                d.exception()
+            logger.debug("Queue has been filled again")
 
     async def _stop_when_triggered(self, stop_event: ContextEvent) -> bool:
         """Stop the scheduler when the stop event is set."""
@@ -765,6 +749,10 @@ class Scheduler(Emitter):
             logger.debug(f"Terminating workers with {self._terminate }")
             self._terminate(self.executor)
         else:
+            logger.warning(
+                "Cancelling currently running tasks and then waiting "
+                f" as there is no termination strategy provided for {self.executor=}`.",
+            )
             # Just try to cancel the tasks. Will cancel pending tasks
             # but executors like dask will even kill the job
             for future in self.queue:
@@ -775,13 +763,6 @@ class Scheduler(Emitter):
         # Here we wait, if we could terminate or cancel, then we wait for that
         # to happen, otherwise we are just waiting as anticipated.
         self.executor.shutdown(wait=wait)
-
-        current_futures = self.queue[:]
-        wait_for(current_futures)
-
-        # Clear the queue of exceptions
-        while self.queue:
-            self.queue.pop().exception()
 
         self.on_finished.emit()
         logger.info(f"Scheduler finished with status {stop_reason}")

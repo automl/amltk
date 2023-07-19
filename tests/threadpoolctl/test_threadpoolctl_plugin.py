@@ -96,6 +96,7 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }
@@ -140,6 +141,7 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
         scheduler.FINISHED: 1,
+        scheduler.EMPTY: 1,
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }

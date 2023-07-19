@@ -7,7 +7,7 @@ final outcome of the task.
 from __future__ import annotations
 
 import logging
-from concurrent.futures import Future
+from asyncio import Future
 from typing import (
     TYPE_CHECKING,
     Callable,
