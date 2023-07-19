@@ -63,11 +63,12 @@ class Timer:
         interval.kind = timer.kind
         interval.unit = Timer.Unit.SECONDS
 
-        yield interval
-
-        _interval = timer.stop()
-        interval.start = _interval.start
-        interval.end = _interval.end
+        try:
+            yield interval
+        finally:
+            _interval = timer.stop()
+            interval.start = _interval.start
+            interval.end = _interval.end
 
     @classmethod
     def start(

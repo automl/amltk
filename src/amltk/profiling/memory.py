@@ -97,13 +97,14 @@ class Memory:
         interval = Memory.na()
         interval.unit = mem.unit
 
-        yield interval
-
-        _interval = mem.stop()
-        interval.start_vms = _interval.start_vms
-        interval.end_vms = _interval.end_vms
-        interval.start_rss = _interval.start_rss
-        interval.end_rss = _interval.end_rss
+        try:
+            yield interval
+        finally:
+            _interval = mem.stop()
+            interval.start_vms = _interval.start_vms
+            interval.end_vms = _interval.end_vms
+            interval.start_rss = _interval.start_rss
+            interval.end_rss = _interval.end_rss
 
     @classmethod
     def start(
