@@ -41,7 +41,7 @@ def weighted_ensemble_caruana(
     size: int,
     metric: Callable[[np.ndarray, np.ndarray], T],
     select: Callable[[Iterable[T]], T],
-    is_probabilities: bool = False,
+    convert_to_classes: bool = False,
     classes: npt.ArrayLike | None = None,
     seed: Seed | None = None,
 ) -> tuple[dict[K, float], list[tuple[K, T]]]:
@@ -55,8 +55,9 @@ def weighted_ensemble_caruana(
         select: Selects a models from the list based on the values of the metric on
             their predictions. Can return a single ID or a list of them, in which
             case a random selection will be made.
-        is_probabilities: Whether the predictions are probabilities or not.
-            If they are, then `classes` must be provided.
+        convert_to_classes: Whether the predictions are probabilities and whether they
+            should be converted to classes. If specified as `True`, then `classes`
+            must be provided.
         classes: The classes to use if `is_probabilities` for `model_predictions`.
             For now we assume to style of sklearn for specifying clases and probabilties
             for binary, multiclass and multi-label targets.
@@ -71,10 +72,10 @@ def weighted_ensemble_caruana(
     if len(model_predictions) == 0:
         raise ValueError("`model_predictions` is empty")
 
-    if is_probabilities is True and classes is None:
+    if convert_to_classes is True and classes is None:
         raise ValueError("Must provide `classes` if using probabilities")
 
-    if is_probabilities is False and classes is not None:
+    if convert_to_classes is False and classes is not None:
         raise ValueError("`classes` should not be provided if not using probabilities")
 
     rng = as_rng(seed)
@@ -104,12 +105,12 @@ def weighted_ensemble_caruana(
         np.multiply(buffer, (1.0 / float(len(ensemble) + 1)), out=buffer)
 
         # We need to convert the probabilities to classes before passing to metric
-        if is_probabilities:
+        if convert_to_classes:
             assert _classes is not None
             predictions = probabilities_to_classes(buffer, _classes)
-            return metric(predictions, targets)
+            return metric(targets, predictions)
 
-        return metric(buffer, targets)
+        return metric(targets, buffer)
 
     for _ in range(size):
         # Get the value if added for each model
