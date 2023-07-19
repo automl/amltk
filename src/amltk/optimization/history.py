@@ -124,27 +124,9 @@ class History(Mapping[str, Trial.Report]):
         if len(self) == 0:
             return pd.DataFrame()
 
-        history_df = pd.concat([report.df() for report in list(self.reports.values())])
-        if (
-            len(history_df) > 0
-            and "time:start" in history_df.columns
-            and "time:end" in history_df.columns
-        ):
-            min_time = history_df[["time:start", "time:end"]].min().min()
-            history_df = pd.concat(
-                [
-                    history_df,
-                    pd.DataFrame(
-                        {
-                            "time:relative_start": history_df["time:start"] - min_time,
-                            "time:relative_end": history_df["time:end"] - min_time,
-                        },
-                    ),
-                ],
-                axis=1,
-            )
-
-        return history_df
+        return pd.concat(
+            [report.df(convert_dtypes=False) for report in list(self.reports.values())],
+        ).astype(_REPORT_DF_COLUMN_TYPES)
 
     def filter(self, by: Callable[[Trial.Report], bool]) -> History:
         """Filters the history by a predicate.
@@ -583,27 +565,10 @@ class Trace(Sequence[Trial.Report]):
         if len(self) == 0:
             return pd.DataFrame()
 
-        trace_df = pd.concat([report.df() for report in self.reports])
-        if (
-            len(trace_df) > 0
-            and "time:start" in trace_df.columns
-            and "time:end" in trace_df.columns
-        ):
-            min_time = trace_df[["time:start", "time:end"]].min().min()
-            trace_df = pd.concat(
-                [
-                    trace_df,
-                    pd.DataFrame(
-                        {
-                            "time:relative_start": trace_df["time:start"] - min_time,
-                            "time:relative_end": trace_df["time:end"] - min_time,
-                        },
-                    ),
-                ],
-                axis=1,
-            )
-
-        return trace_df
+        return pd.concat(
+            [report.df(convert_dtypes=False) for report in self.reports],
+            ignore_index=True,
+        ).astype(_REPORT_DF_COLUMN_TYPES)
 
     def to_csv(self, path: str | Path | IO[str]) -> None:
         """Saves the history to a csv.

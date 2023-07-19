@@ -164,9 +164,9 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 )
 
             trial_value = SMACTrialValue(
-                time=report.time.duration,
-                starttime=report.time.start,
-                endtime=report.time.end,
+                time=report.profile.time.duration,
+                starttime=report.profile.time.start,
+                endtime=report.profile.time.end,
                 cost=reported_costs,
                 status=StatusType.SUCCESS,
                 additional_info=report.results.get("additional_info", {}),
@@ -175,9 +175,9 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             return
 
         if report.status is Trial.Status.FAIL:
-            duration = report.time.duration
-            start = report.time.start
-            end = report.time.end
+            duration = report.profile.time.duration
+            start = report.profile.time.start
+            end = report.profile.time.end
             reported_cost = report.results.get("cost", None)
             additional_info = report.results.get("additional_info", {})
         else:
