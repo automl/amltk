@@ -101,7 +101,7 @@ class Trial(Generic[I]):
     These are mainly set by the [`success()`][amltk.optimization.trial.Trial.success]
     and [`fail()`][amltk.optimization.trial.Trial.fail] methods."""
 
-    exception: Exception | None = field(repr=True, default=None)
+    exception: BaseException | None = field(repr=True, default=None)
     """The exception raised by the trial, if any."""
 
     traceback: str | None = field(repr=False, default=None)
@@ -270,7 +270,7 @@ class Trial(Generic[I]):
 
     def crashed(
         self,
-        exception: Exception | None = None,
+        exception: BaseException | None = None,
         traceback: str | None = None,
     ) -> Trial.Report[I]:
         """Generate a crash report.
@@ -523,7 +523,7 @@ class Trial(Generic[I]):
             return self.trial.results
 
         @property
-        def exception(self) -> Exception | None:
+        def exception(self) -> BaseException | None:
             """The exception of the trial, if any."""
             return self.trial.exception
 
