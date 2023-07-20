@@ -26,6 +26,8 @@ def byte_size(data: Any | Iterable[Any]) -> int:
         return int(data.memory_usage(deep=True).sum())
     if isinstance(data, pd.Series):
         return int(data.memory_usage(deep=True))
+    if isinstance(data, str):
+        return sys.getsizeof(data)
     if isinstance(data, Iterable):
         return sum(byte_size(d) for d in data)
 
