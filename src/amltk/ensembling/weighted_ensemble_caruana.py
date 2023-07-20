@@ -75,9 +75,6 @@ def weighted_ensemble_caruana(
     if convert_to_classes is True and classes is None:
         raise ValueError("Must provide `classes` if using probabilities")
 
-    if convert_to_classes is False and classes is not None:
-        raise ValueError("`classes` should not be provided if not using probabilities")
-
     rng = as_rng(seed)
     _classes = np.asarray(classes)
     predictions = list(model_predictions.values())
