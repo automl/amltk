@@ -179,6 +179,7 @@ class Trial(Generic[I]):
         *,
         time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
+        summary: bool = True,
     ) -> Iterator[Profiler.Interval]:
         """Measure some interval in the trial.
 
@@ -202,6 +203,7 @@ class Trial(Generic[I]):
             name: The name of the interval.
             time: The timer kind to use for the trial.
             memory_unit: The memory unit to use for the trial.
+            summary: Whether to add the interval to the summary.
 
         Yields:
             The interval measured. Values will be nan until the with block is finished.
@@ -209,6 +211,9 @@ class Trial(Generic[I]):
         with Profiler.measure(memory_unit=memory_unit, time_kind=time) as profile:
             self.profiles[name] = profile
             yield profile
+
+        if summary:
+            self.summary.update(profile.to_dict(prefix=f"{name}:"))
 
     def success(self, **results: Any) -> Trial.Report[I]:
         """Generate a success report.
