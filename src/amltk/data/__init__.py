@@ -1,7 +1,4 @@
-from amltk.data.conversions import (
-    probabilities_to_classes,
-    to_numpy,
-)
+from amltk.data.conversions import flatten_if_1d, probabilities_to_classes, to_numpy
 from amltk.data.dtype_reduction import (
     reduce_dtypes,
     reduce_floating_precision,
@@ -16,4 +13,5 @@ __all__ = [
     "reduce_int_span",
     "probabilities_to_classes",
     "to_numpy",
+    "flatten_if_1d",
 ]

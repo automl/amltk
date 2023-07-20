@@ -1,7 +1,7 @@
 """Conversions between different data repesentations and formats."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import numpy as np
 import pandas as pd
@@ -67,3 +67,36 @@ def to_numpy(
 
     assert isinstance(_x, np.ndarray)
     return _x
+
+
+@overload
+def flatten_if_1d(x: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
+    ...
+
+
+@overload
+def flatten_if_1d(x: np.ndarray) -> np.ndarray:  # type: ignore
+    ...
+
+
+def flatten_if_1d(
+    x: np.ndarray | pd.DataFrame | pd.Series,
+) -> np.ndarray | pd.DataFrame | pd.Series:
+    """Flatten if 1d.
+
+    Retains the type of the input, i.e. pandas stays pandas and numpy stays numpy.
+
+    Args:
+        x: The data to flatten
+
+    Returns:
+        The flattened data
+    """
+    if isinstance(x, np.ndarray) and x.ndim == 2 and x.shape[1] == 1:  # noqa: PLR2004
+        x = np.ravel(x)
+    elif (
+        isinstance(x, pd.DataFrame) and x.ndim == 2 and x.shape[1] == 1  # noqa: PLR2004
+    ):
+        x = x.iloc[:, 0]
+
+    return x
