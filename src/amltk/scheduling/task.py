@@ -74,7 +74,7 @@ class Task(Generic[P, R], Emitter):
     """A unique identifier for this task."""
     unique_ref: UniqueRef
     """A unique reference to this task."""
-    plugins: list[TaskPlugin[P, R]]
+    plugins: list[TaskPlugin]
     """The plugins to use for this task."""
     function: Callable[P, R]
     """The function of this task"""
@@ -170,7 +170,7 @@ class Task(Generic[P, R], Emitter):
         scheduler: Scheduler,
         *,
         name: str | None = None,
-        plugins: Iterable[TaskPlugin[P, R]] = (),
+        plugins: Iterable[TaskPlugin] = (),
         init_plugins: bool = True,
     ) -> None:
         """Initialize a task.
@@ -188,7 +188,7 @@ class Task(Generic[P, R], Emitter):
 
         super().__init__(event_manager=self.unique_ref)
 
-        self.plugins: list[TaskPlugin[P, R]] = list(plugins)
+        self.plugins: list[TaskPlugin] = list(plugins)
         self.function: Callable[P, R] = function
         self.scheduler: Scheduler = scheduler
         self.init_plugins: bool = init_plugins

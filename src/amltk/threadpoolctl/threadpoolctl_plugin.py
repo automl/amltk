@@ -45,7 +45,7 @@ class _ThreadPoolLimiter(Generic[P, R]):
             return self.fn(*args, **kwargs)
 
 
-class ThreadPoolCTLPlugin(TaskPlugin[P, R]):
+class ThreadPoolCTLPlugin(TaskPlugin):
     """A plugin that limits the usage of threads in a task.
 
     This plugin is used to make utilize threadpoolctl with tasks,
@@ -88,7 +88,7 @@ class ThreadPoolCTLPlugin(TaskPlugin[P, R]):
         fn: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> tuple[Callable, tuple, dict] | None:
+    ) -> tuple[Callable[P, R], tuple, dict] | None:
         """Pre-submit hook.
 
         Wrap the function in something that will activate threadpoolctl

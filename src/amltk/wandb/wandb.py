@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -22,8 +23,10 @@ import wandb
 from wandb.sdk import wandb_run
 from wandb.sdk.lib import RunDisabled
 
-from amltk.optimization import Trial
 from amltk.scheduling import Scheduler, SequentialExecutor, Task, TaskPlugin
+
+if TYPE_CHECKING:
+    from amltk.optimization import Trial
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -164,7 +167,7 @@ class WandbLiveRunWrap(Generic[P]):
         return report
 
 
-class WandbTrialTracker(TaskPlugin[[Trial], Trial.Report]):
+class WandbTrialTracker(TaskPlugin):
     """Track trials using wandb.
 
     This class is a task plugin that tracks trials using wandb.
@@ -195,11 +198,10 @@ class WandbTrialTracker(TaskPlugin[[Trial], Trial.Report]):
 
     def pre_submit(
         self,
-        fn: Callable[[Trial], Trial.Report],
-        trial: Trial,
+        fn: Callable[P, R],
         *args: Any,
         **kwargs: Any,
-    ) -> tuple[Callable[[Trial], Trial.Report], tuple, dict] | None:
+    ) -> tuple[Callable[P, R], tuple, dict] | None:
         """Wrap the target function to log the results to a wandb run.
 
         This method wraps the target function to log the results to a wandb run
@@ -215,8 +217,8 @@ class WandbTrialTracker(TaskPlugin[[Trial], Trial.Report]):
             The wrapped function, the positional arguments and the keyword
             arguments.
         """
-        fn = WandbLiveRunWrap(self.params, fn, modify=self.modify)
-        return fn, (trial, *args), {**kwargs}
+        fn = WandbLiveRunWrap(self.params, fn, modify=self.modify)  # type: ignore
+        return fn, args, kwargs
 
     def copy(self) -> Self:
         """Copy the plugin."""

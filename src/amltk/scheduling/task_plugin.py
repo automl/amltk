@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from itertools import chain
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, TypeVar
 from typing_extensions import ParamSpec, Self
 
 from amltk.events import Event
@@ -16,7 +16,7 @@ R = TypeVar("R")
 TrialInfo = TypeVar("TrialInfo")
 
 
-class TaskPlugin(ABC, Generic[P, R]):
+class TaskPlugin(ABC):
     """A plugin that can be attached to a Task.
 
     By inheriting from a `TaskPlugin`, you can hook into a
@@ -56,7 +56,7 @@ class TaskPlugin(ABC, Generic[P, R]):
     This is used to identify the plugin during logging.
     """
 
-    def attach_task(self, task: Task) -> None:
+    def attach_task(self, task: Task) -> None:  # noqa: B027
         """Attach the plugin to a task.
 
         This method is called when the plugin is attached to a task. This
@@ -112,7 +112,7 @@ class TaskPlugin(ABC, Generic[P, R]):
         ...
 
 
-class CallLimiter(TaskPlugin[P, R]):
+class CallLimiter(TaskPlugin):
     """A plugin that limits the submission of a task.
 
 
@@ -149,10 +149,10 @@ class CallLimiter(TaskPlugin[P, R]):
     name: ClassVar = "call-limiter"
     """The name of the plugin."""
 
-    CALL_LIMIT_REACHED: Event[P] = Event("call-limiter-call-limit")
+    CALL_LIMIT_REACHED: Event[...] = Event("call-limiter-call-limit")
     """Emitted when the call limit is reached."""
 
-    CONCURRENT_LIMIT_REACHED: Event[P] = Event("call-limiter-concurrent-limit")
+    CONCURRENT_LIMIT_REACHED: Event[...] = Event("call-limiter-concurrent-limit")
     """Emitted when the concurrent task limit is reached."""
 
     def __init__(
@@ -172,6 +172,12 @@ class CallLimiter(TaskPlugin[P, R]):
         self.max_concurrent = max_concurrent
         self.task: Task | None = None
 
+        if isinstance(max_calls, int) and not max_calls > 0:
+            raise ValueError("max_calls must be greater than 0")
+
+        if isinstance(max_concurrent, int) and not max_concurrent > 0:
+            raise ValueError("max_concurrent must be greater than 0")
+
         self._calls = 0
         self._concurrent = 0
 
@@ -187,7 +193,7 @@ class CallLimiter(TaskPlugin[P, R]):
         fn: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> tuple[Callable, tuple, dict] | None:
+    ) -> tuple[Callable[P, R], tuple, dict] | None:
         """Pre-submit hook.
 
         Prevents submission of the task if it exceeds any of the set limits.
