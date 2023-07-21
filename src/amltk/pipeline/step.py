@@ -84,6 +84,11 @@ class Step(Generic[Space]):
         hash=False,
         repr=False,
     )
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
     meta: Mapping[str, Any] | None = None
 
     DELIMITER: ClassVar[str] = ":"
@@ -222,6 +227,9 @@ class Step(Generic[Space]):
 
         if self.config is not None:
             this_config = {**self.config, **this_config}
+
+        if self.config_transform is not None:
+            this_config = self.config_transform(this_config)
 
         new_self = self.mutate(
             config=this_config if this_config else None,

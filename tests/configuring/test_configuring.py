@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Mapping
+
 from amltk import Pipeline, choice, searchable, split, step
 
 
@@ -175,4 +177,28 @@ def test_heirachical_str_with_searchables() -> None:
 
     expected = expected.attach(modules=expected_extra)
 
+    assert expected == pipeline.configure(config)
+
+
+def test_config_transform() -> None:
+    def _transformer_1(_: Mapping) -> Mapping:
+        return {"hello": "world"}
+
+    def _transformer_2(_: Mapping) -> Mapping:
+        return {"hi": "mars"}
+
+    pipeline = Pipeline.create(
+        step("1", 1, space={"a": [1, 2, 3]}, config_transform=_transformer_1),
+        step("2", 2, space={"b": [1, 2, 3]}, config_transform=_transformer_2),
+    )
+    config = {
+        "1:a": 1,
+        "2:b": 1,
+    }
+
+    expected = Pipeline.create(
+        step("1", 1, config={"hello": "world"}, config_transform=_transformer_1),
+        step("2", 2, config={"hi": "mars"}, config_transform=_transformer_2),
+        name=pipeline.name,
+    )
     assert expected == pipeline.configure(config)

@@ -46,6 +46,11 @@ class Component(Step[Space], Generic[Item, Space]):
         hash=False,
         repr=False,
     )
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
     meta: Mapping[str, Any] | None = None
 
     def build(self, **kwargs: Any) -> Item:
@@ -83,6 +88,11 @@ class Group(Mapping[str, Step], Step[Space]):
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
     fidelity_space: Mapping[str, Any] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
         default=None,
         hash=False,
         repr=False,
@@ -274,6 +284,9 @@ class Group(Mapping[str, Step], Step[Space]):
         if self.config is not None:
             this_config = {**self.config, **this_config}
 
+        if self.config_transform is not None:
+            this_config = self.config_transform(this_config)
+
         new_self = self.mutate(
             paths=paths,
             config=this_config if this_config else None,
@@ -368,6 +381,11 @@ class Split(Group[Space], Generic[Item, Space]):
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
     search_space: Space | None = field(default=None, hash=False, repr=False)
     meta: Mapping[str, Any] | None = None
 
@@ -414,6 +432,11 @@ class Choice(Group[Space]):
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
     meta: Mapping[str, Any] | None = None
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+        default=None,
+        hash=False,
+        repr=False,
+    )
 
     def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""

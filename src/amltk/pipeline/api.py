@@ -88,6 +88,7 @@ def step(
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
 ) -> Component[T, None]:
     ...
 
@@ -101,6 +102,7 @@ def step(
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
 ) -> Component[T, Space]:
     ...
 
@@ -113,6 +115,7 @@ def step(
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = None,
     meta: Mapping[str, Any] | None = None,
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
 ) -> Component[T, Space] | Component[T, None]:
     """A step in a pipeline.
 
@@ -142,6 +145,10 @@ def step(
             indicated as a tuple, an ordered list or a mapping from a name to
             any of the above.
         meta: Any metadata to associate with this
+        config_transform:
+            A function that will be applied to the config before it is passed to the
+            item. This can be used to transform the config into a format that the item
+            expects.
 
     Returns:
         The component describing this step
@@ -153,6 +160,7 @@ def step(
         search_space=space,
         fidelity_space=fidelities,
         meta=meta,
+        config_transform=config_transform,
     )
 
 
@@ -196,6 +204,7 @@ def split(
     item: T | Callable[..., T],
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
 ) -> Split[T, None]:
     ...
 
@@ -208,6 +217,7 @@ def split(
     space: Space,
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
 ) -> Split[T, Space]:
     ...
 
@@ -219,6 +229,7 @@ def split(
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
     meta: Mapping[str, Any] | None = None,
+    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
 ) -> Split[T, Space] | Split[T, None] | Split[None, None]:
     """Create a Split component, allowing data to flow multiple paths.
 
@@ -231,6 +242,10 @@ def split(
             the space, this will be removed from the space.
         space: A space with which this step can be searched over.
         meta: Any metadata to associate with this
+        config_transform:
+            A function that will be applied to the config before it is passed to the
+            item. This can be used to transform the config into a format that the item
+            expects.
 
     Returns:
         Split: Split component with your choices as possibilities
@@ -242,6 +257,7 @@ def split(
         search_space=space,
         config=config,
         meta=meta,
+        config_transform=config_transform,
     )
 
 

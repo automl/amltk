@@ -320,6 +320,37 @@ it's syntax for defining a search space, but check out our built-in
     is we can [`build()`][amltk.pipeline.Component.build] into a useable object, i.e.
     the `RandomForestClassifier`.
 
+!!! hint "Transforming Config Values"
+
+    Sometimes you'll have to apply some transform to a config before it can be passed
+    to the `.item`, e.g. the `RandomForestClassifier` above. For examle, imagine you have:
+
+    ```python hl_lines="6 7 14" exec="true" source="material-block" result="python" title="config_transform="
+    from typing import Mapping
+
+    from amltk.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
+
+    def replace_none_strings(config: Mapping) -> Mapping:
+        return {k: None if v == "None" else v for k, v in config.items()}
+
+
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"max_features": ["sqrt", "log2", "None"]}, # None as string
+        config_transform=replace_none_strings,
+    )
+
+    random_config = {"max_features": "None"}
+    configured_component = component.configure(random_config)
+
+    # The transform was applied and won't error~
+    rf = configured_component.build()
+
+    print(rf)
+    ```
+
 
 !!! info "Some other small notable features:"
 
