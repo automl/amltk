@@ -304,7 +304,7 @@ class Task(Generic[P, R], Emitter):
         for plugin in self.plugins:
             items = plugin.pre_submit(fn, *args, **kwargs)
             if items is None:
-                logger.info(
+                logger.debug(
                     f"Plugin '{plugin.name}' prevented {self} from being submitted"
                     f" with {callstring(self.function, *args, **kwargs)}",
                 )

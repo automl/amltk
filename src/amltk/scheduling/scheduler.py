@@ -745,10 +745,8 @@ class Scheduler(Emitter):
 
         if wait:
             logger.info("Waiting for currently running tasks to finish.")
-        elif self._terminate is not None:
-            logger.debug(f"Terminating workers with {self._terminate }")
-            self._terminate(self.executor)
-        else:
+            self.executor.shutdown(wait=wait)
+        elif self._terminate is None:
             logger.warning(
                 "Cancelling currently running tasks and then waiting "
                 f" as there is no termination strategy provided for {self.executor=}`.",
@@ -760,9 +758,12 @@ class Scheduler(Emitter):
                     logger.debug(f"Cancelling {future=}")
                     future.cancel()
 
-        # Here we wait, if we could terminate or cancel, then we wait for that
-        # to happen, otherwise we are just waiting as anticipated.
-        self.executor.shutdown(wait=wait)
+            # Here we wait, if we could  cancel, then we wait for that
+            # to happen, otherwise we are just waiting as anticipated.
+            self.executor.shutdown(wait=wait)
+        else:
+            logger.debug(f"Terminating workers with {self._terminate }")
+            self._terminate(self.executor)
 
         self.on_finished.emit()
         logger.info(f"Scheduler finished with status {stop_reason}")
