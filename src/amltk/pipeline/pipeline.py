@@ -361,7 +361,7 @@ class Pipeline:
     @overload
     def sample(
         self,
-        space: Space,
+        space: Space | None,
         *,
         n: None = None,
         sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
@@ -374,7 +374,7 @@ class Pipeline:
     @overload
     def sample(
         self,
-        space: Space,
+        space: Space | None,
         *,
         n: int,
         sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
@@ -386,7 +386,7 @@ class Pipeline:
 
     def sample(
         self,
-        space: Space,
+        space: Space | None = None,
         *,
         n: int | None = None,
         sampler: type[Sampler[Space]] | Sampler[Space] | None = None,
@@ -397,7 +397,8 @@ class Pipeline:
         """Sample a configuration from the space of the pipeline.
 
         Args:
-            space: The space to sample from
+            space: The space to sample from. Will be automatically inferred
+                if `None` is provided.
             n: The number of configurations to sample. If `None`, a single
                 configuration will be sampled. If `n` is greater than 1, a list of
                 configurations will be returned.
@@ -417,7 +418,7 @@ class Pipeline:
         from amltk.pipeline.sampler import Sampler
 
         return Sampler.try_sample(
-            space,
+            space if space is not None else self.space(),
             sampler=sampler,
             n=n,
             seed=seed,
@@ -431,6 +432,7 @@ class Pipeline:
         *,
         rename: bool | str = False,
         prefixed_name: bool = False,
+        transform_context: Any | None = None,
     ) -> Pipeline:
         """Configure the pipeline with the given configuration.
 
@@ -449,6 +451,8 @@ class Pipeline:
                 * If `False`, the pipeline will not be renamed
             prefixed_name: Whether the configuration is prefixed with the name of the
                 pipeline. Defaults to `False`.
+            transform_context: Any context to give to `config_transform=` of individual
+                steps.
 
         Returns:
             A new pipeline with the configuration applied
@@ -462,7 +466,11 @@ class Pipeline:
         new_head = self.head.configure(this_config, prefixed_name=True)
 
         new_modules = [
-            module.configure(this_config, prefixed_name=True)
+            module.configure(
+                this_config,
+                prefixed_name=True,
+                transform_context=transform_context,
+            )
             for module in self.modules.values()
         ]
 

@@ -67,6 +67,7 @@ class Step(Generic[Space]):
             [`Choice`][amltk.pipeline.components.Choice] that this step is a part of
             and is the head of the chain.
         config: The configuration for this step
+        config_transform: A function that transforms the configuration of this step
         search_space: The search space for this step
         fidelity_space: The fidelities for this step
     """
@@ -84,7 +85,9 @@ class Step(Generic[Space]):
         hash=False,
         repr=False,
     )
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = field(
         default=None,
         hash=False,
         repr=False,
@@ -188,7 +191,13 @@ class Step(Generic[Space]):
         """Check if this searchable is configured."""
         return self.search_space is None and self.config is not None
 
-    def configure(self, config: Config, *, prefixed_name: bool | None = None) -> Step:
+    def configure(
+        self,
+        config: Config,
+        *,
+        prefixed_name: bool | None = None,
+        transform_context: Any | None = None,
+    ) -> Step:
         """Configure this step and anything following it with the given config.
 
         Args:
@@ -203,6 +212,8 @@ class Step(Generic[Space]):
                 * If `False`, then the config will be searched for items without
                     the prefix, i.e. the config keys are exactly those matching
                     this steps search space.
+            transform_context: Any context to give to `config_transform=` of individual
+                steps.
 
         Returns:
             Step: The configured step
@@ -214,7 +225,11 @@ class Step(Generic[Space]):
                 prefixed_name = self.nxt is not None
 
         nxt = (
-            self.nxt.configure(config, prefixed_name=prefixed_name)
+            self.nxt.configure(
+                config,
+                prefixed_name=prefixed_name,
+                transform_context=transform_context,
+            )
             if self.nxt
             else None
         )
@@ -229,7 +244,7 @@ class Step(Generic[Space]):
             this_config = {**self.config, **this_config}
 
         if self.config_transform is not None:
-            this_config = self.config_transform(this_config)
+            this_config = self.config_transform(this_config, transform_context)
 
         new_self = self.mutate(
             config=this_config if this_config else None,
@@ -580,7 +595,7 @@ class Step(Generic[Space]):
     @overload
     def sample(
         self,
-        space: Space,
+        space: Space | None = None,
         *,
         n: int,
         sampler: Sampler[Space] | None = ...,
@@ -593,7 +608,7 @@ class Step(Generic[Space]):
     @overload
     def sample(
         self,
-        space: Space,
+        space: Space | None = None,
         *,
         n: None = None,
         sampler: Sampler[Space] | None = ...,
@@ -605,7 +620,7 @@ class Step(Generic[Space]):
 
     def sample(
         self,
-        space: Space,
+        space: Space | None = None,
         *,
         n: int | None = None,
         sampler: Sampler[Space] | None = None,
@@ -616,7 +631,8 @@ class Step(Generic[Space]):
         """Sample a configuration from the space of the pipeline.
 
         Args:
-            space: The space to sample from
+            space: The space to sample from. Will default to it's own space if
+                not provided.
             n: The number of configurations to sample. If `None`, a single
                 configuration will be sampled. If `n` is greater than 1, a list of
                 configurations will be returned.
@@ -636,7 +652,7 @@ class Step(Generic[Space]):
         from amltk.pipeline.sampler import Sampler
 
         return Sampler.try_sample(
-            space,
+            space if space is not None else self.space(),
             sampler=sampler,
             n=n,
             seed=seed,

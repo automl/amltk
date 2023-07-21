@@ -320,7 +320,7 @@ it's syntax for defining a search space, but check out our built-in
     is we can [`build()`][amltk.pipeline.Component.build] into a useable object, i.e.
     the `RandomForestClassifier`.
 
-!!! hint "Transforming Config Values"
+!!! hint "Transforming Config Values at Build Time"
 
     Sometimes you'll have to apply some transform to a config before it can be passed
     to the `.item`, e.g. the `RandomForestClassifier` above. For examle, imagine you have:
@@ -331,9 +331,8 @@ it's syntax for defining a search space, but check out our built-in
     from amltk.pipeline import step
     from sklearn.ensemble import RandomForestClassifier
 
-    def replace_none_strings(config: Mapping) -> Mapping:
+    def replace_none_strings(config: Mapping, transform_context: Any | None) -> Mapping:
         return {k: None if v == "None" else v for k, v in config.items()}
-
 
     component = step(
         "rf",
@@ -348,6 +347,42 @@ it's syntax for defining a search space, but check out our built-in
     # The transform was applied and won't error~
     rf = configured_component.build()
 
+    print(rf)
+    ```
+
+    Suppose you have your own custom max features to choose, perhaps raising
+    the number of features to some power between 0.0 and 1.0. Here it's data-dependant
+    and we need some `transform_context=` to give to the transform function
+
+    ```python hl_lines="6 7 8 9 10 15 16 22" exec="true" source="material-block" result="python" title="Transform config with context"
+    from typing import Mapping
+
+    from amltk.pipeline import step
+    from sklearn.ensemble import RandomForestClassifier
+
+    def configure_max_features(config: Mapping, transform_context: Any | None) -> Mapping:
+        new_config = dict(config)
+        max_features = new_config.pop("max_features")
+        new_config["max_features"] = int(transform_context["n_features"] ** max_features)
+        return new_config
+
+    component = step(
+        "rf",
+        RandomForestClassifier,
+        space={"max_features": (0.0, 1.0)},
+        config_transform=configure_max_features,
+    )
+    random_config = component.sample(seed=42)
+
+    configured_component = component.configure(
+        random_config,
+        transform_context={"n_features": 327}
+    )
+
+    # The transform was applied and won't error~
+    rf = configured_component.build()
+
+    print(random_config)
     print(rf)
     ```
 

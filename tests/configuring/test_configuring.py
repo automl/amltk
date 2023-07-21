@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Any, Mapping
 
 from amltk import Pipeline, choice, searchable, split, step
 
@@ -181,10 +181,10 @@ def test_heirachical_str_with_searchables() -> None:
 
 
 def test_config_transform() -> None:
-    def _transformer_1(_: Mapping) -> Mapping:
+    def _transformer_1(_: Mapping, __: Any | None) -> Mapping:
         return {"hello": "world"}
 
-    def _transformer_2(_: Mapping) -> Mapping:
+    def _transformer_2(_: Mapping, __: Any | None) -> Mapping:
         return {"hi": "mars"}
 
     pipeline = Pipeline.create(

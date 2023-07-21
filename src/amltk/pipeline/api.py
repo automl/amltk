@@ -88,7 +88,9 @@ def step(
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = None,
 ) -> Component[T, None]:
     ...
 
@@ -102,7 +104,9 @@ def step(
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = None,
 ) -> Component[T, Space]:
     ...
 
@@ -115,7 +119,9 @@ def step(
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = None,
     meta: Mapping[str, Any] | None = None,
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = None,
 ) -> Component[T, Space] | Component[T, None]:
     """A step in a pipeline.
 
@@ -204,7 +210,9 @@ def split(
     item: T | Callable[..., T],
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = None,
 ) -> Split[T, None]:
     ...
 
@@ -217,7 +225,9 @@ def split(
     space: Space,
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = None,
 ) -> Split[T, Space]:
     ...
 
@@ -229,7 +239,9 @@ def split(
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
     meta: Mapping[str, Any] | None = None,
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = None,
 ) -> Split[T, Space] | Split[T, None] | Split[None, None]:
     """Create a Split component, allowing data to flow multiple paths.
 

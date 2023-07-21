@@ -46,7 +46,9 @@ class Component(Step[Space], Generic[Item, Space]):
         hash=False,
         repr=False,
     )
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = field(
         default=None,
         hash=False,
         repr=False,
@@ -92,7 +94,9 @@ class Group(Mapping[str, Step], Step[Space]):
         hash=False,
         repr=False,
     )
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = field(
         default=None,
         hash=False,
         repr=False,
@@ -239,7 +243,13 @@ class Group(Mapping[str, Step], Step[Space]):
     def __iter__(self) -> Iterator[str]:
         return iter(p.name for p in self.paths)
 
-    def configure(self, config: Config, *, prefixed_name: bool | None = None) -> Step:
+    def configure(
+        self,
+        config: Config,
+        *,
+        prefixed_name: bool | None = None,
+        transform_context: Any | None = None,
+    ) -> Step:
         """Configure this step and anything following it with the given config.
 
         Args:
@@ -254,6 +264,8 @@ class Group(Mapping[str, Step], Step[Space]):
                 * If `False`, then the config will be searched for items without
                     the prefix, i.e. the config keys are exactly those matching
                     this steps search space.
+            transform_context: Any context to give to `config_transform=` of individual
+                steps.
 
         Returns:
             Step: The configured step
@@ -265,7 +277,11 @@ class Group(Mapping[str, Step], Step[Space]):
                 prefixed_name = self.nxt is not None
 
         nxt = (
-            self.nxt.configure(config, prefixed_name=prefixed_name)
+            self.nxt.configure(
+                config,
+                prefixed_name=prefixed_name,
+                transform_context=transform_context,
+            )
             if self.nxt
             else None
         )
@@ -274,7 +290,14 @@ class Group(Mapping[str, Step], Step[Space]):
         # have the prefixed name and hence use `mapping_select`
         subconfig = mapping_select(config, f"{self.name}:") if prefixed_name else config
 
-        paths = [path.configure(subconfig, prefixed_name=True) for path in self.paths]
+        paths = [
+            path.configure(
+                subconfig,
+                prefixed_name=True,
+                transform_context=transform_context,
+            )
+            for path in self.paths
+        ]
 
         # The config for this step is anything that doesn't have
         # another delimiter in it
@@ -285,7 +308,7 @@ class Group(Mapping[str, Step], Step[Space]):
             this_config = {**self.config, **this_config}
 
         if self.config_transform is not None:
-            this_config = self.config_transform(this_config)
+            this_config = self.config_transform(this_config, transform_context)
 
         new_self = self.mutate(
             paths=paths,
@@ -381,7 +404,9 @@ class Split(Group[Space], Generic[Item, Space]):
 
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = field(
         default=None,
         hash=False,
         repr=False,
@@ -432,7 +457,9 @@ class Choice(Group[Space]):
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     search_space: Space | None = field(default=None, hash=False, repr=False)
     meta: Mapping[str, Any] | None = None
-    config_transform: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = field(
+    config_transform: (
+        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+    ) = field(
         default=None,
         hash=False,
         repr=False,
@@ -442,7 +469,13 @@ class Choice(Group[Space]):
         """Iter over the paths with their weights."""
         return zip(self.paths, (repeat(1) if self.weights is None else self.weights))
 
-    def configure(self, config: Config, *, prefixed_name: bool | None = None) -> Step:
+    def configure(
+        self,
+        config: Config,
+        *,
+        prefixed_name: bool | None = None,
+        transform_context: Any | None = None,
+    ) -> Step:
         """Configure this step and anything following it with the given config.
 
         Args:
@@ -457,6 +490,7 @@ class Choice(Group[Space]):
                 * If `False`, then the config will be searched for items without
                     the prefix, i.e. the config keys are exactly those matching
                     this steps search space.
+            transform_context: The context to pass to the config transform function.
 
         Returns:
             Step: The configured step
@@ -468,7 +502,11 @@ class Choice(Group[Space]):
                 prefixed_name = self.nxt is not None
 
         nxt = (
-            self.nxt.configure(config, prefixed_name=prefixed_name)
+            self.nxt.configure(
+                config,
+                prefixed_name=prefixed_name,
+                transform_context=transform_context,
+            )
             if self.nxt
             else None
         )
@@ -491,7 +529,11 @@ class Choice(Group[Space]):
 
             # Configure the chosen path
             subconfig = mapping_select(config, f"{self.name}:")
-            chosen_path = chosen_path.configure(subconfig, prefixed_name=prefixed_name)
+            chosen_path = chosen_path.configure(
+                subconfig,
+                prefixed_name=prefixed_name,
+                transform_context=transform_context,
+            )
 
             if nxt is not None:
                 # HACK: This is a hack to to modify the fact `nxt` is a frozen
@@ -505,7 +547,14 @@ class Choice(Group[Space]):
         # Otherwise there is no chosen path and we simply configure what we can
         # of the choices and return that
         subconfig = mapping_select(config, f"{self.name}:")
-        paths = [path.configure(subconfig, prefixed_name=True) for path in self.paths]
+        paths = [
+            path.configure(
+                subconfig,
+                prefixed_name=True,
+                transform_context=transform_context,
+            )
+            for path in self.paths
+        ]
 
         # The config for this step is anything that doesn't have
         # another delimiter in it
@@ -514,9 +563,17 @@ class Choice(Group[Space]):
         if self.config is not None:
             config_for_this_choice = {**self.config, **config_for_this_choice}
 
+        if self.config_transform is not None:
+            _config_for_this_choice = self.config_transform(
+                config_for_this_choice,
+                transform_context,
+            )
+        else:
+            _config_for_this_choice = config_for_this_choice
+
         new_self = self.mutate(
             paths=paths,
-            config=config_for_this_choice if config_for_this_choice else None,
+            config=_config_for_this_choice if _config_for_this_choice else None,
             nxt=nxt,
             search_space=None,
         )
