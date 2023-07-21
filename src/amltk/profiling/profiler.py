@@ -74,7 +74,6 @@ class Profiler:
             * See [`Timer`][amltk.profiling.Timer] for more information on timing.
 
         Args:
-            memory_kind: The type of memory to measure.
             memory_unit: The unit of memory to use.
             time_kind: The type of timer to use.
 
