@@ -94,7 +94,7 @@ class Step(Generic[Space]):
         repr=False,
     )
     meta: Mapping[str, Any] | None = None
-    old_parent: str | None = field(default=None, hash=False, repr=False)
+    old_parent: str | None = field(default=None, hash=False, repr=False, eq=False)
 
     DELIMITER: ClassVar[str] = ":"
 
