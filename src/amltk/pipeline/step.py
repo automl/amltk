@@ -94,6 +94,7 @@ class Step(Generic[Space]):
         repr=False,
     )
     meta: Mapping[str, Any] | None = None
+    old_parent: str | None = field(default=None, hash=False, repr=False)
 
     DELIMITER: ClassVar[str] = ":"
 
@@ -764,7 +765,7 @@ class Step(Generic[Space]):
 
         def __str__(self) -> str:
             s1, s2 = self.steps
-            return f"Duplicate names ({s1.name}) for {s1} and {s2}"
+            return f"Duplicate names ({s1.name}) for\n\n{s1}\n\n{s2}"
 
     class ConfigurationError(ValueError):
         """Raise when a configuration is invalid."""

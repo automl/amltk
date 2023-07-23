@@ -540,6 +540,8 @@ class Choice(Group[Space]):
                 transform_context=transform_context,
             )
 
+            object.__setattr__(chosen_path, "old_parent", self.name)
+
             if nxt is not None:
                 # HACK: This is a hack to to modify the fact `nxt` is a frozen
                 # object. Frozen objects do not allow setting attributes after

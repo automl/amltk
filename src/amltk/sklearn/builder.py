@@ -76,7 +76,9 @@ def process_group(step: Group[Any]) -> Iterable[tuple[str, SklearnItem]]:
         yield from process_from(step.nxt)
 
 
-def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, SklearnItem]]:
+def process_split(  # noqa: C901
+    split: Split[SklearnItem, Any],
+) -> Iterable[tuple[str, SklearnItem]]:
     """Process a single split into a tuple of (name, component) for sklearn.
 
     Args:
@@ -114,6 +116,14 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
 
     path_names = {path.name for path in split.paths}
 
+    # NOTE: If the path was previously under a `Choice`, then the choices name
+    # will be in the config while the selected choice's name will not. We add
+    # them here so they're added to the config and later we will remove the unsued
+    # one.
+    path_names.update(
+        {path.old_parent for path in split.paths if path.old_parent is not None},
+    )
+
     # Get the config values for the column transformer, and the paths
     ct_config = {k: v for k, v in split.config.items() if k in COLUMN_TRANSFORMER_ARGS}
     ct_paths = {k: v for k, v in split.config.items() if k in path_names}
@@ -127,17 +137,24 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
             " arguments or paths.\n"
             f"\nSplit '{split.name}': {split.config}"
             f"\nColumnTransformer arguments: {COLUMN_TRANSFORMER_ARGS}"
-            f"\nPaths: {path_names}",
+            f"\nPaths: {path_names}"
+            f"\nPath config: {ct_paths}"
+            f"\n{split.paths}"
+            "\n",
         )
+
+    for path in split.paths:
+        if path.name not in ct_paths and path.old_parent in ct_paths:
+            ct_paths[path.name] = ct_paths.pop(path.old_parent)
 
     transformers: list = []
     for path in split.paths:
-        if path.name not in split.config:
+        if path.name not in ct_paths:
             raise ValueError(
                 f"Can't handle split {split.name=} as it has a path {path.name=}"
-                " with noconfig associated with it"
-                "\nPlease ensure that all paths have a config associated with them.",
-                f"Split '{split.name}': {split.config}",
+                " with no config associated with it."
+                "\nPlease ensure that all paths have a config associated with them."
+                f"\nSplit '{split.name}': {ct_paths}",
             )
 
         assert isinstance(path, (Component, Split, Group))
@@ -147,7 +164,7 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
 
         sklearn_step = steps[0][1] if len(steps) == 1 else SklearnPipeline(steps)
 
-        split_config = split.config[path.name]
+        split_config = ct_paths[path.name]
 
         split_item = (path.name, sklearn_step, split_config)
         transformers.append(split_item)
