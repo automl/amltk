@@ -85,9 +85,10 @@ class Step(Generic[Space]):
         hash=False,
         repr=False,
     )
-    config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
-    ) = field(
+    config_transform: Callable[
+        [Mapping[str, Any], Any],
+        Mapping[str, Any],
+    ] | None = field(
         default=None,
         hash=False,
         repr=False,
@@ -196,7 +197,7 @@ class Step(Generic[Space]):
         config: Config,
         *,
         prefixed_name: bool | None = None,
-        transform_context: Any | None = None,
+        transform_context: Any = None,
     ) -> Step:
         """Configure this step and anything following it with the given config.
 

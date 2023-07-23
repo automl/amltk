@@ -89,7 +89,7 @@ def step(
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = None,
 ) -> Component[T, None]:
     ...
@@ -105,7 +105,7 @@ def step(
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = None,
 ) -> Component[T, Space]:
     ...
@@ -120,7 +120,7 @@ def step(
     fidelities: Mapping[str, FidT] | None = None,
     meta: Mapping[str, Any] | None = None,
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = None,
 ) -> Component[T, Space] | Component[T, None]:
     """A step in a pipeline.
@@ -211,8 +211,8 @@ def split(
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
-    ) = None,
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = ...,
 ) -> Split[T, None]:
     ...
 
@@ -255,7 +255,7 @@ def split(
     config: Mapping[str, Any] | None = None,
     meta: Mapping[str, Any] | None = None,
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = None,
 ) -> Split[T, Space] | Split[T, None] | Split[None, None]:
     """Create a Split component, allowing data to flow multiple paths.

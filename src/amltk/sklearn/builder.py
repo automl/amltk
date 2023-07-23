@@ -121,11 +121,10 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
     # ... if theirs any other values in the config that isn't these, raise an error
     if any(split.config.keys() - ct_config.keys() - ct_paths.keys()):
         raise ValueError(
-            f"Can't handle split as it has a config with keys that aren't"
-            f" ColumnTransformer arguments or paths: {split}",
+            "Can't handle split as it has a config with keys that aren't"
+            " ColumnTransformer arguments or paths"
             "\nPlease ensure that all keys in the config are either ColumnTransformer"
-            " arguments or paths."
-            "\n"
+            " arguments or paths.\n"
             f"\nSplit '{split.name}': {split.config}"
             f"\nColumnTransformer arguments: {COLUMN_TRANSFORMER_ARGS}"
             f"\nPaths: {path_names}",
@@ -153,7 +152,8 @@ def process_split(split: Split[SklearnItem, Any]) -> Iterable[tuple[str, Sklearn
         split_item = (path.name, sklearn_step, split_config)
         transformers.append(split_item)
 
-    column_transformer = split.item(transformers, **ct_config)
+    column_transformer_cls = split.item
+    column_transformer = column_transformer_cls(transformers, **ct_config)
     yield (split.name, column_transformer)
 
     if split.nxt is not None:

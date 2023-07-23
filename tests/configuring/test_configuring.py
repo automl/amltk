@@ -181,10 +181,10 @@ def test_heirachical_str_with_searchables() -> None:
 
 
 def test_config_transform() -> None:
-    def _transformer_1(_: Mapping, __: Any | None) -> Mapping:
+    def _transformer_1(_: Mapping, __: Any) -> Mapping:
         return {"hello": "world"}
 
-    def _transformer_2(_: Mapping, __: Any | None) -> Mapping:
+    def _transformer_2(_: Mapping, __: Any) -> Mapping:
         return {"hi": "mars"}
 
     pipeline = Pipeline.create(

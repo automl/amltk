@@ -25,7 +25,7 @@ from uuid import uuid4
 from attrs import field, frozen
 
 from amltk.functional import mapping_select
-from amltk.pipeline.components import Group, Step
+from amltk.pipeline.components import Group, Step, prefix_keys
 
 if TYPE_CHECKING:
     from amltk.pipeline.parser import Parser
@@ -432,6 +432,24 @@ class Pipeline:
             duplicates=duplicates,
             max_attempts=max_attempts,
         )
+
+    def config(self) -> Config:
+        """Get the configuration for the pipeline.
+
+        Returns:
+            The configuration for the pipeline
+        """
+        config: dict[str, Any] = {}
+        for parents, _, step in self.walk():
+            config.update(
+                **prefix_keys(
+                    step.config,
+                    prefix=":".join([p.name for p in parents] + [step.name]) + ":",
+                )
+                if step.config is not None
+                else {},
+            )
+        return config
 
     def configure(
         self,

@@ -47,7 +47,7 @@ class Component(Step[Space], Generic[Item, Space]):
         repr=False,
     )
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = field(
         default=None,
         hash=False,
@@ -95,7 +95,7 @@ class Group(Mapping[str, Step], Step[Space]):
         repr=False,
     )
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = field(
         default=None,
         hash=False,
@@ -299,10 +299,15 @@ class Group(Mapping[str, Step], Step[Space]):
             for path in self.paths
         ]
 
-        # The config for this step is anything that doesn't have
-        # another delimiter in it
         this_config = subconfig if prefixed_name else config
-        this_config = {k: v for k, v in this_config.items() if ":" not in k}
+
+        # The config for this step is anything that doesn't have
+        # another delimiter in it and is not a part of a subpath
+        this_config = {
+            k: v
+            for k, v in this_config.items()
+            if ":" not in k and not any(k.startswith(f"{p.name}") for p in self.paths)
+        }
 
         if self.config is not None:
             this_config = {**self.config, **this_config}
@@ -405,7 +410,7 @@ class Split(Group[Space], Generic[Item, Space]):
     item: Item | Callable[..., Item] | None = field(default=None, hash=False)
     config: Mapping[str, Any] | None = field(default=None, hash=False)
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = field(
         default=None,
         hash=False,
@@ -458,7 +463,7 @@ class Choice(Group[Space]):
     search_space: Space | None = field(default=None, hash=False, repr=False)
     meta: Mapping[str, Any] | None = None
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = field(
         default=None,
         hash=False,

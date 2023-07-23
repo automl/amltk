@@ -25,6 +25,32 @@ DEFAULT_BUILDERS: list[Callable[[Pipeline], Any]] = [sklearn_builder]
 class BuildError(Exception):
     """Error when a pipeline could not be built."""
 
+    def __init__(
+        self,
+        builders: list[str],
+        err_tbs: list[tuple[Exception, str]],
+    ) -> None:
+        """Create a new BuildError.
+
+        Args:
+            builders: The builders that were tried
+            err_tbs: The errors and tracebacks for each builder
+        """
+        self.builders = builders
+        self.err_tbs = err_tbs
+        super().__init__()
+
+    def __str__(self) -> str:
+        return "\n".join(
+            [
+                "Could not build pipeline with any of the builders:",
+                *[
+                    f"  - {builder}: {err}\n{tb}"
+                    for builder, (err, tb) in zip(self.builders, self.err_tbs)
+                ],
+            ],
+        )
+
 
 @overload
 def build(pipeline: Pipeline, builder: None = None) -> Any:
@@ -77,10 +103,9 @@ def build(
     # the errors and raise a ValueError
     if selected_built_pipeline is None:
         results.seek(0)  # Reset to start of the iterator
-        msgs = "\n".join(
-            f"{builder}: {err} \n" for builder, err in zip(builders, results)
-        )
-        raise BuildError(f"Could not build pipeline with any of the builders:\n{msgs}")
+        builders = [builder.__name__ for builder in builders]
+        errors = [(err, tb) for err, tb in results]  # type: ignore
+        raise BuildError(builders=builders, err_tbs=errors)
 
     assert not isinstance(selected_built_pipeline, Exception)
     return selected_built_pipeline

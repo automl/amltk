@@ -150,6 +150,26 @@ def funcname(func: Callable, default: str | None = None) -> str:
     return str(func)
 
 
+def classname(c: Any, default: str | None = None) -> str:
+    """Get the classname of an object.
+
+    Args:
+        c: The item to get the classname of.
+        default: The default value to return if the name cannot be
+            determined automatically.
+
+    Returns:
+        The name of the class.
+    """
+    if isinstance(c, type):
+        return c.__name__
+    if hasattr(c, "__class__"):
+        return c.__class__.__name__
+    if default is not None:
+        return default
+    return str(c)
+
+
 def callstring(f: Callable, *args: Any, **kwargs: Any) -> str:
     """Get a string representation of a function call.
 
