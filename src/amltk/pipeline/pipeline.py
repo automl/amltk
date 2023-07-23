@@ -359,11 +359,15 @@ class Pipeline:
         return self.head.fidelities()
 
     @overload
+    def sample(self) -> Config:
+        ...
+
+    @overload
     def sample(
         self,
-        space: Space | None,
         *,
         n: None = None,
+        space: Space | None = ...,
         sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         seed: Seed | None = ...,
         duplicates: bool | Iterable[Config] = ...,
@@ -374,9 +378,9 @@ class Pipeline:
     @overload
     def sample(
         self,
-        space: Space | None,
         *,
         n: int,
+        space: Space | None = ...,
         sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         seed: Seed | None = ...,
         duplicates: bool | Iterable[Config] = ...,
@@ -386,9 +390,9 @@ class Pipeline:
 
     def sample(
         self,
-        space: Space | None = None,
         *,
         n: int | None = None,
+        space: Space | None = None,
         sampler: type[Sampler[Space]] | Sampler[Space] | None = None,
         seed: Seed | None = None,
         duplicates: bool | Iterable[Config] = False,
@@ -415,10 +419,13 @@ class Pipeline:
         Returns:
             A configuration sampled from the space of the pipeline
         """
+        from amltk.pipeline.parser import Parser
         from amltk.pipeline.sampler import Sampler
 
         return Sampler.try_sample(
-            space if space is not None else self.space(),
+            space
+            if space is not None
+            else self.space(parser=sampler if isinstance(sampler, Parser) else None),
             sampler=sampler,
             n=n,
             seed=seed,

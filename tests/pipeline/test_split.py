@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from amltk import split, step
-from amltk.pipeline import Step
+from amltk.pipeline import Step, choice
 
 
 def test_split() -> None:
@@ -159,6 +159,35 @@ def test_configure_single() -> None:
     for s in configured_s1.traverse():
         assert s.config == expected_configs_by_name[s.name]
         assert s.search_space is None
+
+
+def test_split_with_step_and_nested_choice() -> None:
+    s1 = split(
+        "split",
+        step("1", 1, space={"a": [1, 2, 3]}) | step("2", 2, space={"b": [1, 2, 3]}),
+        choice(
+            "choice",
+            step("3", 3, space={"c": [1, 2, 3]}) | step("4", 4, space={"d": [1, 2, 3]}),
+            step("5", 5, space={"e": [1, 2, 3]}),
+        ),
+        config={"hello": "world"},
+    )
+    config = {
+        "split:1:a": 1,
+        "split:2:b": 1,
+        "split:choice": "3",
+        "split:choice:3:c": 1,
+        "split:choice:4:d": 1,
+    }
+
+    expected = split(
+        "split",
+        step("1", 1, config={"a": 1}) | step("2", 2, config={"b": 1}),
+        step("3", 3, config={"c": 1}) | step("4", 4, config={"d": 1}),
+        config={"hello": "world"},
+    )
+
+    assert s1.configure(config) == expected
 
 
 def test_configure_chained() -> None:

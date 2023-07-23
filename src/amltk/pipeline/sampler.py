@@ -11,7 +11,7 @@ from typing import Any, Generic, Iterable, cast, overload
 from more_itertools import first, first_true, seekable
 
 from amltk.exceptions import safe_map
-from amltk.randomness import as_rng
+from amltk.randomness import as_int, as_rng
 from amltk.types import Config, Seed, Space
 
 logger = logging.getLogger(__name__)
@@ -267,8 +267,10 @@ class Sampler(ABC, Generic[Space]):
 
         samples = []
         _max_attempts: int = max_attempts if max_attempts is not None else 2**32
+        rng = as_rng(seed)
         for _ in range(_max_attempts):
-            _samples = self._sample(space=space, n=_n, seed=rng)
+            next_seed = as_int(rng)
+            _samples = self._sample(space=space, n=_n, seed=next_seed)
 
             for s in _samples:
                 if s in seen:

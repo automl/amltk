@@ -203,14 +203,14 @@ def test_sample_with_seed_returns_same_results(
     space = item.space(parser=ConfigSpaceAdapter())
 
     configs_1 = item.sample(
-        space,
+        space=space,
         sampler=ConfigSpaceAdapter(),
         seed=1,
         n=n,
         duplicates=True,
     )
     configs_2 = item.sample(
-        space,
+        space=space,
         sampler=ConfigSpaceAdapter(),
         seed=1,
         n=n,
@@ -230,7 +230,6 @@ def test_sampling_no_duplicates() -> None:
     item.space(parser=adapter)
 
     configs = item.sample(
-        item.space(adapter),
         sampler=adapter,
         n=n,
         duplicates=False,
@@ -247,12 +246,11 @@ def test_sampling_no_duplicates_with_seen_values() -> None:
     item = step("x", object(), space={"a": values})
 
     adapter = ConfigSpaceAdapter()
-    space = item.space(parser=adapter)
+    item.space(parser=adapter)
 
-    seen_config = item.sample(space, sampler=adapter, seed=42)
+    seen_config = item.sample(sampler=adapter, seed=42)
 
     configs = item.sample(
-        item.space(adapter),
         sampler=adapter,
         n=n - 1,
         duplicates=[seen_config],

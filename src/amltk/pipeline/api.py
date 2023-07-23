@@ -226,9 +226,24 @@ def split(
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
     config_transform: (
-        Callable[[Mapping[str, Any], Any | None], Mapping[str, Any]] | None
-    ) = None,
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = ...,
 ) -> Split[T, Space]:
+    ...
+
+
+@overload
+def split(
+    name: str,
+    *paths: Step,
+    item: T | Callable[..., T] | None = ...,
+    space: Space | None = ...,
+    config: Mapping[str, Any] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = ...,
+) -> Split[Any, Any]:
     ...
 
 

@@ -103,17 +103,13 @@ def test_sample_with_seed_returns_same_results(
     item: Pipeline | Step,
     n: int | None,
 ) -> None:
-    space = item.space(parser=OptunaSpaceAdapter())
-
     configs_1 = item.sample(
-        space,
         sampler=OptunaSpaceAdapter(),
         seed=1,
         n=n,
         duplicates=True,
     )
     configs_2 = item.sample(
-        space,
         sampler=OptunaSpaceAdapter(),
         seed=1,
         n=n,
@@ -129,12 +125,8 @@ def test_sampling_no_duplicates() -> None:
 
     item = step("x", object(), space={"a": values})
 
-    adapter = OptunaSpaceAdapter()
-    item.space(parser=adapter)
-
     configs = item.sample(
-        item.space(adapter),
-        sampler=adapter,
+        sampler=OptunaSpaceAdapter(),
         n=n,
         duplicates=False,
         seed=42,
@@ -150,12 +142,9 @@ def test_sampling_no_duplicates_with_seen_values() -> None:
     item = step("x", object(), space={"a": values})
 
     adapter = OptunaSpaceAdapter()
-    space = item.space(parser=adapter)
-
-    seen_config = item.sample(space, sampler=adapter, seed=42)
+    seen_config = item.sample(sampler=adapter, seed=42)
 
     configs = item.sample(
-        item.space(adapter),
         sampler=adapter,
         n=n - 1,
         duplicates=[seen_config],

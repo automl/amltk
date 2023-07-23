@@ -519,19 +519,14 @@ class Step(Generic[Space]):
     @overload
     def space(
         self,
-        parser: type[Parser[Space]] | Parser[Space],
         *,
+        parser: type[Parser[Space]] | Parser[Space],
         seed: Seed | None = ...,
     ) -> Space:
         ...
 
     @overload
-    def space(
-        self,
-        parser: None = None,
-        *,
-        seed: Seed | None = ...,
-    ) -> Any:
+    def space(self, *, seed: Seed | None = ...) -> Any:
         ...
 
     def space(
@@ -595,35 +590,35 @@ class Step(Generic[Space]):
     @overload
     def sample(
         self,
-        space: Space | None = None,
-        *,
-        n: int,
-        sampler: Sampler[Space] | None = ...,
-        seed: Seed | None = ...,
-        duplicates: bool | Iterable[Config] = ...,
-        max_attempts: int | None = ...,
-    ) -> list[Config]:
-        ...
-
-    @overload
-    def sample(
-        self,
-        space: Space | None = None,
         *,
         n: None = None,
-        sampler: Sampler[Space] | None = ...,
+        space: Space | None = ...,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
         seed: Seed | None = ...,
         duplicates: bool | Iterable[Config] = ...,
         max_attempts: int | None = ...,
     ) -> Config:
         ...
 
+    @overload
     def sample(
         self,
-        space: Space | None = None,
+        *,
+        n: int,
+        space: Space | None = ...,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = ...,
+        seed: Seed | None = ...,
+        duplicates: bool | Iterable[Config] = ...,
+        max_attempts: int | None = ...,
+    ) -> list[Config]:
+        ...
+
+    def sample(
+        self,
         *,
         n: int | None = None,
-        sampler: Sampler[Space] | None = None,
+        space: Space | None = None,
+        sampler: type[Sampler[Space]] | Sampler[Space] | None = None,
         seed: Seed | None = None,
         duplicates: bool | Iterable[Config] = False,
         max_attempts: int | None = 10,
@@ -649,10 +644,19 @@ class Step(Generic[Space]):
         Returns:
             A configuration sampled from the space of the pipeline
         """
+        from amltk.pipeline.parser import Parser
         from amltk.pipeline.sampler import Sampler
 
+        if space is None:
+            if isinstance(sampler, Parser):
+                space = self.space(parser=sampler)
+            else:
+                space = self.space()
+        else:
+            space = space
+
         return Sampler.try_sample(
-            space if space is not None else self.space(),
+            space,
             sampler=sampler,
             n=n,
             seed=seed,

@@ -97,7 +97,7 @@ def test_split_with_choice(adapter: SpaceAdapter, seed: int) -> None:
     )
 
     space = pipeline.space(parser=adapter)
-    config = pipeline.sample(space, sampler=adapter, seed=seed)
+    config = pipeline.sample(space=space, sampler=adapter, seed=seed)
     configured_pipeline = pipeline.configure(config)
 
     sklearn_pipeline = configured_pipeline.build()
@@ -132,7 +132,7 @@ def test_build_module(adapter: SpaceAdapter, seed: int) -> None:
 
     space = pipeline.space(parser=adapter)
 
-    config = pipeline.sample(space, sampler=adapter, seed=seed)
+    config = pipeline.sample(space=space, sampler=adapter, seed=seed)
 
     configured_pipeline = pipeline.configure(config)
 

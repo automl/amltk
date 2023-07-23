@@ -145,7 +145,7 @@ my_step = step(
 space = my_step.space(parser=ConfigSpaceAdapter)
 print(space)
 
-sample = my_step.sample(space, sampler=ConfigSpaceAdapter)
+sample = my_step.sample(sampler=ConfigSpaceAdapter)
 print(sample)
 ```
 
@@ -166,7 +166,7 @@ my_pipeline = Pipeline.create(
 space = my_pipeline.space(parser=ConfigSpaceAdapter)
 print(space)
 
-sample = my_pipeline.sample(space, sampler=ConfigSpaceAdapter)
+sample = my_pipeline.sample(sampler=ConfigSpaceAdapter)
 print(sample)
 ```
 

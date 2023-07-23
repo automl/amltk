@@ -128,7 +128,7 @@ my_step = step(
 space = my_step.space(parser=OptunaSpaceAdapter)
 print(space)
 
-sample = my_step.sample(space, sampler=OptunaSpaceAdapter)
+sample = my_step.sample(sampler=OptunaSpaceAdapter)
 print(sample)
 ```
 
@@ -146,7 +146,7 @@ my_pipeline = Pipeline.create(
 space = my_pipeline.space(parser=OptunaSpaceAdapter)
 print(space)
 
-sample = my_pipeline.sample(space, sampler=OptunaSpaceAdapter)
+sample = my_pipeline.sample(sampler=OptunaSpaceAdapter)
 print(sample)
 ```
 
