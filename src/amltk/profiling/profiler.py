@@ -116,6 +116,6 @@ class Profiler:
         ) -> dict[str, Any]:
             """Convert the profile interval to a dictionary."""
             return {
-                **self.memory.to_dict(prefix=f"{prefix}memory:", ensure_str=ensure_str),
-                **self.time.to_dict(prefix=f"{prefix}time:", ensure_str=ensure_str),
+                **self.memory.to_dict(prefix=f"{prefix}:", ensure_str=ensure_str),
+                **self.time.to_dict(prefix=f"{prefix}:", ensure_str=ensure_str),
             }

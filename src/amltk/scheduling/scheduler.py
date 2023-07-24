@@ -763,7 +763,12 @@ class Scheduler(Emitter):
             self.executor.shutdown(wait=wait)
         else:
             logger.debug(f"Terminating workers with {self._terminate }")
+            for future in self.queue:
+                if not future.done():
+                    logger.debug(f"Cancelling {future=}")
+                    future.cancel()
             self._terminate(self.executor)
+            self.executor.shutdown(wait=wait)
 
         self.on_finished.emit()
         logger.info(f"Scheduler finished with status {stop_reason}")

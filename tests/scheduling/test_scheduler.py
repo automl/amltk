@@ -134,14 +134,11 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
     assert results == []
 
     # We have a termination strategy for ProcessPoolExecutor and we know it
-    # will raise an error for the tasks
     if isinstance(scheduler.executor, ProcessPoolExecutor):
         expected_task_counts = {
             task.SUBMITTED: 1,
             task.F_SUBMITTED: 1,
-            task.EXCEPTION: 1,
-            task.F_EXCEPTION: 1,
-            task.DONE: 1,
+            task.F_CANCELLED: 1,
         }
     else:
         expected_task_counts = {
@@ -163,7 +160,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
 
     # NOTE: This is because Dask can cancel currently running tasks which is not
     # something that can be done with Python's default executors.
-    if isinstance(scheduler.executor, ClientExecutor):
+    if isinstance(scheduler.executor, (ClientExecutor, ProcessPoolExecutor)):
         expected_scheduler_counts[scheduler.FUTURE_CANCELLED] = 1
         del expected_scheduler_counts[scheduler.FUTURE_DONE]
 

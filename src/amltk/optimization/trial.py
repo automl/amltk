@@ -755,10 +755,10 @@ class Trial(Generic[I]):
                 profiles = {}
 
             trial: Trial[None] = Trial(
-                name=d["name"],
+                name=d.get("name", "NA"),
                 config=mapping_select(d, "config:"),
                 info=None,  # We don't save this to disk so we load it back as None
-                seed=d["trial_seed"],
+                seed=d.get("trial_seed", None),
                 fidelities=mapping_select(d, "fidelities:"),
                 time=Timer.from_dict(mapping_select(d, "time:")),
                 memory=Memory.from_dict(mapping_select(d, "memory:")),
@@ -766,10 +766,10 @@ class Trial(Generic[I]):
                 profiler=None,
                 results=mapping_select(d, "results:"),
                 summary=mapping_select(d, "summary:"),
-                exception=d["exception"],
-                traceback=d["traceback"],
+                exception=d.get("exception"),
+                traceback=d.get("traceback"),
             )
-            status = Trial.Status(d["status"])
+            status = Trial.Status(d.get("status", "unknown"))
             if status == Trial.Status.SUCCESS:
                 return trial.success(**trial.results)
 
@@ -777,12 +777,16 @@ class Trial(Generic[I]):
                 return trial.fail(**trial.results)
 
             if status == Trial.Status.CRASHED:
-                return trial.crashed()
+                return trial.crashed(
+                    exception=Exception("Unknown status.")
+                    if trial.exception is None
+                    else None,
+                )
 
             if status == Trial.Status.CANCELLED:
                 return trial.cancelled()
 
-            raise ValueError(f"Unknown status {status}")
+            return trial.crashed(exception=Exception("Unknown status."))
 
 
 _REPORT_DF_COLUMN_TYPES = {

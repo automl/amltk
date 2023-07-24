@@ -34,11 +34,11 @@ class Memory:
             The memory interval.
         """
         return Memory.Interval(
-            start_vms=d["start_vms"],
-            start_rss=d["start_rss"],
-            end_vms=d["end_vms"],
-            end_rss=d["end_rss"],
-            unit=Memory.Unit.from_str(d["unit"]),
+            start_vms=d.get("start_vms", -1),
+            start_rss=d.get("start_rss", -1),
+            end_vms=d.get("end_vms", -1),
+            end_rss=d.get("end_rss", -1),
+            unit=Memory.Unit.from_str(d.get("unit", "unset")),
         )
 
     @classmethod

@@ -26,10 +26,10 @@ class Timer:
     def from_dict(cls, d: Mapping[str, Any]) -> Timer.Interval:
         """Create a time interval from a dictionary."""
         return Timer.Interval(
-            start=d["start"],
-            end=d["end"],
-            kind=Timer.Kind.from_str(d["kind"]),
-            unit=Timer.Unit.from_str(d["unit"]),
+            start=d.get("start", np.nan),
+            end=d.get("end", np.nan),
+            kind=Timer.Kind.from_str(d.get("kind", "notset")),
+            unit=Timer.Unit.from_str(d.get("unit", "notset")),
         )
 
     @classmethod
