@@ -245,6 +245,7 @@ class Drop(Generic[KeyT]):
         Args:
             how: The function to use to remove the resource.
         """
+        logger.debug(f"Removing {self.key=}")
         if how:
             how(self.key)
         else:
