@@ -38,7 +38,7 @@ class BuildError(Exception):
         """
         self.builders = builders
         self.err_tbs = err_tbs
-        super().__init__()
+        super().__init__(builders, err_tbs)
 
     def __str__(self) -> str:
         return "\n".join(
