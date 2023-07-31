@@ -283,4 +283,26 @@ module = [
 ignore_missing_imports = true
 
 [tool.pyright]
-include = ["tests"]
+include = ["src", "tests"]
+
+pythonVersion = "3.8"
+typeCheckingMode = "strict"
+
+strictListInference = true
+strictSetInference = true
+strictDictionaryInference = false
+reportImportCycles = "information"
+reportMissingSuperCall = true
+reportMissingTypeArgument = false
+reportOverlappingOverload = true
+reportIncompatibleVariableOverride = true
+reportIncompatibleMethodOverride = true
+reportConstantRedefinition = true
+reportInvalidTypeVarUse = true
+reportCallInDefaultInitializer = true
+reportImplicitOverride = true
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
