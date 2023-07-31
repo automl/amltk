@@ -24,7 +24,8 @@
 ## Plugins
 
 * [CallLimiter](./call_limiter.md) - A simple plugin to limit how many times your task
-    can be called and how many concurrent instances of it can be run.
+    can be called, how many concurrent instances of it can be run and prevent a task being
+    submitted while another task is running.
 * [pynisher](./pynisher.md) - A plugin to limit the maximum time or memory a task can
     use, highly suitable for creating AutoML systems.
 * [wandb](./wandb.md) - A plugin that automatically logs your runs to

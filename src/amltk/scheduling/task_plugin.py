@@ -3,13 +3,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from itertools import chain
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, TypeVar
-from typing_extensions import ParamSpec, Self
+from typing import Any, Callable, ClassVar, Iterable, TypeVar
+from typing_extensions import ParamSpec, Self, override
 
-from amltk.events import Event
-
-if TYPE_CHECKING:
-    from amltk.scheduling import Task
+from amltk.events import Emitter, Event, Subscriber
+from amltk.scheduling.task import Task
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -112,54 +110,66 @@ class TaskPlugin(ABC):
         ...
 
 
-class CallLimiter(TaskPlugin):
-    """A plugin that limits the submission of a task.
-
-
-    ```python exec="true" source="material-block" result="python" title="CallLimimter"
-    from amltk.scheduling import CallLimiter, Task, Scheduler
-
-    def f(x: int) -> int:
-        return x
-
-    scheduler = Scheduler.with_sequential()
-
-    limiter = CallLimiter(max_calls=2)
-    task = Task(f, scheduler, plugins=[limiter])
-
-    @scheduler.on_start
-    def on_start():
-        task(1)
-        task(2)
-        task(3)
-
-    @task.on(limiter.CALL_LIMIT_REACHED)
-    def on_call_limit(x: int):
-        print(f"Call limit reached: Didn't run task with {x}")
-
-    scheduler.run()
-    ```
-
-    Attributes:
-        max_calls: The maximum number of calls to the task.
-        max_concurrent: The maximum number of calls of this task that can
-            be in the queue.
-    """
+class CallLimiter(Emitter, TaskPlugin):
+    """A plugin that limits the submission of a task."""
 
     name: ClassVar = "call-limiter"
     """The name of the plugin."""
 
-    CALL_LIMIT_REACHED: Event[...] = Event("call-limiter-call-limit")
-    """Emitted when the call limit is reached."""
+    on_max_call_limit: Subscriber[...]
+    """A subscriber that is called when the maximum number of calls to the task
+    is reached.
+    ```python
+    limiter = CallLimiter(max_calls=2)
+    task = Task(..., plugins=[limiter])
 
+    @limiter.on_max_call_limit
+    def on_max_call_limit(task, *args, **kwargs):
+        print("Task {task.name} disable as max calls reached")
+    ```
+    """
+
+    on_max_concurrent: Subscriber[...]
+    """A subscriber that is called when the number of concurrent runs of this task
+    would exceed the maximum number of concurrent runs.
+    ```python
+    limiter = CallLimiter(max_concurrent=2)
+    task = Task(..., plugins=[limiter])
+
+    @limiter.on_max_concurrent
+    def on_max_concurrent(task, *args, **kwargs):
+        print("Task {task.name} disable as max concurrent runs reached")
+    ```
+    """
+
+    on_disabled_due_to_running_task: Subscriber[...]
+    """A subscriber that is called when the maximum number of calls to the task
+    is reached.
+    ```python
+    task1 = Task(...)
+
+    limiter = CallLimiter(not_while_running=task1)
+    task2 = Task(..., plugins=[limiter])
+
+    @limiter.on_disabled_due_to_running_task
+    def on_disabled_due_to_running_task(other_task, task, *args, **kwargs):
+        print(
+            f"Task {task.name} was not submitted because {other_task.name} is currently"
+            " running"
+        )
+    ```
+    """
+
+    CALL_LIMIT_REACHED: Event[...] = Event("call-limiter-call-limit")
     CONCURRENT_LIMIT_REACHED: Event[...] = Event("call-limiter-concurrent-limit")
-    """Emitted when the concurrent task limit is reached."""
+    DISABLED_DUE_TO_RUNNING_TASK: Event[...] = Event("call-limiter-disabled")
 
     def __init__(
         self,
         *,
         max_calls: int | None = None,
         max_concurrent: int | None = None,
+        not_while_running: Task | Iterable[Task] | None = None,
     ):
         """Initialize the plugin.
 
@@ -167,9 +177,21 @@ class CallLimiter(TaskPlugin):
             max_calls: The maximum number of calls to the task.
             max_concurrent: The maximum number of calls of this task that can
                 be in the queue.
+            not_while_running: A task or iterable of tasks that if active, will prevent
+                this task from being submitted.
         """
+        super().__init__()
+
+        if isinstance(not_while_running, Task):
+            not_while_running = [not_while_running]
+        elif not_while_running is None:
+            not_while_running = []
+        else:
+            not_while_running = list(not_while_running)
+
         self.max_calls = max_calls
         self.max_concurrent = max_concurrent
+        self.not_while_running = not_while_running
         self.task: Task | None = None
 
         if isinstance(max_calls, int) and not max_calls > 0:
@@ -181,13 +203,28 @@ class CallLimiter(TaskPlugin):
         self._calls = 0
         self._concurrent = 0
 
+        self.on_max_call_limit = self.subscriber(self.CALL_LIMIT_REACHED)
+        self.on_max_concurrent = self.subscriber(self.CONCURRENT_LIMIT_REACHED)
+        self.on_disabled_due_to_running_task = self.subscriber(
+            self.DISABLED_DUE_TO_RUNNING_TASK,
+        )
+
+    @override
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
 
+        if self.task in self.not_while_running:
+            raise ValueError(
+                f"Task {self.task.name} was found in the {self.not_while_running=}"
+                " list. This is disabled but please raise an issue if you think this"
+                " has sufficient use case.",
+            )
+
         # Make sure to increment the count when a task was submitted
         task.on_submitted(self._increment_call_count)
 
+    @override
     def pre_submit(
         self,
         fn: Callable[P, R],
@@ -201,18 +238,29 @@ class CallLimiter(TaskPlugin):
         assert self.task is not None
 
         if self.max_calls is not None and self._calls >= self.max_calls:
-            self.task.emit(self.CALL_LIMIT_REACHED, *args, **kwargs)
+            self.on_max_call_limit.emit(self.task, *args, **kwargs)
             return None
 
         if (
             self.max_concurrent is not None
             and len(self.task.queue) >= self.max_concurrent
         ):
-            self.task.emit(self.CONCURRENT_LIMIT_REACHED, *args, **kwargs)
+            self.on_max_concurrent.emit(self.task, *args, **kwargs)
             return None
+
+        for other_task in self.not_while_running:
+            if other_task.running():
+                self.on_disabled_due_to_running_task.emit(
+                    other_task,
+                    self.task,
+                    *args,
+                    **kwargs,
+                )
+                return None
 
         return fn, args, kwargs
 
+    @override
     def copy(self) -> Self:
         """Return a copy of the plugin."""
         return self.__class__(

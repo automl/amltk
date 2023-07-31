@@ -9,19 +9,27 @@ from amltk.scheduling import Task, CallLimiter
 limiter = CallLimiter(max_calls=10, max_concurrent=2)
 task = Task(..., plugins=[limiter])
 
-@task.on(CallLimiter.CALL_LIMIT_REACHED)
-def print_it(*args, **kwargs) -> None:
-    print(f"Task was already called {task.n_called} times")
+@limiter.on_max_call_limit
+def print_it(task: Task, *args, **kwargs) -> None:
+    print(f"Task {task.name} was already called {task.n_called} times")
 
-@task.on(CallLimiter.CONCURRENT_LIMIT_REACHED)
-def print_it(*args, **kwargs) -> None:
-    print(f"Task already running at max concurrency")
+@limiter.on_max_concurrent
+def print_it(task: Task, *args, **kwargs) -> None:
+    print(f"Task {task.name} already running at max concurrency")
 ```
 
-!!! note "Events"
+You can also prevent a task launching while another task is currently running:
 
-    * [`CALL_LIMIT_REACHED`][amltk.CallLimiter.CALL_LIMIT_REACHED]
-        Emitted when the call limit is reached
+```python
+task1 = Task(...)
 
-    * [`CONCURRENT_LIMIT_REACHED`][amltk.CallLimiter.CONCURRENT_LIMIT_REACHED]
-        Emitted when the concurrent task limit is reached.
+limiter = CallLimiter(not_while_running=task1)
+task2 = Task(..., plugins=[limiter])
+
+@limiter.on_disabled_due_to_running_task
+def on_disabled_due_to_running_task(other_task: Task, task: Task, *args, **kwargs):
+    print(
+        f"Task {task.name} was not submitted because {other_task.name} is currently"
+        " running"
+    )
+```

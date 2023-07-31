@@ -261,6 +261,10 @@ class Task(Generic[P, R], Emitter):
         """Get the number of futures for this task that are currently running."""
         return sum(1 for f in self.queue if not f.done())
 
+    def running(self) -> bool:
+        """Check if this task has any futures that are currently running."""
+        return self.n_running > 0
+
     def submit(self, *args: P.args, **kwargs: P.kwargs) -> Future[R] | None:
         """Dispatch this task.
 
