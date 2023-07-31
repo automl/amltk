@@ -1,7 +1,7 @@
 """Builds an sklearn.pipeline.Pipeline from a amltk.pipeline.Pipeline."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Type, Union
+from typing import TYPE_CHECKING, Any, Iterable, Type, TypeVar, Union
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -28,6 +28,7 @@ COLUMN_TRANSFORMER_ARGS = [
 # require creating protocols to type this properly and work with sklearn's
 # duck-typing.
 SklearnItem: TypeAlias = Union[Any, Type[ColumnTransformer]]
+SklearnPipelineT = TypeVar("SklearnPipelineT", bound=SklearnPipeline)
 
 
 def process_component(
@@ -196,7 +197,10 @@ def process_from(step: Step) -> Iterable[tuple[str, SklearnItem]]:
         raise NotImplementedError(f"Can't handle step: {step}")
 
 
-def build(pipeline: Pipeline) -> SklearnPipeline:
+def build(
+    pipeline: Pipeline,
+    pipeline_type: type[SklearnPipelineT] = SklearnPipeline,
+) -> SklearnPipelineT:
     """Build a pipeline into a usable object.
 
     # TODO: SklearnPipeline has arguments not accessible to the outside caller.
@@ -205,6 +209,9 @@ def build(pipeline: Pipeline) -> SklearnPipeline:
 
     Args:
         pipeline: The pipeline to build
+        pipeline_type: The type of pipeline to build. Defaults to the standard
+            sklearn pipeline but can be any deritiative of that, i.e. imblearn's
+            pipeline.
 
     Returns:
         SklearnPipeline
@@ -220,4 +227,4 @@ def build(pipeline: Pipeline) -> SklearnPipeline:
 
     assert isinstance(pipeline.head, (Component, Split, Group))
     steps = list(process_from(pipeline.head))
-    return SklearnPipeline(steps)
+    return pipeline_type(steps)

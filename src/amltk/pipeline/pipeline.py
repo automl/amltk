@@ -509,16 +509,17 @@ class Pipeline:
         return Pipeline.create(new_head, modules=new_modules, name=_rename)
 
     @overload
-    def build(self, builder: None = None) -> Any:
+    def build(self, builder: None = None, **builder_kwargs: Any) -> Any:
         ...
 
     @overload
-    def build(self, builder: Callable[[Pipeline], B]) -> B:
+    def build(self, builder: Callable[[Pipeline], B], **builder_kwargs: Any) -> B:
         ...
 
     def build(
         self,
         builder: Callable[[Pipeline], B] | None = None,
+        **builder_kwargs: Any,
     ) -> B | Any:
         """Build the pipeline.
 
@@ -527,13 +528,14 @@ class Pipeline:
                 * If `None` is provided, the assembler will attempt to automatically
                     figure out build the pipeline as it can.
                 * If `builder` is a callable, we will attempt to use that.
+            **builder_kwargs: Any additional keyword arguments to pass to the builder.
 
         Returns:
             The built pipeline
         """
         from amltk.building import build  # Prevent circular imports
 
-        return build(self, builder=builder)
+        return build(self, builder=builder, **builder_kwargs)
 
     def copy(self, *, name: str | None = None) -> Pipeline:
         """Copy the pipeline.

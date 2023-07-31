@@ -7,12 +7,15 @@ configured [`Pipeline`][amltk.pipeline.Pipeline].
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Callable, TypeVar, overload
+from typing_extensions import override
 
 from more_itertools import first_true, seekable
 
 from amltk.building._sklearn_builder import sklearn_builder
 from amltk.exceptions import safe_map
+from amltk.functional import funcname
 
 if TYPE_CHECKING:
     from amltk.pipeline.pipeline import Pipeline
@@ -20,6 +23,8 @@ if TYPE_CHECKING:
     B = TypeVar("B")
 
 DEFAULT_BUILDERS: list[Callable[[Pipeline], Any]] = [sklearn_builder]
+
+logger = logging.getLogger(__name__)
 
 
 class BuildError(Exception):
@@ -40,6 +45,7 @@ class BuildError(Exception):
         self.err_tbs = err_tbs
         super().__init__(builders, err_tbs)
 
+    @override
     def __str__(self) -> str:
         return "\n".join(
             [
@@ -53,7 +59,7 @@ class BuildError(Exception):
 
 
 @overload
-def build(pipeline: Pipeline, builder: None = None) -> Any:
+def build(pipeline: Pipeline, builder: None = None, **builder_kwargs: Any) -> Any:
     ...
 
 
@@ -61,6 +67,7 @@ def build(pipeline: Pipeline, builder: None = None) -> Any:
 def build(
     pipeline: Pipeline,
     builder: Callable[[Pipeline], B],
+    **builder_kwargs: Any,
 ) -> B:
     ...
 
@@ -68,6 +75,7 @@ def build(
 def build(
     pipeline: Pipeline,
     builder: Callable[[Pipeline], B] | None = None,
+    **builder_kwargs: Any,
 ) -> B | Any:
     """Build a pipeline into a usable object.
 
@@ -75,6 +83,7 @@ def build(
         pipeline: The pipeline to build
         builder: The builder to use. Defaults to `None` which will
             try to determine the best builder to use.
+        **builder_kwargs: Any keyword arguments to pass to the builder
 
     Returns:
         The built pipeline
@@ -83,6 +92,11 @@ def build(
 
     if builder is None:
         builders = DEFAULT_BUILDERS
+        if any(builder_kwargs):
+            logger.warning(
+                f"If using `{builder_kwargs=}`, you most likely want to"
+                " pass an explicit `builder` argument",
+            )
 
     elif callable(builder):
         builders = [builder]
@@ -103,7 +117,7 @@ def build(
     # the errors and raise a ValueError
     if selected_built_pipeline is None:
         results.seek(0)  # Reset to start of the iterator
-        builders = [builder.__name__ for builder in builders]
+        builders = [funcname(builder) for builder in builders]
         errors = [(err, tb) for err, tb in results]  # type: ignore
         raise BuildError(builders=builders, err_tbs=errors)
 

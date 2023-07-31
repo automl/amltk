@@ -16,6 +16,7 @@ from typing import (
     Mapping,
     Sequence,
 )
+from typing_extensions import override
 
 from attrs import field, frozen
 from more_itertools import first_true
@@ -55,6 +56,7 @@ class Component(Step[Space], Generic[Item, Space]):
     )
     meta: Mapping[str, Any] | None = None
 
+    @override
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
@@ -419,6 +421,7 @@ class Split(Group[Space], Generic[Item, Space]):
     search_space: Space | None = field(default=None, hash=False, repr=False)
     meta: Mapping[str, Any] | None = None
 
+    @override
     def build(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
