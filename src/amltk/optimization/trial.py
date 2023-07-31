@@ -213,7 +213,7 @@ class Trial(Generic[I]):
             yield profile
 
         if summary:
-            self.summary.update(profile.to_dict(prefix=f"{name}:"))
+            self.summary.update(profile.to_dict(prefix=name))
 
     def success(self, **results: Any) -> Trial.Report[I]:
         """Generate a success report.
