@@ -15,7 +15,7 @@ from typing import (
     Iterable,
     TypeVar,
 )
-from typing_extensions import Concatenate, ParamSpec, Self
+from typing_extensions import Concatenate, ParamSpec, Self, override
 from uuid import uuid4 as uuid
 
 from amltk.events import Emitter, Event, Subscriber
@@ -375,6 +375,15 @@ class Task(Generic[P, R], Emitter):
                 },
             )
 
+    def attach_plugin(self, plugin: TaskPlugin) -> None:
+        """Attach a plugin to this task.
+
+        Args:
+            plugin: The plugin to attach.
+        """
+        self.plugins.append(plugin)
+        plugin.attach_task(self)
+
     def _when_future_from_submission(
         self,
         future: Future[R],
@@ -390,8 +399,9 @@ class Task(Generic[P, R], Emitter):
         necessarily happens in a sequential execution Scheduler.
         """
 
+    @override
     def __repr__(self) -> str:
-        kwargs = {k: v for k, v in [("unique_ref", self.unique_ref)] if v is not None}
+        kwargs = {"unique_ref": self.unique_ref}
         kwargs_str = ", ".join(f"{k}={v}" for k, v in kwargs.items())
         return f"{self.__class__.__name__}({kwargs_str})"
 
