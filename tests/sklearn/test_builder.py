@@ -35,6 +35,36 @@ def test_simple_pipeline() -> None:
     sklearn_pipeline.predict(X)
 
 
+def test_passthrough() -> None:
+    # Defining a pipeline
+    pipeline = Pipeline.create(
+        step("passthrough", "passthrough"),
+        split(
+            "split",
+            step("a", OrdinalEncoder),
+            step("b", "passthrough"),
+            item=ColumnTransformer,
+            config={
+                "a": make_column_selector(dtype_include=object),
+                "b": make_column_selector(dtype_include=np.number),
+            },
+        ),
+    )
+
+    # Building the pipeline
+    sklearn_pipeline: SklearnPipeline = pipeline.build()
+
+    # Fitting the pipeline
+    Xt = sklearn_pipeline.fit_transform(X, y)
+
+    # Should ordinal encoder the strings
+    assert np.array_equal(Xt[:, 0], np.array([1, 0, 1, 2]))
+
+    # Should leave the remaining columns untouched
+    assert np.array_equal(Xt[:, 1], np.array([4, 5, 6, 7]))
+    assert np.array_equal(Xt[:, 2], np.array([7, 8, 9, 10]))
+
+
 def test_simple_pipeline_with_group() -> None:
     # Defining a pipeline
     pipeline = Pipeline.create(
