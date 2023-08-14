@@ -619,7 +619,7 @@ class Scheduler(Emitter):
 
         exception = future.exception()
         if self._end_on_exception_flag and future.done() and exception:
-            self.stop("Ending on first exception", exception=exception)
+            self.stop(stop_msg="Ending on first exception", exception=exception)
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
@@ -743,32 +743,13 @@ class Scheduler(Emitter):
         self._running_event.clear()
         logger.info("Scheduler has shutdown and declared as no longer running")
 
-        if wait:
-            logger.info("Waiting for currently running tasks to finish.")
-            self.executor.shutdown(wait=wait)
-        elif self._terminate is None:
-            logger.warning(
-                "Cancelling currently running tasks and then waiting "
-                f" as there is no termination strategy provided for {self.executor=}`.",
-            )
-            # Just try to cancel the tasks. Will cancel pending tasks
-            # but executors like dask will even kill the job
-            for future in self.queue:
-                if not future.done():
-                    logger.debug(f"Cancelling {future=}")
-                    future.cancel()
-
-            # Here we wait, if we could  cancel, then we wait for that
-            # to happen, otherwise we are just waiting as anticipated.
-            self.executor.shutdown(wait=wait)
-        else:
-            logger.debug(f"Terminating workers with {self._terminate }")
-            for future in self.queue:
-                if not future.done():
-                    logger.debug(f"Cancelling {future=}")
-                    future.cancel()
-            self._terminate(self.executor)
-            self.executor.shutdown(wait=wait)
+        # This will try to end the tasks based on wait and self._terminate
+        Scheduler._end_pending(
+            wait=wait,
+            futures=self.queue,
+            executor=self.executor,
+            termination_strategy=self._terminate,
+        )
 
         self.on_finished.emit()
         logger.info(f"Scheduler finished with status {stop_reason}")
@@ -855,6 +836,22 @@ class Scheduler(Emitter):
         # Make sure the flag is set
         self._end_on_exception_flag.set(value=end_on_exception)
 
+        if end_on_exception:
+
+            def custom_exception_handler(
+                loop: asyncio.AbstractEventLoop,
+                context: dict[str, Any],
+            ) -> None:
+                # first, handle with default handler
+                loop.default_exception_handler(context)
+
+                exception = context.get("exception")
+                message = context.get("message")
+                self.stop(stop_msg=message, exception=exception)
+
+            loop = asyncio.get_running_loop()
+            loop.set_exception_handler(custom_exception_handler)
+
         result = await self._run_scheduler(
             timeout=timeout,
             end_on_empty=end_on_empty,
@@ -901,6 +898,41 @@ class Scheduler(Emitter):
         self._stop_event.set(msg=msg, exception=kwargs.get("exception"))
         logger.debug(f"Stop event set with {args=} and {kwargs=}")
         self._running_event.clear()
+
+    @staticmethod
+    def _end_pending(
+        *,
+        futures: list[asyncio.Future],
+        executor: Executor,
+        wait: bool = True,
+        termination_strategy: Callable[[Executor], Any] | None = None,
+    ) -> None:
+        if wait:
+            logger.info("Waiting for currently running tasks to finish.")
+            executor.shutdown(wait=wait)
+        elif termination_strategy is None:
+            logger.warning(
+                "Cancelling currently running tasks and then waiting "
+                f" as there is no termination strategy provided for {executor=}`.",
+            )
+            # Just try to cancel the tasks. Will cancel pending tasks
+            # but executors like dask will even kill the job
+            for future in futures:
+                if not future.done():
+                    logger.debug(f"Cancelling {future=}")
+                    future.cancel()
+
+            # Here we wait, if we could  cancel, then we wait for that
+            # to happen, otherwise we are just waiting as anticipated.
+            executor.shutdown(wait=wait)
+        else:
+            logger.debug(f"Terminating workers with {termination_strategy=}")
+            for future in futures:
+                if not future.done():
+                    logger.debug(f"Cancelling {future=}")
+                    future.cancel()
+            termination_strategy(executor)
+            executor.shutdown(wait=wait)
 
     class ExitCode(Enum):
         """The reason the scheduler ended."""
