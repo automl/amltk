@@ -15,8 +15,10 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Generic,
     Hashable,
+    Iterable,
     Iterator,
     Literal,
     Mapping,
@@ -24,6 +26,7 @@ from typing import (
     TypeVar,
     overload,
 )
+from typing_extensions import override
 
 from more_itertools import ilen
 
@@ -56,6 +59,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
     which wraps the resource.
     """
 
+    @override
     @abstractmethod
     def __setitem__(self, key: KeyT, value: Any) -> None:
         """Store a value in the bucket.
@@ -65,6 +69,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
             value: The value to store in the bucket.
         """
 
+    @override
     @abstractmethod
     def __getitem__(self, key: KeyT) -> Drop[LinkT]:
         """Get a drop for a resource in the bucket.
@@ -73,6 +78,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
             key: The key to the resource.
         """
 
+    @override
     @abstractmethod
     def __delitem__(self, key: KeyT) -> None:
         """Remove a resource from the bucket.
@@ -81,6 +87,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
             key: The key to the resource.
         """
 
+    @override
     @abstractmethod
     def __iter__(self) -> Iterator[KeyT]:
         """Iterate over the keys in the bucket."""
@@ -96,6 +103,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
             A new bucket with the same loaders as the current bucket.
         """
 
+    @override
     def __contains__(self, key: object) -> bool:
         """Check if a key is in the bucket.
 
@@ -104,6 +112,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
         """
         return key in self
 
+    @override
     def __len__(self) -> int:
         """Get the number of keys in the bucket."""
         return ilen(iter(self))
@@ -228,6 +237,23 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
         return {
             key: self[key].get(default=default_dict.get(key, default)) for key in keys
         }
+
+    def remove(
+        self,
+        keys: Iterable[KeyT],
+        *,
+        how: Callable[[LinkT], bool] | None = None,
+    ) -> dict[KeyT, bool]:
+        """Remove resources from the bucket.
+
+        Args:
+            keys: The keys to the resources.
+            how: A function that removes the resource.
+
+        Returns:
+            A mapping of keys to whether they were removed.
+        """
+        return {key: self[key].remove(how=how) for key in keys}
 
     def __truediv__(self, key: KeyT) -> Self:
         try:

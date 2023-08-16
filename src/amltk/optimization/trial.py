@@ -15,6 +15,7 @@ from typing import (
     Any,
     Callable,
     Generic,
+    Iterable,
     Iterator,
     Literal,
     Mapping,
@@ -378,6 +379,74 @@ class Trial(Generic[I]):
 
         # Add the keys to storage
         self.storage.update(items.keys())
+
+    def delete_from_storage(
+        self,
+        items: Iterable[str],
+        *,
+        where: str | Path | Bucket | Callable[[str, Iterable[str]], dict[str, bool]],
+    ) -> dict[str, bool]:
+        """Delete items related to the trial.
+
+        ```python exec="true" source="material-block" result="python" title="delete-storage" hl_lines="6"
+        from amltk.optimization import Trial
+
+        trial = Trial(name="trial", config={"x": 1}, info={})
+
+        trial.store({"config.json": trial.config}, where="./results")
+        trial.delete_from_storage({"config.json": trial.config}, where="./results")
+
+        print(trial.storage)
+        ```
+
+        You could also create a Bucket and use that instead.
+
+        ```python exec="true" source="material-block" result="python" title="delete-storage-bucket" hl_lines="9"
+        from amltk.optimization import Trial
+        from amltk.store import PathBucket
+
+        bucket = PathBucket("results")
+
+        trial = Trial(name="trial", config={"x": 1}, info={})
+
+        trial.store({"config.json": trial.config}, where=bucket)
+        trial.delete_from_storage({"config.json": trial.config}, where=bucket)
+
+        print(trial.storage)
+        ```
+
+        Args:
+            items: The items to delete, an iterable of keys
+
+            where: Where the items are stored
+
+                * If a `str` or `Path`, will lookup a bucket at the path,
+                and the items will be deleted from a sub-bucket with the name of the trial.
+
+                * If a `Bucket`, will delete the items in a sub-bucket with the
+                name of the trial.
+
+                * If a `Callable`, will call the callable with the name of the
+                trial and the keys of the items to delete. Should a mapping from
+                the key to whether it was deleted or not.
+
+        Returns:
+            A dict from the key to whether it was deleted or not.
+        """  # noqa: E501
+        # If not a Callable, we convert to a path bucket
+        method: Bucket
+        if isinstance(where, str):
+            method = PathBucket(Path(where), create=False)
+        elif isinstance(where, Path):
+            method = PathBucket(where, create=False)
+        elif isinstance(where, Bucket):
+            method = where
+        else:
+            # Leave it up to supplied method
+            return where(self.name, items)
+
+        sub_bucket = method.sub(self.name)
+        return {key: sub_bucket[key].remove() for key in items}
 
     def copy(self) -> Self:
         """Create a copy of the trial.
