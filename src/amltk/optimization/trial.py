@@ -446,7 +446,7 @@ class Trial(Generic[I]):
             return where(self.name, items)
 
         sub_bucket = method.sub(self.name)
-        return {key: sub_bucket[key].remove() for key in items}
+        return sub_bucket.remove(items)
 
     def copy(self) -> Self:
         """Create a copy of the trial.
