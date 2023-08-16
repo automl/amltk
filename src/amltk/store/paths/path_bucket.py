@@ -7,6 +7,7 @@ import shutil
 from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator, Sequence
+from typing_extensions import override
 
 from amltk.store.bucket import Bucket
 from amltk.store.drop import Drop
@@ -127,6 +128,7 @@ class PathBucket(Bucket[str, Path]):
             exists_ok: If False, an error will be raised if the base path
                 already exists.
         """
+        super().__init__()
         _loaders = DEFAULT_LOADERS
         if loaders is not None:
             _loaders = tuple(chain(loaders, DEFAULT_LOADERS))
@@ -147,18 +149,23 @@ class PathBucket(Bucket[str, Path]):
         self.path = path
         self.loaders = _loaders
 
+    @override
     def __getitem__(self, key: str) -> Drop[Path]:
         return self._drop(self.path / key, loaders=self.loaders)
 
+    @override
     def __setitem__(self, key: str, value: Any) -> None:
         self._drop(self.path / key, loaders=self.loaders).put(value)
 
+    @override
     def __delitem__(self, key: str) -> None:
         self._drop(self.path / key, loaders=self.loaders).remove()
 
+    @override
     def __iter__(self) -> Iterator[str]:
         return (path.name for path in self.path.iterdir())
 
+    @override
     def sub(self, key: str, *, create: bool | None = None) -> Self:
         """Create a subdirectory of the bucket.
 
@@ -178,6 +185,7 @@ class PathBucket(Bucket[str, Path]):
             clean=False,
         )
 
+    @override
     def __contains__(self, key: object) -> bool:
         if not isinstance(key, str):
             return False
@@ -193,17 +201,24 @@ class PathBucket(Bucket[str, Path]):
         )
 
     @classmethod
-    def _remove(cls, path: Path) -> None:
-        if path.is_dir():
-            for child in path.iterdir():
-                cls._remove(child)
-            path.rmdir()
-        else:
-            path.unlink()
+    def _remove(cls, path: Path) -> bool:
+        if not path.exists():
+            return True
+
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+
+            return True
+        except OSError:
+            return False
 
     @classmethod
     def _exists(cls, path: Path) -> bool:
         return path.exists()
 
+    @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.path!r})"

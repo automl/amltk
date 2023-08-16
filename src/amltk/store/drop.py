@@ -62,7 +62,7 @@ class Drop(Generic[KeyT]):
 
     key: KeyT
     loaders: tuple[Loader[KeyT, Any], ...] = field(repr=False)
-    _remove: Callable[[KeyT], None] = field(repr=False)
+    _remove: Callable[[KeyT], bool] = field(repr=False)
     _exists: Callable[[KeyT], bool] = field(repr=False)
 
     def put(
@@ -239,17 +239,22 @@ class Drop(Generic[KeyT]):
 
         return None
 
-    def remove(self, *, how: Callable[[KeyT], Any] | None = None) -> None:
+    def remove(self, *, how: Callable[[KeyT], bool] | None = None) -> bool:
         """Remove the resource from the bucket.
 
         Args:
-            how: The function to use to remove the resource.
+            how: The function to use to remove the resource. Returns `True` if
+                the resource no longer exists after the removal, `False` otherwise.
+
+                !!! note "Non-existent resources"
+
+                    If the resource does not exist, then the function will `True`.
         """
         logger.debug(f"Removing {self.key=}")
         if how:
-            how(self.key)
-        else:
-            self._remove(self.key)
+            return how(self.key)
+
+        return self._remove(self.key)
 
     def exists(self, *, how: Callable[[KeyT], bool] | None = None) -> bool:
         """Check if the resource exists.
