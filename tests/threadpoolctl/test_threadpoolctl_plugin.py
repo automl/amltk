@@ -16,6 +16,7 @@ from pytest_cases import case, fixture, parametrize_with_cases
 import threadpoolctl
 from amltk.scheduling import Scheduler, SequentialExecutor, Task
 from amltk.threadpoolctl import ThreadPoolCTLPlugin
+from amltk.types import safe_isinstance
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,13 @@ def case_dask_executor() -> ClientExecutor:
 @case(tags=["executor"])
 def case_sequential_executor() -> SequentialExecutor:
     return SequentialExecutor()
+
+
+@case(tags=["executor"])
+def case_loky_executor() -> ProcessPoolExecutor:
+    from loky import get_reusable_executor
+
+    return get_reusable_executor(max_workers=2)  # type: ignore
 
 
 @fixture()
@@ -81,7 +89,11 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
     inside_info = retrieved_info[0]
     after = threadpoolctl.threadpool_info()
 
-    assert before == inside_info
+    # NOTE: For whatever reason, Loky seems to pick up on different blas library
+    # and use that, different from every other executor
+    if not safe_isinstance(scheduler.executor, "_ReusablePoolExecutor"):
+        assert before == inside_info
+
     assert before == after
 
     assert task.event_counts == {

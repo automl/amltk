@@ -66,6 +66,7 @@ sklearn = ["scikit-learn", "threadpoolctl"]
 smac = ["smac>=2.0", "amltk[configspace]"]
 optuna = ["optuna"]
 configspace = ["configspace"]
+loky = ["loky"]
 dask = ["dask<=2023.4"]
 pynisher = ["pynisher>=1.0.8"]
 wandb = ["wandb"]
@@ -279,6 +280,7 @@ module = [
   "dask_jobqueue.*",
   "wandb.*",
   "threadpoolctl.*",
+  "loky.*",
 ]
 ignore_missing_imports = true
 

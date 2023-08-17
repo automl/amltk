@@ -4,7 +4,7 @@ import logging
 import time
 import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Hashable
+from typing import TYPE_CHECKING, Hashable
 
 import pytest
 from dask.distributed import Client, LocalCluster, Worker
@@ -12,6 +12,10 @@ from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
 from amltk.scheduling import Scheduler, SequentialExecutor, Task
+from amltk.types import safe_isinstance
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +42,13 @@ def case_thread_executor() -> ThreadPoolExecutor:
 @case(tags=["executor"])
 def case_process_executor() -> ProcessPoolExecutor:
     return ProcessPoolExecutor(max_workers=2)
+
+
+@case(tags=["executor"])
+def case_loky() -> ProcessPoolExecutor:
+    from loky import get_reusable_executor
+
+    return get_reusable_executor(max_workers=2)  # type: ignore
 
 
 @case(tags=["executor"])
@@ -160,7 +171,10 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
 
     # NOTE: This is because Dask can cancel currently running tasks which is not
     # something that can be done with Python's default executors.
-    if isinstance(scheduler.executor, (ClientExecutor, ProcessPoolExecutor)):
+    if isinstance(
+        scheduler.executor,
+        (ClientExecutor, ProcessPoolExecutor),
+    ) or safe_isinstance(scheduler.executor, "_ReusablePoolExecutor"):
         expected_scheduler_counts[scheduler.FUTURE_CANCELLED] = 1
         del expected_scheduler_counts[scheduler.FUTURE_DONE]
 

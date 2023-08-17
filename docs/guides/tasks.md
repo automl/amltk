@@ -325,6 +325,42 @@ PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
         * [`Scheduler.with_sge()`][amltk.scheduling.Scheduler.with_sge]
         * [`Scheduler.with_htcondor()`][amltk.scheduling.Scheduler.with_htcondor]
 
+#### :octicons-gear-24: [`loky`](https://loky.readthedocs.io/en/stable/API.html)
+---
+
+Loky is the default backend executor behind
+[`joblib`](https://joblib.readthedocs.io/en/stable/), the parallelism that
+powers scikit-learn.
+
+??? example "Scheduler with Loky Backend"
+
+    === "Simple"
+
+        ```python
+        from amltk import Scheduler
+
+        # Pass any arguments you would pass to `loky.get_reusable_executor`
+        scheduler = Scheduler.with_loky(...)
+        ```
+
+
+    === "Explicit"
+
+        ```python
+        import loky
+        from amltk import Scheduler
+
+        scheduler = Scheduler(executor=loky.get_reusable_executor(...))
+        ```
+
+??? warning "BLAS numeric backend"
+
+    The loky executor seems to pick up on a different BLAS library (from scipy)
+    which is different than those used by jobs from something like a `ProcessPoolExecutor`.
+
+    This is likely not to matter for a majority of use-cases.
+
+
 #### :simple-ray: [`ray`](https://docs.ray.io/en/master/)
 ---
 

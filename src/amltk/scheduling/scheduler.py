@@ -264,6 +264,41 @@ class Scheduler(Emitter):
         return cls(executor=executor)
 
     @classmethod
+    def with_loky(  # noqa: PLR0913
+        cls,
+        max_workers: int | None = None,
+        context: BaseContext | Literal["fork", "spawn", "forkserver"] | None = None,
+        timeout: int = 10,
+        kill_workers: bool = False,  # noqa: FBT002, FBT001
+        reuse: bool | Literal["auto"] = "auto",
+        job_reducers: Any | None = None,
+        result_reducers: Any | None = None,
+        initializer: Callable[..., Any] | None = None,
+        initargs: tuple[Any, ...] = (),
+        env: dict[str, str] | None = None,
+    ) -> Self:
+        """Create a scheduler with a `loky.get_reusable_executor`.
+
+        See [loky documentation][https://loky.readthedocs.io/en/stable/API.html]
+        for more details.
+        """
+        from loky import get_reusable_executor
+
+        executor = get_reusable_executor(
+            max_workers=max_workers,
+            context=context,
+            timeout=timeout,
+            kill_workers=kill_workers,
+            reuse=reuse,  # type: ignore
+            job_reducers=job_reducers,
+            result_reducers=result_reducers,
+            initializer=initializer,
+            initargs=initargs,
+            env=env,
+        )
+        return cls(executor=executor)
+
+    @classmethod
     def with_sequential(cls) -> Self:
         """Create a Scheduler that runs sequentially.
 

@@ -60,6 +60,13 @@ def case_process_executor() -> ProcessPoolExecutor:
 
 
 @case(tags=["executor"])
+def case_loky_executor() -> ProcessPoolExecutor:
+    from loky import get_reusable_executor
+
+    return get_reusable_executor(max_workers=2)  # type: ignore
+
+
+@case(tags=["executor"])
 def case_dask_executor() -> ClientExecutor:
     # Dask will raise a warning when re-using the ports, hence
     # we silence the warnings here.

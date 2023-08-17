@@ -43,6 +43,13 @@ def case_dask_executor() -> ClientExecutor:
     return executor
 
 
+@case(tags=["executor"])
+def case_loky_executor() -> ProcessPoolExecutor:
+    from loky import get_reusable_executor
+
+    return get_reusable_executor(max_workers=2)  # type: ignore
+
+
 @fixture()
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Iterator[Scheduler]:
