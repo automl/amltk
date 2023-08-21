@@ -227,4 +227,4 @@ def build(
 
     assert isinstance(pipeline.head, (Component, Split, Group))
     steps = list(process_from(pipeline.head))
-    return pipeline_type(steps)
+    return pipeline_type(steps)  # type: ignore

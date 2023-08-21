@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Generic, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Generic, Mapping, Tuple, TypeVar
 from typing_extensions import TypeAlias, override
 
 import numpy as np
@@ -22,7 +22,7 @@ KURTOSIS_OF_NORMAL_DISTRIBUTION = 0.0
 SKEWNESS_OF_NORMAL_DISTRIBUTION = 0.0
 
 
-def imbalance_ratios(col: pd.Series) -> tuple[np.ndarray, float]:
+def imbalance_ratios(col: pd.Series | pd.DataFrame) -> tuple[pd.Series, float]:
     """Compute the imbalance ratio of a categorical column.
 
     This is done by computing the distance of each item's ratio to what
@@ -30,28 +30,25 @@ def imbalance_ratios(col: pd.Series) -> tuple[np.ndarray, float]:
     dividing by the worst case to normalize between 0 and 1.
 
     Args:
-        col: A column of values.
+        col: A column of values. If a DataFrame, the values from the subset of columns
+            will be used.
 
     Returns:
         A tuple of the imbalance ratios, sorted from lowest (0) to highest (1)
         and the expected ratio if perfectly balanced.
     """
-    uniq_items = np.unique(col, return_counts=True)[1]
-    if len(uniq_items) == 1:
-        return np.asarray([1.0]), 1.0
+    ratios = col.value_counts(dropna=True, normalize=True, ascending=True)
+    if len(ratios) == 1:
+        return ratios, 1.0
 
-    n_uniq = len(uniq_items)
-    n_items = len(col)
-
-    ratios = uniq_items / n_items
+    n_uniq = len(ratios)
 
     # A balanced ratio is one where all items are equally distributed
-    balanced_ratio = 1 / n_uniq
-    ratios.sort()
+    balanced_ratio = float(1 / n_uniq)
     return ratios, balanced_ratio
 
 
-def column_imbalance(ratios: np.ndarray, balanced_ratio: float) -> float:
+def column_imbalance(ratios: pd.Series, balanced_ratio: float) -> float:
     """Compute the imbalance of a column.
 
     This is done by computing the distance of each item's ratio to what
@@ -108,7 +105,12 @@ class DatasetStatistic(ABC, Generic[S]):
 
     @classmethod
     @abstractmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> S:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> S:
         """Compute the value of this statistic.
 
         Args:
@@ -121,7 +123,10 @@ class DatasetStatistic(ABC, Generic[S]):
         """
 
     @classmethod
-    def retrieve(cls, dependancy_values: DSdict) -> S:
+    def retrieve(
+        cls,
+        dependancy_values: Mapping[type[DatasetStatistic[T]], T],
+    ) -> S:
         """Retrieve the value of this statistic from the dependency values.
 
         Args:
@@ -130,7 +135,7 @@ class DatasetStatistic(ABC, Generic[S]):
         Returns:
             The value of this statistic.
         """
-        return dependancy_values[cls]
+        return dependancy_values[cls]  # type: ignore
 
 
 class MetaFeature(DatasetStatistic[M]):
@@ -148,13 +153,13 @@ class NAValues(DatasetStatistic[pd.DataFrame]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
     ) -> pd.DataFrame:
         return x.isna()
 
 
-class ClassImbalanceRatios(DatasetStatistic[Tuple[np.ndarray, float]]):
+class ClassImbalanceRatios(DatasetStatistic[Tuple[pd.Series, float]]):
     """Imbalance ratios of each class in the dataset.
 
     Will return the ratios of each class, the ratio expected if perfectly balanced,
@@ -165,13 +170,13 @@ class ClassImbalanceRatios(DatasetStatistic[Tuple[np.ndarray, float]]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
-    ) -> tuple[np.ndarray, float]:
+    ) -> tuple[pd.Series, float]:
         return imbalance_ratios(y)
 
 
-class CategoricalImbalanceRatios(DatasetStatistic[Dict[str, Tuple[np.ndarray, float]]]):
+class CategoricalImbalanceRatios(DatasetStatistic[Dict[str, Tuple[pd.Series, float]]]):
     """Imbalance ratios of each class in the dataset.
 
     Will return the ratios of each class, the ratio expected if perfectly balanced,
@@ -182,9 +187,9 @@ class CategoricalImbalanceRatios(DatasetStatistic[Dict[str, Tuple[np.ndarray, fl
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
-    ) -> dict[str, tuple[np.ndarray, float]]:
+    ) -> dict[str, tuple[pd.Series, float]]:
         categorical_columns = x.select_dtypes(exclude=np.number).columns
         return {c: imbalance_ratios(x[c]) for c in categorical_columns}
 
@@ -197,7 +202,7 @@ class CategoricalColumns(DatasetStatistic[pd.DataFrame]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
     ) -> pd.DataFrame:
         return x.select_dtypes(exclude=np.number)
@@ -211,7 +216,7 @@ class NumericalColumns(DatasetStatistic[pd.DataFrame]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
     ) -> pd.DataFrame:
         return x.select_dtypes(include=np.number)
@@ -222,8 +227,13 @@ class InstanceCount(MetaFeature[int]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> int:
-        return x.shape[0]
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> int:
+        return int(x.shape[0])
 
 
 class LogInstanceCount(MetaFeature[float]):
@@ -231,8 +241,13 @@ class LogInstanceCount(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
-        return np.log(x.shape[0])
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
+        return float(np.log(x.shape[0]))
 
 
 class NumberOfClasses(MetaFeature[int]):
@@ -240,12 +255,20 @@ class NumberOfClasses(MetaFeature[int]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> int:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> int:
         if len(y.shape) == 1:
-            return len(np.unique(y))
+            return len(y.value_counts(sort=False))
 
+        # NOTE: Not really sure "how many" classes
+        # there are in the case of multi-label classification
+        # I guess this meta-feature doesn't make sense then?
         if len(y.shape) == 2:  # noqa: PLR2004
-            return y.shape[1]
+            return int(y.shape[1])
 
         raise ValueError("y must be 1D or 2D")
 
@@ -255,8 +278,13 @@ class NumberOfFeatures(MetaFeature[int]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> int:
-        return x.shape[1]
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> int:
+        return int(x.shape[1])
 
 
 class LogNumberOfFeatures(MetaFeature[float]):
@@ -264,7 +292,12 @@ class LogNumberOfFeatures(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         return float(np.log(x.shape[1]))
 
 
@@ -275,7 +308,12 @@ class PercentageMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         n_values = x.shape[0] * x.shape[1]
         na_values = NAValues.retrieve(dependancy_values)
         n_missing = na_values.sum().sum()
@@ -289,7 +327,12 @@ class PercentageOfInstancesWithMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         n_instances = x.shape[0]
         na_values = NAValues.retrieve(dependancy_values)
         n_instances_with_missing_values = na_values.any(axis=1).sum()
@@ -303,7 +346,12 @@ class PercentageOfFeaturesWithMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         n_features = x.shape[1]
         na_values = NAValues.retrieve(dependancy_values)
         n_features_with_missing_values = na_values.any(axis=0).sum()
@@ -317,8 +365,16 @@ class PercentageOfCategoricalColumnsWithMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         categorical_columns = CategoricalColumns.retrieve(dependancy_values)
+        if categorical_columns.empty:
+            return 0.0
+
         na_values = NAValues.retrieve(dependancy_values)
         n_categorical_features = categorical_columns.shape[1]
         n_categorical_features_with_missing_values = (
@@ -336,7 +392,12 @@ class PercentageOfCategoricalValuesWithMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         categorical_columns = CategoricalColumns.retrieve(dependancy_values)
         if categorical_columns.empty:
             return 0.0
@@ -358,7 +419,12 @@ class PercentageOfNumericColumnsWithMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         numerical_columns = NumericalColumns.retrieve(dependancy_values)
         if numerical_columns.empty:
             return 0.0
@@ -378,7 +444,12 @@ class PercentageOfNumericValuesWithMissingValues(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         numerical_columns = NumericalColumns.retrieve(dependancy_values)
         if numerical_columns.empty:
             return 0.0
@@ -398,12 +469,17 @@ class NumberOfNumericFeatures(MetaFeature[int]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> int:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> int:
         numerical_columns = NumericalColumns.retrieve(dependancy_values)
         if numerical_columns.empty:
             return 0
 
-        return numerical_columns.shape[1]
+        return int(numerical_columns.shape[1])
 
 
 class NumberOfCategoricalFeatures(MetaFeature[int]):
@@ -413,25 +489,51 @@ class NumberOfCategoricalFeatures(MetaFeature[int]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> int:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> int:
         categorical_columns = CategoricalColumns.retrieve(dependancy_values)
         if categorical_columns.empty:
             return 0
 
-        return categorical_columns.shape[1]
+        return int(categorical_columns.shape[1])
 
 
-class RatioNumericalToCategorical(MetaFeature[float]):
-    """Ratio of numerical to categorical features in the dataset."""
+class RatioNumericalFeatures(MetaFeature[float]):
+    """Ratio of numerical features to total features in the dataset."""
 
-    dependencies = (NumberOfNumericFeatures, NumberOfCategoricalFeatures)
+    dependencies = (NumberOfNumericFeatures,)
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         n_numerical = NumberOfNumericFeatures.retrieve(dependancy_values)
-        n_categorical = NumberOfNumericFeatures.retrieve(dependancy_values)
-        return float(n_numerical / n_categorical)
+        return float(n_numerical / x.shape[1])
+
+
+class RatioCategoricalFeatures(MetaFeature[float]):
+    """Ratio of categoricals features to total features in the dataset."""
+
+    dependencies = (NumberOfCategoricalFeatures,)
+
+    @override
+    @classmethod
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
+        n_categorical = NumberOfCategoricalFeatures.retrieve(dependancy_values)
+        return float(n_categorical / x.shape[1])
 
 
 class RatioFeaturesToInstances(MetaFeature[float]):
@@ -441,13 +543,18 @@ class RatioFeaturesToInstances(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         n_features = NumberOfFeatures.retrieve(dependancy_values)
         n_instances = InstanceCount.retrieve(dependancy_values)
         return float(n_features / n_instances)
 
 
-class ClassCounts(DatasetStatistic[np.ndarray]):
+class ClassCounts(DatasetStatistic[pd.Series]):
     """Number of instances per class."""
 
     @override
@@ -455,39 +562,51 @@ class ClassCounts(DatasetStatistic[np.ndarray]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
-    ) -> np.ndarray:
-        return np.unique(y, return_counts=True)[1]
+    ) -> pd.Series:
+        return y.value_counts()
 
 
 class MinorityClassImbalance(MetaFeature[float]):
     """Imbalance of the minority class in the dataset. 0 => Balanced. 1 imbalanced."""
 
-    dependencies = (ClassCounts,)
+    dependencies = (ClassImbalanceRatios,)
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         ratios, balanced_ratio = ClassImbalanceRatios.retrieve(dependancy_values)
-        minority_ratio = ratios[0]
+        minority_ratio = ratios.iloc[0]
         distance_to_balanced = np.abs(minority_ratio - balanced_ratio)
         # This happens when all the ratio is in one class
-        worst_case = (1 - len(ratios)) * balanced_ratio + (1 - balanced_ratio)
+        worst_case = (len(ratios) - 1) * balanced_ratio + (1 - balanced_ratio)
         return float(distance_to_balanced / worst_case)
 
 
 class MajorityClassImbalance(MetaFeature[float]):
     """Imbalance of the majority class in the dataset. 0 => Balanced. 1 imbalanced."""
 
+    dependencies = (ClassImbalanceRatios,)
+
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         ratios, balanced_ratio = ClassImbalanceRatios.retrieve(dependancy_values)
-        majority_ratio = ratios[-1]
+        majority_ratio = ratios.iloc[-1]
         distance_to_balanced = np.abs(majority_ratio - balanced_ratio)
         # This happens when all the ratio is in one class
-        worst_case = (1 - len(ratios)) * balanced_ratio + (1 - balanced_ratio)
+        worst_case = (len(ratios) - 1) * balanced_ratio + (1 - balanced_ratio)
         return float(distance_to_balanced / worst_case)
 
 
@@ -497,9 +616,16 @@ class ClassImbalance(MetaFeature[float]):
     0 => Balanced. 1 Imbalanced.
     """
 
+    dependencies = (ClassImbalanceRatios,)
+
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         ratios, balanced_ratio = ClassImbalanceRatios.retrieve(dependancy_values)
         return column_imbalance(ratios, balanced_ratio)
 
@@ -517,7 +643,7 @@ class ImbalancePerCategory(DatasetStatistic[Dict[str, float]]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
     ) -> dict[str, float]:
         categoricals = x.select_dtypes(exclude=np.number)
@@ -537,18 +663,36 @@ class MeanCategoricalImbalance(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         imbalances = ImbalancePerCategory.retrieve(dependancy_values)
+        if len(imbalances) == 0:
+            return 0
+
         return float(np.mean(list(imbalances.values())))
 
 
 class StdCategoricalImbalance(MetaFeature[float]):
     """The std imbalance of categorical features."""
 
+    dependencies = (ImbalancePerCategory,)
+
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         imbalances = ImbalancePerCategory.retrieve(dependancy_values)
+        if len(imbalances) == 0:
+            return 0
+
         return float(np.std(list(imbalances.values())))
 
 
@@ -562,7 +706,7 @@ class SkewnessPerNumericalColumn(DatasetStatistic[Dict[str, float]]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
     ) -> dict[str, float]:
         numericals = NumericalColumns.retrieve(dependancy_values)
@@ -580,7 +724,12 @@ class SkewnessMean(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         skews = SkewnessPerNumericalColumn.retrieve(dependancy_values)
         if len(skews) == 0:
             return SKEWNESS_OF_NORMAL_DISTRIBUTION
@@ -595,7 +744,12 @@ class SkewnessStd(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         skews = SkewnessPerNumericalColumn.retrieve(dependancy_values)
         if len(skews) == 0:
             return SKEWNESS_OF_NORMAL_DISTRIBUTION
@@ -610,7 +764,12 @@ class SkewnessMin(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         skews = SkewnessPerNumericalColumn.retrieve(dependancy_values)
         if len(skews) == 0:
             return SKEWNESS_OF_NORMAL_DISTRIBUTION
@@ -625,7 +784,12 @@ class SkewnessMax(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         skews = SkewnessPerNumericalColumn.retrieve(dependancy_values)
         if len(skews) == 0:
             return SKEWNESS_OF_NORMAL_DISTRIBUTION
@@ -643,7 +807,7 @@ class KurtosisPerNumericalColumn(DatasetStatistic[Dict[str, float]]):
     def compute(
         cls,
         x: pd.DataFrame,
-        y: pd.Series,
+        y: pd.Series | pd.DataFrame,
         dependancy_values: DSdict,
     ) -> dict[str, float]:
         numericals = NumericalColumns.retrieve(dependancy_values)
@@ -661,7 +825,12 @@ class KurtosisMean(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         kurts = KurtosisPerNumericalColumn.retrieve(dependancy_values)
         if len(kurts) == 0:
             return KURTOSIS_OF_NORMAL_DISTRIBUTION
@@ -676,7 +845,12 @@ class KurtosisStd(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         kurts = KurtosisPerNumericalColumn.retrieve(dependancy_values)
         if len(kurts) == 0:
             return KURTOSIS_OF_NORMAL_DISTRIBUTION
@@ -691,7 +865,12 @@ class KurtosisMin(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         kurts = KurtosisPerNumericalColumn.retrieve(dependancy_values)
         if len(kurts) == 0:
             return KURTOSIS_OF_NORMAL_DISTRIBUTION
@@ -706,7 +885,12 @@ class KurtosisMax(MetaFeature[float]):
 
     @override
     @classmethod
-    def compute(cls, x: pd.DataFrame, y: pd.Series, dependancy_values: DSdict) -> float:
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: DSdict,
+    ) -> float:
         kurts = KurtosisPerNumericalColumn.retrieve(dependancy_values)
         if len(kurts) == 0:
             return KURTOSIS_OF_NORMAL_DISTRIBUTION
