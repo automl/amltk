@@ -1,13 +1,31 @@
-"""Metafeatures for use in metalearning."""
+"""Metafeatures for use in metalearning.
+
+Please see the reference section on
+[Metalearning](../../../../reference/metalearning) for more!
+"""
 from __future__ import annotations
 
+import logging
 import re
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Generic, Mapping, Tuple, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Dict,
+    Generic,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+    TypeVar,
+)
 from typing_extensions import TypeAlias, override
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 CAMEL_CASE_PATTERN = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -143,6 +161,18 @@ class MetaFeature(DatasetStatistic[M]):
 
     This differs from DatasetStatistic in that it must return a single value.
     """
+
+    skip: ClassVar[bool] = False
+    """Whether to skip this metafeature when
+    [`iter()`][amltk.metalearning.MetaFeature.iter] is called.
+    """
+
+    @classmethod
+    def iter(cls) -> Iterator[type[MetaFeature]]:
+        """Return all the subclasses of MetaFeature."""
+        for c in cls.__subclasses__():
+            if not c.skip:
+                yield c
 
 
 class NAValues(DatasetStatistic[pd.DataFrame]):
@@ -896,3 +926,68 @@ class KurtosisMax(MetaFeature[float]):
             return KURTOSIS_OF_NORMAL_DISTRIBUTION
 
         return float(np.max(list(kurts.values())))
+
+
+def metafeature_descriptions(
+    features: Iterable[type[DatasetStatistic]] | None = None,
+) -> dict[str, str]:
+    """Get the descriptions of meatfeatures available.
+
+    Args:
+        features: The metafeatures. If None, all metafeatures subclasses
+            of [`MetaFeature`][amltk.metalearning.MetaFeature] will be returned.
+
+    Returns:
+        The descriptions of the metafeatures.
+    """
+    if features is None:
+        features = MetaFeature.iter()
+
+    return {mf.name(): mf.description() for mf in features}
+
+
+def compute_metafeatures(
+    X: pd.DataFrame,  # noqa: N803
+    y: pd.Series | pd.DataFrame,
+    *,
+    features: Iterable[type[MetaFeature]] | None = None,
+) -> pd.Series:
+    """Compute metafeatures for a dataset.
+
+    Args:
+        X: The features of the dataset.
+        y: The labels of the dataset.
+        features: The metafeatures to compute. If None, all metafeatures subclasses
+            of [`MetaFeature`][amltk.metalearning.MetaFeature] will be computed.
+
+    Returns:
+        A series of metafeatures.
+    """
+    if features is None:
+        features = MetaFeature.iter()
+
+    def _calc(
+        _x: pd.DataFrame,
+        _y: pd.Series | pd.DataFrame,
+        _metafeature: type[DatasetStatistic],
+        _values: dict[type[DatasetStatistic], Any],
+    ) -> dict[type[DatasetStatistic], Any]:
+        for dep in _metafeature.dependencies:
+            _values = _calc(_x, _y, dep, _values)
+
+        if _metafeature not in _values:
+            _values[_metafeature] = _metafeature.compute(_x, _y, _values)
+
+        return _values
+
+    values: dict[type[DatasetStatistic], Any] = {}
+    for mf in features:
+        values = _calc(X, y, mf, values)
+
+    return pd.Series(
+        {
+            key.name(): value
+            for key, value in values.items()
+            if issubclass(key, MetaFeature)
+        },
+    )

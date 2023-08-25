@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Iterable, cast, overload
+from typing import Any, Generic, Iterable, overload
+from typing_extensions import override
 
 from more_itertools import first, first_true, seekable
 
@@ -198,8 +199,12 @@ class Sampler(ABC, Generic[Space]):
         # If we didn't get a succesful parse, raise the appropriate error
         if samples is False:
             results_itr.seek(0)  # Reset to start of iterator
-            errors = cast(list[Exception], list(results_itr))
-            raise Sampler.FailedSamplingError(sampler=samplers, error=errors)
+            sampler_strs = [str(s) for s in samplers]
+            errors = [(err, tb) for err, tb in results_itr]
+            raise Sampler.FailedSamplingError(
+                samplers=sampler_strs,
+                err_tbs=errors,  # type: ignore
+            )
 
         assert not isinstance(samples, (tuple, bool))
         return samples
@@ -346,7 +351,9 @@ class Sampler(ABC, Generic[Space]):
             """
             self.space = space
             self.extra = extra
+            super().__init__(space, extra)
 
+        @override
         def __str__(self) -> str:
             msg = (
                 f"No sampler found for space of type={type(self.space)}."
@@ -373,7 +380,9 @@ class Sampler(ABC, Generic[Space]):
             self.n = n
             self.max_attempts = max_attempts
             self.seen = seen
+            super().__init__(n, max_attempts, seen)
 
+        @override
         def __str__(self) -> str:
             n = self.n
             max_attempts = self.max_attempts
@@ -387,53 +396,25 @@ class Sampler(ABC, Generic[Space]):
     class FailedSamplingError(RuntimeError):
         """Error for when a Sampler fails to sample from a Space."""
 
-        @overload
-        def __init__(self, sampler: Sampler, error: Exception):
-            ...
-
-        @overload
-        def __init__(self, sampler: list[Sampler], error: list[Exception]):
-            ...
-
-        def __init__(
-            self,
-            sampler: Sampler | list[Sampler],
-            error: Exception | list[Exception],
-        ):
+        def __init__(self, samplers: list[str], err_tbs: list[tuple[Exception, str]]):
             """Create a new sampler error.
 
             Args:
-                sampler: The sampler(s) that failed.
-                error: The error(s) that was raised.
-
-            Raises:
-                ValueError: If sampler is a list, exception must be a list of the
-                    same length.
+                samplers: The sampler(s) that failed.
+                err_tbs: The errors and tracebacks for each sampler
             """
-            if isinstance(sampler, list) and (
-                not (isinstance(error, list) and len(sampler) == len(error))
-            ):
-                raise ValueError(
-                    "If sampler is a list, `error` must be a list of the same length."
-                    f"Got {sampler=} and {error=} .",
-                )
+            self.samplers = samplers
+            self.err_tbs = err_tbs
+            super().__init__(samplers, err_tbs)
 
-            self.sampler = sampler
-            self.error = error
-
+        @override
         def __str__(self) -> str:
-            if isinstance(self.sampler, list):
-                msg = "\n\n".join(
-                    f"Failed to sample with {p}:"
-                    + "\n "
-                    + f"{e.__class__.__name__}: {e}"
-                    for p, e in zip(self.sampler, self.error)  # type: ignore
-                )
-            else:
-                msg = (
-                    f"Failed to sample with {self.sampler}:"
-                    + "\n"
-                    + f"{self.error.__class__.__name__}: {self.error}"
-                )
-
-            return msg
+            return "\n".join(
+                [
+                    "Could not sample with any of the samplers:",
+                    *[
+                        f"  - {sampler}: {err}\n{tb}"
+                        for sampler, (err, tb) in zip(self.samplers, self.err_tbs)
+                    ],
+                ],
+            )

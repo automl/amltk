@@ -650,7 +650,11 @@ class Step(Generic[Space]):
         from amltk.pipeline.sampler import Sampler
 
         if space is None:
-            if isinstance(sampler, Parser):
+            # Make sure if the sampler is also a space parser and we recieved
+            # no space, that we use this for parsing the space
+            if (
+                isinstance(sampler, type) and issubclass(sampler, Parser)
+            ) or isinstance(sampler, Parser):
                 space = self.space(parser=sampler)
             else:
                 space = self.space()

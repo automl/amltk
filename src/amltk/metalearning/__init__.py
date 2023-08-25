@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from amltk.metalearning.extractor import MetaFeatureExtractor
+from amltk.metalearning.dataset_distances import dataset_distance
 from amltk.metalearning.metafeatures import (
     ClassCounts,
     ClassImbalance,
@@ -38,7 +38,10 @@ from amltk.metalearning.metafeatures import (
     SkewnessPerNumericalColumn,
     SkewnessStd,
     StdCategoricalImbalance,
+    compute_metafeatures,
+    metafeature_descriptions,
 )
+from amltk.metalearning.portfolio import portfolio_selection
 
 
 def get_metafeatures() -> list[type[DatasetStatistic]]:
@@ -85,7 +88,6 @@ __all__ = [
     "ClassCounts",
     "ClassImbalance",
     "DatasetStatistic",
-    "get_metafeatures",
     "ImbalancePerCategory",
     "KurtosisMax",
     "KurtosisMean",
@@ -97,7 +99,6 @@ __all__ = [
     "MajorityClassImbalance",
     "MeanCategoricalImbalance",
     "MetaFeature",
-    "MetaFeatureExtractor",
     "MinorityClassImbalance",
     "NumberOfCategoricalFeatures",
     "NumberOfClasses",
@@ -119,4 +120,9 @@ __all__ = [
     "SkewnessPerNumericalColumn",
     "SkewnessStd",
     "StdCategoricalImbalance",
+    "compute_metafeatures",
+    "dataset_distance",
+    "get_metafeatures",
+    "metafeature_descriptions",
+    "portfolio_selection",
 ]

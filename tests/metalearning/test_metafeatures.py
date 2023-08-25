@@ -10,7 +10,7 @@ from sklearn.datasets import (
     make_regression,
 )
 
-from amltk.metalearning import MetaFeatureExtractor
+from amltk.metalearning import compute_metafeatures
 
 
 def categorize(x: pd.DataFrame, n_cols: int, bins: int = 5) -> pd.DataFrame:
@@ -148,8 +148,7 @@ def case_multitarget_regression(
 
 @parametrize_with_cases(argnames=["x", "y"], cases=".")
 def test_metafeature_computation(x: pd.DataFrame, y: pd.Series | pd.DataFrame) -> None:
-    extractor = MetaFeatureExtractor()
-    metafeatures = extractor(x, y)
+    mfs = compute_metafeatures(x, y)
 
     is_classification = (
         all(y.dtypes == "category")
@@ -159,33 +158,33 @@ def test_metafeature_computation(x: pd.DataFrame, y: pd.Series | pd.DataFrame) -
     any_missing = x.isna().any().any()
     any_categorical = any(x.dtypes == "category")
 
-    assert not metafeatures.isna().any()
+    assert not mfs.isna().any()
 
     if is_classification:
-        assert metafeatures["number_of_classes"] > 0
-        assert metafeatures["class_imbalance"] > 0
-        assert metafeatures["majority_class_imbalance"] > 0
-        assert metafeatures["minority_class_imbalance"] > 0
+        assert mfs["number_of_classes"] > 0
+        assert mfs["class_imbalance"] > 0
+        assert mfs["majority_class_imbalance"] > 0
+        assert mfs["minority_class_imbalance"] > 0
 
     if any_categorical:
-        assert metafeatures["number_of_categorical_features"] > 0
-        assert metafeatures["ratio_categorical_features"] > 0
-        assert metafeatures["ratio_numerical_features"] < 1
+        assert mfs["number_of_categorical_features"] > 0
+        assert mfs["ratio_categorical_features"] > 0
+        assert mfs["ratio_numerical_features"] < 1
 
-        assert metafeatures["mean_categorical_imbalance"] > 0
-        assert metafeatures["std_categorical_imbalance"] > 0
+        assert mfs["mean_categorical_imbalance"] > 0
+        assert mfs["std_categorical_imbalance"] > 0
     else:
-        assert metafeatures["ratio_numerical_features"] == 1.0
-        assert metafeatures["ratio_categorical_features"] == 0.0
+        assert mfs["ratio_numerical_features"] == 1.0
+        assert mfs["ratio_categorical_features"] == 0.0
 
     if any_missing:
-        assert metafeatures["percentage_of_features_with_missing_values"] > 0
-        assert metafeatures["percentage_of_instances_with_missing_values"] > 0
-        assert metafeatures["percentage_missing_values"] > 0
+        assert mfs["percentage_of_features_with_missing_values"] > 0
+        assert mfs["percentage_of_instances_with_missing_values"] > 0
+        assert mfs["percentage_missing_values"] > 0
 
-        assert metafeatures["percentage_of_numeric_columns_with_missing_values"] > 0
-        assert metafeatures["percentage_of_numeric_values_with_missing_values"] > 0
+        assert mfs["percentage_of_numeric_columns_with_missing_values"] > 0
+        assert mfs["percentage_of_numeric_values_with_missing_values"] > 0
 
     if any_categorical and any_missing:
-        assert metafeatures["percentage_of_categorical_columns_with_missing_values"] > 0
-        assert metafeatures["percentage_of_categorical_values_with_missing_values"] > 0
+        assert mfs["percentage_of_categorical_columns_with_missing_values"] > 0
+        assert mfs["percentage_of_categorical_values_with_missing_values"] > 0
