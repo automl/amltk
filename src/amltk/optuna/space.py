@@ -50,6 +50,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Sequence
+from typing_extensions import override
 
 from amltk.configspace.space import as_int
 from amltk.pipeline.space import SpaceAdapter
@@ -72,6 +73,7 @@ OptunaSearchSpace: TypeAlias = Dict[str, BaseDistribution]
 class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
     """An Optuna adapter to allow for parsing Optuna spaces and sampling from them."""
 
+    @override
     def parse_space(
         self,
         space: Any,
@@ -90,6 +92,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
 
         return parsed_space
 
+    @override
     def insert(
         self,
         space: OptunaSearchSpace,
@@ -107,6 +110,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
 
         return space
 
+    @override
     def condition(
         self,
         choice_name: str,
@@ -121,14 +125,17 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
             f"Conditions (from {choice_name}) not supported with Optuna",
         )
 
+    @override
     def empty(self) -> OptunaSearchSpace:
         """Return an empty space."""
         return {}
 
+    @override
     def copy(self, space: OptunaSearchSpace) -> OptunaSearchSpace:
         """Copy the space."""
         return deepcopy(space)
 
+    @override
     def _sample(
         self,
         space: OptunaSearchSpace,
@@ -203,6 +210,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
         )
 
     @classmethod
+    @override
     def supports_sampling(cls, space: Any) -> bool:
         """Supports sampling from a mapping where every value is a
         [`BaseDistribution`][optuna.distributions].

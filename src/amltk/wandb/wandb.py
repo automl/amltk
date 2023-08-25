@@ -16,7 +16,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from typing_extensions import Concatenate, ParamSpec, Self, TypeAlias
+from typing_extensions import Concatenate, ParamSpec, Self, TypeAlias, override
 
 import numpy as np
 import wandb
@@ -141,6 +141,7 @@ class WandbLiveRunWrap(Generic[P]):
             modify: A function that modifies the parameters of the wandb run
                 before each trial.
         """
+        super().__init__()
         self.params = params
         self.fn = fn
         self.modify = modify
@@ -189,13 +190,16 @@ class WandbTrialTracker(TaskPlugin):
             modify: A function that modifies the parameters of the wandb run
                 before each trial.
         """
+        super().__init__()
         self.params = params
         self.modify = modify
 
+    @override
     def attach_task(self, task: Task) -> None:
         """Use the task to register several callbacks."""
         self._check_explicit_reinit_arg_with_executor(task.scheduler)
 
+    @override
     def pre_submit(
         self,
         fn: Callable[P, R],
@@ -209,7 +213,6 @@ class WandbTrialTracker(TaskPlugin):
 
         Args:
             fn: The target function.
-            trial: The trial to run.
             args: The positional arguments of the target function.
             kwargs: The keyword arguments of the target function.
 
@@ -220,6 +223,7 @@ class WandbTrialTracker(TaskPlugin):
         fn = WandbLiveRunWrap(self.params, fn, modify=self.modify)  # type: ignore
         return fn, args, kwargs
 
+    @override
     def copy(self) -> Self:
         """Copy the plugin."""
         return self.__class__(modify=self.modify, params=replace(self.params))
@@ -278,6 +282,7 @@ class WandbPlugin:
             dir: The directory to store the runs in.
             mode: The mode to use for the runs.
         """
+        super().__init__()
         _dir = Path(project) if dir is None else Path(dir)
         _dir.mkdir(parents=True, exist_ok=True)
 

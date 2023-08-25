@@ -164,7 +164,7 @@ def classname(c: Any, default: str | None = None) -> str:
     if isinstance(c, type):
         return c.__name__
     if hasattr(c, "__class__"):
-        return c.__class__.__name__
+        return str(c.__class__.__name__)
     if default is not None:
         return default
     return str(c)

@@ -149,8 +149,7 @@ pipeline = Pipeline.create(
     )
 )
 
-space = pipeline.space()
-config = pipeline.sample(space)
+config = pipeline.sample()
 configured_pipeline = pipeline.configure(config)
 
 # `builder=` is optional, we can detect it's an sklearn pipeline.

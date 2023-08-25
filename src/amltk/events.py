@@ -139,6 +139,11 @@ class Subscriber(Generic[P]):
     manager: EventManager
     event: Event[P] | Hashable
 
+    @property
+    def count(self) -> int:
+        """The number of times this event has been emitted."""
+        return self.manager.counts[self.event]
+
     @overload
     def __call__(
         self,
