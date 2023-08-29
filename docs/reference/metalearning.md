@@ -189,7 +189,7 @@ distances = dataset_distance(
 print(distances)
 ```
 
-While `#!python "dataset_3"` is still considered more similar, the difference between the two is a lot less
+Now `#!python "dataset_3"` is considered more similar but the difference between the two is a lot less
 dramatic. In general, applying some scaling to values of different scales is required for metalearning.
 
 You can also use an [sklearn.preprocessing.MinMaxScaler][] or anything other scaler from scikit-learn
