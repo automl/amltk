@@ -15,6 +15,10 @@ import numpy.typing as npt
 _norm = np.linalg.norm
 
 DistanceMetric: TypeAlias = Callable[[npt.ArrayLike, npt.ArrayLike], float]
+"""A metric used for calculating distances.
+
+Takes two arrays-like objects and returns a float.
+"""
 
 
 def pnorm(
@@ -34,7 +38,7 @@ def pnorm(
     * [`l2_distance()`][amltk.distances.l2_distance]
     * [`linf_distance()`][amltk.distances.linf_distance]
 
-    !!! tip "partial"
+    !!! tip "Using a `partial`"
 
         To use this function with
         [`dataset_distance()`][amltk.metalearning.dataset_distance],
@@ -134,8 +138,23 @@ See Also:
 """
 
 euclidean_distance = l2_distance
+"""Calculates the euclidean distance between each column in x and y.
+
+Same as [`l2_distance()`][amltk.distances.l2_distance].
+"""
 
 NamedDistance: TypeAlias = Literal["l1", "l2", "euclidean", "cosine", "max"]
+"""Predefined distance metrics.
+
+Possible values are:
+
+* `"l1"`: [`l1_distance()`][amltk.distances.l1_distance]
+* `"l2"`: [`l2_distance()`][amltk.distances.l2_distance]
+* `"euclidean"`: [`euclidean_distance()`][amltk.distances.euclidean_distance]
+* `"cosine"`: [`cosine_distance()`][amltk.distances.cosine_distance]
+* `"max"`: [`linf_distance()`][amltk.distances.linf_distance]
+"""
+
 distance_metrics: dict[NamedDistance, DistanceMetric] = {
     "l1": l1_distance,
     "l2": l2_distance,
