@@ -321,12 +321,16 @@ it's syntax for defining a search space, but check out our built-in
     is we can [`build()`][amltk.pipeline.Component.build] into a useable object, i.e.
     the `RandomForestClassifier`.
 
-!!! hint "Transforming Config Values at Build Time"
+??? hint "Transforming Config Values at Build Time"
 
     Sometimes you'll have to apply some transform to a config before it can be passed
-    to the `.item`, e.g. the `RandomForestClassifier` above. For examle, imagine you have:
+    to the `.item`, e.g. the `RandomForestClassifier` above. This can happen when parameters
+    sampled from your search space require some transofrmation based on some relevant context,
+    e.g. then number of features of a given dataset.
 
-    ```python hl_lines="6 7 14" exec="true" source="material-block" result="python" title="config_transform="
+    For example, imagine you have:
+
+    ```python hl_lines="6 7 13" exec="true" source="material-block" result="python" title="config_transform="
     from typing import Mapping
 
     from amltk.pipeline import step
@@ -352,7 +356,7 @@ it's syntax for defining a search space, but check out our built-in
     ```
 
     Suppose you have your own custom max features to choose, perhaps raising
-    the number of features to some power between 0.0 and 1.0. Here it's data-dependant
+    the number of features to some power between `0.0` and `1.0`. Here it's data-dependant
     and we need some `transform_context=` to give to the transform function
 
     ```python hl_lines="6 7 8 9 10 15 16 22" exec="true" source="material-block" result="python" title="Transform config with context"
@@ -539,11 +543,10 @@ For this section, we will focus on an `SVM` with a
         This will return the first step in the chain but with anything after
         that attached to it.
 
-    ```python hl_lines="7"
+    ```python hl_lines="6"
     from amltk import step
 
     standard_scalaer = step("standard", StandardScaler)
-
     svm = step("svm", SVC, space={"C": (0.1, 10.0)})
 
     head = standard_scaler | svm
@@ -558,15 +561,16 @@ For this section, we will focus on an `SVM` with a
         one step follows another. On the highlighted line, you
         can see it in action.
 
-    ```python hl_lines="10"
+    ```python hl_lines="11"
     from amltk.pipeline import Pipeline
     from sklearn.svm import SVC
-    from sklearn.preprocessing import StandarScaler
+    from sklearn.impute import SimpleImputer
 
     pipeline = Pipeline.create(
         step(
-          "standard",
-          StandardScaler
+            "impute"
+            SimpleImputer,
+            space={"strategy": ["most_frequent", "mean"]},
         )
         | step(
             "svm",
@@ -584,7 +588,7 @@ For this section, we will focus on an `SVM` with a
         Using the `|` operator, we can easily begin to extend and modify
         our pipeline defintion.
 
-    ```python hl_lines="7 8 9 10 11 12 13"
+    ```python hl_lines="12"
     from amltk.pipeline import Pipeline
     from sklearn.svm import SVC
     from sklearn.preprocessing import StandarScaler
@@ -594,9 +598,7 @@ For this section, we will focus on an `SVM` with a
         step(
             "impute"
             SimpleImputer,
-            space={
-                "strategy": ["most_frequent", "mean"],
-            },
+            space={"strategy": ["most_frequent", "mean"]},
         )
         | step("scaler", StandardScaler),
         | step(
@@ -815,7 +817,7 @@ implementation you are interested in.
 
 === "Creating the `Split`"
 
-    ```python hl_lines="35 36 37 38 39 40 41 42 43"
+    ```python hl_lines="36 37 38 39 40 41 42 43 44 45 46"
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, RobustScaler, StandardScaler, OneHotEncoder
     from sklearn.compose import ColumnTransformer, make_column_selector
@@ -873,7 +875,7 @@ implementation you are interested in.
     2. Much the same as the line above except we select all numerical
        columns and send them to the `#!python "numerical"` path in the
        split.
-    3. This is how you implement a `#!python "passthrough"` in an sklearn
+    3. This is how you implement a `"passthrough"` in an sklearn
        Pipeline, such that no transformation is applied to the "#!python remainder".
 
     Notice above that we grouped each path, giving them a unique name to match to,
@@ -916,13 +918,13 @@ implementation you are interested in.
                     "scaler",
                     step("standard", StandardScaler),
                     step("minmax", MinMaxScaler),
-                    step("passthrough", FunctionTransformer),  # (3)!
+                    step("passthrough", FunctionTransformer),
                 )
             )
             item=ColumnTransformer,
             config={
-                "categorical": make_column_selector(dtype_include=object),  # (1)!
-                "numerical": make_column_selector(dtype_include=np.number),  # (2)!
+                "categorical": make_column_selector(dtype_include=object),
+                "numerical": make_column_selector(dtype_include=np.number),
             }
     )
     ```

@@ -18,7 +18,7 @@ def the_anwser(a: int, b: int, c: int) -> int:
     return the_answer
 
 scheduler = Scheduler(executor=...)
-task = Task(compute_42, scheduler, ...)
+task = Task(the_answer, scheduler, ...)
 
 @scheduler.on_start
 def start_computing() -> None:
