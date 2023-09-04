@@ -1,7 +1,7 @@
 """Calculate distances between datasets based on metafeatures.
 
 Please see the reference section on
-[Metalearning](../../../../reference/metalearning) for more!
+[Metalearning](site:reference/metalearning.md) for more!
 """
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def dataset_distance(  # noqa: C901, PLR0912
     """Calculates the distance between a target dataset and a set of datasets.
 
     This uses the metafeatures of the datasets to calculate the distance.
-    Take a look at [`metalearning`](../../../../reference/metalearning) for more
+    Take a look at [`metalearning`](site:reference/metalearning.md) for more
     information on computing metafeatures for datasets.
 
     Args:

@@ -6,9 +6,9 @@ Welcome to the AutoML-Toolkit framework docs.
 
 Check out the bottom of this page for a [quick start](#quick-start),
 or for a more thorough understanding of
-all that AutoML-Toolkit has to offer, check out our [guides](./guides).
+all that AutoML-Toolkit has to offer, check out our [guides](guides/index.md).
 
-You can also check out [examples](./examples) for copy-pastable
+You can also check out [examples](examples/index.md) for copy-pastable
 snippets to start from.
 
 ## What is AutoML-Toolkit?
@@ -29,23 +29,26 @@ allowing you to define, search and build machine learning systems.
 -   :octicons-package-dependents-16: __Minimal Dependencies__
 
     AutoML-Toolkit was designed to not introduce dependencies on your code.
-    We support some [integrations](./integrations) but only if they are optionally installed!.
+    We support some [integrations](reference/index.md) but only if they are optionally installed!.
 
 ---
 
 -   :material-connection: __Plug-and-play__
 
     We can't support all frameworks, and thankfully we don't have to. AutoML-Toolkit was
-    designed to be plug-and-play. Integrate in your own [optimizers](LINK_TO_OPTIMIZERS),
-    [search spaces](LINK_TO_SEARCH_SPACES), [backends](LINK_TO_BACKENDS), [builders](LINK_TO_BUILDERS)
-    and more. All of our [integrations](./integrations) are built using this same API.
+    designed to be plug-and-play. Integrate in your own
+    [optimizers](reference/index.md#optimizers),
+    [search spaces](reference/index.md#search-spaces),
+    [backends](reference/index.md#scheduler-executors),
+    [builders](reference/index.md#pipeline-builders)
+    and more. All of our [reference](reference/index.md) are built using this same API.
 
 ---
 
 -   :material-tune-vertical-variant: __Event Driven__
 
     AutoML-Toolkit is event driven, meaning you write code that reacts to
-    [events](doc_to_events) as they happen. You can ignore, extend and create
+    [events](guides/tasks.md#events) as they happen. You can ignore, extend and create
     new events that have meaning to the systems you build.
     This enables tools built from AutoML-Toolkit to support greater forms
     of interaction, automation and deployment.
@@ -55,8 +58,8 @@ allowing you to define, search and build machine learning systems.
 -   :material-directions-fork: __Task Agnostic__
 
     AutoML-Toolkit is task agnostic, meaning you can use it for any machine learning task.
-    We provide a set of [common tasks](./tasks) which you can extend with [events](doc_to_events)
-    and functionality specific to the tasks you care about.
+    We provide a base [task](guides/tasks.md) which you can extend with
+    [events](guides/tasks.md#events) and functionality specific to the tasks you care about.
 
 ---
 
@@ -64,7 +67,7 @@ allowing you to define, search and build machine learning systems.
 
     AutoML-Toolkit is a community driven project, and we want to hear from you. We
     are always looking for new contributors, so if you have an idea or want to
-    contribute, please [get in touch](./contributing.md).
+    contribute, please [get in touch](contributing.md).
 
 ---
 
@@ -127,9 +130,9 @@ What you can use it for depends on what you want to do.
     3. Want to quickly set something constant? Use the `config` argument to set a value and remove it from the space
      automatically.
     4. Parse out the search space for the pipeline, let `amltk` figure it out
-      or choose your own [`parse(parser=...)`](./integrations)
+      or choose your own [`parse(parser=...)`](reference/index.md)
     5. Let `amltk` figure out what kind of pipeline you want, but you can also
-      specify your own [`build(builder=...)`](./integrations)
+      specify your own [`build(builder=...)`](reference/index.md)
     6. Sample a configuration from the search space.
     7. Configure the pipeline with a configuration.
 

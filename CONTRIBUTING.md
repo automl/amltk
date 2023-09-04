@@ -223,7 +223,7 @@ which will open your webbrowser and run `mkdocs --serve` to watch all files
 and live update any changes that occur.
 
 ### Examples
-The [`./examples`](./examples) folder is where you can find our runnable
+The [`./examples`](examples/index.md) folder is where you can find our runnable
 examples for AutoML-ToolKit.
 
 When generating the documentation locally, the `just docs` command will

@@ -1,7 +1,7 @@
 """Metafeatures for use in metalearning.
 
 Please see the reference section on
-[Metalearning](../../../../reference/metalearning) for more!
+[Metalearning](site:reference/metalearning.md) for more!
 """
 from __future__ import annotations
 

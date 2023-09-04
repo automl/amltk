@@ -255,7 +255,7 @@ configurable spaces.
 
 !!! example "Integration"
 
-    Check out the [SMAC integration page](../../integrations/smac)
+    Check out the [SMAC integration page](site:reference/smac.md)
 
     Install with `pip install smac`
 
@@ -268,7 +268,7 @@ is widely used and popular.
 
 !!! example "Integration"
 
-    Check out the [Optuna integration page](../../integrations/optuna#optimizer).
+    Check out the [Optuna integration page](site:integrations/optuna.md#optimizer).
 
     Install with `pip install optuna`
 

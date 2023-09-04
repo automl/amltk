@@ -843,7 +843,7 @@ of tasks, with the possibility to create their own custom events to hook
 into.
 
 If the functionality doesn' suffices, you can also take a look at
-the available plugins in the [Reference](../reference) which are
+the available plugins in the [Reference](site:reference/index.md) which are
 a way to extend and modify the capabilities of tasks, as well
 as introduce new custom events.
 

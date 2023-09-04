@@ -26,8 +26,8 @@ to create an ensemble using the
     https://www.cs.cornell.edu/~caruana/ctp/ct.papers/caruana.icml04.icdm06long.pdf
 
 This makes heavy use of the pipelines and the optimization faculties of
-amltk. You can fine the [pipeline guide here](../../guides/pipelines)
-and the [optimization guide here](../../guides/optimization) to learn more.
+amltk. You can fine the [pipeline guide here](site:guides/pipelines.md)
+and the [optimization guide here](site:guides/optimization.md) to learn more.
 
 You can skip the imports sections and go straight to the
 [pipeline definition](#pipeline-definition).
@@ -74,7 +74,12 @@ and encode the labels.
 
 
 def get_dataset(seed: int) -> tuple[np.ndarray, ...]:
-    dataset = openml.datasets.get_dataset(31)
+    dataset = openml.datasets.get_dataset(
+        31,
+        download_qualities=False,
+        download_features_meta_data=False,
+        download_data=True,
+    )
     X, y, _, _ = dataset.get_data(
         dataset_format="dataframe",
         target=dataset.default_target_attribute,
@@ -94,7 +99,7 @@ def get_dataset(seed: int) -> tuple[np.ndarray, ...]:
 
 
 # 1. We use the `#!python split_data()` function from the
-#   [sklearn integrations](../../sklearn) to split the data into
+#   [sklearn integrations](site:reference/sklearn.md) to split the data into
 #   a custom amount of splits, in this case
 #   `#!python "train", "val", "test"`. You could also use the
 #   dedicated [`train_val_test_split()`][amltk.sklearn.data.train_val_test_split]
@@ -107,7 +112,7 @@ different paths, and then combines them back together before passing them to
 a choice of classifier between a Random Forest, Support Vector Machine, and
 Multi-Layer Perceptron.
 
-For more on definitions of pipelines, see the [Pipeline](../../guides/pipeline)
+For more on definitions of pipelines, see the [Pipeline](site:guides/pipeline.md)
 guide.
 """
 pipeline = Pipeline.create(
@@ -215,7 +220,7 @@ We make use of a [`PathBucket`][amltk.store.PathBucket]
 to store and load the data, and the `Pipeline` we defined above to
 configure the pipeline with the hyperparameters we are optimizing over.
 
-For more details, please check out the [Optimization](../../guides/optimization)
+For more details, please check out the [Optimization](site:guides/optimization.md)
 guide for more details.
 """
 

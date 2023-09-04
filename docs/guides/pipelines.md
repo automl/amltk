@@ -1,9 +1,10 @@
+# Pipelines Guide
 AutoML-toolkit was built to support future development of AutoML systems and
 a central part of an AutoML system is its Pipeline. The purpose of this
 guide is to help you understand all the utility AutoML-toolkit can
 provide to help you define your pipeline. We will do this by introducing concepts
 from the ground up, rather than top down.
-Please see [examples](./examples) if you would rather see copy-pastable examples.
+Please see [examples](site:examples/index.md) if you would rather see copy-pastable examples.
 
 ---
 
@@ -214,9 +215,9 @@ is for what comes next.
 
 In any machine learning pipeline, we often wish to optimize some hyperparameters
 of our model. For this we actually need to define some hyperparameters. For
-this example, we will be using [`ConfigSpace`](../reference//configspace.md) and
+this example, we will be using [`ConfigSpace`](site:reference/configspace.md) and
 it's syntax for defining a search space, but check out our built-in
-[integrations](integrations) for more.
+[integrations](site:reference/index.md#search-spaces) for more.
 
 === "Definition"
 
@@ -519,7 +520,7 @@ produce a valid pipeline implementation out of it.
 There are also sometimes things you want to associate and search
 alongside with your pipeline but are not necessarily part of
 the DAG structure of `Pipeline`. For this reason we also
-provide [`modules`](modules), which
+provide [`modules`](#modules), which
 will be part of the space returned by `space()` and configured
 by `configure()` for you.
 
@@ -652,14 +653,14 @@ For this section, we will focus on an `SVM` with a
     but is by no means a complete introduction. We
     recommend checking out the following sections to learn more:
 
-    * [Choices](choices) to create heirarchical definitions with choices.
-    * [Splits](splits) to define components that split data into two parallel
+    * [Choices](#choices) to create heirarchical definitions with choices.
+    * [Splits](#splits) to define components that split data into two parallel
       subpipelines.
-    * [Modules](modules) to define components that are required for the pipeline
+    * [Modules](#modules) to define components that are required for the pipeline
       usage but not necassarily part of its DAG structure, e.g. a trainer
       for a neural network.
-    * [Subpipelines](sub-pipelines) to build a pipeline in a more flexible manner.
-    * [Operations](operations) supported by the pipeline for inspection
+    * [Subpipelines](#sub-pipelines) to build a pipeline in a more flexible manner.
+    * [Operations](#operations) supported by the pipeline for inspection
       and modification of existing pipelines.
 
 
@@ -667,7 +668,7 @@ For this section, we will focus on an `SVM` with a
 Assuming we know how to create a `Component` using [`step()`][amltk.pipeline.api.step],
 we will look at the how to define choices. It's worth noting
 that choices are only possible with search spaces that support
-it. Check out our [integrated search spaces](../integrations#search-spaces)
+it. Check out our [integrated search spaces](site:reference/index.md#search-spaces)
 to find out which implementations do.
 
 Lets start by first defining a choice between two algorithms,
@@ -743,7 +744,7 @@ Some extra things to know about a [`Choice`][amltk.pipeline.Choice] made
 from [`choice()`][amltk.pipeline.choice].
 * You can pass weights to `choice(..., weights=...)`, where the `weights` are
   the same length and same order as the steps in the choice. These weights
-  will be encoded into the [search space if possible](../integrations).
+  will be encoded into the [search space if possible](site:reference/#search-spaces).
 * There is no (sane) limit to the number of choices you can have.
 
 ## Splits
@@ -1031,3 +1032,6 @@ trainer = pipeline.modules["trainer"].build()  # (3)!
  to the pipeline.
 3. As the module `#!python "trainer"` was configured along with the pipeline,
  it's `config` has been set and we can call `build()` on it.
+
+## Operations
+TODO

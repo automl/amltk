@@ -10,7 +10,12 @@ Calculating meta-features of a dataset is quite straight foward.
 import openml
 from amltk.metalearning import compute_metafeatures
 
-dataset = openml.datasets.get_dataset(31)  # credit-g
+dataset = openml.datasets.get_dataset(
+    31,  # credit-g
+    download_data=True,
+    download_features_meta_data=False,
+    download_qualities=False,
+)
 X, y, _, _ = dataset.get_data(
     dataset_format="dataframe",
     target=dataset.default_target_attribute,
@@ -32,7 +37,12 @@ To implement your own is also quite straight forward:
 from amltk.metalearning import MetaFeature, compute_metafeatures
 import openml
 
-dataset = openml.datasets.get_dataset(31)  # credit-g
+dataset = openml.datasets.get_dataset(
+    31,  # credit-g
+    download_data=True,
+    download_features_meta_data=False,
+    download_qualities=False,
+)
 X, y, _, _ = dataset.get_data(
     dataset_format="dataframe",
     target=dataset.default_target_attribute,
@@ -66,7 +76,12 @@ they can be re-used across all `MetaFeature`s that require that dependancy.
 from amltk.metalearning import MetaFeature, DatasetStatistic, compute_metafeatures
 import openml
 
-dataset = openml.datasets.get_dataset(31)  # credit-g
+dataset = openml.datasets.get_dataset(
+    31,  # credit-g
+    download_data=True,
+    download_features_meta_data=False,
+    download_qualities=False,
+)
 X, y, _, _ = dataset.get_data(
     dataset_format="dataframe",
     target=dataset.default_target_attribute,
@@ -137,7 +152,12 @@ import openml
 from amltk.metalearning import compute_metafeatures
 
 def get_dataset(dataset_id: int) -> tuple[pd.DataFrame, pd.Series]:
-    dataset = openml.datasets.get_dataset(dataset_id)
+    dataset = openml.datasets.get_dataset(
+        dataset_id,
+        download_data=True,
+        download_features_meta_data=False,
+        download_qualities=False,
+    )
     X, y, _, _ = dataset.get_data(
         dataset_format="dataframe",
         target=dataset.default_target_attribute,

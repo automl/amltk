@@ -288,5 +288,9 @@ for path in sorted(Path("examples").rglob("*.py")):
     nav[toc_name] = doc_path.as_posix()
     mkdocs_gen_files.set_edit_path(full_doc_path, path)
 
+lines = list(nav.build_literate_nav())
 with mkdocs_gen_files.open("examples/SUMMARY.md", "w") as nav_file:  #
-    nav_file.writelines(nav.build_literate_nav())  #
+    nav_file.writelines(lines)  #
+
+with mkdocs_gen_files.open("examples/index.md", "w") as index_file:
+    index_file.writelines(lines)  #

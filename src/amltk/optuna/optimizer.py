@@ -1,6 +1,6 @@
 """A thin wrapper around Optuna to make it easier to use with AutoMLToolkit.
 
-Check our [integration documentation](../../../../integrations/optuna#optimizer)
+Check our [integration documentation](site:reference/optuna.md#optimizer)
 for more information.
 """
 from __future__ import annotations
