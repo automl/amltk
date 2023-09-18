@@ -6,7 +6,7 @@ import math
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from itertools import chain
+from itertools import chain, product
 from typing import (
     Any,
     Callable,
@@ -373,17 +373,17 @@ class EventManager(Mapping[Event, EventHandler[Any]]):
         """Return a list of the events."""
         return list(self.handlers)
 
-    def on(
+    def on(  # noqa: C901
         self,
-        event: Event[P] | tuple[Event[P], ...],
-        callback: Callable,
+        event: Event[P] | Iterable[Event[P] | Subscriber[P]] | Subscriber[P],
+        callback: Callable | Iterable[Callable],
         *,
         name: str | None = None,
         when: Callable[[], bool] | None = None,
         every: int | None = None,
         repeat: int = 1,
         limit: int | None = None,
-    ) -> str:
+    ) -> None:
         """Register a callback for an event.
 
         Args:
@@ -399,9 +399,6 @@ class EventManager(Mapping[Event, EventHandler[Any]]):
                 successively.
             limit: The maximum number of times the callback can be
                 called.
-
-        Returns:
-            The name of the callback.
         """
         if repeat <= 0:
             raise ValueError(f"{repeat=} must be a positive integer.")
@@ -416,22 +413,35 @@ class EventManager(Mapping[Event, EventHandler[Any]]):
                 "Use a predicate instead.",
             )
 
-        if name is None:
-            name = funcname(callback)
-
         every_pred = None
         if every is not None and every <= 0:
+            if isinstance(event, Subscriber):
+                event = event.event
+
             assert isinstance(event, Event)
             every_pred = lambda *a, **k: self.counts[event] % every == 0  # noqa: ARG005
 
         combined_predicate = ChainPredicate() & every_pred & when  # type: ignore
 
-        events = [event] if isinstance(event, Event) else list(event)
+        # This hackery is just to get down to a flat list of events
+        def _get_events(
+            e: Event[P] | Subscriber[P] | Iterable[Event[P] | Subscriber[P]],
+        ) -> Iterator[Event[P]]:
+            _e = e.event if isinstance(e, Subscriber) else e
 
-        for e in events:
+            if isinstance(_e, Event):
+                yield _e
+            else:
+                for __e in _e:
+                    yield from _get_events(__e)
+
+        all_events: list[Event] = list(_get_events(event))
+
+        callbacks = [callback] if callable(callback) else list(callback)
+        for e, cb in product(all_events, callbacks):
             self.handlers[e].add(
-                name,
-                callback,
+                funcname(cb) if name is None else name,
+                cb,
                 when=combined_predicate,
                 repeat=repeat,
                 limit=limit,
@@ -445,8 +455,6 @@ class EventManager(Mapping[Event, EventHandler[Any]]):
             if repeat > 1:
                 msg += f" called {repeat} times successively"
             logger.debug(msg)
-
-        return name
 
     def emit(
         self,
@@ -628,7 +636,12 @@ class Emitter:
         self.event_manager = event_manager
         self.emitted_events: set[Event] = set()
 
-    def emit(self, event: Event[P], *args: P.args, **kwargs: P.kwargs) -> None:
+    def emit(
+        self,
+        event: Event[P] | Iterable[Event[P]],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> None:
         """Emit an event.
 
         Args:
@@ -636,7 +649,11 @@ class Emitter:
             args: The positional arguments to pass to the event handlers.
             kwargs: The keyword arguments to pass to the event handlers.
         """
-        self.event_manager.emit(event, *args, **kwargs)
+        if isinstance(event, Event):
+            self.event_manager.emit(event, *args, **kwargs)
+            return
+
+        self.event_manager.emit_many({e: (args, kwargs) for e in event})
 
     def emit_many(
         self,
@@ -694,3 +711,92 @@ class Emitter:
         ```
         """
         return dict(self.event_manager.counts)
+
+    @overload
+    def on(
+        self,
+        event: Event[P] | Subscriber[P] | Iterable[Event[P] | Subscriber[P]],
+        callback: None = None,
+        *,
+        name: str | None = ...,
+        when: Callable[[], bool] | None = ...,
+        every: int | None = ...,
+        repeat: int = ...,
+        limit: int | None = ...,
+    ) -> SubcriberDecorator[P]:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: Event[P] | Subscriber[P] | Iterable[Event[P] | Subscriber[P]],
+        callback: Callable | Iterable[Callable],
+        *,
+        name: str | None = ...,
+        when: Callable[[], bool] | None = ...,
+        every: int | None = ...,
+        repeat: int = ...,
+        limit: int | None = ...,
+    ) -> None:
+        ...
+
+    def on(
+        self,
+        event: Event[P] | Subscriber[P] | Iterable[Event[P] | Subscriber[P]],
+        callback: Callable | Iterable[Callable] | None = None,
+        *,
+        name: str | None = None,
+        when: Callable[[], bool] | None = None,
+        every: int | None = None,
+        repeat: int = 1,
+        limit: int | None = None,
+    ) -> None | SubcriberDecorator[P]:
+        """Register a callback for an event.
+
+        If used as a decorator, then the function will be registered as the callback.
+
+        Args:
+            event: The event to register the callback for.
+            callback: The callback to register. If `None`, then this
+                method will act as a decorator.
+            name: The name of the callback. If not provided, then the
+                name of the callback is used.
+            when: A predicate that must be satisfied for the callback
+                to be called.
+            every: The callback will be called every `every` times
+                the event is emitted.
+            repeat: The callback will be called `repeat` times
+                successively.
+            limit: The maximum number of times the callback can be
+                called.
+        """
+        # Used as a decorator
+        if callback is None:
+            all_events: list[Event] = []
+            for e in [event] if isinstance(event, (Event, Subscriber)) else event:
+                _e = e.event if isinstance(e, Subscriber) else e
+                if isinstance(_e, Event):
+                    all_events.append(_e)
+                else:
+                    all_events += list(_e)
+
+            return SubcriberDecorator(
+                manager=self.event_manager,
+                event=tuple(all_events),
+                name=name,
+                when=when,
+                limit=limit,
+                repeat=repeat,
+                every=every,
+            )
+
+        self.event_manager.on(
+            event,
+            callback,
+            name=name,
+            when=when,
+            every=every,
+            repeat=repeat,
+            limit=limit,
+        )
+        return None

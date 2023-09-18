@@ -25,11 +25,11 @@ def start_computing() -> None:
     task(1, 2, 3)
 
 @task.on_returned
-def print_answer_found(the_answer: int) -> None:
+def print_answer_found(_, the_answer: int) -> None:
     print(f"{the_answer} was found!")
 
 @task.on_exception
-def print_exception(exception: BaseException) -> None:
+def print_exception(_, exception: BaseException) -> None:
     print(f"Finding the answer failed: {exception}")
 
 scheduler.run()
@@ -61,7 +61,10 @@ whose sole purpose is to allow you to do two things:
 
 
     ```python
-    from amltk.events import EventManager
+    from amltk.events import EventManager, Event
+
+    event_manager = EventManager(name="manager-name")
+    hello = Event("hello")
 
     def f(a: int, b: str, c: float) -> None:
         ...
@@ -72,75 +75,65 @@ whose sole purpose is to allow you to do two things:
     def h(a: int, b: str, c: float) -> None:
         ...
 
-    event_manager = EventManager(name="manager-name")
-
-    # Subscribe the callbacks to the "hello" event
-    event_manager.on("hello", f)
-    event_manager.on("hello", g)
-    event_manager.on("hello", h)
+    # Subscribe the callbacks to the hello event
+    event_manager.on(hello, f)
+    event_manager.on(hello, g)
+    event_manager.on(hello, h)
 
     # ... some time later
 
     # Will call all functions subscribed to the hello event
-    event = "hello"
-    event_manager.emit(event, 10, "world", 3.14)
+    event_manager.emit(hello, 10, "world", 3.14)
     ```
 
-We can technically define any [`Hashable`][typing.Hashable] object as an event, such as `#!python "hello"`,
-but typically we create an [`Event`][amltk.events.Event] object. By themselves they don't add much
-but when using python's
-typing and mypy/pyright, this let's us make sure the callbacks
-registered to an event are compatible with the arguments passed to
+We create an [`Event`][amltk.events.Event] object to explicitly reference events (and not just use strings).
+By themselves they don't add much but when using python's typing and mypy/pyright, this let's us make sure
+the callbacks registered to an event are compatible with the arguments passed to
 [`emit`][amltk.events.EventManager.emit].
 
-=== "Creating an Event"
+## Emitters
+We usually refer to certain objects as being an [`Emitter`][amltk.events.Emitter], meaning they have certain
+events that can be subcribed to with callbacks. This covers a lot of the integrations that are needed for
+emitting events.
 
-    ```python hl_lines="11"
-    from amltk.events import EventManager, Event
+```python hl_lines="4 5 8 9 14 22"
+from amltk.events import Event, Emitter
+import random
 
-    def f(a: int, b: str, c: float) -> None:
-        ...
+class Clapper(Emitter):
+    CLAP: Event[float] = Event("clap")  # (5)!
 
-    def h(x: str) -> None:
-        ...
+    def __init__(self):
+        super().__init__(event_manager="clapper") # (1)!
+        self.on_clap = self.subscriber(self.CLAP)  # (2)!
 
-    event_manager = EventManager(name="manager-name")
+    def maybe_clap(self) -> None:
+        if random.choice([True, False]):
+            sound_level = random.uniform(0, 1)
+            self.on_clap.emit(sound_level)  # (3)!
 
-    event = Event(name="hello")
 
-    # Subscribe the callbacks to the "hello" event
-    event_manager.on(event, f)
-    event_manager.on(event, h)  # <--- This is not compatible with the emit below
+clapper = Clapper()
 
-    # ... some time later
-    event_manager.emit(event, 10, "world", 3.14)  # <--- Exception happens when `h` is called
-    ```
+def print_loudness(sound_level: float) -> None:
+    print(f"Clapped at volume {sound_level}")
 
-=== "Typed version"
+clapper.on_clap(print_loudness)  # (4)!
+```
 
-    ```python hl_lines="11"
-    from amltk.events import EventManager, Event
-
-    def f(a: int, b: str, c: float) -> None:
-        ...
-
-    def h(x: str) -> None:
-        ...
-
-    event_manager = EventManager(name="manager-name")
-
-    event: Event[int, str, float] = Event(name="hello")
-
-    # Subscribe the callbacks to the "hello" event
-    event_manager.on(event, f)
-    event_manager.on(event, h)  # <--- Mypy will tell you there's an error here
-
-    # ... some time later
-    event_manager.emit(event, 10, "world", 3.14)
-    ```
-
-There is some _sugar_ the `EventManager` provides but we will introduce
-them as we go along.
+1. You can pass the name of the manager which will be used for logs. It's also possible to
+pass in your own [`EventManager`][amltk.events.EventManager] if required.
+2. You can create your own [`Subscriber`][amltk.events.Subscriber] which is an easy way
+to create a callback handler and emit the events.
+3. You can directly use the [`Subscriber`][amltk.events.Subscriber] to emit the event!
+4. You can also use this as a decorator if preffered
+```python
+@clapper.on_clap
+def print_loudness(sound_level: float) -> None:
+    print(f"Clapped at volume {sound_level}")
+```
+5. By specifying `#!python Event[float]`, you're saying that when this event gets
+emitted, it will pass a `#!python float` to the callback.
 
 ## Scheduler
 The engine of AutoML-Toolkit is the [`Scheduler`][amltk.scheduling.Scheduler].
@@ -432,68 +425,6 @@ One example of this is `STARTED`, an event to signal the scheduler has started a
 accept tasks. We can subscribe to this event and trigger our callback with
 [`.on_start()`][amltk.scheduling.Scheduler.on_start].
 
-!!! info inline end "Events"
-
-    The `Scheduler` defines even more events which we can subscribe to:
-
-    ---
-    `STARTED` : [`.on_start()`][amltk.scheduling.Scheduler.on_start].
-
-    An event to signal that the scheduler is now up and running.
-
-    ---
-
-    `FINISHING` : [`on_finishing()`][amltk.scheduling.Scheduler.on_finishing]
-
-    An event to signal the scheduler is still running but is waiting for
-    currently running tasks to finish.
-
-    ---
-
-    `FINISHED` : [`on_finished()`][amltk.scheduling.Scheduler.on_finished]
-
-    An event to signal the scheduler is no longer running and this is
-    the last event it will emit.
-
-    ---
-
-    `EMPTY` : [`on_empty()`][amltk.scheduling.Scheduler.on_empty]
-
-    An event to signal that there is nothing currently running in the scheduler.
-
-    ---
-
-    `TIMEOUT` : [`on_timeout()`][amltk.scheduling.Scheduler.on_timeout]
-
-    An event to signal the scheduler has reached its time limit.
-
-    ---
-
-    `STOP` : [`on_stop()`][amltk.scheduling.Scheduler.on_stop]
-
-    An event to signal the scheduler has been stopped explicitly with
-    [`scheduler.stop()`][amltk.scheduling.Scheduler.stop].
-
-    ---
-
-    `FUTURE_SUBMITTED`: [`on_future_submitted()`][amltk.scheduling.Scheduler.on_future_submitted].
-
-    An event to signal a future has been submitted to the scheduler.
-
-    ---
-
-    `FUTURE_DONE`: [`on_future_done()`][amltk.scheduling.Scheduler.on_future_done].
-
-    An event to signal a future is done, having a result or an exception.
-
-    ---
-
-    `FUTURE_CANCELLED`: [`on_future_cancelled()`][amltk.scheduling.Scheduler.on_future_cancelled].
-
-    An event to signal that a future has been cancelled.
-
-    ---
-
 
 We provide two ways to do so, one with _decorators_ and another in a _functional_
 way.
@@ -566,6 +497,7 @@ the callback. You can find the full list of parameters [here][amltk.events.Subsc
     def print_hello() -> None:
         print("hello")
     ```
+
 === "`limit=`"
 
     Limit the number of times a callback can be called, after which, the callback
@@ -613,6 +545,47 @@ the callback. You can find the full list of parameters [here][amltk.events.Subsc
         print("hello")
     ```
 
+
+!!! info "Events"
+
+    The `Scheduler` defines even more events which we can subscribe to:
+
+    === "`on_start()`"
+
+        ::: amltk.scheduling.Scheduler.on_start
+
+    === "`on_finishing()`"
+
+        ::: amltk.scheduling.Scheduler.on_finishing
+
+    === "`on_finished()`"
+
+        ::: amltk.scheduling.Scheduler.on_finished
+
+    === "`on_empty()`"
+
+        ::: amltk.scheduling.Scheduler.on_empty
+
+    === "`on_timeout()`"
+
+        ::: amltk.scheduling.Scheduler.on_timeout
+
+    === "`on_stop()`"
+
+        ::: amltk.scheduling.Scheduler.on_stop
+
+    === "`on_future_submitted()`"
+
+        ::: amltk.scheduling.Scheduler.on_future_submitted
+
+    === "`on_future_done()`"
+
+        ::: amltk.scheduling.Scheduler.on_future_done
+
+    === "`on_future_cancelled()`"
+
+        ::: amltk.scheduling.Scheduler.on_future_cancelled
+
 It's worth noting that even though we are using an event based system, we
 are still guaranteed deterministic execution of the callbacks for any given
 event. The source of indeterminism is the order in which the events are
@@ -622,31 +595,6 @@ We can access all the counts of all events through the
 [`scheduler.event_counts`][amltk.events.Emitter.event_counts] property.
 This is a `dict` which has the events as keys and the amount of times
 it was emitted as the values.
-
-??? info "Unnecessary Details"
-
-    While not necessary to know, `on_start` is actually a callable object
-    called a [`Subscriber`][amltk.events.Subscriber].
-
-    You can create one of these quite easily!
-
-    ```python hl_lines="3 6"
-    from amltk.events import EventManager, Event
-
-    USER_JOINED: Event[str] = Event("user-joined")  # (1)!
-
-    event_manager = EventManager(name="event_manager")
-    on_user_joined = event_manager.subscriber(USER_JOINED)
-
-    @on_user_joined
-    def print_hello(username: str) -> None:
-        print(f"hello {username}, welcome!")
-
-    on_user_joined.emit("john")
-    ```
-
-    1. We define our event with a type parameter to specify the type of
-    data we will pass to the callback.
 
 
 ### Running and Stopping the Scheduler
@@ -673,27 +621,6 @@ the scheduler finished.
     exit_code = scheduler.run()
     ```
 
-=== "`stop()`"
-
-    We can always forcibly stop the scheduler with
-    [`stop()`][amltk.scheduling.Scheduler.stop], whether it be in a callback
-    or elsewhere.
-
-    ```python hl_lines="7"
-    from amltk.scheduling import Scheduler
-
-    scheduler = Scheduler(...)
-
-    @scheduler.on_start
-    def stop_immediatly() -> None:
-        scheduler.stop()
-
-    scheduler.run()
-    ```
-
-
-=== "`run(timeout=...)`"
-
     You can set a timeout for the scheduler which means it will shutdown after
     `timeout=` seconds. We explicitly pass `end_on_empty=False` here to prevent
     the scheduler from shutting down due to being out of fuel. In this
@@ -708,8 +635,6 @@ the scheduler finished.
     exit_code = scheduler.run(timeout=10, end_on_empty=False)
     ```
 
-=== "`run(wait=...)`"
-
     We can also set `wait=False` to prevent the scheduler from waiting for
     currently running compute to finish if it stopped for whatever reason.
     In this case the scheduler will return attempt to shutdown the executor
@@ -723,8 +648,6 @@ the scheduler finished.
 
     scheduler.run(wait=False)
     ```
-
-=== "`run(end_on_exception=..., raises=...)`"
 
     By setting `end_on_exception` (default: `#!python True`), we can control what
     happens when an exception occurs in a [`Task`][amltk.scheduling.Task]. This
@@ -749,8 +672,6 @@ the scheduler finished.
         print(f"An exception occurred: {e}")
     ```
 
-=== "`run(end_on_empty=)`"
-
     By default the scheduler will end once it's queue is empty, as this normally means
     there will be no more events possible within the scheduler. To prevent this, pass
     `#!python end_on_empty=False`.
@@ -762,6 +683,33 @@ the scheduler finished.
 
     scheduler.run(end_on_empty=False)
     ```
+
+    ??? tip "`run()` API"
+
+        ::: amltk.scheduling.Scheduler.run
+
+=== "`stop()`"
+
+    We can always forcibly stop the scheduler with
+    [`stop()`][amltk.scheduling.Scheduler.stop], whether it be in a callback
+    or elsewhere.
+
+    ```python hl_lines="7"
+    from amltk.scheduling import Scheduler
+
+    scheduler = Scheduler(...)
+
+    @scheduler.on_start
+    def stop_immediatly() -> None:
+        scheduler.stop()
+
+    scheduler.run()
+    ```
+
+    ??? tip "`stop()` API"
+
+        ::: amltk.scheduling.Scheduler.stop
+
 
 === "`async_run()`"
 
@@ -780,6 +728,10 @@ the scheduler finished.
     # ... somewhere in your async code
     await scheduler.async_run()
     ```
+
+    ??? tip "`async_run()` API"
+
+        ::: amltk.scheduling.Scheduler.async_run
 
 ---
 

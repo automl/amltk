@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import warnings
+from asyncio import Future
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Hashable
 
@@ -92,7 +93,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
     task = Task(sleep_and_return, scheduler, name="sleep")
 
     @task.on_returned
-    def append_result(res: float) -> None:
+    def append_result(_: Future, res: float) -> None:
         results.append(res)
 
     @scheduler.on_start
@@ -102,13 +103,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
     end_status = scheduler.run(timeout=0.1, wait=True)
     assert results == [sleep_time]
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-        task.F_RETURNED: 1,
-    }
+    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,
@@ -145,18 +140,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
     assert results == []
 
     # We have a termination strategy for ProcessPoolExecutor and we know it
-    if isinstance(scheduler.executor, ProcessPoolExecutor):
-        expected_task_counts = {
-            task.SUBMITTED: 1,
-            task.F_SUBMITTED: 1,
-            task.F_CANCELLED: 1,
-        }
-    else:
-        expected_task_counts = {
-            task.SUBMITTED: 1,
-            task.F_SUBMITTED: 1,
-            task.F_CANCELLED: 1,
-        }
+    expected_task_counts = {task.SUBMITTED: 1, task.CANCELLED: 1}
 
     assert task.event_counts == expected_task_counts
 
@@ -190,21 +174,15 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
     task_2 = Task(sleep_and_return, scheduler, name="second")
 
     # Feed the output of task_1 into task_2
-    task_1.on_returned(lambda res: task_2(sleep_time=res))
-    task_1.on_returned(lambda res: results.append(res))
-    task_2.on_returned(lambda res: results.append(res))
+    task_1.on_returned(lambda _, res: task_2(sleep_time=res))
+    task_1.on_returned(lambda _, res: results.append(res))
+    task_2.on_returned(lambda _, res: results.append(res))
 
     scheduler.on_start(lambda: task_1(sleep_time=0.1))
 
     end_status = scheduler.run(wait=True)
 
-    expected_counts = {
-        task_1.SUBMITTED: 1,
-        task_1.F_SUBMITTED: 1,
-        task_1.DONE: 1,
-        task_1.RETURNED: 1,
-        task_1.F_RETURNED: 1,
-    }
+    expected_counts = {task_1.SUBMITTED: 1, task_1.DONE: 1, task_1.RETURNED: 1}
     assert task_1.event_counts == expected_counts
     assert task_2.event_counts == expected_counts
 
@@ -237,13 +215,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run(timeout=3, end_on_empty=False)
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-        task.F_RETURNED: 1,
-    }
+    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,

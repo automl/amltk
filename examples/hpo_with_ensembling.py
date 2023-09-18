@@ -37,6 +37,7 @@ You can skip the imports sections and go straight to the
 from __future__ import annotations
 
 import shutil
+from asyncio import Future
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -400,40 +401,40 @@ def launch_initial_tasks() -> None:
 
 
 @task.on_returned
-def tell_optimizer(report: Trial.Report) -> None:
+def tell_optimizer(future: Future, report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
 
 @task.on_returned
-def add_to_history(report: Trial.Report) -> None:
+def add_to_history(future: Future, report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
 
 
 @task.on_returned
-def launch_ensemble_task(report: Trial.Report) -> None:
+def launch_ensemble_task(future: Future, report: Trial.Report) -> None:
     """When a task successfully completes, launch an ensemble task."""
     if report.status is Trial.Status.SUCCESS:
         ensemble_task(trial_history, bucket)
 
 
 @task.on_returned
-def launch_another_task(_: Trial.Report) -> None:
+def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
     task(trial, bucket=bucket, pipeline=pipeline)
 
 
 @ensemble_task.on_returned
-def save_ensemble(ensemble: Ensemble) -> None:
+def save_ensemble(future: Future, ensemble: Ensemble) -> None:
     """When an ensemble task returns, save it."""
     ensembles.append(ensemble)
 
 
-@ensemble_task.on_exception
 @task.on_exception
-def print_ensemble_exception(exception: BaseException) -> None:
+@ensemble_task.on_exception
+def print_ensemble_exception(future: Future[Any], exception: BaseException) -> None:
     """When an exception occurs, log it and stop."""
     print(exception)
     scheduler.stop()

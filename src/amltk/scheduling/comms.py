@@ -22,7 +22,7 @@ from typing import (
     TypeVar,
     overload,
 )
-from typing_extensions import ParamSpec, TypeAlias
+from typing_extensions import ParamSpec, TypeAlias, override
 
 from more_itertools import first_true
 
@@ -33,7 +33,6 @@ from amltk.scheduling.task_plugin import TaskPlugin
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from concurrent.futures import Future
     from multiprocessing.connection import Connection
     from typing_extensions import Self
 
@@ -74,6 +73,7 @@ class Comm:
         Args:
             connection: The underlying Connection
         """
+        super().__init__()
         self.connection = connection
         self.id: CommID = id(self)
 
@@ -226,7 +226,7 @@ class Comm:
 
         task: Task = field(repr=False)
         comm: Comm = field(repr=False)
-        future: Future = field(repr=False)
+        future: asyncio.Future = field(repr=False)
         data: T
         identifier: CommID
 
@@ -260,14 +260,16 @@ class Comm:
                 create_comms: A function that creates a pair of communication
                     channels. Defaults to `Comm.create`.
             """
+            super().__init__()
             if create_comms is None:
                 create_comms = Comm.create
 
             self.create_comms = create_comms
             self.comms: dict[CommID, tuple[Comm, Comm]] = {}
-            self.communication_tasks: dict[Future, asyncio.Task] = {}
+            self.communication_tasks: dict[asyncio.Future, asyncio.Task] = {}
             self.task: Task
 
+        @override
         def attach_task(self, task: Task) -> None:
             """Attach the plugin to a task.
 
@@ -279,8 +281,9 @@ class Comm:
                 task: The task the plugin is being attached to.
             """
             self.task = task
-            task.on_f_submitted(self._establish_connection)
+            task.on_submitted(self._establish_connection)
 
+        @override
         def pre_submit(
             self,
             fn: Callable[P, R],
@@ -322,6 +325,7 @@ class Comm:
             self.comms[worker_comm.id] = (host_comm, worker_comm)
             return fn, args, kwargs
 
+        @override
         def copy(self) -> Self:
             """Return a copy of the plugin.
 
@@ -331,10 +335,10 @@ class Comm:
 
         def _establish_connection(
             self,
-            f: Future,
+            f: asyncio.Future,
             *args: Any,
             **kwargs: Any,
-        ) -> None:
+        ) -> Any:
             from amltk.optimization.trial import Trial
 
             trial = first_true(
@@ -360,7 +364,7 @@ class Comm:
 
         async def _communicate(
             self,
-            future: Future,
+            future: asyncio.Future,
             host_comm: Comm,
             worker_comm: Comm,
         ) -> None:
@@ -381,7 +385,7 @@ class Comm:
                     # When we recieve CLOSE, the task has signalled it's
                     # close and we emit a CLOSE event. This should break out
                     # of the loop as we expect no more signals after this point
-                    if data == Comm.Msg.Kind.CLOSE:
+                    if data is Comm.Msg.Kind.CLOSE:
                         self.task.emit(Comm.CLOSE)
                         break
 

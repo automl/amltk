@@ -23,6 +23,7 @@ You can skip the imports sections and go straight to the
 from __future__ import annotations
 
 from typing import Any
+from asyncio import Future
 
 import numpy as np
 import openml
@@ -59,7 +60,7 @@ def get_dataset(
     dataset = openml.datasets.get_dataset(
         dataset_id,
         download_data=True,
-        download_feature_meta_data=False,
+        download_features_meta_data=False,
         download_qualities=False,
     )
 
@@ -295,7 +296,7 @@ Here we use it to update the optimizer with the report we got.
 
 
 @task.on_returned
-def tell_optimizer(report: Trial.Report) -> None:
+def tell_optimizer(future: Future, report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
@@ -309,7 +310,7 @@ trial_history = History()
 
 
 @task.on_returned
-def add_to_history(report: Trial.Report) -> None:
+def add_to_history(future: Future, report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
 
@@ -325,7 +326,7 @@ a report. This will launch a new task as soon as one finishes.
 
 
 @task.on_returned
-def launch_another_task(_) -> None:
+def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
     task(trial, bucket=bucket, _pipeline=pipeline)
@@ -335,7 +336,7 @@ If something goes wrong, we likely want to stop the scheduler.
 """
 
 @task.on_exception
-def stop_scheduler_on_exception(_: Any) -> None:
+def stop_scheduler_on_exception(*_: Any) -> None:
     scheduler.stop()
 
 @task.on_cancelled

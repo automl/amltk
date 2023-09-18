@@ -268,5 +268,5 @@ class CallLimiter(Emitter, TaskPlugin):
             max_concurrent=self.max_concurrent,
         )
 
-    def _increment_call_count(self, _: Any) -> None:
+    def _increment_call_count(self, *_: Any, **__: Any) -> None:
         self._calls += 1

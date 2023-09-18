@@ -88,10 +88,8 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
 
     assert task.event_counts == {
         task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
         task.DONE: 1,
         task.EXCEPTION: 1,
-        task.F_EXCEPTION: 1,
         pynisher.MEMORY_LIMIT_REACHED: 1,
     }
 
@@ -124,10 +122,8 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
 
     assert task.event_counts == {
         task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
         task.DONE: 1,
         task.EXCEPTION: 1,
-        task.F_EXCEPTION: 1,
         pynisher.TIMEOUT: 1,
         pynisher.WALL_TIME_LIMIT_REACHED: 1,
     }
@@ -161,10 +157,8 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
 
     assert task.event_counts == {
         task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
         task.DONE: 1,
         task.EXCEPTION: 1,
-        task.F_EXCEPTION: 1,
         pynisher.TIMEOUT: 1,
         pynisher.CPU_TIME_LIMIT_REACHED: 1,
     }

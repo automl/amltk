@@ -114,11 +114,9 @@ def test_sending_worker(scheduler: Scheduler) -> None:
 
     task_counts: dict[Hashable, int] = {
         task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
         task.DONE: 1,
         task.RETURNED: 1,
         Comm.MESSAGE: len(replies),
-        task.F_RETURNED: 1,
         Comm.CLOSE: 1,
     }
     assert task.event_counts == task_counts
@@ -163,10 +161,8 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
 
     assert task.event_counts == {
         task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
         task.DONE: 1,
         task.RETURNED: 1,
-        task.F_RETURNED: 1,
         Comm.MESSAGE: len(results),
         Comm.REQUEST: len(requests),
         Comm.CLOSE: 1,

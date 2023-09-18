@@ -84,24 +84,17 @@ class Task(Generic[P, R], Emitter):
     """Whether to initialize the plugins or not."""
     queue: list[Future[R]]
     """The queue of futures for this task."""
-    on_f_submitted: Subscriber[Concatenate[Future[R], P]]
+
+    on_submitted: Subscriber[Concatenate[Future[R], P]]
     """An event that is emitted when a future is submitted to the
     scheduler. It will pass the future as the first argument with args and
     kwargs following.
 
     This is done before any callbacks are attached to the future.
     ```python
-    @task.on_f_submitted
-    def on_f_submitted(future: Future[R], *args, **kwargs):
-        print(f"Future {future} was submitted with {args=} and {kwargs=}")
-    ```
-    """
-    on_submitted: Subscriber[Future[R]]
-    """Called when a task is submitted to the scheduler.
-    ```python
     @task.on_submitted
-    def on_submitted(future: Future[R]):
-        print(f"Future {future} was submitted")
+    def on_submitted(future: Future[R], *args, **kwargs):
+        print(f"Future {future} was submitted with {args=} and {kwargs=}")
     ```
     """
     on_done: Subscriber[Future[R]]
@@ -120,49 +113,31 @@ class Task(Generic[P, R], Emitter):
         print(f"Future {future} was cancelled")
     ```
     """
-    on_f_returned: Subscriber[Future[R], R]
+    on_returned: Subscriber[Future[R], R]
     """Called when a task has successfully returned a value.
     Comes with Future
     ```python
-    @task.on_f_returned
-    def on_f_returned(future: Future[R], result: R):
+    @task.on_returned
+    def on_eturned(future: Future[R], result: R):
         print(f"Future {future} returned {result}")
     ```
     """
-    on_f_exception: Subscriber[Future[R], BaseException]
+    on_exception: Subscriber[Future[R], BaseException]
     """Called when a task failed to return anything but an exception.
     Comes with Future
     ```python
-    @task.on_f_exception
-    def on_f_exception(future: Future[R], error: BaseException):
+    @task.on_exception
+    def on_exception(future: Future[R], error: BaseException):
         print(f"Future {future} exceptioned {error}")
     ```
     """
-    on_returned: Subscriber[R]
-    """Called when a task has successfully returned a value.
-    ```python
-    @task.on_returned
-    def on_returned(result: R):
-        print(f"Task returned {result}")
-    ```
-    """
-    on_exception: Subscriber[BaseException]
-    """Called when a task failed to return anything but an exception.
-    ```python
-    @task.on_exception
-    def on_exception(error: BaseException):
-        print(f"Task exceptioned {error}")
-    ```
-    """
 
-    F_SUBMITTED: Event[...] = Event("task-future-submitted")
-    SUBMITTED: Event[Future[R]] = Event("task-submitted")
+    SUBMITTED: Event[Concatenate[Future[R], P]] = Event("task-submitted")
     DONE: Event[Future[R]] = Event("task-done")
-    F_CANCELLED: Event[Future[R]] = Event("task-cancelled")
-    F_RETURNED: Event[Future[R], R] = Event("task-future-returned")
-    RETURNED: Event[R] = Event("task-returned")
-    F_EXCEPTION: Event[Future[R], BaseException] = Event("task-future-exception")
-    EXCEPTION: Event[BaseException] = Event("task-exception")
+
+    CANCELLED: Event[Future[R]] = Event("task-cancelled")
+    RETURNED: Event[Future[R], R] = Event("task-returned")
+    EXCEPTION: Event[Future[R], BaseException] = Event("task-exception")
 
     def __init__(
         self: Self,
@@ -199,10 +174,7 @@ class Task(Generic[P, R], Emitter):
         self.on_done = self.subscriber(self.DONE)
         self.on_returned = self.subscriber(self.RETURNED)
         self.on_exception = self.subscriber(self.EXCEPTION)
-        self.on_f_submitted = self.subscriber(self.F_SUBMITTED)  # type: ignore
-        self.on_cancelled = self.subscriber(self.F_CANCELLED)
-        self.on_f_returned = self.subscriber(self.F_RETURNED)
-        self.on_f_exception = self.subscriber(self.F_EXCEPTION)
+        self.on_cancelled = self.subscriber(self.CANCELLED)
 
         # Used to keep track of any events emitted out of this task
         self._emitted_events: set[Event] = set()
@@ -218,43 +190,6 @@ class Task(Generic[P, R], Emitter):
             A list of futures for this task.
         """
         return self.queue
-
-    def on(
-        self,
-        event: Event[P2],
-        *,
-        name: str | None = None,
-        when: Callable[[], bool] | None = None,
-        limit: int | None = None,
-        repeat: int = 1,
-        every: int | None = None,
-    ) -> Callable[[Callable[P2, R]], Callable[P2, R]]:
-        """Decorator to subscribe to an event.
-
-        Args:
-            event: The event to subscribe to.
-            name: See [`EventManager.on()`][amltk.events.EventManager.on].
-            when: See [`EventManager.on()`][amltk.events.EventManager.on].
-            limit: See [`EventManager.on()`][amltk.events.EventManager.on].
-            repeat: See [`EventManager.on()`][amltk.events.EventManager.on].
-            every: See [`EventManager.on()`][amltk.events.EventManager.on].
-
-        Returns:
-            A decorator that can be used to subscribe to events.
-        """
-
-        def decorator(callback: Callable[P2, R]) -> Callable[P2, R]:
-            self.subscriber(event)(
-                callback,
-                name=name,
-                when=when,
-                limit=limit,
-                repeat=repeat,
-                every=every,
-            )
-            return callback
-
-        return decorator
 
     @property
     def n_running(self) -> int:
@@ -328,22 +263,17 @@ class Task(Generic[P, R], Emitter):
 
         self.queue.append(future)
 
-        # To allow any subclasses time to react to the future before emitting
-        # events or scheduling callbacks.
-        self.on_f_submitted.emit(future, *args, **kwargs)
-
         # We have the function wrapped in something will
         # attach tracebacks to errors, so we need to get the
         # original function name.
         msg = f"Submitted {callstring(self.function, *args, **kwargs)} from {self}."
         logger.debug(msg)
-        self.on_submitted.emit(future)
+        self.on_submitted.emit(future, *args, **kwargs)
 
         # Process the task once it's completed
         # NOTE: If the task is done super quickly or in the sequential mode,
         # this will immediatly call `self._process_future`.
         future.add_done_callback(self._process_future)
-
         return future
 
     def _process_future(self, future: Future[R]) -> None:
@@ -360,20 +290,10 @@ class Task(Generic[P, R], Emitter):
 
         exception = future.exception()
         if exception is not None:
-            self.emit_many(
-                {
-                    self.F_EXCEPTION: ((future, exception), None),
-                    self.EXCEPTION: ((exception,), None),
-                },
-            )
+            self.on_exception.emit(future, exception)
         else:
             result = future.result()
-            self.emit_many(
-                {
-                    self.F_RETURNED: ((future, result), None),
-                    self.RETURNED: ((result,), None),
-                },
-            )
+            self.on_returned.emit(future, result)
 
     def attach_plugin(self, plugin: TaskPlugin) -> None:
         """Attach a plugin to this task.
@@ -723,8 +643,8 @@ class Task(Generic[P, R], Emitter):
             self._cancelled: list[Future[R2]] = []
 
             self.task.on_done(self._on_done)
-            self.task.on_f_returned(self._on_returned)
-            self.task.on_f_exception(self._on_exception)
+            self.task.on_returned(self._on_returned)
+            self.task.on_exception(self._on_exception)
             self.task.on_cancelled(self._on_cancelled)
 
         def _on_returned(self: Self, future: Future[R2], result: R2) -> None:

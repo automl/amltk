@@ -819,7 +819,7 @@ class Scheduler(Emitter):
                 ends due to an exception. Has no effect if `end_on_exception`
                 is `False`.
             asyncio_debug_mode: Whether to run the async loop in debug mode.
-                Defaults to `False`. Please see [`asyncio.run`][] for more.
+                Defaults to `False`. Please see [asyncio.run][] for more.
 
         Returns:
             The reason for the scheduler ending.

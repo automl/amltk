@@ -5,14 +5,14 @@ import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor
 from typing import Any
 
+# We need these imported to ensure that the threadpoolctl plugin
+# actually does something.
 import numpy  # noqa: F401
 import sklearn  # noqa: F401
 from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-# We need these imported to ensure that the threadpoolctl plugin
-# actually does something.
 import threadpoolctl
 from amltk.scheduling import Scheduler, SequentialExecutor, Task
 from amltk.threadpoolctl import ThreadPoolCTLPlugin
@@ -80,7 +80,7 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
         task()
 
     @task.on_returned
-    def check_threadpool_info(inner_info: list) -> None:
+    def check_threadpool_info(_, inner_info: list) -> None:
         retrieved_info.append(inner_info)
 
     end_status = scheduler.run()
@@ -96,13 +96,7 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
 
     assert before == after
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-        task.F_RETURNED: 1,
-    }
+    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,
@@ -129,7 +123,7 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
         task()
 
     @task.on_returned
-    def check_threadpool_info(inner_info: list) -> None:
+    def check_threadpool_info(_, inner_info: list) -> None:
         retrieved_info.append(inner_info)
 
     end_status = scheduler.run()
@@ -141,13 +135,7 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
     assert before != inside_info
     assert before == after
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-        task.F_RETURNED: 1,
-    }
+    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,

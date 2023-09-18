@@ -264,7 +264,7 @@ def test_batch_task_does_not_share_events_with_single_task(
         batch_results.append(x)
 
     @task.on_returned
-    def on_returned(x: float) -> None:
+    def on_returned(_, x: float) -> None:
         task_results.append(x)
 
     end_status = scheduler.run()
@@ -274,13 +274,7 @@ def test_batch_task_does_not_share_events_with_single_task(
     assert batch_results == [0.1]
     assert task_results == [0.2]
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.F_SUBMITTED: 1,
-        task.F_RETURNED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-    }
+    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
     assert batch.event_counts == {
         batch.BATCH_SUBMITTED: 1,
         batch.BATCH_DONE: 1,

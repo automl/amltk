@@ -11,13 +11,15 @@ from __future__ import annotations
 
 from multiprocessing.context import BaseContext
 from typing import TYPE_CHECKING, Callable, TypeVar
-from typing_extensions import ParamSpec, Self
+from typing_extensions import ParamSpec, Self, override
 
 from amltk.events import Event
 from amltk.scheduling.task_plugin import TaskPlugin
 from pynisher import Pynisher
 
 if TYPE_CHECKING:
+    import asyncio
+
     from amltk.scheduling.task import Task
 
 P = ParamSpec("P")
@@ -112,6 +114,7 @@ class PynisherPlugin(TaskPlugin):
             context: The context to use for multiprocessing. Defaults to `None`.
                 See [`multiprocessing.get_context()`][multiprocessing.get_context]
         """
+        super().__init__()
         self.memory_limit = memory_limit
         self.cpu_time_limit = cpu_time_limit
         self.wall_time_limit = wall_time_limit
@@ -119,6 +122,7 @@ class PynisherPlugin(TaskPlugin):
 
         self.task: Task
 
+    @override
     def pre_submit(
         self,
         fn: Callable[P, R],
@@ -143,6 +147,7 @@ class PynisherPlugin(TaskPlugin):
 
         return fn, args, kwargs
 
+    @override
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
@@ -150,6 +155,7 @@ class PynisherPlugin(TaskPlugin):
         # Check the exception and emit pynisher specific ones too
         task.on_exception(self._check_to_emit_pynisher_exception)
 
+    @override
     def copy(self) -> Self:
         """Return a copy of the plugin.
 
@@ -161,21 +167,15 @@ class PynisherPlugin(TaskPlugin):
             wall_time_limit=self.wall_time_limit,
         )
 
-    def _check_to_emit_pynisher_exception(self, exception: BaseException) -> None:
+    def _check_to_emit_pynisher_exception(
+        self,
+        _: asyncio.Future,
+        exception: BaseException,
+    ) -> None:
         """Check if the exception is a pynisher exception and emit it."""
         if isinstance(exception, Pynisher.CpuTimeoutException):
-            self.task.emit_many(
-                {
-                    self.TIMEOUT: ((exception,), None),
-                    self.CPU_TIME_LIMIT_REACHED: ((exception,), None),
-                },
-            )
+            self.task.emit((self.TIMEOUT, self.CPU_TIME_LIMIT_REACHED), exception)
         elif isinstance(exception, self.WallTimeoutException):
-            self.task.emit_many(
-                {
-                    self.TIMEOUT: ((exception,), None),
-                    self.WALL_TIME_LIMIT_REACHED: ((exception,), None),
-                },
-            )
+            self.task.emit((self.TIMEOUT, self.WALL_TIME_LIMIT_REACHED), exception)
         elif isinstance(exception, self.MemoryLimitException):
             self.task.emit(self.MEMORY_LIMIT_REACHED, exception)
