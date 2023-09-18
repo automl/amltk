@@ -11,7 +11,6 @@ from typing import (
     Any,
     Callable,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
     List,
@@ -19,7 +18,7 @@ from typing import (
     TypeVar,
     overload,
 )
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, override
 from uuid import uuid4
 
 from amltk.fluid import ChainPredicate
@@ -83,7 +82,7 @@ class SubcriberDecorator(Generic[P]):
     """
 
     manager: EventManager
-    event: Event[P] | Hashable
+    event: Event[P] | tuple[Event[P], ...]
     name: str | None = None
     when: Callable[[], bool] | None = None
     limit: int | None = None
@@ -137,12 +136,15 @@ class Subscriber(Generic[P]):
     """
 
     manager: EventManager
-    event: Event[P] | Hashable
+    event: Event[P] | tuple[Event[P], ...]
 
     @property
     def count(self) -> int:
         """The number of times this event has been emitted."""
-        return self.manager.counts[self.event]
+        if isinstance(self.event, Event):
+            return self.manager.counts[self.event]
+
+        return sum(self.manager.counts[event] for event in self.event)
 
     @overload
     def __call__(
@@ -312,12 +314,15 @@ class EventHandler(Mapping[str, List[Callable[P, Any]]]):
             for _ in range(handler.repeat):
                 handler(*args, **kwargs)
 
+    @override
     def __iter__(self) -> Iterator[str]:
         return self.callbacks.__iter__()
 
+    @override
     def __len__(self) -> int:
         return self.callbacks.__len__()
 
+    @override
     def __getitem__(self, key: str) -> list[Callable[P, Any]]:
         handlers = self.callbacks.__getitem__(key)
         return [handler.callback for handler in handlers]
@@ -331,7 +336,7 @@ class EventHandler(Mapping[str, List[Callable[P, Any]]]):
         return chain.from_iterable(self.callbacks.values())  # type: ignore
 
 
-class EventManager(Mapping[Hashable, EventHandler[Any]]):
+class EventManager(Mapping[Event, EventHandler[Any]]):
     """A fairly primitive event handler capable of using an Scheduler.
 
     It's based on event keys that make to callbacks which
@@ -357,19 +362,20 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         Args:
             name: The name of the event manager.
         """
+        super().__init__()
         self.name: str = name
-        self.handlers: dict[Hashable, EventHandler[Any]] = defaultdict(EventHandler)
-        self.counts: Counter[Hashable] = Counter()
-        self.forwards: dict[Hashable, list[Hashable]] = defaultdict(list)
+        self.handlers: dict[Event, EventHandler[Any]] = defaultdict(EventHandler)
+        self.counts: Counter[Event] = Counter()
+        self.forwards: dict[Event, list[Event]] = defaultdict(list)
 
     @property
-    def events(self) -> list[Hashable]:
+    def events(self) -> list[Event]:
         """Return a list of the events."""
         return list(self.handlers)
 
     def on(
         self,
-        event: Hashable,
+        event: Event[P] | tuple[Event[P], ...],
         callback: Callable,
         *,
         name: str | None = None,
@@ -400,36 +406,54 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         if repeat <= 0:
             raise ValueError(f"{repeat=} must be a positive integer.")
 
+        if every is not None and every > 0:
+            raise ValueError(f"{every=} must be a positive integer.")
+
+        if every is not None and not isinstance(event, Event):
+            # TODO: We could technically support this
+            raise NotImplementedError(
+                f"Cannot use {every=} with multiple events. "
+                "Use a predicate instead.",
+            )
+
         if name is None:
             name = funcname(callback)
 
         every_pred = None
-        if every is not None:
-            if every <= 0:
-                raise ValueError(f"{every=} must be a positive integer.")
+        if every is not None and every <= 0:
+            assert isinstance(event, Event)
             every_pred = lambda *a, **k: self.counts[event] % every == 0  # noqa: ARG005
 
         combined_predicate = ChainPredicate() & every_pred & when  # type: ignore
-        self.handlers[event].add(
-            name,
-            callback,
-            when=combined_predicate,
-            repeat=repeat,
-            limit=limit,
-        )
 
-        msg = f"{self.name}: Registered callback '{name}' for event {event}"
-        if every:
-            msg += f" every {every} times"
-        if when:
-            msg += f" with predicate ({funcname(when)})"
-        if repeat > 1:
-            msg += f" called {repeat} times successively"
-        logger.debug(msg)
+        events = [event] if isinstance(event, Event) else list(event)
+
+        for e in events:
+            self.handlers[e].add(
+                name,
+                callback,
+                when=combined_predicate,
+                repeat=repeat,
+                limit=limit,
+            )
+
+            msg = f"{self.name}: Registered callback '{name}' for event {e}"
+            if every:
+                msg += f" every {every} times"
+            if when:
+                msg += f" with predicate ({funcname(when)})"
+            if repeat > 1:
+                msg += f" called {repeat} times successively"
+            logger.debug(msg)
 
         return name
 
-    def emit(self, event: Hashable, *args: Any, **kwargs: Any) -> None:
+    def emit(
+        self,
+        event: Event[P] | tuple[Event[P], ...],
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """Emit an event.
 
         This will call all the handlers for the event.
@@ -447,22 +471,20 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         logger.info(f"{self.name}: Emitting {event}")
         logger.debug(f"... with {args=} and {kwargs=}")
 
-        self.counts[event] += 1
+        _events = [event] if isinstance(event, Event) else event
 
-        handler = self.handlers.get(event)
-        if handler is None:
-            return
+        for _event in _events:
+            self.counts[_event] += 1
 
-        handler(*args, **kwargs)
-        if event in self.forwards:
-            fwds: list[Hashable] = self.forwards[event]
-            for fwd in fwds:
-                logger.info(f"Forwarding {event} to {fwd}")
-                self.emit(fwd, *args, **kwargs)
+            if handler := self.handlers.get(_event):
+                handler(*args, **kwargs)
+                for fwd in self.forwards.get(_event, []):
+                    logger.info(f"Forwarding {_event} to {fwd}")
+                    self.emit(fwd, *args, **kwargs)
 
     def emit_many(
         self,
-        events: dict[Hashable, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
+        events: dict[Event, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
     ) -> None:
         """Emit multiple events.
 
@@ -494,16 +516,19 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
             logger.debug(line)
         RegisteredTimeCallOrderStrategy.execute(items)
 
-    def __getitem__(self, event: Hashable) -> EventHandler:
+    @override
+    def __getitem__(self, event: Event) -> EventHandler:
         return self.handlers[event]
 
-    def __iter__(self) -> Iterator[Hashable]:
+    @override
+    def __iter__(self) -> Iterator[Event]:
         return iter(self.handlers)
 
+    @override
     def __len__(self) -> int:
         return len(self.handlers)
 
-    def has(self, name: str, *, event: Hashable | None = None) -> bool:
+    def has(self, name: str, *, event: Event | None = None) -> bool:
         """Check if the named function exists in the event handlers.
 
         Args:
@@ -519,7 +544,12 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
 
         return any(self.has(name, event=event) for event in self.handlers)
 
-    def remove(self, name: str, *, event: Hashable | None = None) -> bool:
+    def remove(
+        self,
+        name: str,
+        *,
+        event: Event[P] | Iterable[Event[P]] | None = None,
+    ) -> bool:
         """Remove any callback(s) registered with `name` from the event handlers.
 
         Args:
@@ -530,22 +560,25 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         Returns:
             True if a callback was removed, False otherwise.
         """
-        if event is not None:
-            handler = self.handlers.get(event)
+        if event is None:
+            return self.remove(name, event=self.events)
+
+        _events = [event] if isinstance(event, Event) else event
+
+        any_removed = False
+        for _event in _events:
+            handler = self.handlers.get(_event)
             if handler is None:
-                raise KeyError(f"Event {event} not found.")
+                raise KeyError(f"Event {_event} not found.")
 
             if name in handler:
                 logger.debug(f"{self.name}: Removing {name} handler from {event}")
                 del handler[name]
-                return True
+                any_removed = True
 
-            return False
+        return any_removed
 
-        truths = [self.remove(name, event=event) for event in self.handlers]
-        return any(truths)
-
-    def forward(self, frm: Hashable, to: Hashable) -> None:
+    def forward(self, frm: Event, to: Event) -> None:
         """Forward an event to another event.
 
         Args:
@@ -554,26 +587,11 @@ class EventManager(Mapping[Hashable, EventHandler[Any]]):
         """
         self.forwards[frm].append(to)
 
-    @overload
-    def subscriber(self, event: Event[P]) -> Subscriber[P]:
-        ...
-
-    @overload
-    def subscriber(self, event: tuple[Event[P], Hashable]) -> Subscriber[P]:
-        ...
-
-    @overload
-    def subscriber(self, event: Hashable) -> Subscriber[Any]:
-        ...
-
-    def subscriber(
-        self,
-        event: Event[P] | tuple[Event[P], Hashable] | Hashable,
-    ) -> Subscriber[P]:
+    def subscriber(self, *event: Event[P]) -> Subscriber[P]:
         """Create a subscriber for an event.
 
         Args:
-            event: The event that will be subscribed to
+            event: The event(s) that will be subscribed to
 
         Returns:
             A subscriber for the event.
@@ -601,6 +619,7 @@ class Emitter:
                 name. If the event manager is `None` then a new
                 event manager will be created with a random uuid as the name.
         """
+        super().__init__()
         if isinstance(event_manager, str):
             event_manager = EventManager(name=event_manager)
         elif event_manager is None:
@@ -649,19 +668,19 @@ class Emitter:
             dict(events.items()),
         )
 
-    def subscriber(self, event: Event[P]) -> Subscriber[P]:
+    def subscriber(self, *event: Event[P]) -> Subscriber[P]:
         """Create a subscriber for an event.
 
         Args:
-            event: The event that will be subscribed to
+            event: The event(s) that will be subscribed to
 
         Returns:
             A subscriber for the event.
         """
-        return self.event_manager.subscriber(event)
+        return self.event_manager.subscriber(*event)
 
     @property
-    def event_counts(self) -> dict[Hashable, int]:
+    def event_counts(self) -> dict[Event, int]:
         """The event counter.
 
         Useful for predicates, for example
