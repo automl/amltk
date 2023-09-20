@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 from amltk.functional import mapping_select, prefix_keys
-from amltk.profiling import Memory, Profiler, Timer
+from amltk.profiling import Memory, Profile, Timer
 from amltk.store import Bucket, PathBucket
 
 # Inner trial info object
@@ -81,7 +81,7 @@ class Trial(Generic[I]):
     fidelities: dict[str, Any] | None = None
     """The fidelities at which to evaluate the trial, if any."""
 
-    profiler: Profiler | None = field(repr=False, default=None)
+    profiler: Profile | None = field(repr=False, default=None)
     """The profiler used to profile the trial, once begun."""
 
     time: Timer.Interval = field(repr=False, default_factory=Timer.na)
@@ -90,7 +90,7 @@ class Trial(Generic[I]):
     memory: Memory.Interval = field(repr=False, default_factory=Memory.na)
     """The memory used by the trial, once ended."""
 
-    profiles: dict[str, Profiler.Interval] = field(default_factory=dict)
+    profiles: dict[str, Profile.Interval] = field(default_factory=dict)
     """Any recorded profiles of the trial."""
 
     summary: dict[str, Any] = field(default_factory=dict)
@@ -162,7 +162,7 @@ class Trial(Generic[I]):
             time: The timer kind to use for the trial.
             memory_unit: The memory unit to use for the trial.
         """  # noqa: E501
-        self.profiler = Profiler.start(time_kind=time, memory_unit=memory_unit)
+        self.profiler = Profile.start(time_kind=time, memory_unit=memory_unit)
         try:
             yield
         except Exception as error:  # noqa: BLE001
@@ -181,7 +181,7 @@ class Trial(Generic[I]):
         time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
         summary: bool = True,
-    ) -> Iterator[Profiler.Interval]:
+    ) -> Iterator[Profile.Interval]:
         """Measure some interval in the trial.
 
         The results of the profiling will be available in the `.summary` attribute
@@ -209,7 +209,7 @@ class Trial(Generic[I]):
         Yields:
             The interval measured. Values will be nan until the with block is finished.
         """
-        with Profiler.measure(memory_unit=memory_unit, time_kind=time) as profile:
+        with Profile.measure(memory_unit=memory_unit, time_kind=time) as profile:
             self.profiles[name] = profile
             yield profile
 
@@ -617,7 +617,7 @@ class Trial(Generic[I]):
             return self.trial.config
 
         @property
-        def profiles(self) -> dict[str, Profiler.Interval]:
+        def profiles(self) -> dict[str, Profile.Interval]:
             """The profiles of the trial."""
             return self.trial.profiles
 
@@ -817,7 +817,7 @@ class Trial(Generic[I]):
                     {name.split(":", maxsplit=1)[0] for name in prof_dict},
                 )
                 profiles = {
-                    name: Profiler.from_dict(mapping_select(prof_dict, f"{name}:"))
+                    name: Profile.from_dict(mapping_select(prof_dict, f"{name}:"))
                     for name in profile_names
                 }
             else:
