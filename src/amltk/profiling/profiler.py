@@ -138,6 +138,15 @@ class Profiler(Mapping[str, Profile.Interval]):
     profiles: dict[str, Profile.Interval] = field(default_factory=dict)
     memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B"
     time_kind: Timer.Kind | Literal["wall", "cpu", "process"] = "wall"
+    disabled: bool = False
+
+    def disable(self) -> None:
+        """Disable the profiler."""
+        self.disabled = True
+
+    def enable(self) -> None:
+        """Enable the profiler."""
+        self.disabled = False
 
     @contextmanager
     def measure(
@@ -146,7 +155,7 @@ class Profiler(Mapping[str, Profile.Interval]):
         *,
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
         time_kind: Timer.Kind | Literal["wall", "cpu", "process"] | None = None,
-    ) -> Iterator[Profile.Interval]:
+    ) -> Iterator[None]:
         """Profile a block of code. Store the result on this object.
 
         !!! note
@@ -158,13 +167,13 @@ class Profiler(Mapping[str, Profile.Interval]):
             name: The name of the profile.
             memory_unit: The unit of memory to use. Overwrites the default.
             time_kind: The type of timer to use. Overwrites the default.
-
-        Yields:
-            The Profiler Interval. Memory and Timings will not be valid until
-            the context manager is exited.
         """
+        if self.disabled:
+            yield
+            return
+
         memory_unit = memory_unit or self.memory_unit
         time_kind = time_kind or self.time_kind
         with Profile.measure(memory_unit=memory_unit, time_kind=time_kind) as profile:
             self.profiles[name] = profile
-            yield profile
+            yield
