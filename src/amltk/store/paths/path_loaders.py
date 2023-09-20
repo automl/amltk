@@ -1,29 +1,30 @@
 """Loaders for [`PathBucket`][amltk.store.paths.path_bucket.PathBucket]s.
 
-The [`Loader`][amltk.store.loader.Loader]s in this module are used to
+The [`Loader`][amltk.store.paths.path_loaders.PathLoader]s in this module are used to
 load and save objects identified by a unique [`Path`][pathlib.Path].
 For saving objects, these loaders rely on checking the type of the
-object for [`can_save`][amltk.store.loader.Loader.can_save] and
-[`save`][amltk.store.loader.Loader.save] methods. For loading objects,
+object for [`can_save`][amltk.store.paths.path_loaders.PathLoader.can_save] and
+[`save`][amltk.store.paths.path_loaders.PathLoader.save] methods. For loading objects,
 these loaders rely on checking the file extension of the path for
-[`can_load`][amltk.store.loader.Loader.can_load] and
-[`load`][amltk.store.loader.Loader.load] methods.
+[`can_load`][amltk.store.paths.path_loaders.PathLoader.can_load] and
+[`load`][amltk.store.paths.path_loaders.PathLoader.load] methods.
 """
 from __future__ import annotations
 
 import json
 import logging
 import pickle
+from abc import abstractmethod
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
     Literal,
-    Protocol,
     TypeVar,
     Union,
 )
+from typing_extensions import override
 
 import numpy as np
 import pandas as pd
@@ -46,35 +47,74 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
-class PathLoader(Loader[Path, T], Protocol[T]):
+class PathLoader(Loader[Path, T]):
     """A [`Loader`][amltk.store.loader.Loader] for loading and saving
     objects indentified by a [`Path`][pathlib.Path].
     """
 
-    @property
-    def name(self) -> str:
-        """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    name: ClassVar[str]
+    """The name of the loader."""
+
+    @override
+    @classmethod
+    @abstractmethod
+    def can_load(cls, key: Path, /, *, check: type[T] | None = None) -> bool:
+        """Return True if this loader supports the resource at key.
+
+        This is used to determine which loader to use when loading a
+        resource from a key.
+
+        Args:
+            key: The key used to identify the resource
+            check: If the loader can support loading a specific type
+                of object.
+        """
         ...
 
-    def can_save(self, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
+    @override
+    @classmethod
+    @abstractmethod
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """Return True if this loader can save this object.
+
+        This is used to determine which loader to use when loading a
+        resource from a key.
+
+        Args:
+            obj: The object to save.
+            key: The key used to identify the resource
+        """
         ...
 
-    def can_load(self, path: Path, /, *, check: type[T] | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
+    @override
+    @classmethod
+    @abstractmethod
+    def save(cls, obj: Any, key: Path, /) -> None:
+        """Save an object to under the given key.
+
+        Args:
+            obj: The object to save.
+            key: The key to save the object under.
+        """
         ...
 
-    def load(self, path: Path, /) -> T:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        ...
+    @override
+    @classmethod
+    @abstractmethod
+    def load(cls, key: Path, /) -> T:
+        """Load an object from the given key.
 
-    def save(self, obj: T, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+        Args:
+            key: The key to load the object from.
+
+        Returns:
+            The loaded object.
+        """
         ...
 
 
 class NPYLoader(PathLoader[np.ndarray]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`np.ndarray`][numpy.ndarray]s.
 
     This loader supports the following file extensions:
@@ -87,126 +127,153 @@ class NPYLoader(PathLoader[np.ndarray]):
     """
 
     name: ClassVar[Literal["np"]] = "np"
-    """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
+    @override
     @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        return isinstance(obj, np.ndarray) and path.suffix in {".npy"}
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
+        return isinstance(obj, np.ndarray) and key.suffix in {".npy"}
 
+    @override
     @classmethod
-    def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        return path.suffix in {".npy"} and check in (np.ndarray, None)
+    def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        return key.suffix in {".npy"} and check in (np.ndarray, None)
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> np.ndarray:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
-        item = np.load(path)
+    def load(cls, key: Path, /) -> np.ndarray:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
+        item = np.load(key)
         if not isinstance(item, np.ndarray):
-            msg = f"Expected `np.ndarray` from {path=} but got `{type(item).__name__}`."
+            msg = f"Expected `np.ndarray` from {key=} but got `{type(item).__name__}`."
             raise TypeError(msg)
 
         return item
 
+    @override
     @classmethod
-    def save(cls, obj: np.ndarray, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
-        np.save(path, obj)
+    def save(cls, obj: np.ndarray, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
+        logger.debug(f"Saving {key=}")
+        np.save(key, obj)
 
 
-class PDLoader(PathLoader[pd.DataFrame]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`pd.DataFrame`][pandas.DataFrame]s.
 
     This loader supports the following file extensions:
 
     * `#!python ".csv"`
     * `#!python ".parquet"`
+    * `#!python ".pdpickle"`
 
     This loader supports the following types:
 
     * [`pd.DataFrame`][pandas.DataFrame]
+    * [`pd.Series`][pandas.Series] - Only to `#!python ".pdpickle"` files
 
     ???+ note "Multiindex support"
+
         There is currently no multi-index support as we explicitly
-        use `index_col=0` when loading a `.csv` file. This is
+        use `index_col=0` when loading a `".csv"` file. This is
         because we assume that the first column is the index to
         prevent Unamed columns from being created.
 
     ???+ note "Series support"
-        There is currently no support for pandas series as once written
-        to csv, they are converted to a dataframe with a single column.
+
+        There is currently limited support for pandas series as once written
+        to csv/parquet, they are converted to a dataframe with a single column.
         See [this issue](https://github.com/automl/amltk/issues/4)
+
+        Please consider using `".pdpickle"` instead.
     """
 
     name: ClassVar[Literal["pd"]] = "pd"
-    """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
+    @override
     @classmethod
-    def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        passes_check = check in (pd.DataFrame, None)
-        return path.suffix in (".csv", ".parquet") and passes_check
+    def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        if key.suffix in (".pdpickle", None):
+            return check in (pd.Series, pd.DataFrame)
 
-    @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        if path.suffix not in (".csv", ".parquet"):
-            return False
-        if not isinstance(obj, (pd.DataFrame, pd.Series)):
-            return False
-
-        # TODO: https://github.com/automl/amltk/issues/4
-        if obj.index.nlevels == 1:
-            return True
+        if key.suffix in (".csv", ".parquet"):
+            return check in (pd.DataFrame, None)
 
         return False
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> pd.DataFrame:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
-        if path.suffix == ".csv":
-            return pd.read_csv(path, index_col=0)
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
+        if key.suffix == ".pdpickle":
+            return isinstance(obj, (pd.Series, pd.DataFrame))
 
-        if path.suffix == ".parquet":
-            return pd.read_parquet(path)
+        if key.suffix == ".parquet":
+            return isinstance(obj, pd.DataFrame)
 
-        raise ValueError(f"Unknown file extension {path.suffix}")
+        if key.suffix == ".csv":
+            # TODO: https://github.com/automl/amltk/issues/4
+            return isinstance(obj, pd.DataFrame) and obj.index.nlevels == 1
 
+        return False
+
+    @override
     @classmethod
-    def save(cls, obj: pd.Series | pd.DataFrame, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
+    def load(cls, key: Path, /) -> pd.DataFrame | pd.Series:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
+        if key.suffix == ".csv":
+            return pd.read_csv(key, index_col=0)
+
+        if key.suffix == ".parquet":
+            return pd.read_parquet(key)
+
+        if key.suffix == ".pdpickle":
+            obj = pd.read_pickle(key)  # noqa: S301
+            if not isinstance(obj, (pd.Series, pd.DataFrame)):
+                msg = (
+                    f"Expected `pd.Series | pd.DataFrame` from {key=}"
+                    f" but got `{type(obj).__name__}`."
+                )
+                raise TypeError(msg)
+
+            return obj
+
+        raise ValueError(f"Unknown file extension {key.suffix}")
+
+    @override
+    @classmethod
+    def save(cls, obj: pd.Series | pd.DataFrame, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         # Most pandas methods only seem to support dataframes
-        if isinstance(obj, pd.Series):
-            obj = obj.to_frame()
+        logger.debug(f"Saving {key=}")
 
-        logger.debug(f"Saving {path=}")
-        if obj.index.name is None and obj.index.nlevels == 1:
-            obj.index.name = "index"
-
-        cls._save(obj, path, path.suffix)
-
-    @classmethod
-    def _save(cls, obj: pd.DataFrame, path: Path, ext: str, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
-        if ext == ".csv":
-            obj.to_csv(path, index=True)
+        if key.suffix == ".pdpickle":
+            obj.to_pickle(key)
             return
 
-        if ext == ".parquet":
-            obj.to_parquet(path)
+        if key.suffix == ".csv":
+            if obj.index.name is None and obj.index.nlevels == 1:
+                obj.index.name = "index"
+
+            obj.to_csv(key, index=True)
             return
 
-        raise ValueError(f"Unknown extension {ext=}")
+        if key.suffix == ".parquet":
+            obj.to_parquet(key)
+            return
+
+        raise ValueError(f"Unknown extension {key.suffix=}")
 
 
 class JSONLoader(PathLoader[Union[dict, list]]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to JSON.
 
     This loader supports the following file extensions:
@@ -220,41 +287,45 @@ class JSONLoader(PathLoader[Union[dict, list]]):
     """
 
     name: ClassVar[Literal["json"]] = "json"
-    """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
+    @override
     @classmethod
-    def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        return path.suffix == ".json" and check in (dict, list, None)
+    def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        return key.suffix == ".json" and check in (dict, list, None)
 
+    @override
     @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list)) and path.suffix == ".json"
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
+        return isinstance(obj, (dict, list)) and key.suffix == ".json"
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> dict | list:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
-        with path.open("r") as f:
+    def load(cls, key: Path, /) -> dict | list:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
+        with key.open("r") as f:
             item = json.load(f)
 
         if not isinstance(item, (dict, list)):
-            msg = f"Expected `dict | list` from {path=} but got `{type(item).__name__}`"
+            msg = f"Expected `dict | list` from {key=} but got `{type(item).__name__}`"
             raise TypeError(msg)
 
         return item
 
+    @override
     @classmethod
-    def save(cls, obj: dict | list, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
-        with path.open("w") as f:
+    def save(cls, obj: dict | list, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
+        logger.debug(f"Saving {key=}")
+        with key.open("w") as f:
             json.dump(obj, f)
 
 
 class YAMLLoader(PathLoader[Union[dict, list]]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to YAML.
 
     This loader supports the following file extensions:
@@ -269,47 +340,51 @@ class YAMLLoader(PathLoader[Union[dict, list]]):
     """
 
     name: ClassVar[Literal["yaml"]] = "yaml"
-    """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
+    @override
     @classmethod
-    def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        return path.suffix in (".yaml", ".yml") and check in (dict, list, None)
+    def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        return key.suffix in (".yaml", ".yml") and check in (dict, list, None)
 
+    @override
     @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list)) and path.suffix in (".yaml", ".yml")
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
+        return isinstance(obj, (dict, list)) and key.suffix in (".yaml", ".yml")
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> dict | list:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
+    def load(cls, key: Path, /) -> dict | list:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
         if yaml is None:
             raise ModuleNotFoundError("PyYAML is not installed")
 
-        with path.open("r") as f:
+        with key.open("r") as f:
             item = yaml.safe_load(f)
 
         if not isinstance(item, (dict, list)):
-            msg = f"Expected `dict | list` from {path=} but got `{type(item).__name__}`"
+            msg = f"Expected `dict | list` from {key=} but got `{type(item).__name__}`"
             raise TypeError(msg)
 
         return item
 
+    @override
     @classmethod
-    def save(cls, obj: dict | list, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
+    def save(cls, obj: dict | list, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
+        logger.debug(f"Saving {key=}")
         if yaml is None:
             raise ModuleNotFoundError("PyYAML is not installed")
 
-        with path.open("w") as f:
+        with key.open("w") as f:
             yaml.dump(obj, f)
 
 
 class PickleLoader(PathLoader[Any]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving any object to a pickle file.
 
     This loader supports the following file extensions:
@@ -329,41 +404,45 @@ class PickleLoader(PathLoader[Any]):
     """
 
     name: ClassVar[Literal["pickle"]] = "pickle"
-    """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
+    @override
     @classmethod
     def can_load(
         cls,
-        path: Path,
+        key: Path,
         /,
         *,
-        check: type | None = None,  # noqa: ARG003
+        check: type | None = None,
     ) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        return path.suffix in (".pkl", ".pickle")
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        return key.suffix in (".pkl", ".pickle")
 
+    @override
     @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:  # noqa: ARG003
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
         return True  # Anything can be attempted to be pickled
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> Any:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
-        with path.open("rb") as f:
+    def load(cls, key: Path, /) -> Any:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
+        with key.open("rb") as f:
             return pickle.load(f)  # noqa: S301
 
+    @override
     @classmethod
-    def save(cls, obj: Any, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
-        with path.open("wb") as f:
+    def save(cls, obj: Any, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
+        logger.debug(f"Saving {key=}")
+        with key.open("wb") as f:
             pickle.dump(obj, f)
 
 
 class TxtLoader(PathLoader[str]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`str`][str]s to text files.
 
     This loader supports the following file extensions:
@@ -377,35 +456,39 @@ class TxtLoader(PathLoader[str]):
     """
 
     name: ClassVar[Literal["text"]] = "text"
-    """See [`Loader.name`][amltk.store.loader.Loader.name]."""
+    """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
+    @override
     @classmethod
-    def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        return path.suffix in (".text", ".txt") and check in (str, None)
+    def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        return key.suffix in (".text", ".txt") and check in (str, None)
 
+    @override
     @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        return isinstance(obj, str) and path.suffix in (".text", ".txt")
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
+        return isinstance(obj, str) and key.suffix in (".text", ".txt")
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> str:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
-        with path.open("r") as f:
+    def load(cls, key: Path, /) -> str:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
+        with key.open("r") as f:
             return f.read()
 
+    @override
     @classmethod
-    def save(cls, obj: str, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
-        with path.open("w") as f:
+    def save(cls, obj: str, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
+        logger.debug(f"Saving {key=}")
+        with key.open("w") as f:
             f.write(obj)
 
 
 class ByteLoader(PathLoader[bytes]):
-    """A [`Loader`][amltk.store.loader.Loader] for loading and
+    """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`bytes`][bytes] to binary files.
 
     This loader supports the following file extensions:
@@ -420,26 +503,30 @@ class ByteLoader(PathLoader[bytes]):
 
     name: ClassVar[Literal["bytes"]] = "bytes"
 
+    @override
     @classmethod
-    def can_load(cls, path: Path, /, *, check: type | None = None) -> bool:
-        """See [`Loader.can_load`][amltk.store.loader.Loader.can_load]."""
-        return path.suffix in (".bin", ".bytes") and check in (bytes, None)
+    def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
+        return key.suffix in (".bin", ".bytes") and check in (bytes, None)
 
+    @override
     @classmethod
-    def can_save(cls, obj: Any, path: Path, /) -> bool:
-        """See [`Loader.can_save`][amltk.store.loader.Loader.can_save]."""
-        return isinstance(obj, (dict, list)) and path.suffix in (".bin", ".bytes")
+    def can_save(cls, obj: Any, key: Path, /) -> bool:
+        """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
+        return isinstance(obj, (dict, list)) and key.suffix in (".bin", ".bytes")
 
+    @override
     @classmethod
-    def load(cls, path: Path, /) -> bytes:
-        """See [`Loader.load`][amltk.store.loader.Loader.load]."""
-        logger.debug(f"Loading {path=}")
-        with path.open("rb") as f:
+    def load(cls, key: Path, /) -> bytes:
+        """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
+        logger.debug(f"Loading {key=}")
+        with key.open("rb") as f:
             return f.read()
 
+    @override
     @classmethod
-    def save(cls, obj: bytes, path: Path, /) -> None:
-        """See [`Loader.save`][amltk.store.loader.Loader.save]."""
-        logger.debug(f"Saving {path=}")
-        with path.open("wb") as f:
+    def save(cls, obj: bytes, key: Path, /) -> None:
+        """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
+        logger.debug(f"Saving {key=}")
+        with key.open("wb") as f:
             f.write(obj)

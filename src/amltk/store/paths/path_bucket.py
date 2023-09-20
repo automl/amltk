@@ -25,9 +25,8 @@ from amltk.store.paths.path_loaders import (
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from amltk.store.loader import Loader
 
-DEFAULT_LOADERS: tuple[PathLoader, ...] = (
+DEFAULT_LOADERS: tuple[type[PathLoader], ...] = (
     NPYLoader,
     PDLoader,
     JSONLoader,  # We prefer json over yaml
@@ -110,7 +109,7 @@ class PathBucket(Bucket[str, Path]):
         self,
         path: Path | str,
         *,
-        loaders: Sequence[Loader[Path, Any]] | None = None,
+        loaders: Sequence[type[PathLoader]] | None = None,
         create: bool = True,
         clean: bool = False,
         exists_ok: bool = True,
@@ -192,7 +191,7 @@ class PathBucket(Bucket[str, Path]):
         return (self.path / key).exists()
 
     @classmethod
-    def _drop(cls, path: Path, loaders: tuple[PathLoader, ...]) -> Drop[Path]:
+    def _drop(cls, path: Path, loaders: tuple[type[PathLoader], ...]) -> Drop[Path]:
         return Drop(
             path,
             loaders=loaders,

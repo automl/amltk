@@ -61,7 +61,7 @@ class Drop(Generic[KeyT]):
     """
 
     key: KeyT
-    loaders: tuple[Loader[KeyT, Any], ...] = field(repr=False)
+    loaders: tuple[type[Loader[KeyT, Any]], ...] = field(repr=False)
     _remove: Callable[[KeyT], bool] = field(repr=False)
     _exists: Callable[[KeyT], bool] = field(repr=False)
 

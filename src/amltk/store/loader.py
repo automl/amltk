@@ -7,13 +7,14 @@ module.
 """
 from __future__ import annotations
 
-from typing import Any, Protocol, TypeVar
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar, Generic, TypeVar
 
-T_co = TypeVar("T_co", covariant=True)
+T = TypeVar("T")
 KeyT_contra = TypeVar("KeyT_contra", contravariant=True)
 
 
-class Loader(Protocol[KeyT_contra, T_co]):
+class Loader(ABC, Generic[KeyT_contra, T]):
     """The base definition of a Loader.
 
     A Loader is a class that can save and load objects to and from a
@@ -21,16 +22,12 @@ class Loader(Protocol[KeyT_contra, T_co]):
     objects of a particular type at a given key.
     """
 
-    @property
-    def name(self) -> str:
-        """The name of this loader.
+    name: ClassVar[str]
+    """The name of the loader."""
 
-        Returns:
-            The name of this loader.
-        """
-        ...
-
-    def can_load(self, key: KeyT_contra, /, *, check: type | None = None) -> bool:
+    @classmethod
+    @abstractmethod
+    def can_load(cls, key: KeyT_contra, /, *, check: type[T] | None = None) -> bool:
         """Return True if this loader supports the resource at key.
 
         This is used to determine which loader to use when loading a
@@ -43,7 +40,9 @@ class Loader(Protocol[KeyT_contra, T_co]):
         """
         ...
 
-    def can_save(self, obj: Any, key: KeyT_contra, /) -> bool:
+    @classmethod
+    @abstractmethod
+    def can_save(cls, obj: Any, key: KeyT_contra, /) -> bool:
         """Return True if this loader can save this object.
 
         This is used to determine which loader to use when loading a
@@ -55,7 +54,9 @@ class Loader(Protocol[KeyT_contra, T_co]):
         """
         ...
 
-    def save(self, obj: Any, key: KeyT_contra, /) -> None:
+    @classmethod
+    @abstractmethod
+    def save(cls, obj: Any, key: KeyT_contra, /) -> None:
         """Save an object to under the given key.
 
         Args:
@@ -64,7 +65,9 @@ class Loader(Protocol[KeyT_contra, T_co]):
         """
         ...
 
-    def load(self, key: KeyT_contra, /) -> T_co:
+    @classmethod
+    @abstractmethod
+    def load(cls, key: KeyT_contra, /) -> T:
         """Load an object from the given key.
 
         Args:
