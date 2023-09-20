@@ -261,6 +261,14 @@ def test_param_requests() -> None:
     )
     configured_pipeline = pipeline.configure(config={}, params={"seed1": 1, "seed2": 2})
 
+    assert configured_pipeline.config() == {
+        "1:seed": 1,
+        "2:seed": 2,
+        "split:split1:seed": 1,
+        "split:split2:seed": 4,
+        "3:4:seed": None,
+    }
+
     assert configured_pipeline == Pipeline.create(
         step("1", 1, config={"seed": 1})
         | step("2", 2, config={"seed": 2})

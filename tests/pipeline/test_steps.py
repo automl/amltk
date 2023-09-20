@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from amltk import step
-from amltk.pipeline import Component, Step
+from amltk.pipeline import Component, Step, request, step
 
 
 def test_step_component() -> None:
@@ -171,3 +170,25 @@ def test_path_to() -> None:
     assert s3.path_to(s3, direction="backward") == [s3]
     assert s2.path_to(s3, direction="backward") is None
     assert s1.path_to(s3, direction="backward") is None
+
+
+def test_param_request() -> None:
+    component = step(
+        "rf",
+        1,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+        config={"random_state": request("seed", default=None)},
+    )
+
+    config = {"n_estimators": 10, "criterion": "gini"}
+    configured_component = component.configure(config, params={"seed": 42})
+
+    assert configured_component == step(
+        "rf",
+        1,
+        config={
+            "n_estimators": 10,
+            "criterion": "gini",
+            "random_state": 42,
+        },
+    )

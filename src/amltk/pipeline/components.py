@@ -362,7 +362,7 @@ class Group(Mapping[str, Step], Step[Space]):
             if request.key in _params:
                 this_config[k] = _params[request.key]
             elif request.has_default:
-                this_config[request.key] = request.default
+                this_config[k] = request.default
             elif request.required:
                 raise ParamRequest.RequestNotMetError(
                     f"Missing required parameter {request.key} for step {self.name}"
@@ -652,7 +652,7 @@ class Choice(Group[Space]):
             if request.key in _params:
                 config_for_this_choice[k] = _params[request.key]
             elif request.has_default:
-                config_for_this_choice[request.key] = request.default
+                config_for_this_choice[k] = request.default
             elif request.required:
                 raise ParamRequest.RequestNotMetError(
                     f"Missing required parameter {request.key} for step {self.name}"

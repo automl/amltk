@@ -1041,26 +1041,39 @@ isn't necessarily something you want to search but is not known until you actual
 want to configure your pipeline. One prominent example is seeding. We can achieve
 this by using [`request()`][amltk.pipeline.request].
 
-```python hl_lines="10" exec="true" source="material-block" result="python" title="request()"
-from amltk.pipeline import step, request
-from sklearn.ensemble import RandomForestClassifier
+In this example, we set the `#!python "random_state"` of two sklearn components
+and also the `#!python n_jobs` parameter of a `RandomForestClassifier` when we
+configure the pipeline.
 
-component = step(
-    "rf",
-    RandomForestClassifier,
-    space={
-        "n_estimators": (10, 100),
-        "criterion": ["gini", "entropy"],
-    },
-    config={
-        "random_state": request("seed", default=None)
-    }
+```python hl_lines="9 10 11 17 18 19 20 25 26" exec="true" source="material-block" result="python" title="request()"
+from amltk.pipeline import step, request, Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import QuantileTransformer
+
+pipeline = Pipeline.create(
+    step(
+        "qt",
+        QuantileTransformer,
+        config={
+            "random_state": request("seed", default=None),
+        }
+    )
+    | step(
+        "rf",
+        RandomForestClassifier,
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"] },
+        config={
+            "random_state": request("seed", default=None),
+            "n_jobs": request("n_jobs", default=1),
+        }
+    )
 )
 
-config = {"rf:n_estimators": 15, "rf:criterion": "gini"}
-component.configure(config, params={"seed": 42})
+config = pipeline.sample()
+params = {"seed": 42, "n_jobs": 4}
+configured_pipeline = pipeline.configure(config, params=params)
 
-print(component.config)
+print(configured_pipeline.config())
 ```
 
 !!! tip
