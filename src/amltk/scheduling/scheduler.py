@@ -918,10 +918,12 @@ class Scheduler(Emitter):
         Args:
             *args: Logged in a debug message
             **kwargs: Logged in a debug message
-                **stop_msg**: The message to pass to the stop event which
+
+                * **stop_msg**: The message to pass to the stop event which
                     gets logged as the stop reason.
-                **exception**: The exception to pass to the stop event which
-                gets logged as the stop reason.
+
+                * **exception**: The exception to pass to the stop event which
+                    gets logged as the stop reason.
         """
         if not self.running():
             return
