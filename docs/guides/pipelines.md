@@ -931,7 +931,7 @@ implementation you are interested in.
 
 ## Modules
 A pipeline is often not sufficient to represent everything surrounding the pipeline
-that you'd wish to associate with it. For that reason, we introduce the concept
+that you'd wish to associate with it. For that reason we introduce the concept
 of _module_.
 These are components or pipelines that you [`attach()`][amltk.pipeline.Pipeline.attach]
 to your main pipeline, but are not directly part of the dataflow.
@@ -1034,6 +1034,38 @@ trainer = pipeline.modules["trainer"].build()  # (3)!
  to the pipeline.
 3. As the module `#!python "trainer"` was configured along with the pipeline,
  it's `config` has been set and we can call `build()` on it.
+
+## Seeding and `request`s
+You may have scenarios where you need to configure your pipeline with something that
+isn't necessarily something you want to search but is not known until you actually
+want to configure your pipeline. One prominent example is seeding. We can achieve
+this by using [`request()`][amltk.pipeline.request].
+
+```python hl_lines="10" exec="true" source="material-block" result="python" title="request()"
+from amltk.pipeline import step, request
+from sklearn.ensemble import RandomForestClassifier
+
+component = step(
+    "rf",
+    RandomForestClassifier,
+    space={
+        "n_estimators": (10, 100),
+        "criterion": ["gini", "entropy"],
+    },
+    config={
+        "random_state": request("seed", default=None)
+    }
+)
+
+config = {"rf:n_estimators": 15, "rf:criterion": "gini"}
+component.configure(config, params={"seed": 42})
+
+print(component.config)
+```
+
+!!! tip
+
+    If you specifically require it to be set, you can use `request(..., required=True)`.
 
 ## Operations
 TODO

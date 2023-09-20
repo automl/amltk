@@ -174,6 +174,27 @@ class Pipeline:
             name=self.name if name is None else name,
         )
 
+    def apply(self, f: Callable[[Step], Step], *, name: str | None = None) -> Pipeline:
+        """Apply a function to each step in the pipeline, returning a new pipeline.
+
+        !!! warning "Modifications to pipeline structure"
+
+            Any modifications to pipeline structure will be ignored. This is done by
+            providing a `copy()` of the step to the function, rejoining each modified
+            step in the pipeline and then returning a new pipeline.
+
+        Args:
+            f: The function to apply
+            name: A name to give to the new pipeline returned. Defaults to the current
+
+        Returns:
+            A new pipeline with the function applied
+        """
+        return self.create(
+            self.head.apply(f),
+            name=self.name if name is None else name,
+        )
+
     def remove(self, step: str | list[str], *, name: str | None = None) -> Pipeline:
         """Remove a step from the pipeline.
 
@@ -458,6 +479,7 @@ class Pipeline:
         rename: bool | str = False,
         prefixed_name: bool = False,
         transform_context: Any | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> Pipeline:
         """Configure the pipeline with the given configuration.
 
@@ -478,6 +500,9 @@ class Pipeline:
                 pipeline. Defaults to `False`.
             transform_context: Any context to give to `config_transform=` of individual
                 steps.
+            params: The params to match any requests when configuring this step.
+                These will match against any ParamRequests in the config and will
+                be used to fill in any missing values.
 
         Returns:
             A new pipeline with the configuration applied
@@ -488,13 +513,21 @@ class Pipeline:
         else:
             this_config = config
 
-        new_head = self.head.configure(this_config, prefixed_name=True)
+        config = dict(config)
+
+        new_head = self.head.configure(
+            this_config,
+            transform_context=transform_context,
+            params=params,
+            prefixed_name=True,
+        )
 
         new_modules = [
             module.configure(
                 this_config,
-                prefixed_name=True,
                 transform_context=transform_context,
+                params=params,
+                prefixed_name=True,
             )
             for module in self.modules.values()
         ]

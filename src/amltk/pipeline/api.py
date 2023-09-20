@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, TypeVar, overload
 
 from amltk.pipeline.components import Choice, Component, Group, Split
-from amltk.pipeline.step import Step
+from amltk.pipeline.step import ParamRequest, Step
 
 if TYPE_CHECKING:
     from amltk.types import FidT
@@ -286,6 +286,29 @@ def split(
         meta=meta,
         config_transform=config_transform,
     )
+
+
+_NotSet = object()
+
+
+def request(
+    key: str,
+    *,
+    default: T = _NotSet,  # type: ignore
+    required: bool = False,
+) -> ParamRequest[T]:
+    """Create a new parameter request.
+
+    Args:
+        key: The key to request under.
+        default: The default value to use if the key is not found.
+            If left as `__NotSet` (default) then the key will be removed from the
+            config once [`configure`][amltk.pipeline.Step.configure] is called and
+            nothing has been provided.
+
+        required: Whether the key is required to be present.
+    """
+    return ParamRequest(key=key, default=default, required=required)
 
 
 def group(

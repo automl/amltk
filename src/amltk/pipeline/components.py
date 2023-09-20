@@ -21,7 +21,7 @@ from typing_extensions import override
 from attrs import field, frozen
 from more_itertools import first_true
 
-from amltk.pipeline.step import Step, mapping_select, prefix_keys
+from amltk.pipeline.step import ParamRequest, Step, mapping_select, prefix_keys
 from amltk.types import Config, FidT, Item, Space
 
 
@@ -114,6 +114,7 @@ class Group(Mapping[str, Step], Step[Space]):
             object.__setattr__(path_head, "parent", self)
             object.__setattr__(path_head, "prv", None)
 
+    @override
     def path_to(
         self,
         key: str | Step | Callable[[Step], bool],
@@ -151,6 +152,7 @@ class Group(Mapping[str, Step], Step[Space]):
 
         return None
 
+    @override
     def traverse(
         self,
         *,
@@ -178,6 +180,7 @@ class Group(Mapping[str, Step], Step[Space]):
         if self.nxt is not None:
             yield from self.nxt.traverse()
 
+    @override
     def walk(
         self,
         groups: Sequence[Group] | None = None,
@@ -197,6 +200,7 @@ class Group(Mapping[str, Step], Step[Space]):
                 parents=[*parents, self],
             )
 
+    @override
     def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
         """See `Step.replace`."""
         if self.name in replacements:
@@ -213,6 +217,7 @@ class Group(Mapping[str, Step], Step[Space]):
         if self.nxt is not None:
             yield from self.nxt.replace(replacements=replacements)
 
+    @override
     def remove(self, keys: Sequence[str]) -> Iterator[Step]:
         """See `Step.remove`."""
         if self.name not in keys:
@@ -230,27 +235,59 @@ class Group(Mapping[str, Step], Step[Space]):
         if self.nxt is not None:
             yield from self.nxt.remove(keys)
 
+    @override
+    def apply(self, func: Callable[[Step], Step]) -> Step:
+        """Apply a function to all the steps in this group.
+
+        Args:
+            func: The function to apply
+
+        Returns:
+            Step: The new group
+        """
+        new_paths = [path.apply(func) for path in self.paths]
+        new_nxt = self.nxt.apply(func) if self.nxt else None
+
+        # NOTE: We can't be sure that the function will return a new instance of
+        # `self` so we have to make a copy of `self` and then apply the function
+        # to that copy.
+        new_self = func(self.copy())
+
+        if new_nxt is not None:
+            # HACK: Frozen objects do not allow setting attributes after
+            # instantiation. Join the two steps together.
+            object.__setattr__(new_self, "nxt", new_nxt)
+            object.__setattr__(new_self, "paths", new_paths)
+            object.__setattr__(new_nxt, "prv", new_self)
+
+        return new_self
+
     # OPTIMIZE: Unlikely to be an issue but I figure `.items()` on
     # a split of size `n` will cause `n` iterations of `paths`
     # Fixable by implementing more of the `Mapping` functions
 
+    @override
     def __getitem__(self, key: str) -> Step:
         if val := first_true(self.paths, pred=lambda p: p.name == key):
             return val
         raise KeyError(key)
 
+    @override
     def __len__(self) -> int:
         return len(self.paths)
 
+    @override
     def __iter__(self) -> Iterator[str]:
         return iter(p.name for p in self.paths)
 
+    @override
     def configure(
         self,
         config: Config,
         *,
         prefixed_name: bool | None = None,
         transform_context: Any | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> Step:
         """Configure this step and anything following it with the given config.
 
@@ -268,6 +305,9 @@ class Group(Mapping[str, Step], Step[Space]):
                     this steps search space.
             transform_context: Any context to give to `config_transform=` of individual
                 steps.
+            params: The params to match any requests when configuring this step.
+                These will match against any ParamRequests in the config and will
+                be used to fill in any missing values.
 
         Returns:
             Step: The configured step
@@ -283,6 +323,7 @@ class Group(Mapping[str, Step], Step[Space]):
                 config,
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
+                params=params,
             )
             if self.nxt
             else None
@@ -297,6 +338,7 @@ class Group(Mapping[str, Step], Step[Space]):
                 subconfig,
                 prefixed_name=True,
                 transform_context=transform_context,
+                params=params,
             )
             for path in self.paths
         ]
@@ -313,6 +355,22 @@ class Group(Mapping[str, Step], Step[Space]):
 
         if self.config is not None:
             this_config = {**self.config, **this_config}
+
+        _params = params or {}
+        reqs = [(k, v) for k, v in this_config.items() if isinstance(v, ParamRequest)]
+        for k, request in reqs:
+            if request.key in _params:
+                this_config[k] = _params[request.key]
+            elif request.has_default:
+                this_config[request.key] = request.default
+            elif request.required:
+                raise ParamRequest.RequestNotMetError(
+                    f"Missing required parameter {request.key} for step {self.name}"
+                    " and no default was provided."
+                    f"\nThe request given was: {request}",
+                    f"Please use the `params=` argument to provide a value for this"
+                    f" request. What was given was `{params=}`",
+                )
 
         if self.config_transform is not None:
             this_config = self.config_transform(this_config, transform_context)
@@ -332,6 +390,7 @@ class Group(Mapping[str, Step], Step[Space]):
 
         return new_self
 
+    @override
     def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
         """See `Step.select`."""
         if self.name in choices:
@@ -351,6 +410,7 @@ class Group(Mapping[str, Step], Step[Space]):
         if self.nxt is not None:
             yield from self.nxt.select(choices)
 
+    @override
     def fidelities(self) -> dict[str, FidT]:
         """See `Step.fidelities`."""
         fids = {}
@@ -362,6 +422,7 @@ class Group(Mapping[str, Step], Step[Space]):
 
         return fids
 
+    @override
     def linearized_fidelity(self, value: float) -> dict[str, int | float | Any]:
         """Get the linearized fidelity for this step.
 
@@ -477,12 +538,14 @@ class Choice(Group[Space]):
         """Iter over the paths with their weights."""
         return zip(self.paths, (repeat(1) if self.weights is None else self.weights))
 
-    def configure(
+    @override
+    def configure(  # noqa: PLR0912, C901
         self,
         config: Config,
         *,
         prefixed_name: bool | None = None,
         transform_context: Any | None = None,
+        params: Mapping[str, Any] | None = None,
     ) -> Step:
         """Configure this step and anything following it with the given config.
 
@@ -499,6 +562,9 @@ class Choice(Group[Space]):
                     the prefix, i.e. the config keys are exactly those matching
                     this steps search space.
             transform_context: The context to pass to the config transform function.
+            params: The params to match any requests when configuring this step.
+                These will match against any ParamRequests in the config and will
+                be used to fill in any missing values.
 
         Returns:
             Step: The configured step
@@ -514,6 +580,7 @@ class Choice(Group[Space]):
                 config,
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
+                params=params,
             )
             if self.nxt
             else None
@@ -541,6 +608,7 @@ class Choice(Group[Space]):
                 subconfig,
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
+                params=params,
             )
 
             object.__setattr__(chosen_path, "old_parent", self.name)
@@ -562,6 +630,7 @@ class Choice(Group[Space]):
                 subconfig,
                 prefixed_name=True,
                 transform_context=transform_context,
+                params=params,
             )
             for path in self.paths
         ]
@@ -572,6 +641,26 @@ class Choice(Group[Space]):
 
         if self.config is not None:
             config_for_this_choice = {**self.config, **config_for_this_choice}
+
+        _params = params or {}
+        reqs = [
+            (k, v)
+            for k, v in config_for_this_choice.items()
+            if isinstance(v, ParamRequest)
+        ]
+        for k, request in reqs:
+            if request.key in _params:
+                config_for_this_choice[k] = _params[request.key]
+            elif request.has_default:
+                config_for_this_choice[request.key] = request.default
+            elif request.required:
+                raise ParamRequest.RequestNotMetError(
+                    f"Missing required parameter {request.key} for step {self.name}"
+                    " and no default was provided."
+                    f"\nThe request given was: {request}",
+                    f"Please use the `params=` argument to provide a value for this"
+                    f" request. What was given was `{params=}`",
+                )
 
         if self.config_transform is not None:
             _config_for_this_choice = self.config_transform(

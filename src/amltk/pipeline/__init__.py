@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from amltk.pipeline.api import choice, group, searchable, split, step
+from amltk.pipeline.api import choice, group, request, searchable, split, step
 from amltk.pipeline.components import Choice, Component, Group, Split
 from amltk.pipeline.parser import Parser
 from amltk.pipeline.pipeline import Pipeline
@@ -23,4 +23,5 @@ __all__ = [
     "SpaceAdapter",
     "group",
     "Group",
+    "request",
 ]

@@ -6,7 +6,7 @@ import pytest
 from more_itertools import first, last
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from amltk.pipeline import Pipeline, Step, choice, split, step
+from amltk.pipeline import Pipeline, Step, choice, request, split, step
 
 
 @case(tags="shallow")
@@ -230,3 +230,51 @@ def test_renaming_function(pipeline: Pipeline) -> None:
     assert pipeline.remove(x.name, name=new_name).name == new_name
     assert pipeline.append(x, name=new_name).name == new_name
     assert pipeline.select({x.name: x.name}, name=new_name).name == new_name
+
+
+def test_param_requests() -> None:
+    pipeline = Pipeline.create(
+        step("1", 1, config={"seed": request("seed1")})
+        | step("2", 2, config={"seed": request("seed2")})
+        | split(
+            "split",
+            (
+                step(
+                    "split1",
+                    42,
+                    config={
+                        "seed": request("seed1", required=True),
+                    },
+                )
+                | step(
+                    "split2",
+                    45,
+                    config={"seed": request("seed4", default=4)},
+                )
+            ),
+        )
+        | choice(
+            "3",
+            step("4", 4, config={"seed": None}),
+            step("5", 5),
+        ),
+    )
+    configured_pipeline = pipeline.configure(config={}, params={"seed1": 1, "seed2": 2})
+
+    assert configured_pipeline == Pipeline.create(
+        step("1", 1, config={"seed": 1})
+        | step("2", 2, config={"seed": 2})
+        | split(
+            "split",
+            (
+                step("split1", 42, config={"seed": 1})
+                | step("split2", 45, config={"seed": 4})
+            ),
+        )
+        | choice(
+            "3",
+            step("4", 4, config={"seed": None}),
+            step("5", 5),
+        ),
+        name=pipeline.name,
+    )

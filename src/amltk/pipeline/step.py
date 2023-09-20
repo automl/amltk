@@ -23,6 +23,7 @@ from typing import (
     cast,
     overload,
 )
+from typing_extensions import override
 
 from attrs import evolve, field, frozen
 from more_itertools import consume, first_true, last, peekable, triplewise
@@ -38,6 +39,45 @@ if TYPE_CHECKING:
     from amltk.pipeline.sampler import Sampler
 
 T = TypeVar("T")
+
+_NotSet = object()
+
+
+class ParamRequest(Generic[T]):
+    """A parameter request for a step. This is most useful for things like seeds."""
+
+    def __init__(
+        self,
+        key: str,
+        *,
+        default: T = _NotSet,  # type: ignore
+        required: bool = False,
+    ) -> None:
+        """Create a new parameter request.
+
+        Args:
+            key: The key to request under.
+            default: The default value to use if the key is not found.
+                If left as `_NotSet` (default) then the key will be removed from the
+                config once [`configure`][amltk.pipeline.Step.configure] is called and
+                nothing has been provided.
+
+            required: Whether the key is required to be present.
+        """
+        super().__init__()
+        self.key = key
+        self.default = default
+        self.required = required
+        self.has_default = default is not _NotSet
+
+    @override
+    def __repr__(self) -> str:
+        default = self.default if self.default is not _NotSet else "_NotSet"
+        required = self.required
+        return f"ParamRequest({self.key}, {default=}, {required=})"
+
+    class RequestNotMetError(ValueError):
+        """Raised when a request is not met."""
 
 
 @frozen(kw_only=True)
@@ -85,10 +125,13 @@ class Step(Generic[Space]):
         hash=False,
         repr=False,
     )
-    config_transform: Callable[
-        [Mapping[str, Any], Any],
-        Mapping[str, Any],
-    ] | None = field(
+    config_transform: (
+        Callable[
+            [Mapping[str, Any], Any],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = field(
         default=None,
         hash=False,
         repr=False,
@@ -193,12 +236,13 @@ class Step(Generic[Space]):
         """Check if this searchable is configured."""
         return self.search_space is None and self.config is not None
 
-    def configure(
+    def configure(  # noqa: C901
         self,
         config: Config,
         *,
         prefixed_name: bool | None = None,
         transform_context: Any = None,
+        params: Mapping[str, Any] | None = None,
     ) -> Step:
         """Configure this step and anything following it with the given config.
 
@@ -215,7 +259,10 @@ class Step(Generic[Space]):
                     the prefix, i.e. the config keys are exactly those matching
                     this steps search space.
             transform_context: Any context to give to `config_transform=` of individual
-                steps.
+                steps. This will apply once the config has been fully built.
+            params: The params to match any requests when configuring this step.
+                These will match against any ParamRequests in the config and will
+                be used to fill in any missing values.
 
         Returns:
             Step: The configured step
@@ -231,22 +278,39 @@ class Step(Generic[Space]):
                 config,
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
+                params=params,
             )
             if self.nxt
             else None
         )
 
-        this_config: Mapping[str, Any]
+        this_config: dict[str, Any]
         if prefixed_name:
             this_config = mapping_select(config, f"{self.name}:")
         else:
-            this_config = deepcopy(config)
+            this_config = dict(deepcopy(config))
 
         if self.config is not None:
             this_config = {**self.config, **this_config}
 
+        _params = params or {}
+        reqs = [(k, v) for k, v in this_config.items() if isinstance(v, ParamRequest)]
+        for k, request in reqs:
+            if request.key in _params:
+                this_config[k] = _params[request.key]
+            elif request.has_default:
+                this_config[request.key] = request.default
+            elif request.required:
+                raise ParamRequest.RequestNotMetError(
+                    f"Missing required parameter {request.key} for step {self.name}"
+                    " and no default was provided."
+                    f"\nThe request given was: {request}",
+                    f"Please use the `params=` argument to provide a value for this"
+                    f" request. What was given was `{params=}`",
+                )
+
         if self.config_transform is not None:
-            this_config = self.config_transform(this_config, transform_context)
+            this_config = dict(self.config_transform(this_config, transform_context))
 
         new_self = self.mutate(
             config=this_config if this_config else None,
@@ -259,6 +323,30 @@ class Step(Generic[Space]):
             # object. Frozen objects do not allow setting attributes after
             # instantiation.
             object.__setattr__(nxt, "prv", new_self)
+
+        return new_self
+
+    def apply(self, func: Callable[[Step], Step]) -> Step:
+        """Apply a function to this step and all following steps.
+
+        Args:
+            func: The function to apply
+
+        Returns:
+            Step: The step with the function applied
+        """
+        new_nxt = self.nxt.apply(func) if self.nxt is not None else None
+
+        # NOTE: We can't be sure that the function will return a new instance of
+        # `self` so we have to make a copy of `self` and then apply the function
+        # to that copy.
+        new_self = func(self.copy())
+
+        if new_nxt is not None:
+            # HACK: Frozen objects do not allow setting attributes after
+            # instantiation. Join the two steps together.
+            object.__setattr__(new_self, "nxt", new_nxt)
+            object.__setattr__(new_nxt, "prv", new_self)
 
         return new_self
 
@@ -295,7 +383,25 @@ class Step(Generic[Space]):
             yield from head.iter(to=self)
 
     def mutate(self, **kwargs: Any) -> Self:
-        """Mutate this step with the given kwargs, will remove any existing nxt or prv.
+        """Mutate this step with the given kwargs, creating a copy.
+
+        !!! warning "Warning"
+
+            Will remove any existing `nxt` or `prv` to prevent `nxt` and `prv`
+            pointing to the old step while the new version of this step points to
+            those old `nxt` and `prv` steps.
+
+            ```
+            Before:
+
+                ---[prv]--[self, x=4]--[nxt]---
+
+            After Mutation:
+
+                ----------[self, x=5]----------
+            ```
+
+            To overwrite this behaviour, please explicitly pass `prv=` and `nxt=`.
 
         Args:
             **kwargs: The attributes to mutate
