@@ -149,6 +149,18 @@ class Profiler(Mapping[str, Profile.Interval]):
         self.disabled = False
 
     @contextmanager
+    def __call__(
+        self,
+        name: str,
+        *,
+        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
+        time_kind: Timer.Kind | Literal["wall", "cpu", "process"] | None = None,
+    ) -> Iterator[None]:
+        """::: amltk.profiling.Profiler.measure"""  # noqa: D415
+        with self.measure(name, memory_unit=memory_unit, time_kind=time_kind):
+            yield
+
+    @contextmanager
     def measure(
         self,
         name: str,
