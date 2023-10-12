@@ -591,7 +591,8 @@ class EventManager(Mapping[Event, EventHandler[Any]]):
         Returns:
             A subscriber for the event.
         """
-        return Subscriber(self, event)
+        _event = event[0] if len(event) == 1 else event
+        return Subscriber(self, _event)  # type: ignore
 
 
 class Emitter:
