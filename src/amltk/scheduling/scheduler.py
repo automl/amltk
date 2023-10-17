@@ -7,10 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from concurrent.futures import (
-    Executor,
-    ProcessPoolExecutor,
-)
+from concurrent.futures import Executor, ProcessPoolExecutor
+from dataclasses import dataclass
 from enum import Enum, auto
 from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
@@ -33,6 +31,19 @@ if TYPE_CHECKING:
     CallableT = TypeVar("CallableT", bound=Callable)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ExitState:
+    """The exit state of a scheduler.
+
+    Attributes:
+        reason: The reason for the exit.
+        exception: The exception that caused the exit, if any.
+    """
+
+    code: Scheduler.ExitCode
+    exception: BaseException | None = None
 
 
 class Scheduler(Emitter):
@@ -616,7 +627,7 @@ class Scheduler(Emitter):
             A Future representing the given call.
         """
         if not self.running():
-            logger.info(f"Scheduler is not running, cannot submit task {function}")
+            logger.debug(f"Scheduler is not running, cannot submit task {function}")
             return None
 
         try:
@@ -653,7 +664,7 @@ class Scheduler(Emitter):
         self.on_future_done.emit(future)
 
         exception = future.exception()
-        if self._end_on_exception_flag and future.done() and exception:
+        if exception and self._end_on_exception_flag and future.done():
             self.stop(stop_msg="Ending on first exception", exception=exception)
 
     async def _monitor_queue_empty(self) -> None:
@@ -682,10 +693,10 @@ class Scheduler(Emitter):
 
         await stop_event.wait()
 
-        logger.info("Stop event triggered, stopping scheduler")
+        logger.debug("Stop event triggered, stopping scheduler")
         return True
 
-    async def _run_scheduler(  # noqa: PLR0912, C901, PLR0915
+    async def _run_scheduler(
         self,
         *,
         timeout: float | None = None,
@@ -730,22 +741,8 @@ class Scheduler(Emitter):
             stop_reason = Scheduler.ExitCode.STOPPED
 
             msg, exception = self._stop_event.context
-            if msg and exception:
-                msg = "\n".join([msg, f"{type(exception)}: {exception}"])
-            elif msg and exception:
-                msg = f"Scheduler stopped with message:\n{msg}"
-            elif exception:
-                msg = "\n".join(
-                    [
-                        f"Scheduler stopped with exception {type(exception)}:",
-                        f"{exception}",
-                    ],
-                )
-            else:
-                msg = "Scheduler had `stop()` called on it."
-
-            if msg:
-                logger.info(msg)
+            _log = logger.exception if exception else logger.debug
+            _log(f"Stop Message: {msg}", exc_info=exception)
 
             self.on_stop.emit()
             if self._end_on_exception_flag and exception:
@@ -753,10 +750,10 @@ class Scheduler(Emitter):
             else:
                 stop_reason = Scheduler.ExitCode.STOPPED
         elif monitor_empty.done():
-            logger.info("Scheduler stopped due to being empty.")
+            logger.debug("Scheduler stopped due to being empty.")
             stop_reason = Scheduler.ExitCode.EXHAUSTED
         elif timeout is not None:
-            logger.info(f"Scheduler stopping as {timeout=} reached.")
+            logger.debug(f"Scheduler stopping as {timeout=} reached.")
             stop_reason = Scheduler.ExitCode.TIMEOUT
             self.on_timeout.emit()
         else:
@@ -771,12 +768,12 @@ class Scheduler(Emitter):
         await asyncio.gather(*[monitor_empty, stop_triggered], return_exceptions=True)
 
         self.on_finishing.emit()
-        logging.info("Scheduler is finished")
-        logger.info(f"Shutting down scheduler executor with {wait=}")
+        logger.debug("Scheduler is finished")
+        logger.debug(f"Shutting down scheduler executor with {wait=}")
 
         # The scheduler is now refusing jobs
         self._running_event.clear()
-        logger.info("Scheduler has shutdown and declared as no longer running")
+        logger.debug("Scheduler has shutdown and declared as no longer running")
 
         # This will try to end the tasks based on wait and self._terminate
         Scheduler._end_pending(
@@ -787,7 +784,7 @@ class Scheduler(Emitter):
         )
 
         self.on_finished.emit()
-        logger.info(f"Scheduler finished with status {stop_reason}")
+        logger.debug(f"Scheduler finished with status {stop_reason}")
 
         # Clear all events
         self._stop_event.clear()
@@ -801,10 +798,9 @@ class Scheduler(Emitter):
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-        end_on_exception: bool = True,
-        raises: bool = True,
+        on_exception: Literal["raise", "ignore"] = "raise",
         asyncio_debug_mode: bool = False,
-    ) -> ExitCode | BaseException:
+    ) -> ExitState:
         """Run the scheduler.
 
         Args:
@@ -814,10 +810,9 @@ class Scheduler(Emitter):
             end_on_empty: Whether to end the scheduler when the
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
-            end_on_exception: Whether to end if an exception occurs.
-            raises: Whether to raise an exception if the scheduler
-                ends due to an exception. Has no effect if `end_on_exception`
-                is `False`.
+            on_exception: What to do when an exception occurs.
+                if "raise", the exception will be raised.
+                If "ignore", the scheduler will continue running.
             asyncio_debug_mode: Whether to run the async loop in debug mode.
                 Defaults to `False`. Please see [asyncio.run][] for more.
 
@@ -832,8 +827,7 @@ class Scheduler(Emitter):
                 timeout=timeout,
                 end_on_empty=end_on_empty,
                 wait=wait,
-                end_on_exception=end_on_exception,
-                raises=raises,
+                on_exception=on_exception,
             ),
             debug=asyncio_debug_mode,
         )
@@ -844,9 +838,8 @@ class Scheduler(Emitter):
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-        end_on_exception: bool = True,
-        raises: bool = True,
-    ) -> ExitCode | BaseException:
+        on_exception: Literal["raise", "ignore"] = "raise",
+    ) -> ExitState:
         """Async version of `run`.
 
         Args:
@@ -855,10 +848,9 @@ class Scheduler(Emitter):
             end_on_empty: Whether to end the scheduler when the
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
-            end_on_exception: Whether to end if an exception occurs.
-            raises: Whether to raise an exception if the scheduler
-                ends due to an exception. Has no effect if `end_on_exception`
-                is `False`.
+            on_exception: Whether to end if an exception occurs.
+                if "raise", the exception will be raised.
+                If "ignore", the scheduler will continue running.
 
         Returns:
             The reason for the scheduler ending.
@@ -866,12 +858,12 @@ class Scheduler(Emitter):
         if self.running():
             raise RuntimeError("Scheduler already seems to be running")
 
-        logger.info("Starting scheduler")
+        logger.debug("Starting scheduler")
 
         # Make sure the flag is set
-        self._end_on_exception_flag.set(value=end_on_exception)
+        self._end_on_exception_flag.set(value=on_exception == "raise")
 
-        if end_on_exception:
+        if on_exception == "raise":
 
             def custom_exception_handler(
                 loop: asyncio.AbstractEventLoop,
@@ -899,14 +891,14 @@ class Scheduler(Emitter):
         # If we were meant to end on an exception and the result
         # we got back from the scheduler was an exception, raise it
         if isinstance(result, BaseException):
-            if raises:
+            if on_exception == "raise":
                 raise result
 
-            return result
+            return ExitState(code=Scheduler.ExitCode.EXCEPTION, exception=result)
 
-        return result
+        return ExitState(code=result)
 
-    def stop(self, *args: Any, **kwargs: Any) -> None:
+    def stop(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         """Stop the scheduler.
 
         The scheduler will stop, finishing currently running tasks depending
@@ -932,8 +924,7 @@ class Scheduler(Emitter):
 
         msg = kwargs.get("stop_msg", "stop() called")
 
-        self._stop_event.set(msg=msg, exception=kwargs.get("exception"))
-        logger.debug(f"Stop event set with {args=} and {kwargs=}")
+        self._stop_event.set(msg=f"{msg}", exception=kwargs.get("exception"))
         self._running_event.clear()
 
     @staticmethod
@@ -945,7 +936,7 @@ class Scheduler(Emitter):
         termination_strategy: Callable[[Executor], Any] | None = None,
     ) -> None:
         if wait:
-            logger.info("Waiting for currently running tasks to finish.")
+            logger.debug("Waiting for currently running tasks to finish.")
             executor.shutdown(wait=wait)
         elif termination_strategy is None:
             logger.warning(
@@ -988,3 +979,6 @@ class Scheduler(Emitter):
 
         UNKNOWN = auto()
         """The scheduler finished for an unknown reason."""
+
+        EXCEPTION = auto()
+        """The scheduler finished because of an exception."""

@@ -16,12 +16,15 @@ from typing import (
     Mapping,
     Sequence,
     TypeVar,
+    Union,
 )
+from typing_extensions import TypeAlias
 
 T = TypeVar("T")
 V = TypeVar("V")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
+RecMapping: TypeAlias = Mapping[K, Union["RecMapping[K, V]", V]]
 
 
 def prefix_keys(d: Mapping[str, V], prefix: str) -> dict[str, V]:
@@ -56,6 +59,36 @@ def mapping_select(d: Mapping[str, V], prefix: str) -> dict[str, V]:
         The selected subset of the mapping.
     """
     return {k[len(prefix) :]: v for k, v in d.items() if k.startswith(prefix)}
+
+
+def flatten_dict(d: RecMapping[str, V], *, delim: str | None = None) -> dict[str, V]:
+    """Flatten a recursive mapping.
+
+    ```python exec="true" source="material-block" result="python" title="flatten_dict"
+    from amltk.functional import flatten_dict
+
+    d = {"a": 1, "b": {"c": 2, "d": 3}}
+    print(flatten_dict(d))
+    # {"a": 1, "b:c": 2, "b:d": 3}
+    ```
+
+    Args:
+        d: The recursive mapping to flatten.
+        delim: The delimiter to use between keys.
+
+    Returns:
+        The flattened mapping.
+    """
+    delim = delim or ":"
+
+    def _flatten_dict(d: RecMapping[str, V], prefix: str) -> Iterator[tuple[str, V]]:
+        for k, v in d.items():
+            if isinstance(v, Mapping):
+                yield from _flatten_dict(v, prefix + k + delim)
+            else:
+                yield prefix + k, v
+
+    return dict(_flatten_dict(d, ""))
 
 
 def reverse_enumerate(
