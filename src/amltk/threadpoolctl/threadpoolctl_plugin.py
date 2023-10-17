@@ -32,6 +32,7 @@ class _ThreadPoolLimiter(Generic[P, R]):
         max_threads: int | dict[str, int] | None = None,
         user_api: str | None = None,
     ):
+        super().__init__()
         self.fn = fn
         self.max_threads = max_threads
         self.user_api = user_api

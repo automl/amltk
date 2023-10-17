@@ -8,7 +8,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, override
 
 from amltk.optimization.optimizer import Optimizer
 from amltk.optimization.trial import Trial
@@ -86,6 +86,7 @@ class RandomSearch(Optimizer[RSTrialInfo]):
                 `ExhaustedError` will be raised. This parameter has no
                 effect when `duplicates=True`.
         """
+        super().__init__()
         self.space = space
         self.trial_count = 0
         self.seed = as_rng(seed) if seed is not None else None
@@ -112,6 +113,7 @@ class RandomSearch(Optimizer[RSTrialInfo]):
                 f"Expected `sampler` to be a `Sampler` or `Callable`, got {sampler=}.",
             )
 
+    @override
     def ask(self) -> Trial[RSTrialInfo]:
         """Sample from the space.
 
@@ -144,7 +146,8 @@ class RandomSearch(Optimizer[RSTrialInfo]):
         self.trial_count = self.trial_count + 1
         return trial
 
-    def tell(self, _: Trial.Report[RSTrialInfo]) -> None:
+    @override
+    def tell(self, report: Trial.Report[RSTrialInfo]) -> None:
         """Do nothing with the report.
 
         ???+ note
@@ -157,8 +160,10 @@ class RandomSearch(Optimizer[RSTrialInfo]):
 
         def __init__(self, space: Any):
             """Initialize the error."""
+            super().__init__(space)
             self.space = space
 
+        @override
         def __str__(self) -> str:
             return (
                 f"Exhausted all unique configs in the space {self.space}."
@@ -178,15 +183,18 @@ class FunctionalSampler(Sampler[Space]):
 
     f: Callable[[Space, int], Config]
 
+    @override
     @classmethod
-    def supports_sampling(cls, space: Any) -> bool:  # noqa: ARG003
+    def supports_sampling(cls, space: Any) -> bool:
         """Defaults to True for all spaces."""
         return True
 
+    @override
     def copy(self, space: Space) -> Space:
         """Attempts it's best with a deepcopy."""
         return deepcopy(space)
 
+    @override
     def _sample(
         self,
         space: Space,

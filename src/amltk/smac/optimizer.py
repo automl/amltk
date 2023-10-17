@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Literal, Mapping, Sequence
+from typing_extensions import override
 
 import numpy as np
 from smac import HyperparameterOptimizationFacade, MultiFidelityFacade, Scenario
@@ -102,6 +103,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         )
         return cls(facade=facade, fidelities=fidelities)
 
+    @override
     def ask(self) -> Trial[SMACTrialInfo]:
         """Ask the optimizer for a new config.
 
@@ -132,18 +134,17 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             seed=seed,
             fidelities=trial_fids,
         )
-        logger.info(f"Asked for trial {trial.name}")
-        logger.debug(f"{trial=}")
+        logger.debug(f"Asked for trial {trial.name}")
         return trial
 
+    @override
     def tell(self, report: Trial.Report[SMACTrialInfo]) -> None:  # noqa: PLR0912, C901
         """Tell the optimizer the result of the sampled config.
 
         Args:
             report: The report of the trial.
         """
-        logger.info(f"Telling report for trial {report.trial.name}")
-        logger.debug(f"{report=}")
+        logger.debug(f"Telling report for trial {report.trial.name}")
         # If we're successful, get the cost and times and report them
         if report.status is Trial.Status.SUCCESS:
             if "cost" not in report.results:
