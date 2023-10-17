@@ -146,7 +146,7 @@ class NPYLoader(PathLoader[np.ndarray]):
     def load(cls, key: Path, /) -> np.ndarray:
         """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
         logger.debug(f"Loading {key=}")
-        item = np.load(key)
+        item = np.load(key, allow_pickle=False)
         if not isinstance(item, np.ndarray):
             msg = f"Expected `np.ndarray` from {key=} but got `{type(item).__name__}`."
             raise TypeError(msg)
@@ -158,7 +158,7 @@ class NPYLoader(PathLoader[np.ndarray]):
     def save(cls, obj: np.ndarray, key: Path, /) -> None:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
-        np.save(key, obj)
+        np.save(key, obj, allow_pickle=False)
 
 
 class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
@@ -200,7 +200,7 @@ class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
     def can_load(cls, key: Path, /, *, check: type | None = None) -> bool:
         """::: amltk.store.paths.path_loaders.PathLoader.can_load"""  # noqa: D415
         if key.suffix in (".pdpickle", None):
-            return check in (pd.Series, pd.DataFrame)
+            return check in (pd.Series, pd.DataFrame, None)
 
         if key.suffix in (".csv", ".parquet"):
             return check in (pd.DataFrame, None)

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, overload
 from more_itertools.more import first
 
 from amltk.functional import funcname
+from amltk.types import StoredValue
 
 if TYPE_CHECKING:
     from amltk.store.loader import Loader
@@ -54,6 +55,7 @@ class Drop(Generic[KeyT]):
     * [`put`][amltk.store.drop.Drop.put]
     * [`remove`][amltk.store.drop.Drop.remove]
     * [`exists`][amltk.store.drop.Drop.exists]
+    * [`as_stored_value`][amltk.store.drop.Drop.as_stored_value]
 
     Args:
         key: The key to the resource.
@@ -64,6 +66,32 @@ class Drop(Generic[KeyT]):
     loaders: tuple[type[Loader[KeyT, Any]], ...] = field(repr=False)
     _remove: Callable[[KeyT], bool] = field(repr=False)
     _exists: Callable[[KeyT], bool] = field(repr=False)
+
+    def as_stored_value(
+        self,
+        read: Callable[[KeyT], T] | None = None,
+    ) -> StoredValue[KeyT, T]:
+        """Convert the drop to a [`StoredValue`][amltk.types.StoredValue].
+
+        Args:
+            read: The method to use to load the resource. If `None` then
+                the first loader that can load the resource will be used.
+
+        Returns:
+            The drop as a [`StoredValue`][amltk.types.StoredValue].
+        """
+        if read is None:
+            loader = first(
+                (_l for _l in self.loaders if _l.can_load(self.key)),
+                default=None,
+            )
+
+            if loader is None:
+                raise ValueError(f"Can't load {self.key=} from {self.loaders=}")
+
+            read = loader.load
+
+        return StoredValue(self.key, read=read)
 
     def put(
         self,
@@ -121,6 +149,8 @@ class Drop(Generic[KeyT]):
             check: By specifying a `type` we check the loaded object of that type, to
                 enable correctly typed checked code.
             how: The function to use to load the resource.
+            **loader_kwargs: Additional arguments to pass to the loader.
+                For example, you may want to pass `allow_pickle=True`
 
         Returns:
             The loaded resource.

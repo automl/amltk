@@ -2,21 +2,40 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from dataclasses import dataclass
+from itertools import chain, repeat
 from typing import (
     Any,
+    Callable,
+    Generic,
+    Iterable,
     Iterator,
     List,
     Mapping,
     NewType,
     NoReturn,
     Protocol,
+    Sequence,
     Tuple,
     TypeVar,
     Union,
 )
-from typing_extensions import TypeAlias
+from typing_extensions import TypeAlias, override
 
 import numpy as np
+
+T = TypeVar("T")
+K = TypeVar("K")
+V = TypeVar("V")
+
+# NOTE: We do not provide sorted types for mutable data structures
+# as modifying them could potentially ruin the sorting.
+
+SortedSequence: TypeAlias = Sequence[T]
+"""A sequence that is sorted. Only useful for typing"""
+
+SortedIterable: TypeAlias = Iterable[T]
+"""An iterable that is sorted. Only useful for typing"""
 
 Item = TypeVar("Item")
 """The type associated with components, splits and choices"""
@@ -93,3 +112,97 @@ def safe_isinstance(obj: Any, t: str | tuple[str, ...]) -> bool:
         bool
     """
     return safe_issubclass(type(obj), t)
+
+
+@dataclass
+class Requeue(Iterator[T]):
+    """A queue that can have items requeued.
+
+    ```python exec="true" source="material-block" result="python" title="Requeue"
+    import random
+    from amltk.types import Requeue
+
+    name_generator = iter(["Alice", "Bob", "Charlie"])
+    queue: Requeue[str] = Requeue(name_generator)
+
+    rng = random.Random(1)
+
+    def process_name(name: str) -> bool:
+        return rng.choice([True, False])
+
+    for name in requeue:
+        print(f"Processing {name}")
+        processed = process_name(name)
+        if not processed:
+            print(f"Failed to process {name}, requeuing")
+            queue.requeue(name)
+    ```
+
+
+    See Also:
+        * [`Requeue.from_func(f)`][amltk.types.Requeue.from_func]
+
+            If you have a function which will generate items, you can use
+            this to create a requeue from it.
+
+        * [`.append(item)`][amltk.types.Requeue.append]
+
+            Append an item to the end of the queue
+
+        * [`.requeue(item)`][amltk.types.Requeue.requeue]
+
+            Requeue an item to the start of the queue
+    """
+
+    generator: Iterator[T]
+
+    def __post_init__(self) -> None:
+        self.generator = iter(self.generator)
+
+    @override
+    def __next__(self) -> T:
+        return next(self.generator)
+
+    def append(self, item: T) -> None:
+        """Append an item to the queue."""
+        self.generator = chain(self.generator, [item])
+
+    def requeue(self, item: T) -> None:
+        """Requeue an item."""
+        self.generator = chain([item], self.generator)
+
+    @classmethod
+    def from_func(cls, func: Callable[[], T], n: int | None = None) -> Requeue[T]:
+        """Create a Requeue from a function."""
+        repeater = repeat(None) if n is None else repeat(None, times=n)
+        return cls(func() for _ in repeater)
+
+
+@dataclass
+class StoredValue(Generic[K, V]):
+    """A value that is stored on disk and loaded lazily.
+
+    This is useful for transmitting large objects between processes.
+
+    ```python exec="true" source="material-block" result="python" title="StoredValue"
+    from amltk.types import StoredValue
+
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+    stored_value = StoredValue(path, read=pd.read_csv)
+
+    # Somewhere in a processes
+    df = stored_value.value()
+    ```
+    """
+
+    key: K
+    read: Callable[[K], V]
+
+    _value: V | None = None
+
+    def value(self) -> V:
+        """Get the value."""
+        if self._value is None:
+            self._value = self.read(self.key)
+
+        return self._value

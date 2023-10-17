@@ -148,6 +148,27 @@ class PathBucket(Bucket[str, Path]):
         self.path = path
         self.loaders = _loaders
 
+    def sizes(self) -> dict[str, int]:
+        """Get the sizes of all the files in the bucket.
+
+        !!! warning "Files only"
+
+            This method only returns the sizes of the files in the bucket.
+            It does not include directories, their sizes, or their contents.
+
+        Returns:
+            A dictionary mapping the keys to the sizes of the files.
+        """
+        return {str(path.name): path.stat().st_size for path in self.path.iterdir()}
+
+    def add_loader(self, loader: type[PathLoader]) -> None:
+        """Add a loader to the bucket.
+
+        Args:
+            loader: The loader to add.
+        """
+        self.loaders = (loader, *self.loaders)
+
     @override
     def __getitem__(self, key: str) -> Drop[Path]:
         return self._drop(self.path / key, loaders=self.loaders)

@@ -238,6 +238,16 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
             key: self[key].get(default=default_dict.get(key, default)) for key in keys
         }
 
+    @override
+    def update(self, items: Mapping[KeyT, Any]) -> None:  # type: ignore
+        """Update the bucket with the given mapping.
+
+        Args:
+            items: The mapping of items to store in the bucket.
+        """
+        for key, value in items.items():
+            self[key].put(value)
+
     def remove(
         self,
         keys: Iterable[KeyT],
