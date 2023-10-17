@@ -11,7 +11,7 @@ from amltk.optimization import Trial
 from amltk.optimization.history import History, Trace
 
 
-def quadratic(x):
+def quadratic(x: float) -> float:
     return x**2
 
 
@@ -36,6 +36,9 @@ def eval_trial(
     reports: list[Trial.Report] = []
     for _trial in trial:
         with _trial.begin():
+            with _trial.profile("dummy"):
+                pass
+
             if fail is not None:
                 reports.append(_trial.fail(cost=fail))
             else:
@@ -218,6 +221,11 @@ def test_history_sortby() -> None:
 def test_history_serialization(reports: list[Trial.Report], tmp_path: Path) -> None:
     history = History()
     history.add(reports)
+
+    if any(reports):
+        report_df = reports[0].df()
+        restored_report_df = Trial.Report.from_df(report_df).df()
+        pd.testing.assert_frame_equal(report_df, restored_report_df)
 
     df = history.df()
     assert len(df) == len(reports)

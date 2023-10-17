@@ -6,6 +6,7 @@ import warnings
 from concurrent.futures import Executor, ProcessPoolExecutor
 from typing import Iterator
 
+import pytest
 from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
@@ -82,9 +83,8 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(mem_in_bytes=two_gb)
 
-    end_status = scheduler.run(end_on_exception=True, raises=False)
-
-    assert isinstance(end_status, PynisherPlugin.MemoryLimitException)
+    with pytest.raises(PynisherPlugin.MemoryLimitException):
+        scheduler.run(on_exception="raise")
 
     assert task.event_counts == {
         task.SUBMITTED: 1,
@@ -116,9 +116,8 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(duration=3)
 
-    end_status = scheduler.run(raises=False, end_on_exception=True)
-
-    assert isinstance(end_status, PynisherPlugin.WallTimeoutException)
+    with pytest.raises(PynisherPlugin.WallTimeoutException):
+        scheduler.run(on_exception="raise")
 
     assert task.event_counts == {
         task.SUBMITTED: 1,
@@ -152,8 +151,8 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task(iterations=int(1e16))
 
-    end_status = scheduler.run(raises=False, end_on_exception=True)
-    assert isinstance(end_status, PynisherPlugin.CpuTimeoutException)
+    with pytest.raises(PynisherPlugin.CpuTimeoutException):
+        scheduler.run(on_exception="raise")
 
     assert task.event_counts == {
         task.SUBMITTED: 1,

@@ -17,11 +17,12 @@ from typing import (
     TypeVar,
     overload,
 )
+from typing_extensions import override
 
 import pandas as pd
 
 from amltk.functional import compare_accumulate
-from amltk.optimization.trial import _REPORT_DF_COLUMN_TYPES, Trial
+from amltk.optimization.trial import Trial
 from amltk.types import Comparable
 
 T = TypeVar("T")
@@ -124,9 +125,8 @@ class History(Mapping[str, Trial.Report]):
         if len(self) == 0:
             return pd.DataFrame()
 
-        return pd.concat(
-            [report.df(convert_dtypes=False) for report in list(self.reports.values())],
-        ).astype(_REPORT_DF_COLUMN_TYPES)
+        _df = pd.concat([report.df() for report in list(self.reports.values())])
+        return _df.convert_dtypes()
 
     def filter(self, by: Callable[[Trial.Report], bool]) -> History:
         """Filters the history by a predicate.
@@ -251,18 +251,23 @@ class History(Mapping[str, Trial.Report]):
 
         return Trace(sorted(history.reports.values(), key=sort_key, reverse=reverse))
 
+    @override
     def __getitem__(self, key: str) -> Trial.Report:
         return self.reports[key]
 
+    @override
     def __iter__(self) -> Iterator[str]:
         return iter(self.reports)
 
+    @override
     def __len__(self) -> int:
         return len(self.reports)
 
+    @override
     def __repr__(self) -> str:
         return f"History({self.reports})"
 
+    @override
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, History):
             return NotImplemented
@@ -292,14 +297,13 @@ class History(Mapping[str, Trial.Report]):
         _df = (
             pd.read_csv(
                 path,
-                dtype=_REPORT_DF_COLUMN_TYPES,  # type: ignore
                 float_precision="round_trip",  # type: ignore
             )
             if isinstance(path, (IO, str, Path))
             else path
         )
 
-        return cls.from_df(_df)
+        return cls.from_df(_df.convert_dtypes())
 
     @classmethod
     def from_df(cls, df: pd.DataFrame) -> History:
@@ -342,20 +346,25 @@ class Trace(Sequence[Trial.Report]):
     def __getitem__(self, key: slice) -> Trace:
         ...
 
+    @override
     def __getitem__(self, key: int | slice) -> Trial.Report | Trace:
         if isinstance(key, int):
             return self.reports[key]
         return Trace(self.reports[key])
 
+    @override
     def __iter__(self) -> Iterator[Trial.Report]:
         return iter(self.reports)
 
+    @override
     def __len__(self) -> int:
         return len(self.reports)
 
+    @override
     def __repr__(self) -> str:
         return f"Trace({self.reports})"
 
+    @override
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Trace):
             return NotImplemented
@@ -566,9 +575,9 @@ class Trace(Sequence[Trial.Report]):
             return pd.DataFrame()
 
         return pd.concat(
-            [report.df(convert_dtypes=False) for report in self.reports],
+            [report.df() for report in self.reports],
             ignore_index=True,
-        ).astype(_REPORT_DF_COLUMN_TYPES)
+        ).convert_dtypes()
 
     def to_csv(self, path: str | Path | IO[str]) -> None:
         """Saves the history to a csv.

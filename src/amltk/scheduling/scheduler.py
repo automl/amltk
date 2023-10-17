@@ -798,7 +798,7 @@ class Scheduler(Emitter):
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-        on_exception: Literal["raise", "ignore"] = "raise",
+        on_exception: Literal["raise", "end", "ignore"] = "raise",
         asyncio_debug_mode: bool = False,
     ) -> ExitState:
         """Run the scheduler.
@@ -811,8 +811,9 @@ class Scheduler(Emitter):
                 queue becomes empty. Defaults to `True`.
             wait: Whether to wait for the executor to shutdown.
             on_exception: What to do when an exception occurs.
-                if "raise", the exception will be raised.
+                If "raise", the exception will be raised.
                 If "ignore", the scheduler will continue running.
+                If "end", the scheduler will end but not raise.
             asyncio_debug_mode: Whether to run the async loop in debug mode.
                 Defaults to `False`. Please see [asyncio.run][] for more.
 
@@ -838,7 +839,7 @@ class Scheduler(Emitter):
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-        on_exception: Literal["raise", "ignore"] = "raise",
+        on_exception: Literal["raise", "end", "ignore"] = "raise",
     ) -> ExitState:
         """Async version of `run`.
 
@@ -851,6 +852,7 @@ class Scheduler(Emitter):
             on_exception: Whether to end if an exception occurs.
                 if "raise", the exception will be raised.
                 If "ignore", the scheduler will continue running.
+                If "end", the scheduler will end but not raise.
 
         Returns:
             The reason for the scheduler ending.
@@ -861,9 +863,9 @@ class Scheduler(Emitter):
         logger.debug("Starting scheduler")
 
         # Make sure the flag is set
-        self._end_on_exception_flag.set(value=on_exception == "raise")
+        self._end_on_exception_flag.set(value=on_exception in ("raise", "end"))
 
-        if on_exception == "raise":
+        if on_exception in ("raise", "end"):
 
             def custom_exception_handler(
                 loop: asyncio.AbstractEventLoop,

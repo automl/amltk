@@ -27,7 +27,7 @@ from typing_extensions import ParamSpec, Self, override
 import numpy as np
 import pandas as pd
 
-from amltk.functional import mapping_select, prefix_keys
+from amltk.functional import dict_get_not_none, mapping_select, prefix_keys
 from amltk.profiling import Memory, Profile, Profiler, Timer
 from amltk.store import Bucket, PathBucket
 
@@ -169,15 +169,15 @@ class Trial(Generic[I]):
             memory_unit: The memory unit to use for the trial. Defaults to the
                 default memory unit of the profiler.
         """  # noqa: E501
-        with self.profiler(name=self.name, memory_unit=memory_unit, time_kind=time):
+        with self.profiler(name="trial", memory_unit=memory_unit, time_kind=time):
             try:
                 yield
             except Exception as error:  # noqa: BLE001
                 self.exception = error
                 self.traceback = traceback.format_exc()
             finally:
-                self.time = self.profiler[self.name].time
-                self.memory = self.profiler[self.name].memory
+                self.time = self.profiler["trial"].time
+                self.memory = self.profiler["trial"].memory
 
     @contextmanager
     def profile(
@@ -641,8 +641,10 @@ class Trial(Generic[I]):
         def df(
             self,
             *,
-            convert_dtypes: bool = True,
             profiles: bool = True,
+            configs: bool = True,
+            summary: bool = True,
+            results: bool = True,
         ) -> pd.DataFrame:
             """Get a dataframe of the results of the trial.
 
@@ -651,34 +653,34 @@ class Trial(Generic[I]):
                 * `summary`: Entries will be prefixed with `#!python "summary:"`
                 * `config`: Entries will be prefixed with `#!python "config:"`
                 * `results`: Entries will be prefixed with `#!python "results:"`
-                * `time`: Entries will be prefixed with `#!python "time:"`
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
-                * `memory`: Entries will be prefixed with `#!python "memory:"`
                 * `profile:<name>`: Entries will be prefixed with
                     `#!python "profile:<name>:"`
 
             Args:
-                convert_dtypes: Whether to convert the dtypes of the entries.
                 profiles: Whether to include the profiles.
+                configs: Whether to include the configs.
+                summary: Whether to include the summary.
+                results: Whether to include the results.
             """
             items = {
                 "name": self.name,
                 "status": str(self.status),
                 "trial_seed": self.trial.seed if self.trial.seed else np.nan,
-                **prefix_keys(self.results, "results:"),
-                **prefix_keys(self.trial.config, "config:"),
-                **prefix_keys(self.trial.summary, "summary:"),
-                **self.time.to_dict(prefix="time:"),
-                **self.memory.to_dict(prefix="memory:"),
-                "exception": str(self.exception) if self.exception else None,
-                "traceback": self.traceback,
+                "exception": str(self.exception) if self.exception else "NA",
+                "traceback": str(self.traceback) if self.traceback else "NA",
             }
+            if configs:
+                items.update(**prefix_keys(self.trial.config, "config:"))
+            if summary:
+                items.update(**prefix_keys(self.trial.summary, "summary:"))
+            if results:
+                items.update(**prefix_keys(self.trial.results, "results:"))
             if profiles:
                 for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
                     items.update(profile.to_dict(prefix=f"profile:{name}"))
 
-            _df = pd.DataFrame(items, index=[0])
-            return _df.astype(_REPORT_DF_COLUMN_TYPES) if convert_dtypes else _df
+            return pd.DataFrame(items, index=[0]).convert_dtypes().set_index("name")
 
         @overload
         def retrieve(
@@ -804,10 +806,11 @@ class Trial(Generic[I]):
                     raise ValueError(
                         f"Expected a dataframe with one row, got {len(df)} rows.",
                     )
-                data_dict = df.iloc[0].to_dict()
+                series = df.iloc[0]
             else:
-                data_dict = df.to_dict()
+                series = df
 
+            data_dict = {"name": series.name, **series.to_dict()}
             return cls.from_dict(data_dict)
 
         @classmethod
@@ -828,7 +831,7 @@ class Trial(Generic[I]):
             prof_dict = mapping_select(d, "profile:")
             if any(prof_dict):
                 profile_names = sorted(
-                    {name.split(":", maxsplit=1)[0] for name in prof_dict},
+                    {name.rsplit(":", maxsplit=2)[0] for name in prof_dict},
                 )
                 profiles = {
                     name: Profile.from_dict(mapping_select(prof_dict, f"{name}:"))
@@ -837,21 +840,28 @@ class Trial(Generic[I]):
             else:
                 profiles = {}
 
+            exception = d.get("exception")
+            traceback = d.get("traceback")
+            if exception == "NA":
+                exception = None
+            if traceback == "NA":
+                traceback = None
+
             trial: Trial[None] = Trial(
-                name=d.get("name", "NA"),
+                name=d["name"],
                 config=mapping_select(d, "config:"),
                 info=None,  # We don't save this to disk so we load it back as None
                 seed=d.get("trial_seed", None),
                 fidelities=mapping_select(d, "fidelities:"),
-                time=Timer.from_dict(mapping_select(d, "time:")),
-                memory=Memory.from_dict(mapping_select(d, "memory:")),
+                time=Timer.from_dict(mapping_select(d, "profile:trial:time:")),
+                memory=Memory.from_dict(mapping_select(d, "profiler:trial:memory:")),
                 profiler=Profiler(profiles=profiles),
                 results=mapping_select(d, "results:"),
                 summary=mapping_select(d, "summary:"),
-                exception=d.get("exception"),
-                traceback=d.get("traceback"),
+                exception=exception,
+                traceback=traceback,
             )
-            status = Trial.Status(d.get("status", "unknown"))
+            status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             if status == Trial.Status.SUCCESS:
                 return trial.success(**trial.results)
 
@@ -866,28 +876,3 @@ class Trial(Generic[I]):
                 )
 
             return trial.crashed(exception=Exception("Unknown status."))
-
-
-# TODO: See if this can be removed, I'm not exactly sure it can
-# be done safely when serializing and deserializing
-_REPORT_DF_COLUMN_TYPES = {
-    "name": pd.StringDtype(),
-    "status": pd.StringDtype(),
-    # As trial_seed can be None, we can't represent this in an int column.
-    # Tried np.nan but that only works with floats
-    "trial_seed": pd.Int64Dtype(),
-    "exception": pd.StringDtype(),
-    "traceback": pd.StringDtype(),
-    "time:start": float,
-    "time:end": float,
-    "time:duration": float,
-    "time:kind": pd.StringDtype(),
-    "time:unit": pd.StringDtype(),
-    "memory:start_rss": float,
-    "memory:end_rss": float,
-    "memory:diff_rss": float,
-    "memory:start_vms": float,
-    "memory:end_vms": float,
-    "memory:diff_vms": float,
-    "memory:unit": pd.StringDtype(),
-}

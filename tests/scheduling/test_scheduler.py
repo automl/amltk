@@ -12,7 +12,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from amltk.scheduling import Scheduler, SequentialExecutor, Task
+from amltk.scheduling import ExitState, Scheduler, SequentialExecutor, Task
 from amltk.types import safe_isinstance
 
 if TYPE_CHECKING:
@@ -113,7 +113,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }
-    assert end_status == Scheduler.ExitCode.TIMEOUT
+    assert end_status == ExitState(code=Scheduler.ExitCode.TIMEOUT)
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -163,7 +163,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
         del expected_scheduler_counts[scheduler.FUTURE_DONE]
 
     assert scheduler.event_counts == expected_scheduler_counts
-    assert end_status == Scheduler.ExitCode.TIMEOUT
+    assert end_status == ExitState(code=Scheduler.ExitCode.TIMEOUT)
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -195,7 +195,7 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
         scheduler.FUTURE_DONE: 2,
     }
     assert results == [0.1, 0.1]
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -226,7 +226,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
         scheduler.FUTURE_SUBMITTED: 1,
         scheduler.FUTURE_DONE: 1,
     }
-    assert end_status == Scheduler.ExitCode.STOPPED
+    assert end_status == ExitState(code=Scheduler.ExitCode.STOPPED)
     assert scheduler.empty()
 
 
@@ -245,9 +245,20 @@ def test_repeat_on_start(scheduler: Scheduler) -> None:
         scheduler.FINISHED: 1,
         scheduler.EMPTY: 1,
     }
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
     assert scheduler.empty()
     assert results == [1] * 10
+
+
+def test_raise_on_exception_in_task(scheduler: Scheduler) -> None:
+    task = Task(raise_exception, scheduler, name="raise_error")
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task()
+
+    with pytest.raises(CustomError):
+        scheduler.run(on_exception="raise")
 
 
 def test_end_on_exception_in_task(scheduler: Scheduler) -> None:
@@ -257,8 +268,9 @@ def test_end_on_exception_in_task(scheduler: Scheduler) -> None:
     def run_task() -> None:
         task()
 
-    with pytest.raises(CustomError):
-        scheduler.run(end_on_exception=True)
+    end_status = scheduler.run(on_exception="end")
+    assert end_status.code == Scheduler.ExitCode.EXCEPTION
+    assert isinstance(end_status.exception, CustomError)
 
 
 def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
@@ -268,5 +280,5 @@ def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
     def run_task() -> None:
         task()
 
-    result = scheduler.run(end_on_exception=False)
-    assert result == Scheduler.ExitCode.EXHAUSTED
+    end_status = scheduler.run(on_exception="ignore")
+    assert end_status.code == Scheduler.ExitCode.EXHAUSTED

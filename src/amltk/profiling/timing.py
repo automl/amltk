@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import time
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
-from enum import Enum, auto
-from typing import Any, Iterator, Literal, Mapping
+from dataclasses import dataclass
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Mapping
+from typing_extensions import override
 
 import numpy as np
+import pandas as pd
+
+from amltk.functional import dict_get_not_none
+
+if TYPE_CHECKING:
+    from pandas._libs.missing import NAType
 
 
 @dataclass
@@ -20,16 +27,16 @@ class Timer:
     """
 
     start_time: float
-    kind: Timer.Kind
+    kind: Timer.Kind | NAType
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> Timer.Interval:
         """Create a time interval from a dictionary."""
         return Timer.Interval(
-            start=d.get("start", np.nan),
-            end=d.get("end", np.nan),
-            kind=Timer.Kind.from_str(d.get("kind", "notset")),
-            unit=Timer.Unit.from_str(d.get("unit", "notset")),
+            start=dict_get_not_none(d, "start", np.nan),
+            end=dict_get_not_none(d, "end", np.nan),
+            kind=Timer.Kind.from_str(dict_get_not_none(d, "kind", pd.NA)),
+            unit=Timer.Unit.from_str(dict_get_not_none(d, "unit", pd.NA)),
         )
 
     @classmethod
@@ -38,8 +45,8 @@ class Timer:
         return Timer.Interval(
             start=np.nan,
             end=np.nan,
-            kind=Timer.Kind.NOTSET,
-            unit=Timer.Unit.NOTSET,
+            kind=pd.NA,
+            unit=pd.NA,
         )
 
     @classmethod
@@ -142,45 +149,41 @@ class Timer:
 
         start: float
         end: float
-        kind: Timer.Kind
-        unit: Timer.Unit
+        kind: Timer.Kind | NAType
+        unit: Timer.Unit | NAType
 
         @property
         def duration(self) -> float:
             """The duration of the time interval."""
             return self.end - self.start
 
-        def to_dict(
-            self,
-            *,
-            prefix: str = "",
-            ensure_str: bool = True,
-        ) -> dict[str, Any]:
+        def to_dict(self, *, prefix: str = "") -> dict[str, Any]:
             """Convert the time interval to a dictionary."""
             return {
-                **{
-                    f"{prefix}{k}": (str(v) if ensure_str else v)
-                    for k, v in asdict(self).items()
-                },
+                f"{prefix}start": self.start,
+                f"{prefix}end": self.end,
                 f"{prefix}duration": self.duration,
+                f"{prefix}kind": self.kind,
+                f"{prefix}unit": self.unit,
             }
 
-    class Kind(Enum):
+    class Kind(str, Enum):
         """An enum for the type of timer."""
 
-        WALL = auto()
-        CPU = auto()
-        PROCESS = auto()
-        NOTSET = auto()
+        WALL = "wall"
+        CPU = "cpu"
+        PROCESS = "process"
 
+        @override
         def __str__(self) -> str:
             return self.name.lower()
 
+        @override
         def __repr__(self) -> str:
             return self.name.lower()
 
         @classmethod
-        def from_str(cls, key: Any) -> Timer.Kind:
+        def from_str(cls, key: Any) -> Timer.Kind | NAType:
             """Get the enum value from a string.
 
             Args:
@@ -189,31 +192,35 @@ class Timer:
             Returns:
                 The enum value.
             """
+            if isinstance(key, Timer.Kind):
+                return key
+
             if isinstance(key, str):
                 try:
                     return Timer.Kind[key.upper()]
                 except KeyError:
-                    return Timer.Kind.NOTSET
+                    return pd.NA
 
-            return Timer.Kind.NOTSET
+            return pd.NA
 
-    class Unit(Enum):
+    class Unit(str, Enum):
         """An enum for the units of time."""
 
-        SECONDS = auto()
-        MILLISECONDS = auto()
-        MICROSECONDS = auto()
-        NANOSECONDS = auto()
-        NOTSET = auto()
+        SECONDS = "seconds"
+        MILLISECONDS = "milliseconds"
+        MICROSECONDS = "microseconds"
+        NANOSECONDS = "nanoseconds"
 
+        @override
         def __str__(self) -> str:
             return self.name.lower()
 
+        @override
         def __repr__(self) -> str:
             return self.name.lower()
 
         @classmethod
-        def from_str(cls, key: Any) -> Timer.Unit:
+        def from_str(cls, key: Any) -> Timer.Unit | NAType:
             """Get the enum value from a string.
 
             Args:
@@ -222,10 +229,13 @@ class Timer:
             Returns:
                 The enum value.
             """
+            if isinstance(key, Timer.Unit):
+                return key
+
             if isinstance(key, str):
                 try:
                     return Timer.Unit[key.upper()]
                 except KeyError:
-                    return Timer.Unit.NOTSET
+                    return pd.NA
 
-            return Timer.Unit.NOTSET
+            return pd.NA

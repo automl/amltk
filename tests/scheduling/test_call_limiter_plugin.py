@@ -10,7 +10,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from amltk.scheduling import Scheduler, Task
+from amltk.scheduling import ExitState, Scheduler, Task
 from amltk.scheduling.task_plugin import CallLimiter
 
 
@@ -74,7 +74,7 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
         task(duration=2)
 
     end_status = scheduler.run(end_on_empty=True)
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     assert task.event_counts == {task.SUBMITTED: 2, task.DONE: 2, task.RETURNED: 2}
     assert limiter.event_counts == {limiter.CONCURRENT_LIMIT_REACHED: 8}
@@ -102,7 +102,7 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
         task(duration=2)
 
     end_status = scheduler.run(end_on_empty=True)
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     assert task.event_counts == {task.SUBMITTED: 2, task.DONE: 2, task.RETURNED: 2}
     assert limiter.event_counts == {limiter.CALL_LIMIT_REACHED: 8}
@@ -139,7 +139,7 @@ def test_call_limit_with_not_while_running(scheduler: Scheduler) -> None:
         task2(duration=2)
 
     end_status = scheduler.run(end_on_empty=True)
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     assert task1.event_counts == {task1.SUBMITTED: 1, task1.DONE: 1, task1.RETURNED: 1}
 

@@ -10,7 +10,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from amltk.scheduling import Scheduler, Task
+from amltk.scheduling import ExitState, Scheduler, Task
 from amltk.scheduling.comms import Comm
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ def test_sending_worker(scheduler: Scheduler) -> None:
     }
     assert task.event_counts == task_counts
 
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
     scheduler_counts = {
         scheduler.STARTED: 1,
         scheduler.FINISHING: 1,
@@ -155,7 +155,7 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
         task(requests)
 
     end_status = scheduler.run()
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     assert results == [2, 4, 6]
 

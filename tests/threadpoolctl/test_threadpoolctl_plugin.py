@@ -15,6 +15,7 @@ from pytest_cases import case, fixture, parametrize_with_cases
 
 import threadpoolctl
 from amltk.scheduling import Scheduler, SequentialExecutor, Task
+from amltk.scheduling.scheduler import ExitState
 from amltk.threadpoolctl import ThreadPoolCTLPlugin
 from amltk.types import safe_isinstance
 
@@ -84,7 +85,7 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
         retrieved_info.append(inner_info)
 
     end_status = scheduler.run()
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     inside_info = retrieved_info[0]
     after = threadpoolctl.threadpool_info()
@@ -127,7 +128,7 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
         retrieved_info.append(inner_info)
 
     end_status = scheduler.run()
-    assert end_status == Scheduler.ExitCode.EXHAUSTED
+    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     inside_info = retrieved_info[0]
     after = threadpoolctl.threadpool_info()

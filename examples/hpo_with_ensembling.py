@@ -59,6 +59,7 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 from sklearn.svm import SVC
+from amltk.data.conversions import probabilities_to_classes
 
 from amltk.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from amltk.optimization import History, Trial
@@ -342,15 +343,17 @@ def create_ensemble(
 
     accuracy: Callable[[np.ndarray, np.ndarray], float] = accuracy_score  # type: ignore
 
-    weights, trajectory = weighted_ensemble_caruana(  # <!>
+    def _score(_targets: np.ndarray, ensembled_probabilities: np.ndarray) -> float:
+        predictions = probabilities_to_classes(ensembled_probabilities, classes=[0, 1])
+        return accuracy(_targets, predictions)
+
+    weights, trajectory, final_probabilities = weighted_ensemble_caruana(  # <!>
         model_predictions=validation_predictions,  # <!>
         targets=targets,  # <!>
         size=size,  # <!>
-        metric=accuracy,  # <!>
+        metric=_score,  # <!>
         select=max,  # <!>
         seed=seed,  # <!>
-        convert_to_classes=True,  # <!>
-        classes=[0, 1],  # <!>
     )  # <!>
 
     configs = {

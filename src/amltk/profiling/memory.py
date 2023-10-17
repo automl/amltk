@@ -2,11 +2,19 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
-from enum import Enum, auto
-from typing import Any, Iterator, Literal, Mapping
+from dataclasses import dataclass
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Mapping
+from typing_extensions import override
 
+import numpy as np
+import pandas as pd
 import psutil
+
+from amltk.functional import dict_get_not_none
+
+if TYPE_CHECKING:
+    from pandas._libs.missing import NAType
 
 
 @dataclass
@@ -21,7 +29,7 @@ class Memory:
 
     start_vms: float
     start_rss: float
-    unit: Memory.Unit
+    unit: Memory.Unit | NAType
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> Memory.Interval:
@@ -34,30 +42,30 @@ class Memory:
             The memory interval.
         """
         return Memory.Interval(
-            start_vms=d.get("start_vms", -1),
-            start_rss=d.get("start_rss", -1),
-            end_vms=d.get("end_vms", -1),
-            end_rss=d.get("end_rss", -1),
-            unit=Memory.Unit.from_str(d.get("unit", "unset")),
+            start_vms=dict_get_not_none(d, "start_vms", np.nan),
+            start_rss=dict_get_not_none(d, "start_rss", np.nan),
+            end_vms=dict_get_not_none(d, "end_vms", np.nan),
+            end_rss=dict_get_not_none(d, "end_rss", np.nan),
+            unit=Memory.Unit.from_str(dict_get_not_none(d, "unit", pd.NA)),
         )
 
     @classmethod
     def na(cls) -> Memory.Interval:
         """Create a memory interval that represents NA."""
         return Memory.Interval(
-            start_vms=-1,
-            end_vms=-1,
-            start_rss=-1,
-            end_rss=-1,
-            unit=Memory.Unit.NOTSET,
+            start_vms=np.nan,
+            end_vms=np.nan,
+            start_rss=np.nan,
+            end_rss=np.nan,
+            unit=pd.NA,
         )
 
     @classmethod
     def convert(
         cls,
         x: float,
-        frm: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
-        to: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
+        frm: Memory.Unit | NAType | Literal["B", "KB", "MB", "GB"] = "B",
+        to: Memory.Unit | NAType | Literal["B", "KB", "MB", "GB"] = "B",
     ) -> float:
         """Convert a value from one unit to another.
 
@@ -72,9 +80,9 @@ class Memory:
         if frm == to:
             return x
 
-        frm = cls.Unit.from_str(frm) if isinstance(frm, str) else frm
-        to = cls.Unit.from_str(to) if isinstance(to, str) else to
-        return x * _CONVERSION[frm] / _CONVERSION[to]
+        _frm = cls.Unit.from_str(frm) if isinstance(frm, str) else frm
+        _to = cls.Unit.from_str(to) if isinstance(to, str) else to
+        return x * _CONVERSION[_frm] / _CONVERSION[_to]
 
     @classmethod
     @contextmanager
@@ -194,7 +202,7 @@ class Memory:
         start_rss: float
         end_vms: float
         end_rss: float
-        unit: Memory.Unit
+        unit: Memory.Unit | NAType
 
         @property
         def vms_used(self) -> float:
@@ -240,60 +248,60 @@ class Memory:
                 unit=unit,
             )
 
-        def to_dict(
-            self,
-            *,
-            prefix: str = "",
-            ensure_str: bool = True,
-        ) -> dict[str, Any]:
+        def to_dict(self, *, prefix: str = "") -> dict[str, Any]:
             """Convert the time interval to a dictionary."""
             return {
-                **{
-                    f"{prefix}{k}": (str(v) if ensure_str else v)
-                    for k, v in asdict(self).items()
-                },
+                f"{prefix}start_vms": self.start_vms,
+                f"{prefix}start_rss": self.start_rss,
+                f"{prefix}end_vms": self.end_vms,
+                f"{prefix}end_rss": self.end_rss,
                 f"{prefix}diff_vms": self.vms_used,
                 f"{prefix}diff_rss": self.rss_used,
+                f"{prefix}unit": self.unit,
             }
 
-    class Unit(Enum):
+    class Unit(str, Enum):
         """An enum for the units of time."""
 
-        BYTES = auto()
-        KILOBYTES = auto()
-        MEGABYTES = auto()
-        GIGABYTES = auto()
-        NOTSET = auto()
+        BYTES = "bytes"
+        KILOBYTES = "kilobytes"
+        MEGABYTES = "megabytes"
+        GIGABYTES = "gigabytes"
 
+        @override
         def __str__(self) -> str:
             return self.name.lower()
 
+        @override
         def __repr__(self) -> str:
             return self.name.lower()
 
         @classmethod
-        def from_str(cls, s: str) -> Memory.Unit:
+        def from_str(cls, s: Any) -> Memory.Unit | NAType:
             """Convert a string to a unit."""
-            if not isinstance(s, str):
-                return Memory.Unit.NOTSET
+            if isinstance(s, Memory.Unit):
+                return s
 
-            _mapping = {
-                "bytes": Memory.Unit.BYTES,
-                "b": Memory.Unit.BYTES,
-                "kilobytes": Memory.Unit.KILOBYTES,
-                "kb": Memory.Unit.KILOBYTES,
-                "megabytes": Memory.Unit.MEGABYTES,
-                "mb": Memory.Unit.MEGABYTES,
-                "gigabytes": Memory.Unit.GIGABYTES,
-                "gb": Memory.Unit.GIGABYTES,
-                "notset": Memory.Unit.NOTSET,
-            }
-            return _mapping.get(s.lower(), Memory.Unit.NOTSET)
+            if isinstance(s, str):
+                _mapping = {
+                    "bytes": Memory.Unit.BYTES,
+                    "b": Memory.Unit.BYTES,
+                    "kilobytes": Memory.Unit.KILOBYTES,
+                    "kb": Memory.Unit.KILOBYTES,
+                    "megabytes": Memory.Unit.MEGABYTES,
+                    "mb": Memory.Unit.MEGABYTES,
+                    "gigabytes": Memory.Unit.GIGABYTES,
+                    "gb": Memory.Unit.GIGABYTES,
+                }
+                return _mapping.get(s.lower(), pd.NA)
+
+            return pd.NA
 
 
-_CONVERSION: Mapping[Memory.Unit, int] = {
+_CONVERSION: Mapping[Memory.Unit | NAType, float] = {
     Memory.Unit.BYTES: 1,
     Memory.Unit.KILOBYTES: 1024,
     Memory.Unit.MEGABYTES: 1024**2,
     Memory.Unit.GIGABYTES: 1024**3,
+    pd.NA: np.nan,
 }

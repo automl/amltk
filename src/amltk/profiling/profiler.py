@@ -112,16 +112,11 @@ class Profile:
         memory: Memory.Interval
         time: Timer.Interval
 
-        def to_dict(
-            self,
-            *,
-            prefix: str = "",
-            ensure_str: bool = True,
-        ) -> dict[str, Any]:
+        def to_dict(self, *, prefix: str = "") -> dict[str, Any]:
             """Convert the profile interval to a dictionary."""
             return {
-                **self.memory.to_dict(prefix=f"{prefix}:", ensure_str=ensure_str),
-                **self.time.to_dict(prefix=f"{prefix}:", ensure_str=ensure_str),
+                **self.memory.to_dict(prefix=f"{prefix}:memory:"),
+                **self.time.to_dict(prefix=f"{prefix}:time:"),
             }
 
 

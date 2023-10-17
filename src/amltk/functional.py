@@ -22,6 +22,7 @@ from typing_extensions import TypeAlias
 
 T = TypeVar("T")
 V = TypeVar("V")
+V2 = TypeVar("V2")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
 RecMapping: TypeAlias = Mapping[K, Union["RecMapping[K, V]", V]]
@@ -38,6 +39,21 @@ def prefix_keys(d: Mapping[str, V], prefix: str) -> dict[str, V]:
     ```
     """
     return {prefix + k: v for k, v in d.items()}
+
+
+def dict_get_not_none(d: Mapping[K, V], key: K, default: V2) -> V | V2:
+    """Get a value from a dictionary, or a default value if it is None.
+
+    ```python exec="true" source="material-block" result="python" title="dict_get_not_none"
+    from amltk.functional import dict_get_not_none
+
+    d = {"a": None, "b": 2}
+    print(dict_get_not_none(d, "a", 1))  # d.get("a", 1) would return None
+    ```
+    """  # noqa: E501
+    if (item := d.get(key)) is not None:
+        return item
+    return default
 
 
 def mapping_select(d: Mapping[str, V], prefix: str) -> dict[str, V]:
