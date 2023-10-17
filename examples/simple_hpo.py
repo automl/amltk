@@ -22,8 +22,8 @@ You can skip the imports sections and go straight to the
 """
 from __future__ import annotations
 
-from typing import Any
 from asyncio import Future
+from typing import Any
 
 import numpy as np
 import openml
@@ -331,17 +331,21 @@ def launch_another_task(*_: Any) -> None:
     trial = optimizer.ask()
     task(trial, bucket=bucket, _pipeline=pipeline)
 
+
 """
 If something goes wrong, we likely want to stop the scheduler.
 """
+
 
 @task.on_exception
 def stop_scheduler_on_exception(*_: Any) -> None:
     scheduler.stop()
 
+
 @task.on_cancelled
 def stop_scheduler_on_cancelled(_: Any) -> None:
     scheduler.stop()
+
 
 """
 ### Setting the system to run

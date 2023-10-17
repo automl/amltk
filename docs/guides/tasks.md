@@ -649,25 +649,21 @@ the scheduler finished.
     scheduler.run(wait=False)
     ```
 
-    By setting `end_on_exception` (default: `#!python True`), we can control what
+    By setting `on_exception=` (default: `#!python "raise"`), we can control what
     happens when an exception occurs in a [`Task`][amltk.scheduling.Task]. This
     will trigger a `STOP` event when a task
     has an error occur and begin shutting down the scheduler.
-
-    You can control whether this should explicitly raise the exception with
-    `raises=` (default: `#!python True`). If `#!python False`, the exception
-    will be returned instead of an exit code, where the inferred exit code
-    is that an exception occured.
 
     ```python
     from amltk.scheduling import Scheduler
 
     scheduler = Scheduler(...)
 
-    exception = scheduler.run(end_on_exception=True, raises=False)
+    end_status = scheduler.run(on_exception="end")
+    exception = end_status.exception
 
     try:
-        scheduler.run(end_on_exception=True, raises=True)
+        scheduler.run(on_exception="raise")
     except Exception as e:
         print(f"An exception occurred: {e}")
     ```
