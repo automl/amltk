@@ -242,3 +242,7 @@ class PathBucket(Bucket[str, Path]):
     @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.path!r})"
+
+    def rmdir(self) -> None:
+        """Delete the bucket."""
+        shutil.rmtree(self.path)
