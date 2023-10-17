@@ -22,13 +22,13 @@ from typing import (
     TypeVar,
     overload,
 )
-from typing_extensions import ParamSpec, Self
+from typing_extensions import ParamSpec, Self, override
 
 import numpy as np
 import pandas as pd
 
 from amltk.functional import mapping_select, prefix_keys
-from amltk.profiling import Memory, Profile, Timer
+from amltk.profiling import Memory, Profile, Profiler, Timer
 from amltk.store import Bucket, PathBucket
 
 # Inner trial info object
@@ -81,17 +81,17 @@ class Trial(Generic[I]):
     fidelities: dict[str, Any] | None = None
     """The fidelities at which to evaluate the trial, if any."""
 
-    profiler: Profile | None = field(repr=False, default=None)
-    """The profiler used to profile the trial, once begun."""
-
     time: Timer.Interval = field(repr=False, default_factory=Timer.na)
     """The time taken by the trial, once ended."""
 
     memory: Memory.Interval = field(repr=False, default_factory=Memory.na)
     """The memory used by the trial, once ended."""
 
-    profiles: dict[str, Profile.Interval] = field(default_factory=dict)
-    """Any recorded profiles of the trial."""
+    profiler: Profiler = field(
+        repr=False,
+        default_factory=lambda: Profiler(memory_unit="B", time_kind="wall"),
+    )
+    """A profiler for this trial."""
 
     summary: dict[str, Any] = field(default_factory=dict)
     """The summary of the trial. These are for summary statistics of a trial and
@@ -116,11 +116,16 @@ class Trial(Generic[I]):
     plugins: dict[str, Any] = field(default_factory=dict)
     """Any plugins attached to the trial."""
 
+    @property
+    def profiles(self) -> Mapping[str, Profile.Interval]:
+        """The profiles of the trial."""
+        return self.profiler.profiles
+
     @contextmanager
     def begin(
         self,
-        time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
-        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
+        time: Timer.Kind | Literal["wall", "cpu", "process"] | None = None,
+        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
     ) -> Iterator[None]:
         """Begin the trial with a `contextmanager`.
 
@@ -159,29 +164,30 @@ class Trial(Generic[I]):
         ```
 
         Args:
-            time: The timer kind to use for the trial.
-            memory_unit: The memory unit to use for the trial.
+            time: The timer kind to use for the trial. Defaults to the default
+                timer kind of the profiler.
+            memory_unit: The memory unit to use for the trial. Defaults to the
+                default memory unit of the profiler.
         """  # noqa: E501
-        self.profiler = Profile.start(time_kind=time, memory_unit=memory_unit)
-        try:
-            yield
-        except Exception as error:  # noqa: BLE001
-            self.exception = error
-            self.traceback = traceback.format_exc()
-        finally:
-            profile = self.profiler.stop()
-            self.time = profile.time
-            self.memory = profile.memory
+        with self.profiler(name=self.name, memory_unit=memory_unit, time_kind=time):
+            try:
+                yield
+            except Exception as error:  # noqa: BLE001
+                self.exception = error
+                self.traceback = traceback.format_exc()
+            finally:
+                self.time = self.profiler[self.name].time
+                self.memory = self.profiler[self.name].memory
 
     @contextmanager
     def profile(
         self,
         name: str,
         *,
-        time: Timer.Kind | Literal["wall", "cpu", "process"] = "wall",
-        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B",
-        summary: bool = True,
-    ) -> Iterator[Profile.Interval]:
+        time: Timer.Kind | Literal["wall", "cpu", "process"] | None = None,
+        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
+        summary: bool = False,
+    ) -> Iterator[None]:
         """Measure some interval in the trial.
 
         The results of the profiling will be available in the `.summary` attribute
@@ -197,23 +203,25 @@ class Trial(Generic[I]):
             # Do some work
             time.sleep(1)
 
-        print(trial.summary)
+        print(trial.profiler["some_interval"].time)
         ```
 
         Args:
             name: The name of the interval.
-            time: The timer kind to use for the trial.
-            memory_unit: The memory unit to use for the trial.
+            time: The timer kind to use for the trial. Defaults to the default
+                timer kind of the profiler.
+            memory_unit: The memory unit to use for the trial. Defaults to the
+                default memory unit of the profiler.
             summary: Whether to add the interval to the summary.
 
         Yields:
             The interval measured. Values will be nan until the with block is finished.
         """
-        with Profile.measure(memory_unit=memory_unit, time_kind=time) as profile:
-            self.profiles[name] = profile
-            yield profile
+        with self.profiler(name=name, memory_unit=memory_unit, time_kind=time):
+            yield
 
         if summary:
+            profile = self.profiler[name]
             self.summary.update(profile.to_dict(prefix=name))
 
     def success(self, **results: Any) -> Trial.Report[I]:
@@ -260,19 +268,6 @@ class Trial(Generic[I]):
         """  # noqa: E501
         self.results = results
         return Trial.Report(trial=self, status=Trial.Status.FAIL)
-
-    def cancelled(self) -> Trial.Report[I]:
-        """Generate a cancelled report.
-
-        !!! note
-
-            You will typically not create these manually and is usually handled
-            by the framework in charge of scheduling trials.
-
-        Returns:
-            The trial report that is signified as cancelled.
-        """
-        return Trial.Report(trial=self, status=Trial.Status.CANCELLED)
 
     def crashed(
         self,
@@ -394,7 +389,7 @@ class Trial(Generic[I]):
         trial = Trial(name="trial", config={"x": 1}, info={})
 
         trial.store({"config.json": trial.config}, where="./results")
-        trial.delete_from_storage({"config.json": trial.config}, where="./results")
+        trial.delete_from_storage(items=["config.json"], where="./results")
 
         print(trial.storage)
         ```
@@ -410,14 +405,13 @@ class Trial(Generic[I]):
         trial = Trial(name="trial", config={"x": 1}, info={})
 
         trial.store({"config.json": trial.config}, where=bucket)
-        trial.delete_from_storage({"config.json": trial.config}, where=bucket)
+        trial.delete_from_storage(items=["config.json"], where=bucket)
 
         print(trial.storage)
         ```
 
         Args:
             items: The items to delete, an iterable of keys
-
             where: Where the items are stored
 
                 * If a `str` or `Path`, will lookup a bucket at the path,
@@ -572,12 +566,10 @@ class Trial(Generic[I]):
         CRASHED = "crashed"
         """The trial crashed."""
 
-        CANCELLED = "cancelled"
-        """The trial was cancelled."""
-
         UNKNOWN = "unknown"
         """The status of the trial is unknown."""
 
+        @override
         def __str__(self) -> str:
             return self.value
 
@@ -617,7 +609,7 @@ class Trial(Generic[I]):
             return self.trial.config
 
         @property
-        def profiles(self) -> dict[str, Profile.Interval]:
+        def profiles(self) -> Mapping[str, Profile.Interval]:
             """The profiles of the trial."""
             return self.trial.profiles
 
@@ -646,7 +638,12 @@ class Trial(Generic[I]):
             """The info of the trial, specific to the optimizer that issued it."""
             return self.trial.info
 
-        def df(self, *, convert_dtypes: bool = True) -> pd.DataFrame:
+        def df(
+            self,
+            *,
+            convert_dtypes: bool = True,
+            profiles: bool = True,
+        ) -> pd.DataFrame:
             """Get a dataframe of the results of the trial.
 
             !!! note "Prefixes"
@@ -659,6 +656,10 @@ class Trial(Generic[I]):
                 * `memory`: Entries will be prefixed with `#!python "memory:"`
                 * `profile:<name>`: Entries will be prefixed with
                     `#!python "profile:<name>:"`
+
+            Args:
+                convert_dtypes: Whether to convert the dtypes of the entries.
+                profiles: Whether to include the profiles.
             """
             items = {
                 "name": self.name,
@@ -672,8 +673,9 @@ class Trial(Generic[I]):
                 "exception": str(self.exception) if self.exception else None,
                 "traceback": self.traceback,
             }
-            for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
-                items.update(profile.to_dict(prefix=f"profile:{name}"))
+            if profiles:
+                for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
+                    items.update(profile.to_dict(prefix=f"profile:{name}"))
 
             _df = pd.DataFrame(items, index=[0])
             return _df.astype(_REPORT_DF_COLUMN_TYPES) if convert_dtypes else _df
@@ -778,6 +780,18 @@ class Trial(Generic[I]):
             # Store in a sub-bucket
             return method.sub(self.name)[key].load(check=check)
 
+        def store(
+            self,
+            items: Mapping[str, T],
+            *,
+            where: str | Path | Bucket | Callable[[str, Mapping[str, T]], None],
+        ) -> None:
+            """Store items related to the trial.
+
+            See: [`Trial.store()`][amltk.optimization.trial.Trial.store]
+            """
+            self.trial.store(items, where=where)
+
         @classmethod
         def from_df(cls, df: pd.DataFrame | pd.Series) -> Trial.Report:
             """Create a report from a dataframe.
@@ -831,8 +845,7 @@ class Trial(Generic[I]):
                 fidelities=mapping_select(d, "fidelities:"),
                 time=Timer.from_dict(mapping_select(d, "time:")),
                 memory=Memory.from_dict(mapping_select(d, "memory:")),
-                profiles=profiles,
-                profiler=None,
+                profiler=Profiler(profiles=profiles),
                 results=mapping_select(d, "results:"),
                 summary=mapping_select(d, "summary:"),
                 exception=d.get("exception"),
@@ -852,12 +865,11 @@ class Trial(Generic[I]):
                     else None,
                 )
 
-            if status == Trial.Status.CANCELLED:
-                return trial.cancelled()
-
             return trial.crashed(exception=Exception("Unknown status."))
 
 
+# TODO: See if this can be removed, I'm not exactly sure it can
+# be done safely when serializing and deserializing
 _REPORT_DF_COLUMN_TYPES = {
     "name": pd.StringDtype(),
     "status": pd.StringDtype(),

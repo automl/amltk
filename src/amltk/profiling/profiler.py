@@ -1,13 +1,17 @@
 """Module to measure memory."""
 from __future__ import annotations
 
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterator, Literal, Mapping
+from typing import Any, Callable, Iterable, Iterator, Literal, Mapping, TypeVar
+from typing_extensions import override
 
 from amltk.optimization.trial import mapping_select
 from amltk.profiling.memory import Memory
 from amltk.profiling.timing import Timer
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -139,6 +143,22 @@ class Profiler(Mapping[str, Profile.Interval]):
     memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] = "B"
     time_kind: Timer.Kind | Literal["wall", "cpu", "process"] = "wall"
     disabled: bool = False
+    _running: deque[str] = field(default_factory=deque)
+
+    @override
+    def __getitem__(self, key: str) -> Profile.Interval:
+        """Get a profile interval."""
+        return self.profiles[key]
+
+    @override
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over the profile names."""
+        return iter(self.profiles)
+
+    @override
+    def __len__(self) -> int:
+        """Get the number of profiles."""
+        return len(self.profiles)
 
     def disable(self) -> None:
         """Disable the profiler."""
@@ -147,6 +167,33 @@ class Profiler(Mapping[str, Profile.Interval]):
     def enable(self) -> None:
         """Enable the profiler."""
         self.disabled = False
+
+    def each(
+        self,
+        itr: Iterable[T],
+        *,
+        name: str,
+        itr_name: Callable[[int, T], str] | None = None,
+    ) -> Iterator[T]:
+        """Profile each item in an iterable.
+
+        Args:
+            itr: The iterable to profile.
+            name: The name of the profile that lasts until iteration is complete
+            itr_name: The name of the profile for each iteration.
+                If a function is provided, it will be called with each item's index
+                and the item. It should return a string. If `None` is provided,
+                just the index will be used.
+
+        Yields:
+            The the items
+        """
+        if itr_name is None:
+            itr_name = lambda i, _: str(i)
+        with self.measure(name=name):
+            for i, item in enumerate(itr):
+                with self.measure(name=itr_name(i, item)):
+                    yield item
 
     @contextmanager
     def __call__(
@@ -186,6 +233,12 @@ class Profiler(Mapping[str, Profile.Interval]):
 
         memory_unit = memory_unit or self.memory_unit
         time_kind = time_kind or self.time_kind
+
+        self._running.append(name)
+        entry_name = ":".join(self._running)
+
         with Profile.measure(memory_unit=memory_unit, time_kind=time_kind) as profile:
-            self.profiles[name] = profile
+            self.profiles[entry_name] = profile
             yield
+
+        self._running.pop()
