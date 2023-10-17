@@ -55,7 +55,8 @@ class PynisherPlugin(TaskPlugin):
     def on_wall_time_limit(exception):
         print(f"Wall time limit reached!")
 
-    scheduler.run(timeout=5, raises=False)
+    end_status = scheduler.run(on_exception="end")
+    print(end_status)
     ```
 
     Attributes:

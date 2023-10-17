@@ -149,8 +149,6 @@ class Drop(Generic[KeyT]):
             check: By specifying a `type` we check the loaded object of that type, to
                 enable correctly typed checked code.
             how: The function to use to load the resource.
-            **loader_kwargs: Additional arguments to pass to the loader.
-                For example, you may want to pass `allow_pickle=True`
 
         Returns:
             The loaded resource.
