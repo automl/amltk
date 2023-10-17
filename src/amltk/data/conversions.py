@@ -10,44 +10,42 @@ if TYPE_CHECKING:
     import numpy.typing as npt
 
 
-# TODO: This is probably much cleaner to just have version for the different
-# shapes and classes
 def probabilities_to_classes(
     probabilities: npt.NDArray[np.floating],
-    classes: np.ndarray,
+    classes: np.ndarray | npt.ArrayLike | list,
 ) -> np.ndarray:
     """Convert probabilities to classes.
 
-    Using code from DummyClassifier `fit` and `predict`
-    https://github.com/scikit-learn/scikit-learn/blob/7e1e6d09bcc2eaeba98f7e737aac2ac782f0e5f1/sklearn/dummy.py#L307.
+    !!! note
+
+        Converts using the logic of `predict()` of `RandomForestClassifier`.
 
     Args:
         probabilities: The probabilities to convert
-        classes: The classes to use
+        classes: The classes to use.
 
     Returns:
         The classes corresponding to the probabilities
     """
-    shape = np.shape(classes)
-    if len(shape) == 1:
-        n_outputs = 1
-        classes = np.asarray([classes])
-        probabilities = np.asarray([probabilities])
-    elif len(shape) == 2:  # noqa: PLR2004
-        n_outputs = len(classes)
-    else:
-        raise NotImplementedError(f"Don't support `classes` with ndim > 2, {classes}")
+    # Taken from `predict()` of RandomForestclassifier
+    classes = np.asarray(classes)
+    n_outputs = 1 if classes.ndim == 1 else classes.shape[1]
+    if n_outputs == 1:
+        return classes.take(np.argmax(probabilities, axis=1), axis=0)
 
-    return np.vstack(
-        [
-            classes[class_index][probabilities[class_index].argmax(axis=1)]
-            for class_index in range(n_outputs)
-        ],
-    ).T
+    n_samples = probabilities[0].shape[0]
+    # all dtypes should be the same, so just take the first
+    class_type = classes[0].dtype
+    predictions = np.empty((n_samples, n_outputs), dtype=class_type)
+
+    for k in range(n_outputs):
+        predictions[:, k] = classes[k].take(np.argmax(probabilities[k], axis=1), axis=0)
+
+    return predictions
 
 
 def to_numpy(
-    x: np.ndarray | pd.DataFrame | pd.Series,
+    x: np.ndarray | npt.ArrayLike | pd.DataFrame | pd.Series,
     *,
     flatten_if_1d: bool = False,
 ) -> np.ndarray:
@@ -60,9 +58,13 @@ def to_numpy(
     Returns:
         The converted data
     """
-    _x = x.to_numpy() if isinstance(x, (pd.DataFrame, pd.Series)) else x
+    _x = x.to_numpy() if isinstance(x, (pd.DataFrame, pd.Series)) else np.asarray(x)
 
-    if flatten_if_1d and x.ndim == 2 and x.shape[1] == 1:  # noqa: PLR2004
+    if (
+        flatten_if_1d
+        and x.ndim == 2  # noqa: PLR2004 # type: ignore
+        and x.shape[1] == 1  # type: ignore
+    ):
         _x = np.ravel(_x)
 
     assert isinstance(_x, np.ndarray)
@@ -99,4 +101,30 @@ def flatten_if_1d(
     ):
         x = x.iloc[:, 0]
 
+    return x
+
+
+def is_str_object_dtype(x: np.ndarray) -> bool:
+    """Check if object dtype and string values.
+
+    Args:
+        x: The data to check
+
+    Returns:
+        Whether it is object dtype and string values
+    """
+    return x.dtype == object and isinstance(x[0], str)
+
+
+def as_str_dtype_if_str_object(x: np.ndarray) -> np.ndarray:
+    """Convert to string dtype if object dtype and string values.
+
+    Args:
+        x: The data to convert
+
+    Returns:
+        The converted data if it can be done
+    """
+    if is_str_object_dtype(x):
+        return x.astype(str)
     return x
