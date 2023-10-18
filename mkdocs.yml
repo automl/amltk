@@ -171,6 +171,7 @@ nav:
     - "reference/smac.md"
     - "reference/threadpoolctl.md"
     - "reference/wandb.md"
+    - "reference/prebuilt_pipelines.md"
   - Examples: "examples/"
     # Auto generated with docs/examples_runner.py
   - API: "api/"

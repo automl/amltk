@@ -16,6 +16,12 @@
 * [sklearn](./sklearn.md) - Export your pipelines to a pure [sklearn.pipeline.Pipeline][]
     and some utility to ease data splitting.
 
+## Prebuilt Pipelines
+
+* [Prebuilt pipelines][./prebuilt_pipelines.md] - A collection of pre-built pipelines
+
+    * XGBoost
+
 ## Scheduler Executors
 
 * [DaskJobQueue](./dask-jobqueue.md) - A set of [`Executors`][concurrent.futures.Executor]
