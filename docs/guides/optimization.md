@@ -268,7 +268,7 @@ is widely used and popular.
 
 !!! example "Integration"
 
-    Check out the [Optuna integration page](site:integrations/optuna.md#optimizer).
+    Check out the [Optuna integration page](site:reference/optuna.md#optimizer).
 
     Install with `pip install optuna`
 
@@ -278,7 +278,12 @@ is widely used and popular.
 is an optimization framework from [automl.org](https://www.automl.org) focusing
 on optimizing Neural Architectures.
 
-!!! info "Planned"
+!!! example "NePS"
+
+    Check out the [NePS reference page](site:reference/neps.md).
+
+    Install with `pip install neural-pipeline-search
+
 
 ### HEBO
 

@@ -12,6 +12,7 @@ from typing import (
     cast,
     overload,
 )
+from typing_extensions import override
 
 from more_itertools import first_true, seekable
 
@@ -49,6 +50,7 @@ class ParserError(Exception):
             ValueError: If parser is a list, exception must be a list of the
                 same length.
         """
+        super().__init__(parser, error)
         if isinstance(parser, list) and (
             not (isinstance(error, list) and len(parser) == len(error))
         ):
@@ -60,6 +62,7 @@ class ParserError(Exception):
         self.parser = parser
         self.error = error
 
+    @override
     def __str__(self) -> str:
         if isinstance(self.parser, list):
             msg = "\n\n".join(
@@ -123,15 +126,21 @@ class Parser(ABC, Generic[Space]):
             from amltk.configspace import ConfigSpaceAdapter
 
             parsers.append(ConfigSpaceAdapter())
-        except ImportError:
-            logger.debug("ConfigSpace not installed for parsing, skipping")
+        except ImportError as e:
+            logger.debug(
+                "ConfigSpace not installed for parsing, skipping"
+                f"\n{e.__class__.__name__}: {e}",
+            )
 
         try:
             from amltk.optuna import OptunaSpaceAdapter
 
             parsers.append(OptunaSpaceAdapter())
-        except ImportError:
-            logger.debug("Optuna not installed for parsing, skipping")
+        except ImportError as e:
+            logger.debug(
+                "Optuna not installed for parsing, skipping"
+                f"\n{e.__class__.__name__}: {e}",
+            )
 
         return parsers
 

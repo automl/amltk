@@ -71,6 +71,8 @@ dask = ["dask<=2023.4"]
 pynisher = ["pynisher>=1.0.8"]
 wandb = ["wandb"]
 threadpoolctl = ["threadpoolctl"]
+xgboost = ["xgboost"]
+neps = ["neural-pipeline-search"]
 
 [project.urls]
 documentation = "https://github.com/automl/amltk/"

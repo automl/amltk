@@ -172,6 +172,7 @@ nav:
     - "reference/threadpoolctl.md"
     - "reference/wandb.md"
     - "reference/prebuilt_pipelines.md"
+    - "reference/neps.md"
   - Examples: "examples/"
     # Auto generated with docs/examples_runner.py
   - API: "api/"

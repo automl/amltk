@@ -10,6 +10,8 @@
  Random Forest, supporting complex conditionals in a bayesian manner.
 * [Optuna](./optuna.md) - A highly flexible Optimization framework based on Tree-Parzan
  Estimators.
+* [NEPS](./neps.md) - An optimizer focused on optimizing neural architectures, allowing for
+ continuatios and graph based search spaces
 
 ## Pipeline Builders
 
