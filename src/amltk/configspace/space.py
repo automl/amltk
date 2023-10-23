@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from copy import copy, deepcopy
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, Union
+from typing_extensions import TypeAlias, override
 
 import numpy as np
 from ConfigSpace import Categorical, ConfigurationSpace, Constant
@@ -15,7 +16,10 @@ if TYPE_CHECKING:
     from amltk.types import Seed
 
 
-class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
+InputSpace: TypeAlias = Union[Mapping[str, Any], ConfigurationSpace]
+
+
+class ConfigSpaceAdapter(SpaceAdapter[InputSpace, ConfigurationSpace]):
     """An adapter following the [`SpaceAdapter`][amltk.pipeline.SpaceAdapter] interface
     for interacting with ConfigSpace spaces.
 
@@ -24,10 +28,11 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
     the [`Sampler`][amltk.pipeline.Sampler] interface.
     """
 
+    @override
     def parse_space(
         self,
         space: Any,
-        config: Mapping[str, Any] | None = None,  # noqa: ARG002
+        config: Mapping[str, Any] | None = None,
     ) -> ConfigurationSpace:
         """See [`Parser.parse_space`][amltk.pipeline.Parser.parse_space].
 
@@ -58,6 +63,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
 
         return _space
 
+    @override
     def set_seed(self, space: ConfigurationSpace, seed: Seed) -> ConfigurationSpace:
         """Set the seed for the space.
 
@@ -81,10 +87,11 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         space.seed(_seed)
         return space
 
+    @override
     def insert(
         self,
         space: ConfigurationSpace,
-        subspace: ConfigurationSpace,
+        subspace: Mapping[str, Any] | ConfigurationSpace,
         *,
         prefix_delim: tuple[str, str] | None = None,
     ) -> ConfigurationSpace:
@@ -111,6 +118,11 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
             prefix_delim = ("", "")
 
         prefix, delim = prefix_delim
+        subspace = (
+            ConfigurationSpace(dict(subspace))
+            if not isinstance(subspace, ConfigurationSpace)
+            else subspace
+        )
 
         space.add_configuration_space(
             prefix=prefix,
@@ -119,6 +131,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         )
         return space
 
+    @override
     def empty(self) -> ConfigurationSpace:
         """See [`Parser.empty`][amltk.pipeline.Parser.empty].
 
@@ -132,6 +145,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         """  # noqa: E501
         return ConfigurationSpace()
 
+    @override
     def condition(
         self,
         choice_name: str,
@@ -172,6 +186,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
             )
         return space
 
+    @override
     def _sample(
         self,
         space: ConfigurationSpace,
@@ -188,6 +203,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
 
         return [dict(c) for c in space.sample_configuration(n)]
 
+    @override
     def copy(self, space: ConfigurationSpace) -> ConfigurationSpace:
         """See [`Sampler.copy`][amltk.pipeline.Sampler.copy].
 
@@ -205,6 +221,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
         return deepcopy(space)
 
     @classmethod
+    @override
     def supports_sampling(cls, space: Any) -> bool:
         """See [`Sampler.supports_sampling`][amltk.pipeline.Sampler.supports_sampling].
 
@@ -240,7 +257,7 @@ class ConfigSpaceAdapter(SpaceAdapter[ConfigurationSpace]):
 
         hps = [copy(hp) for hp in space.get_hyperparameters() if hp.name != name]
 
-        if isinstance(space.random, np.random.RandomState):
+        if isinstance(space.random, np.random.RandomState):  # type: ignore
             new_seed = space.random.randint(2**32 - 1)
         else:
             new_seed = copy(space.random)

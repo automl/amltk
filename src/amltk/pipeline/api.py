@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, TypeVar, overload
 
-from amltk.pipeline.components import Choice, Component, Group, Split
+from amltk.pipeline.components import Choice, Component, Group, Searchable, Split
 from amltk.pipeline.step import ParamRequest, Step
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ def searchable(
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
-) -> Step[None]:
+) -> Searchable[None]:
     ...
 
 
@@ -36,7 +36,7 @@ def searchable(
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = ...,
     meta: Mapping[str, Any] | None = ...,
-) -> Step[Space]:
+) -> Searchable[Space]:
     ...
 
 
@@ -47,7 +47,7 @@ def searchable(
     config: Mapping[str, Any] | None = None,
     fidelities: Mapping[str, FidT] | None = None,
     meta: Mapping[str, Any] | None = None,
-) -> Step[Space] | Step[None]:
+) -> Searchable[Space] | Searchable[None]:
     """A set of searachble items.
 
     ```python
@@ -71,7 +71,7 @@ def searchable(
     Returns:
         Step
     """
-    return Step(
+    return Searchable(
         name=name,
         config=config,
         search_space=space,
@@ -83,7 +83,7 @@ def searchable(
 @overload
 def step(
     name: str,
-    item: T | Callable[..., T],
+    item: Callable[..., T],
     *,
     config: Mapping[str, Any] | None = ...,
     fidelities: Mapping[str, FidT] | None = ...,
@@ -98,7 +98,22 @@ def step(
 @overload
 def step(
     name: str,
-    item: T | Callable[..., T],
+    item: Any,
+    *,
+    config: Mapping[str, Any] | None = ...,
+    fidelities: Mapping[str, FidT] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = None,
+) -> Component[Any, None]:
+    ...
+
+
+@overload
+def step(
+    name: str,
+    item: Callable[..., T],
     *,
     space: Space,
     config: Mapping[str, Any] | None = ...,
@@ -111,9 +126,25 @@ def step(
     ...
 
 
+@overload
 def step(
     name: str,
-    item: T | Callable[..., T],
+    item: Any,
+    *,
+    space: Space,
+    config: Mapping[str, Any] | None = ...,
+    fidelities: Mapping[str, FidT] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = None,
+) -> Component[Any, Space]:
+    ...
+
+
+def step(
+    name: str,
+    item: Callable[..., T] | Any,
     *,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
@@ -122,7 +153,12 @@ def step(
     config_transform: (
         Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = None,
-) -> Component[T, Space] | Component[T, None]:
+) -> (
+    Component[T, Space]
+    | Component[T, None]
+    | Component[Any, Space]
+    | Component[Any, None]
+):
     """A step in a pipeline.
 
     Can be joined together with the `|` operator, creating a chain and returning
@@ -197,7 +233,11 @@ def choice(
 @overload
 def split(
     name: str,
-    *paths: Step,
+    *paths: Step | dict[str, Step],
+    config: Mapping[str, Any] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = ...,
     meta: Mapping[str, Any] | None = ...,
 ) -> Split[None, None]:
     ...
@@ -206,8 +246,8 @@ def split(
 @overload
 def split(
     name: str,
-    *paths: Step,
-    item: T | Callable[..., T],
+    *paths: Step | dict[str, Step],
+    item: Callable[..., T],
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
     config_transform: (
@@ -220,8 +260,8 @@ def split(
 @overload
 def split(
     name: str,
-    *paths: Step,
-    item: T | Callable[..., T],
+    *paths: Step | dict[str, Step],
+    item: Callable[..., T],
     space: Space,
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
@@ -235,29 +275,49 @@ def split(
 @overload
 def split(
     name: str,
-    *paths: Step,
-    item: T | Callable[..., T] | None = ...,
-    space: Space | None = ...,
+    *paths: Step | dict[str, Step],
+    item: Any,
+    space: Space,
     config: Mapping[str, Any] | None = ...,
     meta: Mapping[str, Any] | None = ...,
     config_transform: (
         Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = ...,
-) -> Split[Any, Any]:
+) -> Split[Any, Space]:
+    ...
+
+
+@overload
+def split(
+    name: str,
+    *paths: Step | dict[str, Step],
+    item: Any,
+    config: Mapping[str, Any] | None = ...,
+    meta: Mapping[str, Any] | None = ...,
+    config_transform: (
+        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
+    ) = ...,
+) -> Split[Any, None]:
     ...
 
 
 def split(
     name: str,
-    *paths: Step,
-    item: T | Callable[..., T] | None = None,
+    *paths: Step | dict[str, Step],
+    item: Callable[..., T] | Any | None = None,
     space: Space | None = None,
     config: Mapping[str, Any] | None = None,
     meta: Mapping[str, Any] | None = None,
     config_transform: (
         Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
     ) = None,
-) -> Split[T, Space] | Split[T, None] | Split[None, None]:
+) -> (
+    Split[T, Space]
+    | Split[T, None]
+    | Split[None, None]
+    | Split[Any, Space]
+    | Split[Any, None]
+):
     """Create a Split component, allowing data to flow multiple paths.
 
     Args:
@@ -277,9 +337,21 @@ def split(
     Returns:
         Split: Split component with your choices as possibilities
     """
+    if len(paths) > 1 and isinstance(paths[0], dict):
+        raise ValueError(
+            "When passing a dict as the first argument, you can't pass any other"
+            " positional arguments.",
+        )
+
+    if len(paths) == 1 and isinstance(paths[0], dict):
+        _paths = tuple(group(k, v) for k, v in paths[0].items())
+    else:
+        _paths = paths  # type: ignore
+        assert all(isinstance(p, Step) for p in _paths)
+
     return Split(
         name=name,
-        paths=list(paths),
+        paths=list(_paths),  # type: ignore
         item=item,
         search_space=space,
         config=config,

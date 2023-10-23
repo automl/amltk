@@ -37,6 +37,7 @@ def test_simple_pipeline() -> None:
 
 def test_passthrough() -> None:
     # Defining a pipeline
+    step("passthrough", "passthrough")
     pipeline = Pipeline.create(
         step("passthrough", "passthrough"),
         split(

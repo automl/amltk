@@ -1,7 +1,7 @@
 """Builds an sklearn.pipeline.Pipeline from a amltk.pipeline.Pipeline."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterable, TypeVar, Union
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -27,7 +27,7 @@ COLUMN_TRANSFORMER_ARGS = [
 # However sklearn operates in a bit more of a general level so it would
 # require creating protocols to type this properly and work with sklearn's
 # duck-typing.
-SklearnItem: TypeAlias = Union[Any, Type[ColumnTransformer]]
+SklearnItem: TypeAlias = Union[Any, ColumnTransformer]
 SklearnPipelineT = TypeVar("SklearnPipelineT", bound=SklearnPipeline)
 
 
@@ -78,7 +78,7 @@ def process_group(step: Group[Any]) -> Iterable[tuple[str, SklearnItem]]:
 
 
 def process_split(  # noqa: C901
-    split: Split[SklearnItem, Any],
+    split: Split[ColumnTransformer, Any],
 ) -> Iterable[tuple[str, SklearnItem]]:
     """Process a single split into a tuple of (name, component) for sklearn.
 
@@ -200,23 +200,22 @@ def process_from(step: Step) -> Iterable[tuple[str, SklearnItem]]:
 def build(
     pipeline: Pipeline,
     pipeline_type: type[SklearnPipelineT] = SklearnPipeline,
+    **pipeline_kwargs: Any,
 ) -> SklearnPipelineT:
     """Build a pipeline into a usable object.
-
-    # TODO: SklearnPipeline has arguments not accessible to the outside caller.
-    # We should expose these as well but I hesitate to do so with kwargs right
-    # now.
 
     Args:
         pipeline: The pipeline to build
         pipeline_type: The type of pipeline to build. Defaults to the standard
             sklearn pipeline but can be any deritiative of that, i.e. imblearn's
             pipeline.
+        **pipeline_kwargs: The kwargs to pass to the pipeline_type.
 
     Returns:
-        SklearnPipeline
-            The built pipeline
+        The built pipeline
     """
+    pipeline_kwargs = pipeline_kwargs or {}
+
     for step in pipeline.traverse():
         if not isinstance(step, (Component, Group, Split)):
             msg = (
@@ -227,4 +226,4 @@ def build(
 
     assert isinstance(pipeline.head, (Component, Split, Group))
     steps = list(process_from(pipeline.head))
-    return pipeline_type(steps)  # type: ignore
+    return pipeline_type(steps, **pipeline_kwargs)  # type: ignore

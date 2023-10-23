@@ -7,22 +7,32 @@ from amltk.pipeline import Step, choice
 def test_split() -> None:
     split_step = split(
         "split",
-        step("1", 1) | step("2", 2),
-        step("3", 3) | step("4", 4),
+        step("1", object) | step("2", object),
+        step("3", object) | step("4", object),
     )
     expected_npaths = 2
     assert len(split_step.paths) == expected_npaths
 
 
 def test_traverse_one_layer() -> None:
-    s1, s2, s3, s4 = step("1", 1), step("2", 2), step("3", 3), step("4", 4)
+    s1, s2, s3, s4 = (
+        step("1", object),
+        step("2", object),
+        step("3", object),
+        step("4", object),
+    )
     split_step = split("split", s1 | s2, s3 | s4)
 
     assert list(split_step.traverse()) == [split_step, s1, s2, s3, s4]
 
 
 def test_traverse_one_deep() -> None:
-    s1, s2, s3, s4 = step("1", 1), step("2", 2), step("3", 3), step("4", 4)
+    s1, s2, s3, s4 = (
+        step("1", object),
+        step("2", object),
+        step("3", object),
+        step("4", object),
+    )
     subsplit = split("subsplit", s3 | s4)
     split_step = split("split", s1, s2 | subsplit)
 
@@ -30,7 +40,7 @@ def test_traverse_one_deep() -> None:
 
 
 def test_traverse_sequential_splits() -> None:
-    s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), i) for i in range(1, 9))
+    s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), object) for i in range(1, 9))
     split1 = split("split1", s1, s2)
     split2 = split("split2", s3, s4)
     split3 = split("split3", s5, s6)
@@ -42,7 +52,7 @@ def test_traverse_sequential_splits() -> None:
 
 
 def test_traverse_deep() -> None:
-    s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), i) for i in range(1, 9))
+    s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), object) for i in range(1, 9))
     subsub_split1 = split("subsplit1", s3 | s4)
     sub_split1 = split("subsubsplit1", s1, s2 | subsub_split1)
 
@@ -71,11 +81,11 @@ def test_traverse_deep() -> None:
 
 def test_remove_split() -> None:
     s1, s2, s3, s4, s5 = (
-        step("1", 1),
-        step("2", 2),
-        step("3", 3),
-        step("4", 4),
-        step("5", 5),
+        step("1", object),
+        step("2", object),
+        step("3", object),
+        step("4", object),
+        step("5", object),
     )
     split_step = split(
         "split",
@@ -100,11 +110,11 @@ def test_remove_split() -> None:
 
 def test_replace_split() -> None:
     s1, s2, s3, s4, s5 = (
-        step("1", 1),
-        step("2", 2),
-        step("3", 3),
-        step("4", 4),
-        step("5", 5),
+        step("1", object),
+        step("2", object),
+        step("3", object),
+        step("4", object),
+        step("5", object),
     )
     split_step = split(
         "split",
@@ -112,7 +122,7 @@ def test_replace_split() -> None:
         s2 | split("subsplit", s3 | s4) | s5,
     )
 
-    replacement = step("replacement", 0)
+    replacement = step("replacement", object)
     new = Step.join(split_step.replace({"subsplit": replacement}))
     assert new == split(
         "split",
@@ -129,23 +139,24 @@ def test_replace_split() -> None:
 
 
 def test_split_on_path_with_one_entry_removes_properly() -> None:
-    s = split("split", step("1", 1), step("2", 2))
+    s = split("split", step("1", object), step("2", object))
     result = next(s.remove(["1"]))
-    assert result == split("split", step("2", 2))
+    assert result == split("split", step("2", object))
 
 
 def test_split_on_head_of_path_does_not_remove_rest_of_path() -> None:
-    s = split("split", step("1", 1) | step("2", 2))
+    s = split("split", step("1", object) | step("2", object))
     result = next(s.remove(["1"]))
-    assert result == split("split", step("2", 2))
+    assert result == split("split", step("2", object))
 
 
 def test_configure_single() -> None:
     s1 = split(
         "split",
-        step("1", 1, space={"a": [1, 2, 3]}) | step("2", 2, space={"b": [1, 2, 3]}),
-        step("3", 3, space={"c": [1, 2, 3]}),
-        item=object(),
+        step("1", object, space={"a": [1, 2, 3]})
+        | step("2", object, space={"b": [1, 2, 3]}),
+        step("3", object, space={"c": [1, 2, 3]}),
+        item=object,
         space={"split_space": [1, 2, 3]},
     )
     configured_s1 = s1.configure({"split_space": 1, "1:a": 1, "2:b": 2, "3:c": 3})
@@ -164,11 +175,13 @@ def test_configure_single() -> None:
 def test_split_with_step_and_nested_choice() -> None:
     s1 = split(
         "split",
-        step("1", 1, space={"a": [1, 2, 3]}) | step("2", 2, space={"b": [1, 2, 3]}),
+        step("1", object, space={"a": [1, 2, 3]})
+        | step("2", object, space={"b": [1, 2, 3]}),
         choice(
             "choice",
-            step("3", 3, space={"c": [1, 2, 3]}) | step("4", 4, space={"d": [1, 2, 3]}),
-            step("5", 5, space={"e": [1, 2, 3]}),
+            step("3", object, space={"c": [1, 2, 3]})
+            | step("4", object, space={"d": [1, 2, 3]}),
+            step("5", object, space={"e": [1, 2, 3]}),
         ),
         config={"hello": "world"},
     )
@@ -182,8 +195,8 @@ def test_split_with_step_and_nested_choice() -> None:
 
     expected = split(
         "split",
-        step("1", 1, config={"a": 1}) | step("2", 2, config={"b": 1}),
-        step("3", 3, config={"c": 1}) | step("4", 4, config={"d": 1}),
+        step("1", object, config={"a": 1}) | step("2", object, config={"b": 1}),
+        step("3", object, config={"c": 1}) | step("4", object, config={"d": 1}),
         config={"hello": "world"},
     )
 
@@ -194,10 +207,10 @@ def test_configure_chained() -> None:
     head = (
         split(
             "split",
-            step("1", 2, space={"a": [1, 2, 3]}),
+            step("1", object, space={"a": [1, 2, 3]}),
         )
-        | step("2", 1, space={"b": [1, 2, 3]})
-        | step("3", 3, space={"c": [1, 2, 3]})
+        | step("2", object, space={"b": [1, 2, 3]})
+        | step("3", object, space={"c": [1, 2, 3]})
     )
     configured_head = head.configure({"split:1:a": 1, "2:b": 2, "3:c": 3})
 
@@ -215,9 +228,9 @@ def test_configure_chained() -> None:
 def test_qualified_name() -> None:
     head = split(
         "split",
-        step("0", 0),
-        split("subsplit1", step("1", 1) | step("2", 3)),
-        split("subsplit2", step("3", 1) | step("4", 3)),
+        step("0", object),
+        split("subsplit1", step("1", object) | step("2", object)),
+        split("subsplit2", step("3", object) | step("4", object)),
     )
     assert head.qualified_name() == "split"
 
@@ -253,10 +266,10 @@ def test_qualified_name() -> None:
 def test_path_to() -> None:
     head = split(
         "split",
-        step("1", 2),
+        step("1", object),
         split(
             "subsplit",
-            step("2", 1) | step("3", 3),
+            step("2", object) | step("3", object),
         ),
     )
     _split = head.find("split")

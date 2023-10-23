@@ -8,7 +8,7 @@ from amltk import Pipeline, step
 
 @parametrize("size", [1, 3, 10])
 def test_walk_shallow_pipeline(size: int) -> None:
-    pipeline = Pipeline.create(step(str(i), i) for i in range(size))
+    pipeline = Pipeline.create(step(str(i), object) for i in range(size))
 
     walk = pipeline.walk()
 

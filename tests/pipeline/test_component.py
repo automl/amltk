@@ -11,7 +11,7 @@ from amltk.pipeline import Component, Step
 @case
 @parametrize("size", [1, 3, 10])
 def case_component_chain(size: int) -> Component:
-    component = Step.join(step(str(i), i) for i in range(size))
+    component = Step.join(step(str(i), object) for i in range(size))
     assert isinstance(component, Component)
     return component
 
@@ -43,7 +43,7 @@ def test_walk(head: Component) -> None:
 
 @parametrize_with_cases("head", cases=".")
 def test_replace_one(head: Component) -> None:
-    new_step = step("replacement", "replacement")
+    new_step = step("replacement", object)
     for to_replace in head.iter():
         new_chain = list(head.replace({to_replace.name: new_step}))
         expected = [new_step if s.name == to_replace.name else s for s in head.iter()]
@@ -55,7 +55,7 @@ def test_replace_many(head: Component) -> None:
     steps = list(head.iter())
     lens = range(1, len(steps) + 1)
     replacements = [
-        {s.name: step(f"{s.name}_r", 0) for s in to_replace}
+        {s.name: step(f"{s.name}_r", object) for s in to_replace}
         for to_replace in chain.from_iterable(
             combinations(steps, length) for length in lens
         )

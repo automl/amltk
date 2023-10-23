@@ -71,7 +71,7 @@ def test_heirarchical_str_with_predefined_configs() -> None:
         split(
             "split",
             step("x", 1, config={"v": 4, "w": 42}),
-            step("y", 1, config=None),
+            step("y", 1, config=None, space={"v": [4, 5, 6]}),
         ),
         step("a", 1, config={"v": 3}),
         name=pipeline.name,
@@ -84,26 +84,26 @@ def test_heirarchical_str_with_predefined_configs() -> None:
 def test_configuration_with_nested_submodules() -> None:
     pipeline = Pipeline.create(
         step("1", 1, space={"a": [1, 2, 3]}),
-        step("2", 2, space={"b": [4, 5, 6]}),
+        step("2", 1, space={"b": [4, 5, 6]}),
     )
 
     module1 = Pipeline.create(
-        step("3", 3, space={"c": [7, 8, 9]}),
-        step("4", 4, space={"d": [10, 11, 12]}),
+        step("3", 1, space={"c": [7, 8, 9]}),
+        step("4", 1, space={"d": [10, 11, 12]}),
         name="module1",
     )
 
     module2 = Pipeline.create(
         choice(
             "choice",
-            step("6", 6, space={"e": [13, 14, 15]}),
-            step("7", 7, space={"f": [16, 17, 18]}),
+            step("6", 1, space={"e": [13, 14, 15]}),
+            step("7", 1, space={"f": [16, 17, 18]}),
         ),
         name="module2",
     )
 
     module3 = Pipeline.create(
-        step("8", 8, space={"g": [19, 20, 21]}),
+        step("8", 1, space={"g": [19, 20, 21]}),
         name="module3",
     )
 
@@ -122,24 +122,24 @@ def test_configuration_with_nested_submodules() -> None:
     }
 
     expected_module1 = Pipeline.create(
-        step("3", 3, config={"c": 7}),
-        step("4", 4, config={"d": 10}),
+        step("3", 1, config={"c": 7}),
+        step("4", 1, config={"d": 10}),
         name="module1",
     )
 
     expected_module2 = Pipeline.create(
-        step("6", 6, config={"e": 13}),
+        step("6", 1, config={"e": 13}),
         name="module2",
     )
 
     expected_module3 = Pipeline.create(
-        step("8", 8, config={"g": 19}),
+        step("8", 1, config={"g": 19}),
         name="module3",
     )
 
     expected_pipeline = Pipeline.create(
         step("1", 1, config={"a": 1}),
-        step("2", 2, config={"b": 4}),
+        step("2", 1, config={"b": 4}),
         name=pipeline.name,
     )
 
@@ -155,7 +155,7 @@ def test_configuration_with_nested_submodules() -> None:
 def test_heirachical_str_with_searchables() -> None:
     pipeline = Pipeline.create(
         step("1", 1, space={"a": [1, 2, 3]}),
-        step("2", 2, space={"b": [4, 5, 6]}),
+        step("2", 1, space={"b": [4, 5, 6]}),
     )
 
     extra = searchable("searchables", space={"a": [1, 2, 3], "b": [4, 5, 6]})
@@ -170,7 +170,7 @@ def test_heirachical_str_with_searchables() -> None:
 
     expected = Pipeline.create(
         step("1", 1, config={"a": 1}),
-        step("2", 2, config={"b": 4}),
+        step("2", 1, config={"b": 4}),
         name=pipeline.name,
     )
     expected_extra = searchable("searchables", config={"a": 1, "b": 4})
@@ -189,7 +189,7 @@ def test_config_transform() -> None:
 
     pipeline = Pipeline.create(
         step("1", 1, space={"a": [1, 2, 3]}, config_transform=_transformer_1),
-        step("2", 2, space={"b": [1, 2, 3]}, config_transform=_transformer_2),
+        step("2", 1, space={"b": [1, 2, 3]}, config_transform=_transformer_2),
     )
     config = {
         "1:a": 1,
@@ -198,7 +198,7 @@ def test_config_transform() -> None:
 
     expected = Pipeline.create(
         step("1", 1, config={"hello": "world"}, config_transform=_transformer_1),
-        step("2", 2, config={"hi": "mars"}, config_transform=_transformer_2),
+        step("2", 1, config={"hi": "mars"}, config_transform=_transformer_2),
         name=pipeline.name,
     )
     assert expected == pipeline.configure(config)

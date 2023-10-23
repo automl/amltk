@@ -4,12 +4,26 @@ from __future__ import annotations
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Iterator, Literal, Mapping, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    Literal,
+    Mapping,
+    TypeVar,
+)
 from typing_extensions import override
+
+import pandas as pd
 
 from amltk.optimization.trial import mapping_select
 from amltk.profiling.memory import Memory
 from amltk.profiling.timing import Timer
+
+if TYPE_CHECKING:
+    from rich.console import RenderableType
 
 T = TypeVar("T")
 
@@ -114,9 +128,10 @@ class Profile:
 
         def to_dict(self, *, prefix: str = "") -> dict[str, Any]:
             """Convert the profile interval to a dictionary."""
+            _prefix = "" if prefix == "" else f"{prefix}:"
             return {
-                **self.memory.to_dict(prefix=f"{prefix}:memory:"),
-                **self.time.to_dict(prefix=f"{prefix}:time:"),
+                **self.memory.to_dict(prefix=f"{_prefix}memory:"),
+                **self.time.to_dict(prefix=f"{_prefix}time:"),
             }
 
 
@@ -237,3 +252,17 @@ class Profiler(Mapping[str, Profile.Interval]):
             yield
 
         self._running.pop()
+
+    def df(self) -> pd.DataFrame:
+        """Convert the profiler to a dataframe."""
+        return pd.DataFrame.from_dict(
+            {k: v.to_dict() for k, v in self.profiles.items()},
+            orient="index",
+        )
+
+    def __rich__(self) -> RenderableType:
+        """Render the profiler."""
+        from amltk.richutil import df_to_table
+
+        _df = self.df()
+        return df_to_table(_df, title="Profiler", index_style="bold")

@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class _A:
+    pass
+
+
 def target_function(
     trial: Trial,
     /,
@@ -46,7 +50,8 @@ def valid_time_interval(interval: Timer.Interval) -> bool:
 
 @case
 def opt_random_search() -> tuple[RandomSearch, str]:
-    pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
+    s = step("hi", _A, space={"a": (1, 10)})
+    pipeline = Pipeline.create(s)
     return RandomSearch(space=pipeline.space()), "cost"
 
 
@@ -57,7 +62,7 @@ def opt_smac_hpo() -> tuple[SMACOptimizer, str]:
     except ImportError:
         pytest.skip("SMAC is not installed")
 
-    pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
+    pipeline = Pipeline.create(step("hi", _A, space={"a": (1, 10)}))
     return SMACOptimizer.create(space=pipeline.space(), seed=2**32 - 1), "cost"
 
 
@@ -68,7 +73,7 @@ def opt_optuna() -> tuple[OptunaOptimizer, str]:
     except ImportError:
         pytest.skip("Optuna is not installed")
 
-    pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
+    pipeline = Pipeline.create(step("hi", _A, space={"a": (1, 10)}))
     space = pipeline.space(parser=OptunaParser())
     return OptunaOptimizer.create(space=space), "cost"
 
@@ -80,7 +85,7 @@ def opt_neps() -> tuple[NEPSOptimizer, str]:
     except ImportError:
         pytest.skip("NEPS is not installed")
 
-    pipeline = Pipeline.create(step("hi", 1, space={"a": (1, 10)}))
+    pipeline = Pipeline.create(step("hi", _A, space={"a": (1, 10)}))
     space = pipeline.space()
     return NEPSOptimizer.create(space=space, overwrite=True), "loss"
 

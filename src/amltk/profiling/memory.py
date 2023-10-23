@@ -252,10 +252,10 @@ class Memory:
             """Convert the time interval to a dictionary."""
             return {
                 f"{prefix}start_vms": self.start_vms,
-                f"{prefix}start_rss": self.start_rss,
                 f"{prefix}end_vms": self.end_vms,
-                f"{prefix}end_rss": self.end_rss,
                 f"{prefix}diff_vms": self.vms_used,
+                f"{prefix}start_rss": self.start_rss,
+                f"{prefix}end_rss": self.end_rss,
                 f"{prefix}diff_rss": self.rss_used,
                 f"{prefix}unit": self.unit,
             }

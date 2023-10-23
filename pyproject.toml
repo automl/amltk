@@ -73,6 +73,8 @@ wandb = ["wandb"]
 threadpoolctl = ["threadpoolctl"]
 xgboost = ["xgboost"]
 neps = ["neural-pipeline-search"]
+rich = ["rich"]
+notebook = ["rich[jupyter]"]
 
 [project.urls]
 documentation = "https://github.com/automl/amltk/"
@@ -283,6 +285,8 @@ module = [
   "wandb.*",
   "threadpoolctl.*",
   "loky.*",
+  "metahyper.*",
+  "neps.*",
 ]
 ignore_missing_imports = true
 
@@ -310,3 +314,4 @@ reportUnknownParameterType = false
 reportUnknownVariableType = false
 reportUnknownArgumentType = false
 reportUnknownLambdaType = false
+reportPrivateUsage = false

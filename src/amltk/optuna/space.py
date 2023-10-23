@@ -49,7 +49,7 @@ configured_item.build()
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Sequence, Union
 from typing_extensions import override
 
 from amltk.configspace.space import as_int
@@ -68,9 +68,10 @@ if TYPE_CHECKING:
     from amltk.types import Config, Seed
 
 OptunaSearchSpace: TypeAlias = Dict[str, BaseDistribution]
+InputSpace: TypeAlias = Union[Mapping[str, Any], OptunaSearchSpace]
 
 
-class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
+class OptunaSpaceAdapter(SpaceAdapter[InputSpace, OptunaSearchSpace]):
     """An Optuna adapter to allow for parsing Optuna spaces and sampling from them."""
 
     @override
@@ -96,7 +97,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
     def insert(
         self,
         space: OptunaSearchSpace,
-        subspace: OptunaSearchSpace,
+        subspace: InputSpace,
         *,
         prefix_delim: tuple[str, str] | None = None,
     ) -> OptunaSearchSpace:
@@ -197,7 +198,7 @@ class OptunaSpaceAdapter(SpaceAdapter[OptunaSearchSpace]):
             return IntDistribution(lower, upper)
 
         # Sequences
-        if isinstance(hp, Sequence):
+        if isinstance(hp, Sequence):  # type: ignore
             if len(hp) == 0:
                 raise ValueError(f"Can't have empty list for categorical {name}")
 

@@ -9,33 +9,45 @@ from pytest_cases import case, parametrize, parametrize_with_cases
 from amltk.pipeline import Pipeline, Step, choice, request, split, step
 
 
+class _A:
+    pass
+
+
 @case(tags="shallow")
 @parametrize("size", [1, 3, 10])
 def case_shallow_pipeline(size: int) -> Pipeline:
-    return Pipeline.create(step(str(i), i) for i in range(size))
+    return Pipeline.create(step(str(i), _A) for i in range(size))
 
 
 @case(tags="deep")
 def case_deep_pipeline() -> Pipeline:
     # We want sequential split points
-    split1 = split("split1", step("1", 1), step("2", 2))
-    split2 = split("split2", step("3", 3), step("4", 4))
+    split1 = split("split1", step("1", _A), step("2", _A))
+    split2 = split("split2", step("3", _A), step("4", _A))
     sequential = split1 | split2
 
     # We want some choices
-    choice1 = choice("choice1", step("5", 5), step("6", 6) | step("7", 7))
-    choice2 = choice("choice2", step("8", 8), step("9", 9) | step("10", 10))
+    choice1 = choice(
+        "choice1",
+        step("5", _A),
+        step("6", _A) | step("7", _A),
+    )
+    choice2 = choice(
+        "choice2",
+        step("8", _A),
+        step("9", _A) | step("10", _A),
+    )
 
     # Use these to create at least one layer of depth
     shallow_spread = split("split3", choice1, choice2)
 
     # Create a very deep part
-    deep_part = split("deep1", split("deep2", split("deep3", step("leaf", "leaf"))))
+    deep_part = split("deep1", split("deep2", split("deep3", step("leaf", _A))))
 
     # Throw on a long part
-    long_part = step("l1", 1) | step("l2", 2) | step("l3", 3) | step("l4", 4)
-    head = step("head", "head")
-    tail = step("tail", "tail")
+    long_part = step("l1", _A) | step("l2", _A) | step("l3", _A) | step("l4", _A)
+    head = step("head", _A)
+    tail = step("tail", _A)
     return Pipeline.create(
         head,
         sequential,
@@ -47,10 +59,10 @@ def case_deep_pipeline() -> Pipeline:
 
 
 def test_pipeline_mixture_of_steps() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
-    s3 = step("3", 3)
-    s4 = step("4", 4)
+    s1 = step("1", _A)
+    s2 = step("2", _A)
+    s3 = step("3", _A)
+    s4 = step("4", _A)
 
     pipeline = Pipeline.create(s1, s2 | s3, s4)
 
@@ -85,8 +97,8 @@ def test_iter_shallow(pipeline: Pipeline) -> None:
 @parametrize_with_cases("pipeline", cases=".", has_tag="deep")
 def test_traverse_contains_deeper_items_than_iter(pipeline: Pipeline) -> None:
     # TODO: This should probably be tested better and with a specific example
-    shallow_items = set(pipeline.iter())
-    deep_items = set(pipeline.traverse())
+    shallow_items = {s.name for s in pipeline.iter()}
+    deep_items = {s.name for s in pipeline.traverse()}
 
     assert deep_items.issuperset(shallow_items)
     assert len(deep_items) > len(shallow_items)
@@ -108,7 +120,7 @@ def test_find_shallow_success(pipeline: Pipeline) -> None:
 
 @parametrize_with_cases("pipeline", cases=".")
 def test_find_default(pipeline: Pipeline) -> None:
-    o = object()
+    o = _A()
     assert pipeline.find("dummy", default=o) is o
 
 
@@ -124,17 +136,17 @@ def test_find_deep(pipeline: Pipeline) -> None:
 
 
 def test_or_operator() -> None:
-    p1 = Pipeline.create(step("1", 1) | step("2", 2))
-    p2 = Pipeline.create(step("3", 3) | step("4", 4))
-    s = step("hello", "world")
+    p1 = Pipeline.create(step("1", _A) | step("2", _A))
+    p2 = Pipeline.create(step("3", _A) | step("4", _A))
+    s = step("hello", _A)
     pnew = p1 | p2 | s
     assert pnew == p1 | p2 | s
 
 
 def test_append() -> None:
-    p1 = Pipeline.create(step("1", 1) | step("2", 2))
-    p2 = Pipeline.create(step("3", 3) | step("4", 4))
-    s = step("hello", "world")
+    p1 = Pipeline.create(step("1", _A) | step("2", _A))
+    p2 = Pipeline.create(step("3", _A) | step("4", _A))
+    s = step("hello", _A)
     pnew = p1.append(p2).append(s)
     # Need to make sure they have the same name for pipeline equality
     assert pnew == Pipeline.create(p1, p2, s, name=pnew.name)
@@ -142,7 +154,7 @@ def test_append() -> None:
 
 @parametrize_with_cases("pipeline", cases=".")
 def test_replace(pipeline: Pipeline) -> None:
-    new_step = step("replacement", "replacement")
+    new_step = step("replacement", _A)
     for selected_step in pipeline.traverse():
         assert selected_step in pipeline
         assert new_step not in pipeline
@@ -194,21 +206,21 @@ def test_duplicate_name_error(pipeline: Pipeline) -> None:
     first_step = pipeline.head
     name = first_step.name
     with pytest.raises(Step.DuplicateNameError):
-        pipeline | step(name, object())  # pyright: reportUnusedExpression=false
+        pipeline | step(name, _A)  # pyright: ignore[reportUnusedExpression]
 
 
 def test_qualified_name() -> None:
     pipeline = Pipeline.create(
-        step("1", 1)
-        | step("2", 2)
+        step("1", _A)
+        | step("2", _A)
         | split(
             "split",
-            step("split1", "split1") | step("split2", "split2"),
+            step("split1", _A) | step("split2", _A),
         )
         | choice(
             "3",
-            step("4", 4),
-            step("5", 5),
+            step("4", _A),
+            step("5", _A),
         ),
     )
     assert pipeline.qualified_name("1") == "1"
@@ -224,7 +236,7 @@ def test_qualified_name() -> None:
 @parametrize_with_cases("pipeline", cases=".")
 def test_renaming_function(pipeline: Pipeline) -> None:
     new_name = "replaced_name"
-    x = step("nothing", "nothing")
+    x = step("nothing", _A)
 
     assert pipeline.replace(x.name, x, name=new_name).name == new_name
     assert pipeline.remove(x.name, name=new_name).name == new_name
@@ -234,29 +246,29 @@ def test_renaming_function(pipeline: Pipeline) -> None:
 
 def test_param_requests() -> None:
     pipeline = Pipeline.create(
-        step("1", 1, config={"seed": request("seed1")})
-        | step("2", 2, config={"seed": request("seed2")})
+        step("1", _A, config={"seed": request("seed1")})
+        | step("2", _A, config={"seed": request("seed2")})
         | split(
             "split",
             (
                 step(
                     "split1",
-                    42,
+                    _A,
                     config={
                         "seed": request("seed1", required=True),
                     },
                 )
                 | step(
                     "split2",
-                    45,
+                    _A,
                     config={"seed": request("seed4", default=4)},
                 )
             ),
         )
         | choice(
             "3",
-            step("4", 4, config={"seed": None}),
-            step("5", 5),
+            step("4", _A, config={"seed": None}),
+            step("5", _A),
         ),
     )
     configured_pipeline = pipeline.configure(config={}, params={"seed1": 1, "seed2": 2})
@@ -270,19 +282,19 @@ def test_param_requests() -> None:
     }
 
     assert configured_pipeline == Pipeline.create(
-        step("1", 1, config={"seed": 1})
-        | step("2", 2, config={"seed": 2})
+        step("1", _A, config={"seed": 1})
+        | step("2", _A, config={"seed": 2})
         | split(
             "split",
             (
-                step("split1", 42, config={"seed": 1})
-                | step("split2", 45, config={"seed": 4})
+                step("split1", _A, config={"seed": 1})
+                | step("split2", _A, config={"seed": 4})
             ),
         )
         | choice(
             "3",
-            step("4", 4, config={"seed": None}),
-            step("5", 5),
+            step("4", _A, config={"seed": None}),
+            step("5", _A),
         ),
         name=pipeline.name,
     )

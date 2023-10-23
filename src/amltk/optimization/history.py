@@ -7,12 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     IO,
+    TYPE_CHECKING,
     Callable,
     Hashable,
     Iterable,
     Iterator,
     Literal,
-    Mapping,
     Sequence,
     TypeVar,
     overload,
@@ -23,7 +23,11 @@ import pandas as pd
 
 from amltk.functional import compare_accumulate
 from amltk.optimization.trial import Trial
+from amltk.richutil import RichRenderable
 from amltk.types import Comparable
+
+if TYPE_CHECKING:
+    from rich.console import RenderableType
 
 T = TypeVar("T")
 CT = TypeVar("CT", bound=Comparable)
@@ -31,7 +35,7 @@ HashableT = TypeVar("HashableT", bound=Hashable)
 
 
 @dataclass
-class History(Mapping[str, Trial.Report]):
+class History(RichRenderable):
     """A history of trials.
 
     This is a collections of reports from trials, where you can access
@@ -58,8 +62,8 @@ class History(Mapping[str, Trial.Report]):
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
 
-    for name, report in history.items():
-        print(f"{name=}, {report}")
+    for report in history:
+        print(f"{report.name=}, {report}")
 
     print(history.df())
     ```
@@ -68,7 +72,8 @@ class History(Mapping[str, Trial.Report]):
         reports: A mapping of trial names to reports.
     """
 
-    reports: dict[str, Trial.Report] = field(default_factory=dict)
+    reports: list[Trial.Report] = field(default_factory=list)
+    _lookup: dict[str, int] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_reports(cls, reports: Iterable[Trial.Report]) -> History:
@@ -80,7 +85,9 @@ class History(Mapping[str, Trial.Report]):
         Returns:
             A history.
         """
-        return cls({report.name: report for report in reports})
+        history = cls()
+        history.add(reports)
+        return history
 
     def add(self, report: Trial.Report | Iterable[Trial.Report]) -> None:
         """Adds a report or reports to the history.
@@ -89,11 +96,33 @@ class History(Mapping[str, Trial.Report]):
             report: A report or reports to add.
         """
         if isinstance(report, Trial.Report):
-            self.reports[report.name] = report
-        else:
-            self.reports.update({r.name: r for r in report})
+            self.reports.append(report)
+            self._lookup[report.name] = len(self.reports) - 1
+            return
 
-    def df(self) -> pd.DataFrame:
+        for _report in report:
+            self.reports.append(_report)
+            self._lookup[_report.name] = len(self.reports) - 1
+
+    def find(self, name: str) -> Trial.Report:
+        """Finds a report by trial name.
+
+        Args:
+            name: The name of the trial.
+
+        Returns:
+            The report.
+        """
+        return self.reports[self._lookup[name]]
+
+    def df(
+        self,
+        *,
+        profiles: bool = True,
+        configs: bool = True,
+        summary: bool = True,
+        results: bool = True,
+    ) -> pd.DataFrame:
         """Returns a pandas DataFrame of the history.
 
         Each individual trial will be a row in the dataframe.
@@ -119,13 +148,29 @@ class History(Mapping[str, Trial.Report]):
         print(history.df())
         ```
 
+        Args:
+            profiles: Whether to include the profiles.
+            configs: Whether to include the configs.
+            summary: Whether to include the summary.
+            results: Whether to include the results.
+
         Returns:
             A pandas DataFrame of the history.
         """  # noqa: E501
         if len(self) == 0:
             return pd.DataFrame()
 
-        _df = pd.concat([report.df() for report in list(self.reports.values())])
+        _df = pd.concat(
+            [
+                report.df(
+                    profiles=profiles,
+                    configs=configs,
+                    summary=summary,
+                    results=results,
+                )
+                for report in self.reports
+            ],
+        )
         return _df.convert_dtypes()
 
     def filter(self, by: Callable[[Trial.Report], bool]) -> History:
@@ -144,9 +189,9 @@ class History(Mapping[str, Trial.Report]):
                 history.add(report)
 
         filtered_history = history.filter(lambda report: report.results["cost"] < 10)
-        for name, report in filtered_history.items():
+        for report in filtered_history:
             cost = report.results["cost"]
-            print(f"{name}, {cost=}, {report}")
+            print(f"{report.name}, {cost=}, {report}")
         ```
 
         Args:
@@ -155,9 +200,7 @@ class History(Mapping[str, Trial.Report]):
         Returns:
             A new history with the filtered reports.
         """  # noqa: E501
-        return History(
-            {name: report for name, report in self.reports.items() if by(report)},
-        )
+        return History.from_reports([report for report in self.reports if by(report)])
 
     def groupby(
         self,
@@ -196,7 +239,7 @@ class History(Mapping[str, Trial.Report]):
         if key == "status":
             key = operator.attrgetter("status")
 
-        for report in self.reports.values():
+        for report in self.reports:
             d[key(report)].append(report)
 
         return {k: History.from_reports(v) for k, v in d.items()}
@@ -249,23 +292,25 @@ class History(Mapping[str, Trial.Report]):
             history = self
             sort_key = key
 
-        return Trace(sorted(history.reports.values(), key=sort_key, reverse=reverse))
+        return Trace(sorted(history.reports, key=sort_key, reverse=reverse))
 
     @override
-    def __getitem__(self, key: str) -> Trial.Report:
-        return self.reports[key]
+    def __getitem__(  # type: ignore
+        self,
+        key: int | str | slice,
+    ) -> Trial.Report | History:
+        if isinstance(key, str):
+            return self.find(key)
+        if isinstance(key, int):
+            return self.reports[key]
 
-    @override
-    def __iter__(self) -> Iterator[str]:
+        return History.from_reports(self.reports[key])
+
+    def __iter__(self) -> Iterator[Trial.Report]:
         return iter(self.reports)
 
-    @override
     def __len__(self) -> int:
         return len(self.reports)
-
-    @override
-    def __repr__(self) -> str:
-        return f"History({self.reports})"
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -317,8 +362,21 @@ class History(Mapping[str, Trial.Report]):
         """
         if len(df) == 0:
             return cls()
-        reports = [Trial.Report.from_df(s) for _, s in df.iterrows()]
-        return History({report.name: report for report in reports})
+        return History.from_reports(Trial.Report.from_df(s) for _, s in df.iterrows())
+
+    @override
+    def __rich__(self) -> RenderableType:
+        from amltk.richutil import df_to_table
+
+        return df_to_table(
+            self.df(configs=False, profiles=False, summary=False),
+            title="History",
+            expand=True,
+        )
+
+    @override
+    def _repr_html_(self) -> str:
+        return str(self.df().to_html())
 
 
 @dataclass
@@ -535,7 +593,14 @@ class Trace(Sequence[Trial.Report]):
         )
         return IncumbentTrace(incumbents)
 
-    def df(self) -> pd.DataFrame:
+    def df(
+        self,
+        *,
+        profiles: bool = True,
+        configs: bool = True,
+        summary: bool = True,
+        results: bool = True,
+    ) -> pd.DataFrame:
         """Returns a pandas DataFrame of the trace.
 
         Each individual trial will be a row in the DataFrame
@@ -568,6 +633,12 @@ class Trace(Sequence[Trial.Report]):
         print(df)
         ```
 
+        Args:
+            profiles: Whether to include the profiles.
+            configs: Whether to include the configs.
+            summary: Whether to include the summary.
+            results: Whether to include the results.
+
         Returns:
             A pandas DataFrame of the trace.
         """  # noqa: E501
@@ -575,7 +646,15 @@ class Trace(Sequence[Trial.Report]):
             return pd.DataFrame()
 
         return pd.concat(
-            [report.df() for report in self.reports],
+            [
+                report.df(
+                    profiles=profiles,
+                    configs=configs,
+                    summary=summary,
+                    results=results,
+                )
+                for report in self.reports
+            ],
             ignore_index=True,
         ).convert_dtypes()
 
@@ -589,6 +668,11 @@ class Trace(Sequence[Trial.Report]):
             path.write(self.df().to_csv())
         else:
             self.df().to_csv(path)
+
+    def _ipython_display(self) -> None:
+        from IPython.display import display
+
+        display(self.df(profiles=False))
 
 
 @dataclass

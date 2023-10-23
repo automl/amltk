@@ -9,30 +9,34 @@ from amltk.pipeline import Pipeline, Split, Step, split, step
 
 @case
 def case_single_step() -> Step:
-    return step("a", 1, space={"hp": [1, 2, 3]})
+    return step("a", object, space={"hp": [1, 2, 3]})
 
 
 @case
 def case_single_step_two_hp() -> Step:
-    return step("a", 1, space={"hp": [1, 2, 3], "hp2": [1, 2, 3]})
+    return step("a", object, space={"hp": [1, 2, 3], "hp2": [1, 2, 3]})
 
 
 @case
 def case_single_step_two_hp_different_types() -> Step:
-    return step("a", 1, space={"hp": [1, 2, 3], "hp2": (1, 10)})
+    return step("a", object, space={"hp": [1, 2, 3], "hp2": (1, 10)})
 
 
 @case
 def case_joint_steps() -> Step:
-    return step("a", 1, space={"hp": [1, 2, 3]}) | step("b", 1, space={"hp2": (1, 10)})
+    return step("a", object, space={"hp": [1, 2, 3]}) | step(
+        "b",
+        object,
+        space={"hp2": (1, 10)},
+    )
 
 
 @case
 def case_split_steps() -> Step:
     return split(
         "split",
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp2": (1, 10)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp2": (1, 10)}),
     )
 
 
@@ -42,19 +46,19 @@ def case_nested_splits() -> Split:
         "split1",
         split(
             "split2",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 1, space={"hp2": (1, 10)}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp2": (1, 10)}),
         ),
-        step("c", 1, space={"hp3": (1, 10)}),
+        step("c", object, space={"hp3": (1, 10)}),
     )
 
 
 @case
 def case_simple_linear_pipeline() -> Pipeline:
     return Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
     )
 
 
@@ -63,8 +67,8 @@ def case_split_pipeline() -> Pipeline:
     return Pipeline.create(
         split(
             "split",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 2, space={"hp": [1, 2, 3]}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp": [1, 2, 3]}),
         ),
     )
 
@@ -72,12 +76,12 @@ def case_split_pipeline() -> Pipeline:
 @case
 def case_pipeline_with_step_modules() -> Pipeline:
     return Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
         modules=[
-            step("d", 1, space={"hp": (1.0, 10.0)}),
-            step("e", 1, space={"hp": (1.0, 10.0)}),
+            step("d", object, space={"hp": (1.0, 10.0)}),
+            step("e", object, space={"hp": (1.0, 10.0)}),
         ],
     )
 
@@ -85,13 +89,13 @@ def case_pipeline_with_step_modules() -> Pipeline:
 @case
 def case_pipeline_with_pipeline_modules() -> Pipeline:
     return Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
         modules=[
             Pipeline.create(
-                step("d", 1, space={"hp": (1.0, 10.0)}),
-                step("e", 1, space={"hp": (1.0, 10.0)}),
+                step("d", object, space={"hp": (1.0, 10.0)}),
+                step("e", object, space={"hp": (1.0, 10.0)}),
             ),
         ],
     )
@@ -123,10 +127,10 @@ def test_sampling_no_duplicates() -> None:
     values = list(range(10))
     n = len(values)
 
-    item = step("x", object(), space={"a": values})
+    item: Step = step("x", object, space={"a": values})
 
     configs = item.sample(
-        sampler=OptunaSpaceAdapter(),
+        sampler=OptunaSpaceAdapter,
         n=n,
         duplicates=False,
         seed=42,
@@ -139,7 +143,7 @@ def test_sampling_no_duplicates_with_seen_values() -> None:
     values = list(range(10))
     n = len(values)
 
-    item = step("x", object(), space={"a": values})
+    item: Step = step("x", object, space={"a": values})
 
     adapter = OptunaSpaceAdapter()
     seen_config = item.sample(sampler=adapter, seed=42)

@@ -8,21 +8,21 @@ from amltk.configspace import ConfigSpaceParser
 
 def test_pipeline_with_2_pipeline_modules() -> None:
     pipeline = Pipeline.create(
-        step("1", 1, space={"a": [1, 2, 3]}),
-        step("2", 2, space={"b": [4, 5, 6]}),
+        step("1", object, space={"a": [1, 2, 3]}),
+        step("2", object, space={"b": [4, 5, 6]}),
     )
 
     module1 = Pipeline.create(
-        step("3", 3, space={"c": [7, 8, 9]}),
-        step("4", 4, space={"d": [10, 11, 12]}),
+        step("3", object, space={"c": [7, 8, 9]}),
+        step("4", object, space={"d": [10, 11, 12]}),
         name="module1",
     )
 
     module2 = Pipeline.create(
         choice(
             "choice",
-            step("6", 6, space={"e": [13, 14, 15]}),
-            step("7", 7, space={"f": [16, 17, 18]}),
+            step("6", object, space={"e": [13, 14, 15]}),
+            step("7", object, space={"f": [16, 17, 18]}),
         ),
         name="module2",
     )
