@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 import logging
+from typing import Generic, TypeVar
 
 from amltk.pipeline.parser import Parser
 from amltk.pipeline.sampler import Sampler
-from amltk.types import Space
 
 logger = logging.getLogger(__name__)
 
+InputT = TypeVar("InputT")
+OutputT = TypeVar("OutputT")
 
-class SpaceAdapter(Parser[Space], Sampler[Space]):
+
+class SpaceAdapter(Parser[InputT, OutputT], Sampler[OutputT], Generic[InputT, OutputT]):
     """Space adapter.
 
     This interfaces combines the utility to parse and sample from a given

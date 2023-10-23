@@ -81,23 +81,22 @@ see the [optimization guide](../guides/optimization.md) for more details.
     ```
 
 ### Querying
-The [`History`][amltk.optimization.History] acts like
-a [`Mapping[str, Trial.Report]`][collections.abc.Mapping],
-where the keys are the `trial.name` and the values are its
-associated [`Report`][amltk.optimization.Trial.Report]
+The [`History`][amltk.optimization.History] can be queried by either
+an index or by the trial name.
 
-
-```python exec="true" source="material-block" result="python" title="History as a Mapping" session="ref-history"
+```python exec="true" source="material-block" result="ansi" title="History Querying [str]" session="ref-history"
 print(history["trial_0"])
+print(history[5])
+```
 
-print("iterating")
-for name, report in history.items():
-    print(name, f"cost = {report.results['cost']}")
+```python exec="true" source="material-block" result="ansi" title="History Querying [iter]" session="ref-history"
+for report in history:
+    print(report.name, f"cost = {report.results['cost']}")
+```
 
-print(f"len = {len(history)}")
-
-sorted_reports = sorted(history.values(), key=lambda r: r.results['cost'])
-print(f"best = {sorted_reports[0]}")
+```python exec="true" source="material-block" result="ansi" title="History Querying [iter]" session="ref-history"
+sorted_reports = sorted(history, key=lambda r: r.results['cost'])
+print(sorted_reports[0])
 ```
 
 ### Filtering

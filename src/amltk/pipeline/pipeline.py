@@ -14,20 +14,27 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    ClassVar,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     TypeVar,
     overload,
 )
+from typing_extensions import override
 from uuid import uuid4
 
 from attrs import field, frozen
 
-from amltk.functional import mapping_select
+from amltk.functional import classname, mapping_select
 from amltk.pipeline.components import Group, Step, prefix_keys
+from amltk.richutil import RichRenderable
 
 if TYPE_CHECKING:
+    from rich.console import RenderableType
+    from rich.text import TextType
+
     from amltk.pipeline.parser import Parser
     from amltk.pipeline.sampler import Sampler
     from amltk.types import Config, FidT, Seed, Space
@@ -39,20 +46,25 @@ logger = logging.getLogger(__name__)
 
 
 @frozen(kw_only=True)
-class Pipeline:
-    """Base class implementing search routines over steps.
-
-    Attributes:
-        name: The name of the pipeline
-        steps: The steps in the pipeline
-        modules: Additional modules to associate with the pipeline
-        meta: Additional meta information to associate with the pipeline
-    """
+class Pipeline(RichRenderable):
+    """A sequence of steps and operations on them."""
 
     name: str
+    """The name of the pipeline"""
+
     steps: list[Step]
+    """The steps in the pipeline.
+
+    This does not include any steps that are part of a `Split` or `Choice`.
+    """
+
     modules: Mapping[str, Step | Pipeline] = field(factory=dict)
+    """Additional modules to associate with the pipeline"""
+
     meta: Mapping[str, Any] | None = None
+    """Additional meta information to associate with the pipeline"""
+
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "magenta"
 
     @property
     def head(self) -> Step:
@@ -326,7 +338,7 @@ class Pipeline:
     @overload
     def space(
         self,
-        parser: type[Parser[Space]] | Parser[Space],
+        parser: type[Parser[Any, Space]] | Parser[Any, Space],
         *,
         seed: Seed | None = None,
     ) -> Space:
@@ -343,7 +355,7 @@ class Pipeline:
 
     def space(
         self,
-        parser: type[Parser[Space]] | Parser[Space] | None = None,
+        parser: type[Parser[Any, Space]] | Parser[Any, Space] | None = None,
         *,
         seed: Seed | None = None,
     ) -> Space | Any:
@@ -480,6 +492,7 @@ class Pipeline:
         prefixed_name: bool = False,
         transform_context: Any | None = None,
         params: Mapping[str, Any] | None = None,
+        clear_space: bool | Literal["auto"] = "auto",
     ) -> Pipeline:
         """Configure the pipeline with the given configuration.
 
@@ -503,6 +516,11 @@ class Pipeline:
             params: The params to match any requests when configuring this step.
                 These will match against any ParamRequests in the config and will
                 be used to fill in any missing values.
+            clear_space: Whether to clear the search space after configuring.
+                If `"auto"` (default), then the search space will be cleared of any
+                keys that are in the config, if the search space is a `dict`. Otherwise,
+                `True` indicates that it will be removed in the returned step and
+                `False` indicates that it will remain as is.
 
         Returns:
             A new pipeline with the configuration applied
@@ -520,6 +538,7 @@ class Pipeline:
             transform_context=transform_context,
             params=params,
             prefixed_name=True,
+            clear_space=clear_space,
         )
 
         new_modules = [
@@ -528,6 +547,7 @@ class Pipeline:
                 transform_context=transform_context,
                 params=params,
                 prefixed_name=True,
+                clear_space=clear_space,
             )
             for module in self.modules.values()
         ]
@@ -623,12 +643,7 @@ class Pipeline:
         # as required by the internal api
         final_modules: dict[str, Pipeline | Step] = {}
         if modules is not None:
-            final_modules = {
-                module.name: module.copy()
-                if isinstance(module, (Pipeline, Step))
-                else Pipeline.create(module, name=module.name)
-                for module in modules
-            }
+            final_modules = {module.name: module.copy() for module in modules}
 
         # If any of the steps are pipelines and contain modules, attach
         # them to the final modules of this newly created pipeline
@@ -656,4 +671,57 @@ class Pipeline:
             steps=step_sequence,
             modules=final_modules,
             meta=meta,
+        )
+
+    def _rich_iter(
+        self,
+        connect: TextType | None = None,  # noqa: ARG002
+    ) -> Iterator[RenderableType]:
+        """Used to make it more inline with steps."""
+        yield self.__rich__()
+
+    @override
+    def __rich__(self) -> RenderableType:
+        """Get the rich renderable for the pipeline."""
+        from rich.console import Group as RichGroup
+        from rich.panel import Panel
+        from rich.pretty import Pretty
+        from rich.rule import Rule
+        from rich.table import Table
+        from rich.text import Text
+
+        def _contents() -> Iterator[RenderableType]:
+            # Things for this pipeline
+            if self.meta is not None:
+                table = Table.grid(padding=(0, 1), expand=False)
+                table.add_row("meta", Pretty(self.meta))
+                table.add_section()
+                yield table
+
+            connecter = Text("↓", style="bold", justify="center")
+            # The main pipeline
+            yield from self.head._rich_iter(connect=connecter)
+
+            if any(self.modules):
+                yield Rule(title="Modules", style=self.RICH_PANEL_BORDER_COLOR)
+
+                # Any modules attached to this pipeline
+                for module in self.modules.values():
+                    yield from module._rich_iter(connect=connecter)
+
+        clr = self.RICH_PANEL_BORDER_COLOR
+        title = Text.assemble(
+            (classname(self), f"{clr} bold"),
+            "(",
+            (self.name, f"{clr} italic"),
+            ")",
+            style="default",
+            end="",
+        )
+        return Panel(
+            RichGroup(*_contents()),
+            title=title,
+            title_align="left",
+            expand=False,
+            border_style=clr,
         )

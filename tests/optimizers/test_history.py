@@ -114,13 +114,13 @@ def test_history_filter(reports: list[Trial.Report]) -> None:
 
     history_df = history.df()
     filtered_success = history.filter(lambda report: report.status == "success")
-    assert all(report.status == "success" for report in filtered_success.values())
+    assert all(report.status == "success" for report in filtered_success)
 
     filtered_fail = history.filter(lambda report: report.status == "fail")
-    assert all(report.status == "fail" for report in filtered_fail.values())
+    assert all(report.status == "fail" for report in filtered_fail)
 
     filtered_crashed = history.filter(lambda report: report.status == "crashed")
-    assert all(report.status == "crashed" for report in filtered_crashed.values())
+    assert all(report.status == "crashed" for report in filtered_crashed)
 
     if len(history_df) > 0:
         counts = dict(history_df["status"].value_counts())

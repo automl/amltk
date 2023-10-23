@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
@@ -30,6 +31,11 @@ import pandas as pd
 from amltk.functional import dict_get_not_none, mapping_select, prefix_keys
 from amltk.profiling import Memory, Profile, Profiler, Timer
 from amltk.store import Bucket, PathBucket
+
+if TYPE_CHECKING:
+    from rich.console import RenderableType
+    from rich.panel import Panel
+    from rich.text import Text
 
 # Inner trial info object
 I = TypeVar("I")  # noqa: E741
@@ -554,6 +560,51 @@ class Trial(Generic[I]):
         """
         self.plugins[name] = plugin_item
 
+    def rich_renderables(self) -> Iterable[RenderableType]:
+        """The renderables for rich for this report."""
+        from rich.panel import Panel
+        from rich.pretty import Pretty
+
+        if self.exception:
+            yield Panel(Pretty(self.exception), title="Exception", title_align="left")
+
+        yield Panel(Pretty(self.config), title="Config", title_align="left")
+
+        if self.summary:
+            yield Panel(Pretty(self.summary), title="Summary", title_align="left")
+
+        if self.results:
+            yield Panel(Pretty(self.results), title="Results", title_align="left")
+
+        if self.fidelities:
+            yield Panel(Pretty(self.fidelities), title="Fidelities", title_align="left")
+
+        if any(self.profiler.profiles):
+            yield self.profiler.__rich__()
+
+        if any(self.storage):
+            yield Panel(Pretty(self.storage), title="Storage", title_align="left")
+
+        if any(self.plugins):
+            yield Panel(Pretty(self.plugins), title="Plugins", title_align="left")
+
+    def __rich__(self) -> RenderableType:
+        from rich.console import Group as RichGroup
+        from rich.panel import Panel
+
+        from amltk.rich_util import key_with_paren_text
+
+        return Panel(
+            RichGroup(*self.rich_renderables()),
+            title=key_with_paren_text(
+                "Trial",
+                self.name,
+                key_style="bold",
+                val_style="italic",
+            ),
+            title_align="left",
+        )
+
     class Status(str, Enum):
         """The status of a trial."""
 
@@ -572,6 +623,18 @@ class Trial(Generic[I]):
         @override
         def __str__(self) -> str:
             return self.value
+
+        def __rich__(self) -> Text:
+            from rich.text import Text
+
+            styles = {
+                Trial.Status.SUCCESS: "bold green",
+                Trial.Status.FAIL: "bold yellow",
+                Trial.Status.CRASHED: "bold red",
+                Trial.Status.UNKNOWN: "bold underline",
+            }
+
+            return Text(self.value, style=styles.get(self, "bold underline"))
 
     @dataclass
     class Report(Generic[I2]):
@@ -670,15 +733,19 @@ class Trial(Generic[I]):
                 "exception": str(self.exception) if self.exception else "NA",
                 "traceback": str(self.traceback) if self.traceback else "NA",
             }
-            if configs:
-                items.update(**prefix_keys(self.trial.config, "config:"))
-            if summary:
-                items.update(**prefix_keys(self.trial.summary, "summary:"))
             if results:
                 items.update(**prefix_keys(self.trial.results, "results:"))
+            if summary:
+                items.update(**prefix_keys(self.trial.summary, "summary:"))
+            if configs:
+                items.update(**prefix_keys(self.trial.config, "config:"))
             if profiles:
                 for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
-                    items.update(profile.to_dict(prefix=f"profile:{name}"))
+                    # We log this one seperatly
+                    if name == "trial":
+                        items.update(profile.to_dict())
+                    else:
+                        items.update(profile.to_dict(prefix=f"profile:{name}"))
 
             return pd.DataFrame(items, index=[0]).convert_dtypes().set_index("name")
 
@@ -840,21 +907,33 @@ class Trial(Generic[I]):
             else:
                 profiles = {}
 
+            _trial_profile_items = {
+                k: v for k, v in d.items() if k.startswith(("memory:", "time:"))
+            }
+            if any(_trial_profile_items):
+                trial_profile = Profile.from_dict(_trial_profile_items)
+                profiles["trial"] = trial_profile
+            else:
+                trial_profile = Profile.na()
+
             exception = d.get("exception")
             traceback = d.get("traceback")
-            if exception == "NA":
+            trial_seed = d.get("trial_seed")
+            if pd.isna(exception) or exception == "NA":  # type: ignore
                 exception = None
-            if traceback == "NA":
+            if pd.isna(traceback) or traceback == "NA":  # type: ignore
                 traceback = None
+            if pd.isna(trial_seed):  # type: ignore
+                trial_seed = None
 
             trial: Trial[None] = Trial(
                 name=d["name"],
                 config=mapping_select(d, "config:"),
                 info=None,  # We don't save this to disk so we load it back as None
-                seed=d.get("trial_seed", None),
+                seed=trial_seed,
                 fidelities=mapping_select(d, "fidelities:"),
-                time=Timer.from_dict(mapping_select(d, "profile:trial:time:")),
-                memory=Memory.from_dict(mapping_select(d, "profiler:trial:memory:")),
+                time=trial_profile.time,
+                memory=trial_profile.memory,
                 profiler=Profiler(profiles=profiles),
                 results=mapping_select(d, "results:"),
                 summary=mapping_select(d, "summary:"),
@@ -876,3 +955,26 @@ class Trial(Generic[I]):
                 )
 
             return trial.crashed(exception=Exception("Unknown status."))
+
+        def rich_renderables(self) -> Iterable[RenderableType]:
+            """The renderables for rich for this report."""
+            from amltk.rich_util import key_val_text
+
+            yield key_val_text("Status", self.status.__rich__())
+            yield from self.trial.rich_renderables()
+
+        def __rich__(self) -> Panel:
+            from rich.console import Group as RichGroup
+            from rich.panel import Panel
+
+            from amltk.rich_util import key_with_paren_text
+
+            return Panel(
+                RichGroup(*self.rich_renderables()),
+                title=key_with_paren_text(
+                    "Trial",
+                    self.name,
+                    key_style="bold",
+                    val_style="italic",
+                ),
+            )

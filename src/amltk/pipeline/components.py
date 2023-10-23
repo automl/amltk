@@ -8,8 +8,10 @@ from __future__ import annotations
 from contextlib import suppress
 from itertools import chain, repeat
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
+    ClassVar,
     Generic,
     Iterator,
     Literal,
@@ -24,37 +26,89 @@ from more_itertools import first_true
 from amltk.pipeline.step import ParamRequest, Step, mapping_select, prefix_keys
 from amltk.types import Config, FidT, Item, Space
 
+if TYPE_CHECKING:
+    from rich.console import RenderableType
+
 
 @frozen(kw_only=True)
-class Component(Step[Space], Generic[Item, Space]):
-    """A Fixed component with an item attached.
+class Searchable(Step[Space], Generic[Space]):
+    """A step to be searched over.
 
-    Attributes:
-        name: The name of the component
-        item: The item attached to this component
-        config (optional): Any additional items to associate with this config
-        search_space (optional): A search space associated with this component
-        fidelity_space: The fidelities for this step
+    See Also:
+        [`Step`][amltk.pipeline.step.Step]
     """
 
     name: str
-    item: Callable[..., Item] | Item = field(hash=False)
+    """Name of the step"""
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
+    """The configuration for this step"""
+
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    """The search space for this step"""
+
     fidelity_space: Mapping[str, FidT] | None = field(
         default=None,
         hash=False,
         repr=False,
     )
+    """The fidelities for this step"""
+
     config_transform: (
-        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
-    ) = field(
+        Callable[
+            [Mapping[str, Any], Any],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = field(default=None, hash=False, repr=False)
+    """A function that transforms the configuration of this step"""
+
+    meta: Mapping[str, Any] | None = None
+    """Any meta information about this step"""
+
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "light_steel_blue"
+
+
+@frozen(kw_only=True)
+class Component(Step[Space], Generic[Item, Space]):
+    """A Fixed component with an item attached.
+
+    See Also:
+        [`Step`][amltk.pipeline.step.Step]
+    """
+
+    item: Callable[..., Item] | Any = field(hash=False)
+    """The item attached to this step"""
+
+    name: str
+    """Name of the step"""
+
+    config: Mapping[str, Any] | None = field(default=None, hash=False)
+    """The configuration for this step"""
+
+    search_space: Space | None = field(default=None, hash=False, repr=False)
+    """The search space for this step"""
+
+    fidelity_space: Mapping[str, FidT] | None = field(
         default=None,
         hash=False,
         repr=False,
     )
+    """The fidelities for this step"""
+
+    config_transform: (
+        Callable[
+            [Mapping[str, Any], Any],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = field(default=None, hash=False, repr=False)
+    """A function that transforms the configuration of this step"""
+
     meta: Mapping[str, Any] | None = None
+    """Any meta information about this step"""
+
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "default"
 
     @override
     def build(self, **kwargs: Any) -> Item:
@@ -76,34 +130,61 @@ class Component(Step[Space], Generic[Item, Space]):
 
         return self.item
 
+    @override
+    def _rich_table_items(self) -> Iterator[tuple[RenderableType, ...]]:
+        from rich.pretty import Pretty
+
+        from amltk.richutil import Function
+
+        if self.item is not None:
+            if callable(self.item):
+                yield "item", Function(self.item)
+            else:
+                yield "item", Pretty(self.item)
+
+        yield from super()._rich_table_items()
+
 
 @frozen(kw_only=True)
 class Group(Mapping[str, Step], Step[Space]):
     """A Fixed component with an item attached.
 
-    Attributes:
-        name: The name of the group
-        paths: The different paths in the group
+    See Also:
+        [`Step`][amltk.pipeline.step.Step]
     """
 
-    name: str
     paths: Sequence[Step]
+    """The paths that can be taken from this split"""
+
+    name: str
+    """Name of the step"""
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
+    """The configuration for this step"""
+
     search_space: Space | None = field(default=None, hash=False, repr=False)
-    fidelity_space: Mapping[str, Any] | None = field(
+    """The search space for this step"""
+
+    fidelity_space: Mapping[str, FidT] | None = field(
         default=None,
         hash=False,
         repr=False,
     )
+    """The fidelities for this step"""
+
     config_transform: (
-        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
-    ) = field(
-        default=None,
-        hash=False,
-        repr=False,
-    )
+        Callable[
+            [Mapping[str, Any], Any],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = field(default=None, hash=False, repr=False)
+    """A function that transforms the configuration of this step"""
+
     meta: Mapping[str, Any] | None = None
+    """Any meta information about this step"""
+
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "deep_sky_blue2"
 
     def __attrs_post_init__(self) -> None:
         """Ensure that the paths are all unique."""
@@ -281,13 +362,14 @@ class Group(Mapping[str, Step], Step[Space]):
         return iter(p.name for p in self.paths)
 
     @override
-    def configure(
+    def configure(  # noqa: PLR0912, C901
         self,
         config: Config,
         *,
         prefixed_name: bool | None = None,
         transform_context: Any | None = None,
         params: Mapping[str, Any] | None = None,
+        clear_space: bool | Literal["auto"] = "auto",
     ) -> Step:
         """Configure this step and anything following it with the given config.
 
@@ -308,6 +390,11 @@ class Group(Mapping[str, Step], Step[Space]):
             params: The params to match any requests when configuring this step.
                 These will match against any ParamRequests in the config and will
                 be used to fill in any missing values.
+            clear_space: Whether to clear the search space after configuring.
+                If `"auto"` (default), then the search space will be cleared of any
+                keys that are in the config, if the search space is a `dict`. Otherwise,
+                `True` indicates that it will be removed in the returned step and
+                `False` indicates that it will remain as is.
 
         Returns:
             Step: The configured step
@@ -324,6 +411,7 @@ class Group(Mapping[str, Step], Step[Space]):
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
                 params=params,
+                clear_space=clear_space,
             )
             if self.nxt
             else None
@@ -339,6 +427,7 @@ class Group(Mapping[str, Step], Step[Space]):
                 prefixed_name=True,
                 transform_context=transform_context,
                 params=params,
+                clear_space=clear_space,
             )
             for path in self.paths
         ]
@@ -372,6 +461,24 @@ class Group(Mapping[str, Step], Step[Space]):
                     f" request. What was given was `{params=}`",
                 )
 
+        # If we have a `dict` for a space, then we can remove any configured keys that
+        # overlap it.
+        _space: Any
+        if clear_space == "auto":
+            _space = self.search_space
+            if isinstance(self.search_space, dict) and any(self.search_space):
+                _overlap = set(this_config).intersection(self.search_space)
+                _space = {
+                    k: v for k, v in self.search_space.items() if k not in _overlap
+                }
+                if len(_space) == 0:
+                    _space = None
+
+        elif clear_space is True:
+            _space = None
+        else:
+            _space = self.search_space
+
         if self.config_transform is not None:
             this_config = self.config_transform(this_config, transform_context)
 
@@ -379,7 +486,7 @@ class Group(Mapping[str, Step], Step[Space]):
             paths=paths,
             config=this_config if this_config else None,
             nxt=nxt,
-            search_space=None,
+            search_space=_space,
         )
 
         if nxt is not None:
@@ -389,6 +496,10 @@ class Group(Mapping[str, Step], Step[Space]):
             object.__setattr__(nxt, "prv", new_self)
 
         return new_self
+
+    def first(self) -> Step:
+        """Get the first step in this group."""
+        return self.paths[0]
 
     @override
     def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
@@ -454,33 +565,76 @@ class Group(Mapping[str, Step], Step[Space]):
         nxt_fids = self.nxt.linearized_fidelity(value)
         return {**d, **nxt_fids}
 
+    @override
+    def _rich_panel_contents(self) -> Iterator[RenderableType]:
+        from rich.console import Group as RichGroup
+        from rich.table import Table
+        from rich.text import Text
+
+        if panel_contents := list(self._rich_table_items()):
+            table = Table.grid(padding=(0, 1), expand=False)
+            for tup in panel_contents:
+                table.add_row(*tup, style="default")
+            table.add_section()
+
+            yield table
+
+        if any(self.paths):
+            # HACK : Unless we exposed this through another function, we
+            # just assume this is desired behaviour.
+            connecter = Text("↓", style="bold", justify="center")
+
+            pipeline_table = Table.grid(padding=(0, 1), expand=False)
+            pipelines = [RichGroup(*p._rich_iter(connecter)) for p in self.paths]
+            pipeline_table.add_row(*pipelines)
+
+            yield pipeline_table
+
 
 @frozen(kw_only=True)
 class Split(Group[Space], Generic[Item, Space]):
     """A split in the pipeline.
 
-    Attributes:
-        name: The name of the component
-        paths: The paths that can be taken from this split
-        item (optional): The item attached to this component
-        config (optional): Any additional items to associate with this config
-        search_space (optional): A search space associated with this component
+    See Also:
+        * [`Step`][amltk.pipeline.step.Step]
+        * [`Group`][amltk.pipeline.components.Group]
     """
 
-    name: str
-    paths: Sequence[Step] = field(hash=False)
+    item: Callable[..., Item] | Any | None = field(default=None, hash=False)
+    """The item attached to this step"""
 
-    item: Item | Callable[..., Item] | None = field(default=None, hash=False)
+    paths: Sequence[Step]
+    """The paths that can be taken from this split"""
+
+    name: str
+    """Name of the step"""
+
     config: Mapping[str, Any] | None = field(default=None, hash=False)
-    config_transform: (
-        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
-    ) = field(
+    """The configuration for this step"""
+
+    search_space: Space | None = field(default=None, hash=False, repr=False)
+    """The search space for this step"""
+
+    fidelity_space: Mapping[str, FidT] | None = field(
         default=None,
         hash=False,
         repr=False,
     )
-    search_space: Space | None = field(default=None, hash=False, repr=False)
+    """The fidelities for this step"""
+
+    config_transform: (
+        Callable[
+            [Mapping[str, Any], Any],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = field(default=None, hash=False, repr=False)
+    """A function that transforms the configuration of this step"""
+
     meta: Mapping[str, Any] | None = None
+    """Any meta information about this step"""
+
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "chartreuse4"
 
     @override
     def build(self, **kwargs: Any) -> Item:
@@ -505,34 +659,65 @@ class Split(Group[Space], Generic[Item, Space]):
 
         return self.item
 
+    @override
+    def _rich_table_items(self) -> Iterator[tuple[RenderableType, ...]]:
+        from rich.pretty import Pretty
+
+        from amltk.richutil import Function
+
+        if self.item is not None:
+            if callable(self.item):
+                yield "item", Function(self.item)
+            else:
+                yield "item", Pretty(self.item)
+
+        yield from super()._rich_table_items()
+
 
 @frozen(kw_only=True)
 class Choice(Group[Space]):
     """A Choice between different subcomponents.
 
-    Attributes:
-        name: The name of the component
-        paths: The paths that can be taken from this split
-        weights: The weights associated with each path
-        config (optional): Any additional items to associate with this config
-        search_space (optional): A search space associated with this component
+    See Also:
+        * [`Step`][amltk.pipeline.step.Step]
+        * [`Group`][amltk.pipeline.components.Group]
     """
 
-    name: str
-    paths: Sequence[Step] = field(hash=False)
+    paths: Sequence[Step]
+    """The paths that can be taken from this choice"""
 
     weights: Sequence[float] | None = field(hash=False)
+    """The weights to assign to each path"""
+
+    name: str
+    """Name of the step"""
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
+    """The configuration for this step"""
+
     search_space: Space | None = field(default=None, hash=False, repr=False)
-    meta: Mapping[str, Any] | None = None
-    config_transform: (
-        Callable[[Mapping[str, Any], Any], Mapping[str, Any]] | None
-    ) = field(
+    """The search space for this step"""
+
+    fidelity_space: Mapping[str, FidT] | None = field(
         default=None,
         hash=False,
         repr=False,
     )
+    """The fidelities for this step"""
+
+    config_transform: (
+        Callable[
+            [Mapping[str, Any], Any],
+            Mapping[str, Any],
+        ]
+        | None
+    ) = field(default=None, hash=False, repr=False)
+    """A function that transforms the configuration of this step"""
+
+    meta: Mapping[str, Any] | None = None
+    """Any meta information about this step"""
+
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "orange4"
 
     def iter_weights(self) -> Iterator[tuple[Step, float]]:
         """Iter over the paths with their weights."""
@@ -546,6 +731,7 @@ class Choice(Group[Space]):
         prefixed_name: bool | None = None,
         transform_context: Any | None = None,
         params: Mapping[str, Any] | None = None,
+        clear_space: bool | Literal["auto"] = "auto",
     ) -> Step:
         """Configure this step and anything following it with the given config.
 
@@ -565,6 +751,11 @@ class Choice(Group[Space]):
             params: The params to match any requests when configuring this step.
                 These will match against any ParamRequests in the config and will
                 be used to fill in any missing values.
+            clear_space: Whether to clear the search space after configuring.
+                If `"auto"` (default), then the search space will be cleared of any
+                keys that are in the config, if the search space is a `dict`. Otherwise,
+                `True` indicates that it will be removed in the returned step and
+                `False` indicates that it will remain as is.
 
         Returns:
             Step: The configured step
@@ -581,6 +772,7 @@ class Choice(Group[Space]):
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
                 params=params,
+                clear_space=clear_space,
             )
             if self.nxt
             else None
@@ -609,6 +801,7 @@ class Choice(Group[Space]):
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
                 params=params,
+                clear_space=clear_space,
             )
 
             object.__setattr__(chosen_path, "old_parent", self.name)
@@ -631,6 +824,7 @@ class Choice(Group[Space]):
                 prefixed_name=True,
                 transform_context=transform_context,
                 params=params,
+                clear_space=clear_space,
             )
             for path in self.paths
         ]
@@ -662,6 +856,24 @@ class Choice(Group[Space]):
                     f" request. What was given was `{params=}`",
                 )
 
+        # If we have a `dict` for a space, then we can remove any configured keys that
+        # overlap it.
+        _space: Any
+        if clear_space == "auto":
+            _space = self.search_space
+            if isinstance(self.search_space, dict) and any(self.search_space):
+                _overlap = set(config_for_this_choice).intersection(self.search_space)
+                _space = {
+                    k: v for k, v in self.search_space.items() if k not in _overlap
+                }
+                if len(_space) == 0:
+                    _space = None
+
+        elif clear_space is True:
+            _space = None
+        else:
+            _space = self.search_space
+
         if self.config_transform is not None:
             _config_for_this_choice = self.config_transform(
                 config_for_this_choice,
@@ -674,7 +886,7 @@ class Choice(Group[Space]):
             paths=paths,
             config=_config_for_this_choice if _config_for_this_choice else None,
             nxt=nxt,
-            search_space=None,
+            search_space=_space,
         )
 
         if nxt is not None:

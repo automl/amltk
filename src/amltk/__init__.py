@@ -7,7 +7,8 @@ from amltk.optimization import (
     Trace,
     Trial,
 )
-from amltk.pipeline import Pipeline, choice, group, searchable, split, step
+from amltk.options import _amltk_options as options
+from amltk.pipeline import Pipeline, choice, group, request, searchable, split, step
 from amltk.scheduling import (
     CallLimiter,
     Comm,
@@ -65,4 +66,6 @@ __all__ = [
     "Subscriber",
     "SequentialExecutor",
     "Emitter",
+    "options",
+    "request",
 ]

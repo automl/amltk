@@ -5,6 +5,7 @@ This module contains a collection of tools for functional programming.
 from __future__ import annotations
 
 from functools import partial, reduce
+from inspect import isclass
 from itertools import count
 from typing import (
     Any,
@@ -173,13 +174,19 @@ def rgetattr(obj: Any, attr: str, *args: Any) -> Any:
     return reduce(_getattr, [obj, *attr.split(".")])
 
 
-def funcname(func: Callable, default: str | None = None) -> str:
+def funcname(
+    func: Callable,
+    default: str | None = None,
+    *,
+    with_paren: bool = False,
+) -> str:
     """Get the name of a function.
 
     Args:
         func: The function to get the name of.
         default: The default value to return if the name cannot be
             determined automatically.
+        with_paren: Whether to include the parentheses.
 
     Returns:
         The name of the function.
@@ -187,16 +194,35 @@ def funcname(func: Callable, default: str | None = None) -> str:
     from amltk.scheduling.task import Task
 
     if isinstance(func, Task):
-        return funcname(func.function)
-    if isinstance(func, partial):
-        return func.func.__name__
-    if hasattr(func, "__qualname__"):
-        return func.__qualname__
-    if hasattr(func, "__class__"):
-        return func.__class__.__name__
-    if default is not None:
-        return default
-    return str(func)
+        fname = funcname(func.function)
+    elif isinstance(func, partial):
+        fname = funcname(func.func)
+    elif hasattr(func, "__qualname__"):
+        fname = func.__qualname__
+    elif hasattr(func, "__class__"):
+        fname = func.__class__.__name__
+    elif default is not None:
+        fname = default
+    else:
+        fname = str(func)
+
+    return f"{fname}()" if with_paren else fname
+
+
+def fullname(o: Any) -> str:
+    """Get the full name of an object.
+
+    Args:
+        o: The object to get the name of.
+
+    Returns:
+        The full name of the object.
+    """
+    klass = o if isclass(o) else o.__class__
+    if (module := str(klass.__module__)) != "builtins":
+        return module + "." + str(klass.__qualname__)
+
+    return str(klass.__qualname__)  # avoid outputs like 'builtins.str'
 
 
 def classname(c: Any, default: str | None = None) -> str:

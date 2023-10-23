@@ -4,12 +4,13 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Generic,
     Mapping,
     Sequence,
-    cast,
+    TypeVar,
     overload,
 )
 from typing_extensions import override
@@ -19,9 +20,14 @@ from more_itertools import first_true, seekable
 from amltk.exceptions import safe_map
 from amltk.pipeline.components import Choice, Group, Step
 from amltk.pipeline.pipeline import Pipeline
-from amltk.types import Seed, Space
+
+if TYPE_CHECKING:
+    from amltk.types import Seed
 
 logger = logging.getLogger(__name__)
+
+InputT = TypeVar("InputT")
+OutputT = TypeVar("OutputT")
 
 
 class ParserError(Exception):
@@ -79,7 +85,7 @@ class ParserError(Exception):
         return msg
 
 
-class Parser(ABC, Generic[Space]):
+class Parser(ABC, Generic[InputT, OutputT]):
     """A parser to parse a Pipeline/Step's `search_space` into a Space.
 
     This class is a parser for a given Space type, providing functionality
@@ -148,10 +154,10 @@ class Parser(ABC, Generic[Space]):
     def try_parse(
         cls,
         pipeline_or_step: Pipeline | Step,
-        parser: type[Parser[Space]] | Parser[Space] | None = None,
+        parser: type[Parser[InputT, OutputT]] | Parser[InputT, OutputT] | None = None,
         *,
         seed: Seed | None = None,
-    ) -> Space:
+    ) -> OutputT:
         """Attempt to parse a pipeline with the default parsers.
 
         Args:
@@ -167,8 +173,10 @@ class Parser(ABC, Generic[Space]):
             parsers = cls.default_parsers()
         elif isinstance(parser, Parser):
             parsers = [parser]
-        else:
+        elif isinstance(parser, type):
             parsers = [parser()]
+        else:
+            parsers = []
 
         if not any(parsers):
             raise RuntimeError(
@@ -180,10 +188,7 @@ class Parser(ABC, Generic[Space]):
                 "\nUsually just installing the optimizer will work.",
             )
 
-        def _parse(_parser: Parser[Space]) -> Space:
-            if pipeline_or_step is None:
-                raise ValueError("Whut?")
-
+        def _parse(_parser: Parser[InputT, OutputT]) -> OutputT:
             _parsed_space = _parser.parse(pipeline_or_step)
             if seed is not None:
                 _parser.set_seed(_parsed_space, seed)
@@ -200,13 +205,13 @@ class Parser(ABC, Generic[Space]):
         # If we didn't get a succesful parse, raise the appropriate error
         if parsed_space is False:
             results_itr.seek(0)  # Reset to start of iterator
-            errors = cast(list[Exception], list(results_itr))
-            raise Parser.ParserError(parser=parsers, error=errors)
+            errors = list(results_itr)
+            raise Parser.ParserError(parser=parsers, error=errors)  # type: ignore
 
         assert not isinstance(parsed_space, (tuple, bool))
         return parsed_space
 
-    def parse(self, step: Pipeline | Step | Group | Choice | Any) -> Space:
+    def parse(self, step: Pipeline | Step | Group | Choice | Any) -> OutputT:
         """Parse a pipeline, step or something resembling a Space.
 
         Args:
@@ -231,7 +236,7 @@ class Parser(ABC, Generic[Space]):
 
         return self.parse_space(step)
 
-    def parse_pipeline(self, pipeline: Pipeline) -> Space:
+    def parse_pipeline(self, pipeline: Pipeline) -> OutputT:
         """Parse a pipeline into a space.
 
         Args:
@@ -250,7 +255,7 @@ class Parser(ABC, Generic[Space]):
 
         return space
 
-    def parse_step(self, step: Step) -> Space:
+    def parse_step(self, step: Step) -> OutputT:
         """Parse the space from a given step.
 
         Args:
@@ -271,7 +276,7 @@ class Parser(ABC, Generic[Space]):
 
         return space
 
-    def parse_group(self, step: Group) -> Space:
+    def parse_group(self, step: Group) -> OutputT:
         """Parse the space from a given group.
 
         Args:
@@ -296,7 +301,7 @@ class Parser(ABC, Generic[Space]):
 
         return space
 
-    def parse_choice(self, step: Choice) -> Space:
+    def parse_choice(self, step: Choice) -> OutputT:
         """Parse the space from a given choice.
 
         Note:
@@ -336,7 +341,7 @@ class Parser(ABC, Generic[Space]):
 
         return space
 
-    def set_seed(self, space: Space, seed: Seed) -> Space:  # noqa: ARG002
+    def set_seed(self, space: OutputT, seed: Seed) -> OutputT:  # noqa: ARG002
         """Set the seed for the space.
 
         Overwrite if the can do something meaninfgul for the space.
@@ -351,7 +356,7 @@ class Parser(ABC, Generic[Space]):
         return space
 
     @abstractmethod
-    def empty(self) -> Space:
+    def empty(self) -> OutputT:
         """Create an empty space.
 
         Returns:
@@ -362,11 +367,11 @@ class Parser(ABC, Generic[Space]):
     @abstractmethod
     def insert(
         self,
-        space: Space,
-        subspace: Space,
+        space: OutputT,
+        subspace: InputT | OutputT,
         *,
         prefix_delim: tuple[str, str] | None = None,
-    ) -> Space:
+    ) -> OutputT:
         """Insert a subspace into a space.
 
         Args:
@@ -379,7 +384,7 @@ class Parser(ABC, Generic[Space]):
         """
         ...
 
-    def merge(self, *spaces: Space) -> Space:
+    def merge(self, *spaces: InputT) -> OutputT:
         """Merge a list of spaces into a single space.
 
 
@@ -412,7 +417,11 @@ class Parser(ABC, Generic[Space]):
         return space
 
     @abstractmethod
-    def parse_space(self, space: Any, config: Mapping[str, Any] | None = None) -> Space:
+    def parse_space(
+        self,
+        space: Any,
+        config: Mapping[str, Any] | None = None,
+    ) -> OutputT:
         """Parse a space from some object.
 
         Args:
@@ -431,9 +440,9 @@ class Parser(ABC, Generic[Space]):
         self,
         choice_name: str,
         delim: str,
-        spaces: dict[str, Space],
+        spaces: dict[str, OutputT],
         weights: Sequence[float] | None = None,
-    ) -> Space:
+    ) -> OutputT:
         """Condition a set of spaces such that only one can be active.
 
         When sampling from the generated space. The choice name must be present
@@ -458,5 +467,6 @@ class Parser(ABC, Generic[Space]):
         """
         ...
 
+    @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}"

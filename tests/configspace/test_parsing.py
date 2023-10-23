@@ -16,7 +16,7 @@ from amltk.pipeline import Choice, Pipeline, Split, Step, choice, split, step
 
 @case
 def case_single_step() -> tuple[Step, ConfigurationSpace]:
-    item = step("a", 1, space={"hp": [1, 2, 3]})
+    item = step("a", object, space={"hp": [1, 2, 3]})
     expected = ConfigurationSpace({"a:hp": [1, 2, 3]})
     return item, expected
 
@@ -26,7 +26,7 @@ def case_steps_with_embedded_forbiddens() -> tuple[Step, ConfigurationSpace]:
     space = ConfigurationSpace({"hp": [1, 2, 3], "hp_other": ["a", "b", "c"]})
     space.add_forbidden_clause(ForbiddenEqualsClause(space["hp"], 2))
 
-    item = step("a", 1, space=space)
+    item = step("a", object, space=space)
     expected = ConfigurationSpace({"a:hp": [1, 2, 3], "a:hp_other": ["a", "b", "c"]})
     expected.add_forbidden_clause(ForbiddenEqualsClause(expected["a:hp"], 2))
 
@@ -35,14 +35,14 @@ def case_steps_with_embedded_forbiddens() -> tuple[Step, ConfigurationSpace]:
 
 @case
 def case_single_step_two_hp() -> tuple[Step, ConfigurationSpace]:
-    item = step("a", 1, space={"hp": [1, 2, 3], "hp2": [1, 2, 3]})
+    item = step("a", object, space={"hp": [1, 2, 3], "hp2": [1, 2, 3]})
     expected = ConfigurationSpace({"a:hp": [1, 2, 3], "a:hp2": [1, 2, 3]})
     return item, expected
 
 
 @case
 def case_single_step_two_hp_different_types() -> tuple[Step, ConfigurationSpace]:
-    item = step("a", 1, space={"hp": [1, 2, 3], "hp2": (1, 10)})
+    item = step("a", object, space={"hp": [1, 2, 3], "hp2": (1, 10)})
     expected = ConfigurationSpace({"a:hp": [1, 2, 3], "a:hp2": (1, 10)})
     return item, expected
 
@@ -51,8 +51,8 @@ def case_single_step_two_hp_different_types() -> tuple[Step, ConfigurationSpace]
 def case_choice() -> tuple[Choice, ConfigurationSpace]:
     item = choice(
         "choice1",
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp2": (1, 10)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp2": (1, 10)}),
     )
     expected = ConfigurationSpace(
         {"choice1:a:hp": [1, 2, 3], "choice1:b:hp2": (1, 10), "choice1": ["a", "b"]},
@@ -72,10 +72,10 @@ def case_nested_choices() -> tuple[Choice, ConfigurationSpace]:
         "choice1",
         choice(
             "choice2",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 1, space={"hp2": (1, 10)}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp2": (1, 10)}),
         ),
-        step("c", 1, space={"hp3": (1, 10)}),
+        step("c", object, space={"hp3": (1, 10)}),
     )
     expected = ConfigurationSpace(
         {
@@ -116,10 +116,10 @@ def case_nested_choices_with_split() -> tuple[Choice, ConfigurationSpace]:
         "choice1",
         split(
             "split2",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 1, space={"hp2": (1, 10)}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp2": (1, 10)}),
         ),
-        step("c", 1, space={"hp3": (1, 10)}),
+        step("c", object, space={"hp3": (1, 10)}),
     )
     expected = ConfigurationSpace(
         {
@@ -156,12 +156,12 @@ def case_nested_choices_with_split_and_choice() -> tuple[Choice, ConfigurationSp
             "split2",
             choice(
                 "choice3",
-                step("a", 1, space={"hp": [1, 2, 3]}),
-                step("b", 1, space={"hp2": (1, 10)}),
+                step("a", object, space={"hp": [1, 2, 3]}),
+                step("b", object, space={"hp2": (1, 10)}),
             ),
-            step("c", 1, space={"hp3": (1, 10)}),
+            step("c", object, space={"hp3": (1, 10)}),
         ),
-        step("d", 1, space={"hp4": (1, 10)}),
+        step("d", object, space={"hp4": (1, 10)}),
     )
     expected = ConfigurationSpace(
         {
@@ -209,8 +209,8 @@ def case_choice_pipeline() -> tuple[Pipeline, ConfigurationSpace]:
     pipeline = Pipeline.create(
         choice(
             "choice",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 2, space={"hp": [1, 2, 3]}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp": [1, 2, 3]}),
         ),
     )
     expected = ConfigurationSpace(
@@ -228,14 +228,14 @@ def case_choice_pipeline() -> tuple[Pipeline, ConfigurationSpace]:
 @case
 def case_pipeline_with_choice_modules() -> tuple[Pipeline, ConfigurationSpace]:
     pipeline = Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
         modules=[
             choice(
                 "choice",
-                step("d", 1, space={"hp": (1.0, 10.0)}),
-                step("e", 1, space={"hp": (1.0, 10.0)}),
+                step("d", object, space={"hp": (1.0, 10.0)}),
+                step("e", object, space={"hp": (1.0, 10.0)}),
             ),
         ],
     )
@@ -261,7 +261,11 @@ def case_pipeline_with_choice_modules() -> tuple[Pipeline, ConfigurationSpace]:
 
 @case
 def case_joint_steps() -> tuple[Step, ConfigurationSpace]:
-    item = step("a", 1, space={"hp": [1, 2, 3]}) | step("b", 1, space={"hp2": (1, 10)})
+    item = step("a", object, space={"hp": [1, 2, 3]}) | step(
+        "b",
+        object,
+        space={"hp2": (1, 10)},
+    )
     expected = ConfigurationSpace({"a:hp": [1, 2, 3], "b:hp2": (1, 10)})
     return item, expected
 
@@ -270,8 +274,8 @@ def case_joint_steps() -> tuple[Step, ConfigurationSpace]:
 def case_split_steps() -> tuple[Step, ConfigurationSpace]:
     item = split(
         "split",
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp2": (1, 10)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp2": (1, 10)}),
     )
     expected = ConfigurationSpace({"split:a:hp": [1, 2, 3], "split:b:hp2": (1, 10)})
     return item, expected
@@ -283,10 +287,10 @@ def case_nested_splits() -> tuple[Split, ConfigurationSpace]:
         "split1",
         split(
             "split2",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 1, space={"hp2": (1, 10)}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp2": (1, 10)}),
         ),
-        step("c", 1, space={"hp3": (1, 10)}),
+        step("c", object, space={"hp3": (1, 10)}),
     )
     expected = ConfigurationSpace(
         {
@@ -301,9 +305,9 @@ def case_nested_splits() -> tuple[Split, ConfigurationSpace]:
 @case
 def case_simple_linear_pipeline() -> tuple[Pipeline, ConfigurationSpace]:
     pipeline = Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
     )
     expected = ConfigurationSpace(
         {
@@ -320,8 +324,8 @@ def case_split_pipeline() -> tuple[Pipeline, ConfigurationSpace]:
     pipeline = Pipeline.create(
         split(
             "split",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 2, space={"hp": [1, 2, 3]}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp": [1, 2, 3]}),
         ),
     )
     expected = ConfigurationSpace(
@@ -336,12 +340,12 @@ def case_split_pipeline() -> tuple[Pipeline, ConfigurationSpace]:
 @case
 def case_pipeline_with_step_modules() -> tuple[Pipeline, ConfigurationSpace]:
     pipeline = Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
         modules=[
-            step("d", 1, space={"hp": (1.0, 10.0)}),
-            step("e", 1, space={"hp": (1.0, 10.0)}),
+            step("d", object, space={"hp": (1.0, 10.0)}),
+            step("e", object, space={"hp": (1.0, 10.0)}),
         ],
     )
     expected = ConfigurationSpace(
@@ -359,13 +363,13 @@ def case_pipeline_with_step_modules() -> tuple[Pipeline, ConfigurationSpace]:
 @case
 def case_pipeline_with_pipeline_modules() -> tuple[Pipeline, ConfigurationSpace]:
     pipeline = Pipeline.create(
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 1, space={"hp": (1, 10)}),
-        step("c", 1, space={"hp": (1.0, 10.0)}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": (1, 10)}),
+        step("c", object, space={"hp": (1.0, 10.0)}),
         modules=[
             Pipeline.create(
-                step("d", 1, space={"hp": (1.0, 10.0)}),
-                step("e", 1, space={"hp": (1.0, 10.0)}),
+                step("d", object, space={"hp": (1.0, 10.0)}),
+                step("e", object, space={"hp": (1.0, 10.0)}),
                 name="subpipeline",
             ),
         ],

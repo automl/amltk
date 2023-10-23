@@ -4,7 +4,7 @@ from amltk.pipeline import group, step
 
 
 def test_group_path_to_simple() -> None:
-    g = group("group", step("a", 1) | step("b", 2) | step("c", 3))
+    g = group("group", step("a", object) | step("b", object) | step("c", object))
 
     a = g.find("a")
     b = g.find("b")
@@ -18,14 +18,14 @@ def test_group_path_to_simple() -> None:
 
 def test_group_path_to_deep() -> None:
     g = (
-        step("head", "head")
+        step("head", object)
         | group(
             "group",
-            step("a", 1),
-            step("b", 2),
-            group("group2", step("c", 3), step("d", 4)) | step("e", 5),
+            step("a", object),
+            step("b", object),
+            group("group2", step("c", object), step("d", object)) | step("e", object),
         )
-        | step("tail", "tail")
+        | step("tail", object)
     )
 
     head = g.find("head")
@@ -50,104 +50,114 @@ def test_group_path_to_deep() -> None:
 
 
 def test_group_simple_select() -> None:
-    g = group("group", step("a", 1), step("b", 2), step("c", 3))
+    g = group("group", step("a", object), step("b", object), step("c", object))
 
-    assert next(g.select({"group": "a"})) == step("a", 1)
-    assert next(g.select({"group": "b"})) == step("b", 2)
-    assert next(g.select({"group": "c"})) == step("c", 3)
+    assert next(g.select({"group": "a"})) == step("a", object)
+    assert next(g.select({"group": "b"})) == step("b", object)
+    assert next(g.select({"group": "c"})) == step("c", object)
 
 
 def test_group_deep_select() -> None:
     g = (
-        step("head", "head")
+        step("head", object)
         | group(
             "group",
-            step("a", 1),
-            step("b", 2),
-            group("group2", step("c", 3), step("d", 4)) | step("e", 5),
+            step("a", object),
+            step("b", object),
+            group("group2", step("c", object), step("d", object)) | step("e", object),
         )
-        | step("tail", "tail")
+        | step("tail", object)
     )
 
-    expected = step("head", "head") | step("d", 4) | step("e", 5) | step("tail", "tail")
+    expected = (
+        step("head", object)
+        | step("d", object)
+        | step("e", object)
+        | step("tail", object)
+    )
 
     chosen = next(g.select({"group": "group2", "group2": "d"}))
     assert chosen == expected
 
 
 def test_group_simple_traverse() -> None:
-    g = group("group", step("a", 1), step("b", 2), step("c", 3))
+    g = group("group", step("a", object), step("b", object), step("c", object))
 
-    assert list(g.traverse()) == [g, step("a", 1), step("b", 2), step("c", 3)]
+    assert list(g.traverse()) == [
+        g,
+        step("a", object),
+        step("b", object),
+        step("c", object),
+    ]
 
 
 def test_group_deep_traverse() -> None:
     g = (
-        step("head", "head")
+        step("head", object)
         | group(
             "group",
-            step("a", 1),
-            step("b", 2),
-            group("group2", step("c", 3), step("d", 4)) | step("e", 5),
+            step("a", object),
+            step("b", object),
+            group("group2", step("c", object), step("d", object)) | step("e", object),
         )
-        | step("tail", "tail")
+        | step("tail", object)
     )
 
     _group = g.find("group")
     group2 = g.find("group2")
 
     expected = [
-        step("head", "head"),
+        step("head", object),
         _group,
-        step("a", 1),
-        step("b", 2),
+        step("a", object),
+        step("b", object),
         group2,
-        step("c", 3),
-        step("d", 4),
-        step("e", 5),
-        step("tail", "tail"),
+        step("c", object),
+        step("d", object),
+        step("e", object),
+        step("tail", object),
     ]
 
     assert list(g.traverse()) == expected
 
 
 def test_group_simple_walk() -> None:
-    g = group("group", step("a", 1), step("b", 2), step("c", 3))
+    g = group("group", step("a", object), step("b", object), step("c", object))
 
     assert list(g.walk()) == [
         ([], [], g),
-        ([g], [], step("a", 1)),
-        ([g], [], step("b", 2)),
-        ([g], [], step("c", 3)),
+        ([g], [], step("a", object)),
+        ([g], [], step("b", object)),
+        ([g], [], step("c", object)),
     ]
 
 
 def test_group_list_walk() -> None:
-    g = group("group", step("a", 1) | step("b", 2) | step("c", 3))
+    g = group("group", step("a", object) | step("b", object) | step("c", object))
 
     assert list(g.walk()) == [
         ([], [], g),
-        ([g], [], step("a", 1)),
-        ([g], [step("a", 1)], step("b", 2)),
-        ([g], [step("a", 1), step("b", 2)], step("c", 3)),
+        ([g], [], step("a", object)),
+        ([g], [step("a", object)], step("b", object)),
+        ([g], [step("a", object), step("b", object)], step("c", object)),
     ]
 
 
 def test_group_deep_walk() -> None:
     g = (
-        step("head", "head")
+        step("head", object)
         | group(
             "group",
-            step("a", 1),
-            step("b", 2),
+            step("a", object),
+            step("b", object),
             group(
                 "group2",
-                step("c", 3),
-                step("d", 4) | step("extra", 15),
+                step("c", object),
+                step("d", object) | step("extra", object),
             )
-            | step("e", 5),
+            | step("e", object),
         )
-        | step("tail", "tail")
+        | step("tail", object)
     )
 
     _group = g.find("group")
@@ -157,14 +167,14 @@ def test_group_deep_walk() -> None:
     expected = [
         ([], [], head),
         ([], [head], _group),
-        ([_group], [], step("a", 1)),
-        ([_group], [], step("b", 2)),
+        ([_group], [], step("a", object)),
+        ([_group], [], step("b", object)),
         ([_group], [], group2),
-        ([_group, group2], [], step("c", 3)),
-        ([_group, group2], [], step("d", 4)),
-        ([_group, group2], [step("d", 4)], step("extra", 15)),
-        ([_group], [group2], step("e", 5)),
-        ([], [head, _group], step("tail", "tail")),
+        ([_group, group2], [], step("c", object)),
+        ([_group, group2], [], step("d", object)),
+        ([_group, group2], [step("d", object)], step("extra", object)),
+        ([_group], [group2], step("e", object)),
+        ([], [head, _group], step("tail", object)),
     ]
 
     assert list(g.walk()) == expected
@@ -173,15 +183,15 @@ def test_group_deep_walk() -> None:
 def test_group_configure_simple() -> None:
     g = group(
         "group",
-        step("a", 1, space={"hp": [1, 2, 3]}),
-        step("b", 2, space={"hp": [4, 5, 6]}),
-        step("c", 3, space={"hp": [7, 8, 9]}),
+        step("a", object, space={"hp": [1, 2, 3]}),
+        step("b", object, space={"hp": [4, 5, 6]}),
+        step("c", object, space={"hp": [7, 8, 9]}),
     )
     expected = group(
         "group",
-        step("a", 1, config={"hp": 1}),
-        step("b", 2, config={"hp": 4}),
-        step("c", 3, config={"hp": 7}),
+        step("a", object, config={"hp": 1}),
+        step("b", object, config={"hp": 4}),
+        step("c", object, config={"hp": 7}),
     )
 
     configuration = {
@@ -195,35 +205,36 @@ def test_group_configure_simple() -> None:
 
 def test_group_configure_deep() -> None:
     g = (
-        step("head", "head")
+        step("head", object)
         | group(
             "group",
-            step("a", 1, space={"hp": [1, 2, 3]}),
-            step("b", 2, space={"hp": [4, 5, 6]}),
+            step("a", object, space={"hp": [1, 2, 3]}),
+            step("b", object, space={"hp": [4, 5, 6]}),
             group(
                 "group2",
-                step("c", 3, space={"hp": [7, 8, 9]}),
-                step("d", 4, space={"hp": [10, 11, 12]})
-                | step("extra", 15, space={"hp": [21, 22, 23]}),
+                step("c", object, space={"hp": [7, 8, 9]}),
+                step("d", object, space={"hp": [10, 11, 12]})
+                | step("extra", object, space={"hp": [21, 22, 23]}),
             )
-            | step("e", 5, space={"hp": [13, 14, 15]}),
+            | step("e", object, space={"hp": [13, 14, 15]}),
         )
-        | step("tail", "tail")
+        | step("tail", object)
     )
     expected = (
-        step("head", "head")
+        step("head", object)
         | group(
             "group",
-            step("a", 1, config={"hp": 1}),
-            step("b", 2, config={"hp": 4}),
+            step("a", object, config={"hp": 1}),
+            step("b", object, config={"hp": 4}),
             group(
                 "group2",
-                step("c", 3, config={"hp": 7}),
-                step("d", 4, config={"hp": 10}) | step("extra", 15, config={"hp": 21}),
+                step("c", object, config={"hp": 7}),
+                step("d", object, config={"hp": 10})
+                | step("extra", object, config={"hp": 21}),
             )
-            | step("e", 5, config={"hp": 13}),
+            | step("e", object, config={"hp": 13}),
         )
-        | step("tail", "tail")
+        | step("tail", object)
     )
 
     config = {

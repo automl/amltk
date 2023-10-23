@@ -4,16 +4,16 @@ from amltk.pipeline import Component, Step, request, step
 
 
 def test_step_component() -> None:
-    o = object()
-    s = step("name", o)
+    o = object
+    s = step("name", object)
     assert s.name == "name"
-    assert s.item == o
+    assert s.item is o
     assert s.config is None
     assert isinstance(s, Component)
 
 
 def test_step_searchable() -> None:
-    s = step("name", object(), space={"a": [1, 2]}, config={"b": 2})
+    s = step("name", object, space={"a": [1, 2]}, config={"b": 2})
     assert s.name == "name"
     assert s.search_space == {"a": [1, 2]}
     assert s.config == {"b": 2}
@@ -21,16 +21,16 @@ def test_step_searchable() -> None:
 
 
 def test_step_joinable() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
+    s1 = step("1", object)
+    s2 = step("2", object)
     steps = s1 | s2
 
     assert list(steps.iter()) == [s1, s2]
 
 
 def test_step_head() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
+    s1 = step("1", object)
+    s2 = step("2", object)
 
     x = s1 | s2
 
@@ -38,8 +38,8 @@ def test_step_head() -> None:
 
 
 def test_step_tail() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
+    s1 = step("1", object)
+    s2 = step("2", object)
 
     x = s1 | s2
 
@@ -47,9 +47,9 @@ def test_step_tail() -> None:
 
 
 def test_step_iter() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
-    s3 = step("3", 3)
+    s1 = step("1", object)
+    s2 = step("2", object)
+    s3 = step("3", object)
     start = s1 | s2 | s3
 
     middle = start.nxt
@@ -78,9 +78,9 @@ def test_step_iter() -> None:
 
 
 def test_join() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
-    s3 = step("3", 3)
+    s1 = step("1", object)
+    s2 = step("2", object)
+    s3 = step("3", object)
 
     assert list(Step.join([s1, s2, s3]).iter()) == [s1, s2, s3]
     assert list(Step.join(s1, [s2, s3]).iter()) == [s1, s2, s3]
@@ -89,24 +89,24 @@ def test_join() -> None:
 
 
 def test_append_single() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
+    s1 = step("1", object)
+    s2 = step("2", object)
     x = s1.append(s2)
 
     assert list(x.iter()) == [s1, s2]
 
 
 def test_append_chain() -> None:
-    s1 = step("1", 1)
-    s2 = step("2", 2)
-    s3 = step("3", 3)
+    s1 = step("1", object)
+    s2 = step("2", object)
+    s3 = step("3", object)
     x = s1.append(s2 | s3)
 
     assert list(x.iter()) == [s1, s2, s3]
 
 
 def test_configure_single() -> None:
-    s1 = step("1", 1, space={"a": [1, 2, 3]})
+    s1 = step("1", object, space={"a": [1, 2, 3]})
     configured_s1 = s1.configure({"a": 1})
 
     assert configured_s1.config == {"a": 1}
@@ -115,9 +115,9 @@ def test_configure_single() -> None:
 
 def test_configure_chain() -> None:
     head = (
-        step("1", 1, space={"a": [1, 2, 3]})
-        | step("2", 2, space={"b": [1, 2, 3]})
-        | step("3", 3, space={"c": [1, 2, 3]})
+        step("1", object, space={"a": [1, 2, 3]})
+        | step("2", object, space={"b": [1, 2, 3]})
+        | step("3", object, space={"c": [1, 2, 3]})
     )
     configured_head = head.configure({"1:a": 1, "2:b": 2, "3:c": 3})
 
@@ -132,7 +132,7 @@ def test_configure_chain() -> None:
 
 
 def test_qualified_name() -> None:
-    head = step("1", 1) | step("2", 2) | step("3", 3)
+    head = step("1", object) | step("2", object) | step("3", object)
     last = head.tail()
 
     # Should not have any prefixes from the other steps
@@ -140,7 +140,7 @@ def test_qualified_name() -> None:
 
 
 def test_path_to() -> None:
-    head = step("1", 1) | step("2", 2) | step("3", 3)
+    head = step("1", object) | step("2", object) | step("3", object)
 
     s1 = head.find("1")
     assert s1 is not None
@@ -175,7 +175,7 @@ def test_path_to() -> None:
 def test_param_request() -> None:
     component = step(
         "rf",
-        1,
+        object,
         space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
         config={"random_state": request("seed", default=None)},
     )
@@ -185,7 +185,7 @@ def test_param_request() -> None:
 
     assert configured_component == step(
         "rf",
-        1,
+        object,
         config={
             "n_estimators": 10,
             "criterion": "gini",

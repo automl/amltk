@@ -20,25 +20,32 @@ from typing import (
     Mapping,
     Sequence,
     TypeVar,
-    cast,
     overload,
 )
 from typing_extensions import override
 
 from attrs import evolve, field, frozen
 from more_itertools import consume, first_true, last, peekable, triplewise
+from rich.text import Text
 
-from amltk.functional import mapping_select, prefix_keys
+from amltk.functional import classname, mapping_select, prefix_keys
+from amltk.richutil import RichRenderable
 from amltk.types import Config, FidT, Seed, Space
 
 if TYPE_CHECKING:
     from typing_extensions import Self
 
+    from rich.console import RenderableType
+    from rich.panel import Panel
+    from rich.text import TextType
+
     from amltk.pipeline.components import Group
     from amltk.pipeline.parser import Parser
+    from amltk.pipeline.pipeline import Pipeline
     from amltk.pipeline.sampler import Sampler
 
 T = TypeVar("T")
+ParserOutput = TypeVar("ParserOutput")
 
 _NotSet = object()
 
@@ -81,7 +88,7 @@ class ParamRequest(Generic[T]):
 
 
 @frozen(kw_only=True)
-class Step(Generic[Space]):
+class Step(RichRenderable, Generic[Space]):
     """The core step class for the pipeline.
 
     These are simple objects that are named and linked together to form
@@ -97,51 +104,54 @@ class Step(Generic[Space]):
         * [`group()`][amltk.pipeline.api.group]
         * [`split()`][amltk.pipeline.api.split]
         * [`searchable()`][amltk.pipeline.api.searchable]
-
-
-    Attributes:
-        name: Name of the step
-        prv: The previous step in the chain
-        nxt: The next step in the chain
-        parent: Any [`Group`][amltk.pipeline.components.Group] or
-            [`Choice`][amltk.pipeline.components.Choice] that this step is a part of
-            and is the head of the chain.
-        config: The configuration for this step
-        config_transform: A function that transforms the configuration of this step
-        search_space: The search space for this step
-        fidelity_space: The fidelities for this step
     """
 
     name: str
+    """Name of the step"""
 
     prv: Step | None = field(default=None, eq=False, repr=False)
+    """The previous step in the chain"""
+
     nxt: Step | None = field(default=None, eq=False, repr=False)
+    """The next step in the chain"""
+
     parent: Step | None = field(default=None, eq=False, repr=False)
+    """Any [`Group`][amltk.pipeline.components.Group] or
+    [`Choice`][amltk.pipeline.components.Choice] that this step is a part of
+    and is the head of the chain.
+    """
 
     config: Mapping[str, Any] | None = field(default=None, hash=False)
+    """The configuration for this step"""
+
     search_space: Space | None = field(default=None, hash=False, repr=False)
+    """The search space for this step"""
+
     fidelity_space: Mapping[str, FidT] | None = field(
         default=None,
         hash=False,
         repr=False,
     )
+    """The fidelities for this step"""
+
     config_transform: (
         Callable[
             [Mapping[str, Any], Any],
             Mapping[str, Any],
         ]
         | None
-    ) = field(
-        default=None,
-        hash=False,
-        repr=False,
-    )
+    ) = field(default=None, hash=False, repr=False)
+    """A function that transforms the configuration of this step"""
+
     meta: Mapping[str, Any] | None = None
+    """Any meta information about this step"""
+
     old_parent: str | None = field(default=None, hash=False, repr=False, eq=False)
+    """The original parent of this step, used in case of being chosen from a `Choice`"""
 
-    DELIMITER: ClassVar[str] = ":"
+    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "default"
 
-    def __or__(self, nxt: Step) -> Step:
+    def __or__(self, nxt: Any) -> Step:
         """Append a step on this one, return the head of a new chain of steps.
 
         Args:
@@ -236,13 +246,14 @@ class Step(Generic[Space]):
         """Check if this searchable is configured."""
         return self.search_space is None and self.config is not None
 
-    def configure(  # noqa: C901
+    def configure(  # noqa: C901, PLR0912
         self,
         config: Config,
         *,
         prefixed_name: bool | None = None,
         transform_context: Any = None,
         params: Mapping[str, Any] | None = None,
+        clear_space: bool | Literal["auto"] = "auto",
     ) -> Step:
         """Configure this step and anything following it with the given config.
 
@@ -263,6 +274,11 @@ class Step(Generic[Space]):
             params: The params to match any requests when configuring this step.
                 These will match against any ParamRequests in the config and will
                 be used to fill in any missing values.
+            clear_space: Whether to clear the search space after configuring.
+                If `"auto"` (default), then the search space will be cleared of any
+                keys that are in the config, if the search space is a `dict`. Otherwise,
+                `True` indicates that it will be removed in the returned step and
+                `False` indicates that it will remain as is.
 
         Returns:
             Step: The configured step
@@ -279,6 +295,7 @@ class Step(Generic[Space]):
                 prefixed_name=prefixed_name,
                 transform_context=transform_context,
                 params=params,
+                clear_space=clear_space,
             )
             if self.nxt
             else None
@@ -309,12 +326,29 @@ class Step(Generic[Space]):
                     f" request. What was given was `{params=}`",
                 )
 
+        # If we have a `dict` for a space, then we can remove any configured keys that
+        # overlap it.
+        _space: Any
+        if clear_space == "auto":
+            if isinstance(self.search_space, dict) and any(self.search_space):
+                _lap = set(this_config).intersection(self.search_space)
+                _space = {k: v for k, v in self.search_space.items() if k not in _lap}
+                if len(_space) == 0:
+                    _space = None
+            else:
+                _space = self.search_space
+
+        elif clear_space is True:
+            _space = None
+        else:
+            _space = self.search_space
+
         if self.config_transform is not None:
             this_config = dict(self.config_transform(this_config, transform_context))
 
         new_self = self.mutate(
             config=this_config if this_config else None,
-            search_space=None,
+            search_space=_space,
             nxt=nxt,
         )
 
@@ -628,9 +662,9 @@ class Step(Generic[Space]):
     def space(
         self,
         *,
-        parser: type[Parser[Space]] | Parser[Space],
+        parser: type[Parser[Space, ParserOutput]] | Parser[Space, ParserOutput],
         seed: Seed | None = ...,
-    ) -> Space:
+    ) -> ParserOutput:
         ...
 
     @overload
@@ -639,10 +673,12 @@ class Step(Generic[Space]):
 
     def space(
         self,
-        parser: type[Parser[Space]] | Parser[Space] | None = None,
+        parser: (
+            type[Parser[Space, ParserOutput]] | Parser[Space, ParserOutput] | None
+        ) = None,
         *,
         seed: Seed | None = None,
-    ) -> Space | Any:
+    ) -> ParserOutput | Any:
         """Get the search space for this step."""
         from amltk.pipeline.parser import Parser
 
@@ -770,7 +806,7 @@ class Step(Generic[Space]):
         return Sampler.try_sample(
             space,
             sampler=sampler,
-            n=n,
+            n=n,  # type: ignore
             seed=seed,
             duplicates=duplicates,
             max_attempts=max_attempts,
@@ -797,6 +833,29 @@ class Step(Generic[Space]):
 
         consume(itr)
         return head
+
+    def as_pipeline(
+        self,
+        modules: Pipeline | Step | Iterable[Pipeline | Step] | None = None,
+        name: str | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ) -> Pipeline:
+        """Wrap this step in a pipeline.
+
+        See Also:
+            * [`Pipeline.create()`][amltk.pipeline.pipeline.Pipeline.create]
+
+        Args:
+            name: The name of the pipeline. Defaults to a uuid
+            modules: The modules to use for the pipeline
+            meta: The meta information to attach to the pipeline
+
+        Returns:
+            Pipeline: The pipeline
+        """
+        from amltk.pipeline.pipeline import Pipeline
+
+        return Pipeline.create(self, name=name, modules=modules, meta=meta)
 
     @classmethod
     def chain(
@@ -832,7 +891,7 @@ class Step(Generic[Space]):
         # list of steps.
         # ? Is it possible to build a doubly linked list where each node is immutable?
         itr = chain([None], new_steps, [None])
-        for prv, cur, nxt in triplewise(itr):  # pyright: reportGeneralTypeIssues=false
+        for prv, cur, nxt in triplewise(itr):
             assert cur is not None
 
             if cur.name in seen_steps:
@@ -843,7 +902,91 @@ class Step(Generic[Space]):
 
             object.__setattr__(cur, "prv", prv)
             object.__setattr__(cur, "nxt", nxt)
-            yield cast(Step, cur)
+            yield cur
+
+    def _rich_iter(self, connect: TextType | None = None) -> Iterator[RenderableType]:
+        """Iterate the panels for rich printing."""
+        yield self.__rich__()
+        if self.nxt is not None:
+            if connect is not None:
+                yield connect
+            yield from self.nxt._rich_iter(connect=connect)
+
+    def _rich_table_items(self) -> Iterator[tuple[RenderableType, ...]]:
+        """Get the items to add to the rich table."""
+        from rich.pretty import Pretty
+        from rich.text import Text
+
+        from amltk.richutil import Function, richify
+
+        if self.config is not None:
+            _config = {k: richify(v) for k, v in self.config.items()}
+            yield Text("config"), Pretty(_config)
+
+        if self.search_space is not None:
+            yield "space", richify(self.search_space, otherwise=Pretty)
+
+        if self.fidelity_space is not None:
+            yield "fidelities", richify(self.fidelity_space, otherwise=Pretty)
+
+        if self.config_transform is not None:
+            yield "transform", Function(self.config_transform)
+
+        if self.meta is not None:
+            yield "meta", Pretty(self.meta)
+
+    def _rich_panel_contents(self) -> Iterator[RenderableType]:
+        from rich.table import Table
+
+        table = Table.grid(padding=(0, 1), expand=False)
+        for tup in self._rich_table_items():
+            table.add_row(*tup)
+        table.add_section()
+
+        yield table
+
+    def display(
+        self,
+        *,
+        full: bool = False,
+        connect: TextType | None = None,
+    ) -> RenderableType:
+        """Display this step.
+
+        Args:
+            full: Whether to display the full step or just a summary
+            connect: The text to connect the steps together. Defaults to None
+        """
+        if not full:
+            return self.__rich__()
+
+        from rich.console import Group as RichGroup
+
+        return RichGroup(*self._rich_iter(connect=connect))
+
+    @override
+    def __rich__(self) -> Panel:
+        from rich.console import Group as RichGroup
+        from rich.panel import Panel
+
+        clr = self.RICH_PANEL_BORDER_COLOR
+        title = Text.assemble(
+            (classname(self), f"{clr} bold"),
+            "(",
+            (self.name, f"{clr} italic"),
+            ")",
+            style="default",
+            end="",
+        )
+        contents = list(self._rich_panel_contents())
+        _content = contents[0] if len(contents) == 1 else RichGroup(*contents)
+        return Panel(
+            _content,
+            title=title,
+            title_align="left",
+            border_style=clr,
+            expand=False,
+        )
 
     class DelimiterInNameError(ValueError):
         """Raise when a delimiter is found in a name."""
@@ -855,9 +998,11 @@ class Step(Generic[Space]):
                 step: The step that contains the delimiter
                 delimiter: The delimiter that was found
             """
+            super().__init__(step, delimiter)
             self.step = step
             self.delimiter = delimiter
 
+        @override
         def __str__(self) -> str:
             delimiter = self.delimiter
             return f"Delimiter ({delimiter=}) in name: {self.step.name} for {self.step}"
@@ -871,8 +1016,10 @@ class Step(Generic[Space]):
             Args:
                 steps: The steps that have the same name
             """
+            super().__init__(steps)
             self.steps = steps
 
+        @override
         def __str__(self) -> str:
             s1, s2 = self.steps
             return f"Duplicate names ({s1.name}) for\n\n{s1}\n\n{s2}"
@@ -888,10 +1035,12 @@ class Step(Generic[Space]):
                 config: The invalid configuration
                 reason: The reason the configuration is invalid
             """
+            super().__init__()
             self.step = step
             self.config = config
             self.reason = reason
 
+        @override
         def __str__(self) -> str:
             return (
                 f"Invalid configuration: {self.reason}"

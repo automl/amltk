@@ -31,7 +31,7 @@ def probabilities_to_classes(
     classes = np.asarray(classes)
     n_outputs = 1 if classes.ndim == 1 else classes.shape[1]
     if n_outputs == 1:
-        return classes.take(np.argmax(probabilities, axis=1), axis=0)
+        return classes.take(np.argmax(probabilities, axis=1), axis=0)  # type: ignore
 
     n_samples = probabilities[0].shape[0]
     # all dtypes should be the same, so just take the first
@@ -45,7 +45,7 @@ def probabilities_to_classes(
 
 
 def to_numpy(
-    x: np.ndarray | npt.ArrayLike | pd.DataFrame | pd.Series,
+    x: np.ndarray | pd.DataFrame | pd.Series,
     *,
     flatten_if_1d: bool = False,
 ) -> np.ndarray:

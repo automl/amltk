@@ -59,8 +59,8 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 from sklearn.svm import SVC
-from amltk.data.conversions import probabilities_to_classes
 
+from amltk.data.conversions import probabilities_to_classes
 from amltk.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from amltk.optimization import History, Trial
 from amltk.pipeline import Pipeline, choice, group, split, step
@@ -336,8 +336,8 @@ def create_ensemble(
         return Ensemble({}, [], {})
 
     validation_predictions = {
-        name: report.retrieve("val_probabilities.npy", where=bucket)
-        for name, report in history.items()
+        report.name: report.retrieve("val_probabilities.npy", where=bucket)
+        for report in history
     }
     targets = bucket["y_val.npy"].load()
 
@@ -357,7 +357,8 @@ def create_ensemble(
     )  # <!>
 
     configs = {
-        name: history[name].retrieve("config.json", where=bucket) for name in weights
+        name: history.find(name).retrieve("config.json", where=bucket)
+        for name in weights
     }
     return Ensemble(weights=weights, trajectory=trajectory, configs=configs)
 
