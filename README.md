@@ -15,10 +15,10 @@ Installing [`just`](https://github.com/casey/just#installation)
 git clone git@github.com:automl/amltk.git
 
 # If using `just`
-just install-dev
+just install
 
 # otherwise, for everything
-pip install -e ".[dev, test, doc, doc-examples]"
+pip install -e ".[dev, test, doc, smac, optuna]"
 ```
 
 ## Docs
@@ -35,3 +35,4 @@ python -m webbrowser -t "http://127.0.0.1:8000/" \
     AMLTK_EXEC_DOCS={{exec_doc_code}} \
     mkdocs serve --watch-theme
 ```
+
