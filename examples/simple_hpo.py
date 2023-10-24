@@ -113,6 +113,7 @@ pipeline = Pipeline.create(
         RandomForestClassifier,
         space={
             "n_estimators": (10, 100),
+            "max_features": (0.0, 1.0),
             "criterion": ["gini", "entropy", "log_loss"],
         },
     ),
@@ -351,10 +352,11 @@ def stop_scheduler_on_cancelled(_: Any) -> None:
 ### Setting the system to run
 
 Lastly we use [`Scheduler.run`][amltk.scheduling.Scheduler.run] to run the
-scheduler. We pass in a timeout of 5 seconds.
+scheduler. We pass in a timeout of 20 seconds.
 """
 scheduler.run(timeout=20)
 
 print("Trial history:")
 history_df = trial_history.df()
 print(history_df)
+
