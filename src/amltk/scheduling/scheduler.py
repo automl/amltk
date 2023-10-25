@@ -12,21 +12,17 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
-from typing_extensions import override
 from uuid import uuid4
 
 from amltk.asyncm import ContextEvent
 from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import Flag
-from amltk.richutil import RichRenderable
 from amltk.scheduling.sequential_executor import SequentialExecutor
 from amltk.scheduling.termination_strategies import termination_strategy
 
 if TYPE_CHECKING:
     from multiprocessing.context import BaseContext
     from typing_extensions import ParamSpec, Self
-
-    from rich.console import RenderableType
 
     from amltk.dask_jobqueue import DJQ_NAMES
 
@@ -51,7 +47,7 @@ class ExitState:
     exception: BaseException | None = None
 
 
-class Scheduler(RichRenderable):
+class Scheduler:
     """A scheduler for submitting tasks to an Executor.
 
     ```python
@@ -978,14 +974,6 @@ class Scheduler(RichRenderable):
                     future.cancel()
             termination_strategy(executor)
             executor.shutdown(wait=wait)
-
-    @override
-    def __rich__(self) -> RenderableType:
-        from rich.tree import Tree
-
-        tree = Tree("Scheduler", style="bold blue")
-        tree.add("hello")
-        return tree
 
     class ExitCode(Enum):
         """The reason the scheduler ended."""
