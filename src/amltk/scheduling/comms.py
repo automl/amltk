@@ -386,7 +386,7 @@ class Comm:
                     # close and we emit a CLOSE event. This should break out
                     # of the loop as we expect no more signals after this point
                     if data is Comm.Msg.Kind.CLOSE:
-                        self.task.emit(Comm.CLOSE)
+                        self.task.emitter.emit(Comm.CLOSE)
                         break
 
                     # When we recieve (REQUEST, data), this was sent with
@@ -404,7 +404,7 @@ class Comm:
                             real_data,
                             identifier=worker_id,
                         )
-                        self.task.emit(Comm.REQUEST, msg)
+                        self.task.emitter.emit(Comm.REQUEST, msg)
 
                     # Otherwise it's just a simple `send` with some data we
                     # emit as a MESSAGE event
@@ -416,7 +416,7 @@ class Comm:
                             data,
                             identifier=worker_id,
                         )
-                        self.task.emit(Comm.MESSAGE, msg)
+                        self.task.emitter.emit(Comm.MESSAGE, msg)
 
                 except EOFError:
                     logger.debug(f"{name}: closed connection")

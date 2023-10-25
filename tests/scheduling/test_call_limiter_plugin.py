@@ -76,8 +76,12 @@ def test_concurrency_limit_of_tasks(scheduler: Scheduler) -> None:
     end_status = scheduler.run(end_on_empty=True)
     assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
-    assert task.event_counts == {task.SUBMITTED: 2, task.DONE: 2, task.RETURNED: 2}
-    assert limiter.event_counts == {limiter.CONCURRENT_LIMIT_REACHED: 8}
+    assert task.event_counts == {
+        task.SUBMITTED: 2,
+        task.DONE: 2,
+        task.RETURNED: 2,
+        limiter.CONCURRENT_LIMIT_REACHED: 8,
+    }
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,
@@ -104,8 +108,12 @@ def test_call_limit_of_tasks(scheduler: Scheduler) -> None:
     end_status = scheduler.run(end_on_empty=True)
     assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
-    assert task.event_counts == {task.SUBMITTED: 2, task.DONE: 2, task.RETURNED: 2}
-    assert limiter.event_counts == {limiter.CALL_LIMIT_REACHED: 8}
+    assert task.event_counts == {
+        task.SUBMITTED: 2,
+        task.DONE: 2,
+        task.RETURNED: 2,
+        limiter.CALL_LIMIT_REACHED: 8,
+    }
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,
@@ -130,7 +138,7 @@ def test_call_limit_with_not_while_running(scheduler: Scheduler) -> None:
         plugins=[limiter],
     )
 
-    @scheduler.on_start()
+    @scheduler.on_start
     def launch() -> None:
         task1(duration=2)
 
@@ -142,9 +150,7 @@ def test_call_limit_with_not_while_running(scheduler: Scheduler) -> None:
     assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
 
     assert task1.event_counts == {task1.SUBMITTED: 1, task1.DONE: 1, task1.RETURNED: 1}
-
-    assert limiter.event_counts == {limiter.DISABLED_DUE_TO_RUNNING_TASK: 1}
-    assert task2.event_counts == {}
+    assert task2.event_counts == {limiter.DISABLED_DUE_TO_RUNNING_TASK: 1}
 
     assert scheduler.event_counts == {
         scheduler.STARTED: 1,

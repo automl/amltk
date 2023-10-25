@@ -33,6 +33,14 @@ class PynisherPlugin(TaskPlugin):
     limits on the task. The limits are set by any of `memory_limit=`,
     `cpu_time_limit=` and `wall_time_limit=`.
 
+    Adds four new events to the task
+
+    * [`TIMEOUT`][amltk.pynisher.PynisherPlugin.TIMEOUT]
+    * [`MEMORY_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.MEMORY_LIMIT_REACHED]
+    * [`CPU_TIME_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.CPU_TIME_LIMIT_REACHED]
+    * [`WALL_TIME_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.WALL_TIME_LIMIT_REACHED]
+
+
     ```python exec="true" source="material-block" result="python" title="PynisherPlugin"
     from amltk.scheduling import Task, Scheduler
     from amltk.pynisher import PynisherPlugin
@@ -175,8 +183,10 @@ class PynisherPlugin(TaskPlugin):
     ) -> None:
         """Check if the exception is a pynisher exception and emit it."""
         if isinstance(exception, Pynisher.CpuTimeoutException):
-            self.task.emit((self.TIMEOUT, self.CPU_TIME_LIMIT_REACHED), exception)
+            self.task.emitter.emit(self.TIMEOUT, exception)
+            self.task.emitter.emit(self.CPU_TIME_LIMIT_REACHED, exception)
         elif isinstance(exception, self.WallTimeoutException):
-            self.task.emit((self.TIMEOUT, self.WALL_TIME_LIMIT_REACHED), exception)
+            self.task.emitter.emit(self.TIMEOUT)
+            self.task.emitter.emit(self.WALL_TIME_LIMIT_REACHED, exception)
         elif isinstance(exception, self.MemoryLimitException):
-            self.task.emit(self.MEMORY_LIMIT_REACHED, exception)
+            self.task.emitter.emit(self.MEMORY_LIMIT_REACHED, exception)

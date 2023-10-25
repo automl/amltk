@@ -12,7 +12,6 @@ from typing import (
     Iterator,
     List,
     Mapping,
-    NewType,
     NoReturn,
     Protocol,
     Sequence,
@@ -50,8 +49,6 @@ Seed: TypeAlias = Union[int, np.random.RandomState, np.random.Generator]
 """Type alias for kinds of Seeded objects"""
 
 FidT = Union[Tuple[int, int], Tuple[float, float], List[Any]]
-
-UniqueRef = NewType("UniqueRef", str)
 
 
 class Comparable(Protocol):

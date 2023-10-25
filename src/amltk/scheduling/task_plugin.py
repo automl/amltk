@@ -6,7 +6,7 @@ from itertools import chain
 from typing import Any, Callable, ClassVar, Iterable, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
-from amltk.events import Emitter, Event, Subscriber
+from amltk.events import Event
 from amltk.scheduling.task import Task
 
 P = ParamSpec("P")
@@ -110,59 +110,31 @@ class TaskPlugin(ABC):
         ...
 
 
-class CallLimiter(Emitter, TaskPlugin):
-    """A plugin that limits the submission of a task."""
+class CallLimiter(TaskPlugin):
+    """A plugin that limits the submission of a task.
+
+    Adds three new events to the task:
+
+    * [`CALL_LIMIT_REACHED`][amltk.scheduling.CallLimiter.CALL_LIMIT_REACHED]
+    * [`CONCURRENT_LIMIT_REACHED`][amltk.scheduling.CallLimiter.CONCURRENT_LIMIT_REACHED]
+    * [`DISABLED_DUE_TO_RUNNING_TASK`][amltk.scheduling.CallLimiter.DISABLED_DUE_TO_RUNNING_TASK]
+    """  # noqa: E501
 
     name: ClassVar = "call-limiter"
     """The name of the plugin."""
 
-    on_max_call_limit: Subscriber[...]
-    """A subscriber that is called when the maximum number of calls to the task
-    is reached.
-    ```python
-    limiter = CallLimiter(max_calls=2)
-    task = Task(..., plugins=[limiter])
-
-    @limiter.on_max_call_limit
-    def on_max_call_limit(task, *args, **kwargs):
-        print("Task {task.name} disable as max calls reached")
-    ```
-    """
-
-    on_max_concurrent: Subscriber[...]
-    """A subscriber that is called when the number of concurrent runs of this task
-    would exceed the maximum number of concurrent runs.
-    ```python
-    limiter = CallLimiter(max_concurrent=2)
-    task = Task(..., plugins=[limiter])
-
-    @limiter.on_max_concurrent
-    def on_max_concurrent(task, *args, **kwargs):
-        print("Task {task.name} disable as max concurrent runs reached")
-    ```
-    """
-
-    on_disabled_due_to_running_task: Subscriber[...]
-    """A subscriber that is called when the maximum number of calls to the task
-    is reached.
-    ```python
-    task1 = Task(...)
-
-    limiter = CallLimiter(not_while_running=task1)
-    task2 = Task(..., plugins=[limiter])
-
-    @limiter.on_disabled_due_to_running_task
-    def on_disabled_due_to_running_task(other_task, task, *args, **kwargs):
-        print(
-            f"Task {task.name} was not submitted because {other_task.name} is currently"
-            " running"
-        )
-    ```
-    """
-
     CALL_LIMIT_REACHED: Event[...] = Event("call-limiter-call-limit")
+    """The event emitted when the task has reached its call limit."""
+
     CONCURRENT_LIMIT_REACHED: Event[...] = Event("call-limiter-concurrent-limit")
-    DISABLED_DUE_TO_RUNNING_TASK: Event[...] = Event("call-limiter-disabled")
+    """The event emitted when the task has reached its concurrent call limit."""
+
+    DISABLED_DUE_TO_RUNNING_TASK: Event[...] = Event(
+        "call-limiter-disabled-due-to-running-task",
+    )
+    """The event emitter when the task was not submitted due to some other
+    running task.
+    """
 
     def __init__(
         self,
@@ -203,12 +175,6 @@ class CallLimiter(Emitter, TaskPlugin):
         self._calls = 0
         self._concurrent = 0
 
-        self.on_max_call_limit = self.subscriber(self.CALL_LIMIT_REACHED)
-        self.on_max_concurrent = self.subscriber(self.CONCURRENT_LIMIT_REACHED)
-        self.on_disabled_due_to_running_task = self.subscriber(
-            self.DISABLED_DUE_TO_RUNNING_TASK,
-        )
-
     @override
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
@@ -238,19 +204,25 @@ class CallLimiter(Emitter, TaskPlugin):
         assert self.task is not None
 
         if self.max_calls is not None and self._calls >= self.max_calls:
-            self.on_max_call_limit.emit(self.task, *args, **kwargs)
+            self.task.emitter.emit(self.CALL_LIMIT_REACHED, self.task, *args, **kwargs)
             return None
 
         if (
             self.max_concurrent is not None
             and len(self.task.queue) >= self.max_concurrent
         ):
-            self.on_max_concurrent.emit(self.task, *args, **kwargs)
+            self.task.emitter.emit(
+                self.CONCURRENT_LIMIT_REACHED,
+                self.task,
+                *args,
+                **kwargs,
+            )
             return None
 
         for other_task in self.not_while_running:
             if other_task.running():
-                self.on_disabled_due_to_running_task.emit(
+                self.task.emitter.emit(
+                    self.DISABLED_DUE_TO_RUNNING_TASK,
                     other_task,
                     self.task,
                     *args,

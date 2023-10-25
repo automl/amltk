@@ -12,16 +12,21 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from threading import Timer
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
+from typing_extensions import override
+from uuid import uuid4
 
 from amltk.asyncm import ContextEvent
 from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import Flag
+from amltk.richutil import RichRenderable
 from amltk.scheduling.sequential_executor import SequentialExecutor
 from amltk.scheduling.termination_strategies import termination_strategy
 
 if TYPE_CHECKING:
     from multiprocessing.context import BaseContext
     from typing_extensions import ParamSpec, Self
+
+    from rich.console import RenderableType
 
     from amltk.dask_jobqueue import DJQ_NAMES
 
@@ -46,7 +51,7 @@ class ExitState:
     exception: BaseException | None = None
 
 
-class Scheduler(Emitter):
+class Scheduler(RichRenderable):
     """A scheduler for submitting tasks to an Executor.
 
     ```python
@@ -73,8 +78,13 @@ class Scheduler(Emitter):
 
     executor: Executor
     """The executor to use to run tasks."""
+
+    emitter: Emitter
+    """The emitter to use for events."""
+
     queue: list[asyncio.Future]
     """The queue of tasks running."""
+
     on_finishing: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when the
         scheduler is finishing up.
@@ -207,21 +217,26 @@ class Scheduler(Emitter):
                 If False, shutdown will not be called and the executor will
                 remain active.
         """
-        super().__init__(event_manager="Scheduler")
+        super().__init__()
         self.executor = executor
+        self.unique_ref = f"Scheduler-{uuid4()}"
+        self.emitter = Emitter(self.unique_ref)
+        self.event_counts = self.emitter.event_counts
 
         # The current state of things and references to them
         self.queue: list[asyncio.Future] = []
 
-        self.on_start = self.subscriber(self.STARTED)
-        self.on_finishing = self.subscriber(self.FINISHING)
-        self.on_future_submitted = self.subscriber(self.FUTURE_SUBMITTED)
-        self.on_future_done = self.subscriber(self.FUTURE_DONE)
-        self.on_future_cancelled = self.subscriber(self.FUTURE_CANCELLED)
-        self.on_finished = self.subscriber(self.FINISHED)
-        self.on_stop = self.subscriber(self.STOP)
-        self.on_timeout = self.subscriber(self.TIMEOUT)
-        self.on_empty = self.subscriber(self.EMPTY)
+        # Set up subscribers for events
+        self.on_start = self.emitter.subscriber(self.STARTED)
+        self.on_finishing = self.emitter.subscriber(self.FINISHING)
+        self.on_future_submitted = self.emitter.subscriber(self.FUTURE_SUBMITTED)
+        self.on_future_done = self.emitter.subscriber(self.FUTURE_DONE)
+        self.on_future_cancelled = self.emitter.subscriber(self.FUTURE_CANCELLED)
+        self.on_finished = self.emitter.subscriber(self.FINISHED)
+        self.on_stop = self.emitter.subscriber(self.STOP)
+        self.on_timeout = self.emitter.subscriber(self.TIMEOUT)
+        self.on_empty = self.emitter.subscriber(self.EMPTY)
+
         self._terminate: Callable[[Executor], None] | None
         if terminate is True:
             self._terminate = termination_strategy(executor)
@@ -963,6 +978,14 @@ class Scheduler(Emitter):
                     future.cancel()
             termination_strategy(executor)
             executor.shutdown(wait=wait)
+
+    @override
+    def __rich__(self) -> RenderableType:
+        from rich.tree import Tree
+
+        tree = Tree("Scheduler", style="bold blue")
+        tree.add("hello")
+        return tree
 
     class ExitCode(Enum):
         """The reason the scheduler ended."""
