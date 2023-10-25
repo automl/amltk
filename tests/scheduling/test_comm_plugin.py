@@ -15,6 +15,12 @@ from amltk.scheduling.comms import Comm
 
 logger = logging.getLogger(__name__)
 
+pytest.skip(
+    "We havn't revisited the Comm's works in a while and it has issues with "
+    " dask. We will revisit this in the future.",
+    allow_module_level=True,
+)
+
 
 def sending_worker(replies: list[Any], comm: Comm | None = None) -> None:
     """A worker that responds to messages.

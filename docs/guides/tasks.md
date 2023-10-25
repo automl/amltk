@@ -45,6 +45,10 @@ However, the `Scheduler` is rather useless without some fuel.
 For this, we present [`Tasks`][amltk.scheduling.Task], the computational task to
 perform with the `Scheduler` and start the system's gears turning.
 
+!!! todo "TODO"
+
+    This page is a little out-dated currently...
+
 ## Events
 At the core of AutoML-Toolkit is an [`EventManager`][amltk.events.EventManager]
 whose sole purpose is to allow you to do two things:

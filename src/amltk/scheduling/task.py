@@ -10,17 +10,18 @@ import logging
 from asyncio import Future
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     Iterable,
     TypeVar,
+    overload,
 )
 from typing_extensions import Concatenate, ParamSpec, Self, override
 from uuid import uuid4 as uuid
 
 from amltk.events import Emitter, Event, Subscriber
 from amltk.functional import callstring, funcname
-from amltk.types import UniqueRef
 
 if TYPE_CHECKING:
     from amltk.scheduling.scheduler import Scheduler
@@ -37,7 +38,7 @@ R2 = TypeVar("R2")
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
-class Task(Generic[P, R], Emitter):
+class Task(Generic[P, R]):
     """A task is a unit of work that can be scheduled by the scheduler.
 
     It is defined by its `name` and a `function` to call. Whenever a task
@@ -50,7 +51,9 @@ class Task(Generic[P, R], Emitter):
     To interact with the results of these tasks, you must subscribe to to these
     events and provide callbacks.
 
-    ```python hl_lines="9"
+    ```python
+    from amltk import Task, Scheduler
+
     # Define some function to run
     def f(x: int) -> int:
         return x * 2
@@ -59,11 +62,43 @@ class Task(Generic[P, R], Emitter):
     scheduler = Scheduler.with_processes(2)
 
     # Create the task object, the type anotation Task[[int], int] isn't required
-    my_task: Task[[int], int] = scheduler.task("call_f", f)
+    my_task = Task(f, scheduler)
 
     # Subscribe to events
-    my_task.on_returned(lambda result: print(result))
-    my_task.on_exception(lambda error: print(error))
+    @my_task.on_returned
+    def print_result(future: Future[int], result: int):
+        print(f"Future {future} returned {result}")
+
+    @my_task.on_exception
+    def print_exception(future: Future[int], result: int):
+        print(error)
+    ```
+
+    If providing `plugins=` to the task, these may add new events that will be emitted
+    from the task. Do listen to these events, you must use the `on` method. Please
+    see their respective documentation.
+
+    ```python
+    from amltk import Scheduler, Task
+    from amltk.scheduling import CallLimiter
+
+
+    def f() -> None:
+        print("task ran")
+
+
+    scheduler = Scheduler.with_processes(1)
+    task = Task(f, scheduler, plugins=[CallLimiter(max_calls=1)])
+
+    @scheduler.on_start(repeat=3)
+    def start():
+        task()
+
+    @task.on(CallLimiter.CALL_LIMIT_REACHED)
+    def on_limit_reached(task: Task, *args, **kwargs):
+        print(f"Task {task} reached its call limit with {args=} and {kwargs=}")
+
+    scheduler.run()
     ```
     """
 
@@ -71,7 +106,7 @@ class Task(Generic[P, R], Emitter):
     """The name of the task."""
     uuid: str
     """A unique identifier for this task."""
-    unique_ref: UniqueRef
+    unique_ref: str
     """A unique reference to this task."""
     plugins: list[TaskPlugin]
     """The plugins to use for this task."""
@@ -83,6 +118,8 @@ class Task(Generic[P, R], Emitter):
     """Whether to initialize the plugins or not."""
     queue: list[Future[R]]
     """The queue of futures for this task."""
+    emitter: Emitter
+    """The emitter for events of this task."""
 
     on_submitted: Subscriber[Concatenate[Future[R], P]]
     """An event that is emitted when a future is submitted to the
@@ -156,12 +193,12 @@ class Task(Generic[P, R], Emitter):
             plugins: The plugins to use for this task.
             init_plugins: Whether to initialize the plugins or not.
         """
+        super().__init__()
         self.name = name if name is not None else funcname(function)
-        self.uuid = str(uuid())
-        self.unique_ref = UniqueRef(f"{self.name}-{self.uuid}")
+        self.unique_ref = f"{self.name}-{uuid()}"
 
-        super().__init__(event_manager=self.unique_ref)
-
+        self.emitter = Emitter(self.unique_ref)
+        self.event_counts = self.emitter.event_counts
         self.plugins: list[TaskPlugin] = list(plugins)
         self.function: Callable[P, R] = function
         self.scheduler: Scheduler = scheduler
@@ -169,14 +206,11 @@ class Task(Generic[P, R], Emitter):
         self.queue: list[Future[R]] = []
 
         # Set up subscription methods to events
-        self.on_submitted = self.subscriber(self.SUBMITTED)
-        self.on_done = self.subscriber(self.DONE)
-        self.on_returned = self.subscriber(self.RETURNED)
-        self.on_exception = self.subscriber(self.EXCEPTION)
-        self.on_cancelled = self.subscriber(self.CANCELLED)
-
-        # Used to keep track of any events emitted out of this task
-        self._emitted_events: set[Event] = set()
+        self.on_submitted = self.emitter.subscriber(self.SUBMITTED)
+        self.on_done = self.emitter.subscriber(self.DONE)
+        self.on_returned = self.emitter.subscriber(self.RETURNED)
+        self.on_exception = self.emitter.subscriber(self.EXCEPTION)
+        self.on_cancelled = self.emitter.subscriber(self.CANCELLED)
 
         if init_plugins:
             for plugin in self.plugins:
@@ -189,6 +223,74 @@ class Task(Generic[P, R], Emitter):
             A list of futures for this task.
         """
         return self.queue
+
+    @overload
+    def on(
+        self,
+        event: Event[P2],
+        callback: None = None,
+        *,
+        name: str | None = ...,
+        when: Callable[[], bool] | None = ...,
+        limit: int | None = ...,
+        repeat: int = ...,
+        every: int | None = ...,
+    ) -> Subscriber[P2]:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: Event[P2],
+        callback: Callable[P2, Any] | Iterable[Callable[P2, Any]],
+        *,
+        name: str | None = ...,
+        when: Callable[[], bool] | None = ...,
+        limit: int | None = ...,
+        repeat: int = ...,
+        every: int | None = ...,
+    ) -> Subscriber[P2]:
+        ...
+
+    def on(
+        self,
+        event: Event[P2],
+        callback: Callable[P2, Any] | Iterable[Callable[P2, Any]] | None = None,
+        *,
+        name: str | None = None,
+        when: Callable[[], bool] | None = None,
+        limit: int | None = None,
+        repeat: int = 1,
+        every: int | None = None,
+    ) -> Subscriber[P2] | None:
+        """Subscribe to an event.
+
+        Args:
+            event: The event to subscribe to.
+            callback: The callback to call when the event is emitted.
+                If not specified, what is returned can be used as a decorator.
+            name: The name of the subscriber.
+            when: A predicate to determine whether to call the callback.
+            limit: The number of times to call the callback.
+            repeat: The number of times to repeat the subscription.
+            every: The number of times to wait between repeats.
+
+        Returns:
+            The subscriber if no callback was provided, otherwise `None`.
+        """
+        subscriber = self.emitter.subscriber(
+            event,
+            name=name,
+            when=when,
+            limit=limit,
+            repeat=repeat,
+            every=every,
+        )
+        if callback is None:
+            return subscriber
+
+        subscriber(callback)
+        return None
 
     @property
     def n_running(self) -> int:
