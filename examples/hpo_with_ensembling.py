@@ -64,7 +64,7 @@ from amltk.data.conversions import probabilities_to_classes
 from amltk.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from amltk.optimization import History, Trial
 from amltk.pipeline import Pipeline, choice, group, split, step
-from amltk.scheduling import Scheduler, Task
+from amltk.scheduling import Scheduler
 from amltk.sklearn.data import split_data
 from amltk.smac import SMACOptimizer
 from amltk.store import PathBucket
@@ -390,8 +390,8 @@ bucket.store(  # (2)!
 scheduler = Scheduler.with_processes()  # (3)!
 optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)  # (4)!
 
-task = Task(target_function, scheduler)  # (6)!
-ensemble_task = Task(create_ensemble, scheduler)  # (7)!
+task = scheduler.task(target_function)  # (6)!
+ensemble_task = scheduler.task(create_ensemble)  # (7)!
 
 trial_history = History()
 ensembles: list[Ensemble] = []
@@ -404,33 +404,33 @@ def launch_initial_tasks() -> None:
     task.submit(trial, bucket=bucket, pipeline=pipeline)
 
 
-@task.on_returned
+@task.on_result
 def tell_optimizer(future: Future, report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
 
-@task.on_returned
+@task.on_result
 def add_to_history(future: Future, report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
 
 
-@task.on_returned
+@task.on_result
 def launch_ensemble_task(future: Future, report: Trial.Report) -> None:
     """When a task successfully completes, launch an ensemble task."""
     if report.status is Trial.Status.SUCCESS:
         ensemble_task(trial_history, bucket)
 
 
-@task.on_returned
+@task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
     task(trial, bucket=bucket, pipeline=pipeline)
 
 
-@ensemble_task.on_returned
+@ensemble_task.on_result
 def save_ensemble(future: Future, ensemble: Ensemble) -> None:
     """When an ensemble task returns, save it."""
     ensembles.append(ensemble)
@@ -472,11 +472,11 @@ print(best_ensemble)
 #  to optimize over.
 # 6. We create a [`Task`][amltk.scheduling.Task] that will run our objective, passing
 #   in the function to run and the scheduler for where to run it
-# 7. We use [`Task()`][amltk.scheduling.Task] to create a
+# 7. We use [`task()`][amltk.scheduling.Task] to create a
 #   [`Task`][amltk.scheduling.Task]
 #   for the `create_ensemble` method above. This will also run in parallel with the hpo
 #   trials if using a non-sequential scheduling mode.
-# 8. We use `Scheduler.on_start()` hook to register a
+# 8. We use `@scheduler.on_start()` hook to register a
 #  callback that will be called when the scheduler starts. We can use the
 #  `repeat` argument to make sure it's called many times if we want.
 # 9. We use [`Scheduler.run()`][amltk.scheduling.Scheduler.run] to run the scheduler.

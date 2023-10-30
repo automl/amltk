@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections import Counter
 from concurrent.futures import Executor, ProcessPoolExecutor
 from typing import Any
 
@@ -14,7 +15,7 @@ from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
 import threadpoolctl
-from amltk.scheduling import Scheduler, SequentialExecutor, Task
+from amltk.scheduling import Scheduler, SequentialExecutor
 from amltk.scheduling.scheduler import ExitState
 from amltk.threadpoolctl import ThreadPoolCTLPlugin
 from amltk.types import safe_isinstance
@@ -67,11 +68,7 @@ def f() -> list[Any]:
 
 
 def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
-    task: Task[[], list[Any]] = Task(
-        f,
-        scheduler,
-        plugins=[ThreadPoolCTLPlugin()],
-    )
+    task = scheduler.task(f, plugins=ThreadPoolCTLPlugin())
 
     retrieved_info = []
     before = threadpoolctl.threadpool_info()
@@ -80,7 +77,7 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
     def start_task() -> None:
         task()
 
-    @task.on_returned
+    @task.on_result
     def check_threadpool_info(_, inner_info: list) -> None:
         retrieved_info.append(inner_info)
 
@@ -97,24 +94,25 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
 
     assert before == after
 
-    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
+    assert task.event_counts == Counter(
+        {task.SUBMITTED: 1, task.DONE: 1, task.RESULT: 1},
+    )
 
-    assert scheduler.event_counts == {
-        scheduler.STARTED: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+            scheduler.FUTURE_RESULT: 1,
+        },
+    )
 
 
 def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> None:
-    task: Task[[], list[Any]] = Task(
-        f,
-        scheduler,
-        plugins=[ThreadPoolCTLPlugin(max_threads=1)],
-    )
+    task = scheduler.task(f, plugins=ThreadPoolCTLPlugin(max_threads=1))
 
     retrieved_info = []
     before = threadpoolctl.threadpool_info()
@@ -123,7 +121,7 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
     def start_task() -> None:
         task()
 
-    @task.on_returned
+    @task.on_result
     def check_threadpool_info(_, inner_info: list) -> None:
         retrieved_info.append(inner_info)
 
@@ -136,13 +134,18 @@ def test_limiting_thread_count_limits_only_inside_task(scheduler: Scheduler) -> 
     assert before != inside_info
     assert before == after
 
-    assert task.event_counts == {task.SUBMITTED: 1, task.DONE: 1, task.RETURNED: 1}
+    assert task.event_counts == Counter(
+        {task.SUBMITTED: 1, task.DONE: 1, task.RESULT: 1},
+    )
 
-    assert scheduler.event_counts == {
-        scheduler.STARTED: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+            scheduler.FUTURE_RESULT: 1,
+        },
+    )

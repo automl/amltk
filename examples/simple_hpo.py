@@ -38,7 +38,7 @@ from sklearn.preprocessing import (
 
 from amltk.optimization import History, Trial
 from amltk.pipeline import Pipeline, split, step
-from amltk.scheduling import Scheduler, Task
+from amltk.scheduling import Scheduler
 from amltk.sklearn.data import split_data
 from amltk.smac import SMACOptimizer
 from amltk.store import PathBucket
@@ -263,7 +263,7 @@ optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)
 Next we create a [`Task`][amltk.Task], passing in the function we
 want to run and the scheduler we will run it in.
 """
-task = Task(target_function, scheduler)
+task = scheduler.task(target_function)
 
 print(task)
 """
@@ -271,7 +271,7 @@ We use the callback decorators of the [`Scheduler`][amltk.scheduling.Scheduler] 
 the [`Task`][amltk.Task] to add callbacks that get called
 during events that happen during the running of the scheduler. Using this, we can
 control the flow of how things run.
-Check out the [task guide](site:guides/tasks.md) for more.
+Check out the [task guide](site:guides/scheduling.md) for more.
 
 This one here asks the optimizer for a new trial when the scheduler starts and
 launches the task we created earlier with this trial.
@@ -289,14 +289,14 @@ def launch_initial_tasks() -> None:
 When a [`Task`][amltk.Trial] returns and we get a report, i.e.
 with [`task.success()`][amltk.optimization.Trial.success] or
 [`task.fail()`][amltk.optimization.Trial.fail], the `task` will fire off the
-callbacks registered with [`.on_returned()`][amltk.Task.on_returned].
+callbacks registered with [`@on_result`][amltk.Task.on_result].
 We can use these to add callbacks that get called when these events happen.
 
 Here we use it to update the optimizer with the report we got.
 """
 
 
-@task.on_returned
+@task.on_result
 def tell_optimizer(future: Future, report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
@@ -310,7 +310,7 @@ optimization afterwords.
 trial_history = History()
 
 
-@task.on_returned
+@task.on_result
 def add_to_history(future: Future, report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
@@ -321,12 +321,12 @@ We launch a new task when the scheduler is empty, i.e. when all the tasks have
 finished. This will keep going until we hit the timeout we set on the scheduler.
 
 If you want to run the optimization in parallel, you can use the
-[`task.on_returned`][amltk.Task.on_returned] callback to launch a new task when you get
+[`@task.on_result`][amltk.Task.on_result] callback to launch a new task when you get
 a report. This will launch a new task as soon as one finishes.
 """
 
 
-@task.on_returned
+@task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()

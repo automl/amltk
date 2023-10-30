@@ -257,7 +257,7 @@ except ValueError as e:
     print(e)
 ```
 
-### Config Transformer
+### Config Transform
 Some search space and optimizers may have limitations in terms of the kinds of parameters they
 can support, one notable example is tuple parameters. To get around this, we can pass
 a `config_transform` to `step` which will transform the config before it is passed to the

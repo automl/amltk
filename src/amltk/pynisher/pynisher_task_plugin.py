@@ -36,9 +36,13 @@ class PynisherPlugin(TaskPlugin):
     Adds four new events to the task
 
     * [`TIMEOUT`][amltk.pynisher.PynisherPlugin.TIMEOUT]
+        - subscribe with `@task.on("pynisher-timeout")`
     * [`MEMORY_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.MEMORY_LIMIT_REACHED]
+        - subscribe with `@task.on("pynisher-memory-limit")`
     * [`CPU_TIME_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.CPU_TIME_LIMIT_REACHED]
+        - subscribe with `@task.on("pynisher-cputime-limit")`
     * [`WALL_TIME_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.WALL_TIME_LIMIT_REACHED]
+        - subscribe with `@task.on("pynisher-walltime-limit")`
 
 
     ```python exec="true" source="material-block" result="python" title="PynisherPlugin"
@@ -51,15 +55,13 @@ class PynisherPlugin(TaskPlugin):
         return "yay"
 
     scheduler = Scheduler.with_sequential()
-
-    pynisher = PynisherPlugin(wall_time_limit=(1, "s"))
-    task = Task(f, scheduler, plugins=[pynisher])
+    task = scheduler.task(f, plugins=PynisherPlugin(wall_time_limit=(1, "s")))
 
     @scheduler.on_start
     def on_start():
         task(3)
 
-    @task.on(pynisher.WALL_TIME_LIMIT_REACHED)
+    @task.on("pynisher-wall-time-limit")
     def on_wall_time_limit(exception):
         print(f"Wall time limit reached!")
 
@@ -76,17 +78,59 @@ class PynisherPlugin(TaskPlugin):
     name = "pynisher-plugin"
     """The name of the plugin."""
 
-    TIMEOUT: Event[BaseException] = Event("pynisher-timeout")
-    """A Task timed out."""
+    TIMEOUT: Event[Pynisher.TimeoutException] = Event("pynisher-timeout")
+    """A Task timed out.
 
-    MEMORY_LIMIT_REACHED: Event[BaseException] = Event("pynisher-memory-limit")
-    """A Task was submitted but reached it's memory limit."""
+    Will call any subscribers with the exception as the argument.
 
-    CPU_TIME_LIMIT_REACHED: Event[BaseException] = Event("pynisher-cputime-limit")
-    """A Task was submitted but reached it's cpu time limit."""
+    ```python
+    @task.on("pynisher-timeout")
+    def on_timeout(exception: PynisherPlugin.TimeoutException):
+        ...
+    ```
+    """
 
-    WALL_TIME_LIMIT_REACHED: Event[BaseException] = Event("pynisher-walltime-limit")
-    """A Task was submitted but reached it's wall time limit."""
+    MEMORY_LIMIT_REACHED: Event[Pynisher.MemoryLimitException] = Event(
+        "pynisher-memory-limit",
+    )
+    """A Task was submitted but reached it's memory limit.
+
+    Will call any subscribers with the exception as the argument.
+
+    ```python
+    @task.on("pynisher-memory-limit")
+    def on_memout(exception: PynisherPlugin.MemoryLimitException):
+        ...
+    ```
+    """
+
+    CPU_TIME_LIMIT_REACHED: Event[Pynisher.CpuTimeoutException] = Event(
+        "pynisher-cpu-time-limit",
+    )
+    """A Task was submitted but reached it's cpu time limit.
+
+    Will call any subscribers with the exception as the argument.
+
+    ```python
+    @task.on("pynisher-cpu-time-limit")
+    def on_cpu_time_limit(exception: PynisherPlugin.TimeoutException):
+        ...
+    ```
+    """
+
+    WALL_TIME_LIMIT_REACHED: Event[Pynisher.WallTimeoutException] = Event(
+        "pynisher-wall-time-limit",
+    )
+    """A Task was submitted but reached it's wall time limit.
+
+    Will call any subscribers with the exception as the argument.
+
+    ```python
+    @task.on("pynisher-wall-time-limit")
+    def on_wall_time_limit(exception: PynisherPlugin.TimeoutException):
+        ...
+    ```
+    """
 
     TimeoutException = Pynisher.TimeoutException
     """The exception that is raised when a task times out."""
@@ -160,9 +204,15 @@ class PynisherPlugin(TaskPlugin):
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
+        task.emitter.add_event(
+            self.TIMEOUT,
+            self.MEMORY_LIMIT_REACHED,
+            self.CPU_TIME_LIMIT_REACHED,
+            self.WALL_TIME_LIMIT_REACHED,
+        )
 
         # Check the exception and emit pynisher specific ones too
-        task.on_exception(self._check_to_emit_pynisher_exception)
+        task.on_exception(self._check_to_emit_pynisher_exception, hidden=True)
 
     @override
     def copy(self) -> Self:

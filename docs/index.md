@@ -48,8 +48,8 @@ allowing you to define, search and build machine learning systems.
 -   :material-tune-vertical-variant: __Event Driven__
 
     AutoML-Toolkit is event driven, meaning you write code that reacts to
-    [events](guides/tasks.md#events) as they happen. You can ignore, extend and create
-    new events that have meaning to the systems you build.
+    events as they happen. You can ignore, extend and create new events that
+    have meaning to the systems you build.
     This enables tools built from AutoML-Toolkit to support greater forms
     of interaction, automation and deployment.
 
@@ -58,8 +58,8 @@ allowing you to define, search and build machine learning systems.
 -   :material-directions-fork: __Task Agnostic__
 
     AutoML-Toolkit is task agnostic, meaning you can use it for any machine learning task.
-    We provide a base [task](guides/tasks.md) which you can extend with
-    [events](guides/tasks.md#events) and functionality specific to the tasks you care about.
+    We provide a base [Task](guides/scheduling.md) which you can extend with
+    events and functionality specific to the tasks you care about.
 
 ---
 
@@ -153,7 +153,7 @@ What you can use it for depends on what you want to do.
     ```python
     from amltk.pipeline import Pipeline
     from amltk.optimization import Trial
-    from amltk.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler
     from amltk.smac import SMACOptimizer
 
     def evaluate(trial: Trial, pipeline: Pipeline) -> Trial.Report:
@@ -173,7 +173,7 @@ What you can use it for depends on what you want to do.
 
     n_workers = 8
     scheduler = Scheduler.with_processes(n_workers)  # (3)!
-    task = Task(evaluate, scheduler, call_limit=10)
+    task = scheduler.task(evaluate)
 
     @scheduler.on_start(repeat=n_workers) # (6)!
     def start_optimizing():
@@ -185,11 +185,11 @@ What you can use it for depends on what you want to do.
           trial = optimizer.ask()
           task(trial=trial, pipeline=my_pipeline)
 
-    @task.on_returned
+    @task.on_result
     def tell_optimizer(report: Trial.Report):
         optimizer.tell(report)
 
-    @task.on_returned
+    @task.on_result
     def store_result(report: Trial.Report):
         ...  # (8)!
 
@@ -206,9 +206,9 @@ What you can use it for depends on what you want to do.
     2. We automatically fill in the reports for the optimizer, just let us
       know the cost and any other additional info.
     3. Create a scheduler with your own custom backend. We provide a few out of the box,
-      but you can also [integrate your own](./guides/tasks.md).
+    but you can also [integrate your own](site:guides/scheduling.md).
     4. Create an optimizer over your search space,
-      we provide a few optimizers of the box, but you can also [integrate your own](./guides/optimization.md#integrating-your-own-optimizer).
+    we provide a few optimizers of the box, but you can also [integrate your own](site:guides/optimization.md#integrating-your-own-optimizer).
     5. Calling the task runs it in a worker, whether it be a process, cluster node, AWS or
       whatever backend you decide to use.
     6. Say _what_ happens and _when_, when the scheduler says it's started, this function

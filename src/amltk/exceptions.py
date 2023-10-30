@@ -62,3 +62,11 @@ class IntegrationNotFoundError(Exception):
             name: The name of the integration that was not found.
         """
         super().__init__(f"No integration found for {name}.")
+
+
+class SchedulerNotRunningError(RuntimeError):
+    """The scheduler is not running."""
+
+
+class EventNotKnownError(ValueError):
+    """The event is not a known one."""

@@ -1,3 +1,4 @@
+from amltk import options
 from amltk.events import Emitter, Subscriber
 from amltk.optimization import (
     History,
@@ -7,7 +8,6 @@ from amltk.optimization import (
     Trace,
     Trial,
 )
-from amltk.options import _amltk_options as options
 from amltk.pipeline import Pipeline, choice, group, request, searchable, split, step
 from amltk.scheduling import (
     CallLimiter,
