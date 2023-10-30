@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import warnings
+from collections import Counter
 from concurrent.futures import Executor, ProcessPoolExecutor
 from typing import Iterator
 
@@ -12,7 +13,7 @@ from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
 from amltk.pynisher import PynisherPlugin
-from amltk.scheduling import Scheduler, Task
+from amltk.scheduling import Scheduler
 
 
 @case(tags=["executor"])
@@ -73,11 +74,7 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
     two_gb = int(1e9) * 2
 
     pynisher = PynisherPlugin(memory_limit=one_half_gb)
-    task = Task(
-        big_memory_function,
-        scheduler,
-        plugins=[pynisher],
-    )
+    task = scheduler.task(big_memory_function, plugins=pynisher)
 
     @scheduler.on_start
     def start_task() -> None:
@@ -86,30 +83,33 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
     with pytest.raises(PynisherPlugin.MemoryLimitException):
         scheduler.run(on_exception="raise")
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.DONE: 1,
-        task.EXCEPTION: 1,
-        pynisher.MEMORY_LIMIT_REACHED: 1,
-    }
+    assert task.event_counts == Counter(
+        {
+            task.SUBMITTED: 1,
+            task.DONE: 1,
+            task.EXCEPTION: 1,
+            pynisher.MEMORY_LIMIT_REACHED: 1,
+        },
+    )
 
-    assert scheduler.event_counts == {
-        scheduler.STARTED: 1,
-        scheduler.STOP: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.STOP: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+            scheduler.FUTURE_EXCEPTION: 1,
+        },
+    )
 
 
 def test_time_limited_task(scheduler: Scheduler) -> None:
-    pynisher = PynisherPlugin(wall_time_limit=1)
-    task = Task(
+    task = scheduler.task(
         time_wasting_function,
-        scheduler,
-        plugins=[pynisher],
+        plugins=PynisherPlugin(wall_time_limit=1),
     )
 
     @scheduler.on_start
@@ -119,32 +119,35 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
     with pytest.raises(PynisherPlugin.WallTimeoutException):
         scheduler.run(on_exception="raise")
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.DONE: 1,
-        task.EXCEPTION: 1,
-        pynisher.TIMEOUT: 1,
-        pynisher.WALL_TIME_LIMIT_REACHED: 1,
-    }
+    assert task.event_counts == Counter(
+        {
+            task.SUBMITTED: 1,
+            task.DONE: 1,
+            task.EXCEPTION: 1,
+            PynisherPlugin.TIMEOUT: 1,
+            PynisherPlugin.WALL_TIME_LIMIT_REACHED: 1,
+        },
+    )
 
-    counts = {
-        scheduler.STARTED: 1,
-        scheduler.STOP: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    counts = Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.STOP: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+            scheduler.FUTURE_EXCEPTION: 1,
+        },
+    )
     assert scheduler.event_counts == counts
 
 
 def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
-    pynisher = PynisherPlugin(cpu_time_limit=1)
-    task = Task(
+    task = scheduler.task(
         cpu_time_wasting_function,
-        scheduler,
-        plugins=[pynisher],
+        plugins=PynisherPlugin(cpu_time_limit=1),
     )
 
     @scheduler.on_start
@@ -154,20 +157,25 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
     with pytest.raises(PynisherPlugin.CpuTimeoutException):
         scheduler.run(on_exception="raise")
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.DONE: 1,
-        task.EXCEPTION: 1,
-        pynisher.TIMEOUT: 1,
-        pynisher.CPU_TIME_LIMIT_REACHED: 1,
-    }
+    assert task.event_counts == Counter(
+        {
+            task.SUBMITTED: 1,
+            task.DONE: 1,
+            task.EXCEPTION: 1,
+            PynisherPlugin.TIMEOUT: 1,
+            PynisherPlugin.CPU_TIME_LIMIT_REACHED: 1,
+        },
+    )
 
-    assert scheduler.event_counts == {
-        scheduler.STARTED: 1,
-        scheduler.STOP: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.STOP: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+            scheduler.FUTURE_EXCEPTION: 1,
+        },
+    )

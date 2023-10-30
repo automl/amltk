@@ -1,4 +1,8 @@
 # Optimization Guide
+!!! todo "This guide needs to be revisited"
+
+    Sorry ...
+
 One of the core tasks of any AutoML system is to optimize some objective,
 whether it be some [`Pipeline`][amltk.pipeline.Pipeline], a black-box or even a toy function.
 
@@ -40,7 +44,7 @@ very central premise.
     two _"Ask"_ and _"Tell"_ events and that's it.
 
 This guide relies lightly on topics covered in the [Pipeline Guide](./pipelines.md) for
-creating a `Pipeline` but also the [Task guide](./tasks.md) for creating a
+creating a `Pipeline` but also the [Scheduling guide](./scheduling.md) for creating a
 [`Scheduler`][amltk.scheduling.Scheduler] and a [`Task`][amltk.scheduling.Task].
 These aren't required but if something is not clear or you'd like to know **how** something
 works, please refer to these guides
@@ -525,14 +529,14 @@ the `Trial` and return the `Report`.
 Now that we've seen the basic optimization loop, it's time to parallelize it with
 a [`Scheduler`][amltk.scheduling.Scheduler] and the [`Task`][amltk.Task].
 We cover the [`Scheduler`][amltk.scheduling.Scheduler] and [`Tasks`][amltk.scheduling.Task]
-in the [Tasks guide](./tasks.md) if you'd like to know more about how this works.
+in the [Scheduling guide](./scheduling.md) if you'd like to know more about how this works.
 
 We first create a [`Scheduler`][amltk.scheduling.Scheduler] to run with `#!python 1`
 process and run it for `#!python 5` seconds.
 Using the event system of AutoML-Toolkit,
 we define what happens through _callbacks_, registering to certain events, such
-as launch a single trial on `scheduler.on_start`, _tell_ the optimizer whenever we get
-something returned with [`task.on_returned`][amltk.Task.on_returned].
+as launch a single trial on `@scheduler.on_start`, _tell_ the optimizer whenever we get
+something returned with [`@task.on_result`][amltk.Task.on_result].
 
 === "Creating a `Task` for a trial"
 
@@ -555,7 +559,7 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
     random_search = RandomSearch(space=space, seed=42)
     scheduler = Scheduler.with_processes(1)
 
-    task = Task(poly)  # (5)!
+    task = scheduler.task(poly)  # (5)!
 
     results = []
 
@@ -564,16 +568,16 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned  # (2)!
+    @task.on_result  # (2)!
     def tell_optimizer(report):
         random_search.tell(report)
 
-    @task.on_returned
+    @task.on_result
     def launch_another_trial(_):
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned  # (3)!
+    @task.on_result  # (3)!
     def save_result(report):
         cost = report["cost"]
         results.append(cost)  # (4)!
@@ -593,14 +597,15 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
     that you wish to access later is up to you.
     5. Here we wrap the function we want to run in another process in a
     [`Task`][amltk.Trial]. There are other backends than
-    processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
+    processes, e.g. Clusters for which you should check out the
+    [Scheduling guide](./scheduling.md).
 
 === "Typed"
 
     ```python hl_lines="19 23 24 25 26 28 29 30 32 33 34 35 37 38 39 40 42"
     from amltk.optimization import RandomSearch, Trial, RSTrialInfo
     from amltk.pipeline import searchable
-    from amltk.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
         x = trial.config["x"]
@@ -616,7 +621,7 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
     random_search = RandomSearch(space=space, seed=42)
     scheduler = Scheduler.with_processes(1)
 
-    task = Task(poly)  # (5)!
+    task = scheduler.task(poly)  # (5)!
 
     results: list[float] = []
 
@@ -625,16 +630,16 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned  # (2)!
+    @task.on_result  # (2)!
     def tell_optimizer(report: Trial.Report) -> None:
         random_search.tell(report)
 
-    @task.on_returned
+    @task.on_result
     def launch_another_trial(_: Trial.Report) -> None:
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned  # (3)!
+    @task.on_result  # (3)!
     def save_result(report: Trial.Report) -> None:
         cost = report["cost"]
         results.append(cost)  # (4)!
@@ -654,9 +659,10 @@ something returned with [`task.on_returned`][amltk.Task.on_returned].
     that you wish to access later is up to you.
     5. Here we wrap the function we want to run in another process in a
     [`Task`][amltk.optimization.Trial]. There are other backends than
-    processes, e.g. Clusters for which you should check out the [Task guide](./tasks.md).
+    processes, e.g. Clusters for which you should check out the
+    [Scheduling guide](./scheduling.md).
 
-Now, to scale up, we trivially increase the number of initial trails launched with `scheduler.on_start`
+Now, to scale up, we trivially increase the number of initial trails launched with `@scheduler.on_start`
 and the number of processes in our `Scheduler`. That's it.
 
 === "Scaling Up"
@@ -664,7 +670,7 @@ and the number of processes in our `Scheduler`. That's it.
     ```python hl_lines="18 19 25"
     from amltk.optimization import RandomSearch, Trial
     from amltk.pipeline import searchable
-    from amltk.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler
 
     def poly(trial):
         x = trial.config["x"]
@@ -682,7 +688,7 @@ and the number of processes in our `Scheduler`. That's it.
     n_workers = 4
     scheduler = Scheduler.with_processes(n_workers)
 
-    task = Task(poly)
+    task = scheduler.task(poly)
 
     results = []
 
@@ -691,16 +697,16 @@ and the number of processes in our `Scheduler`. That's it.
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned
+    @task.on_result
     def tell_optimizer(report):
         random_search.tell(report)
 
-    @task.on_returned
+    @task.on_result
     def launch_another_trial(_):
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned
+    @task.on_result
     def save_result(report):
         cost = report["cost"]
         results.append(cost)
@@ -713,7 +719,7 @@ and the number of processes in our `Scheduler`. That's it.
     ```python hl_lines="18 19 25"
     from amltk.optimization import RandomSearch, Trial, RSTrialInfo
     from amltk.pipeline import searchable
-    from amltk.scheduling import Scheduler, Task
+    from amltk.scheduling import Scheduler
 
     def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
         x = trial.config["x"]
@@ -740,16 +746,16 @@ and the number of processes in our `Scheduler`. That's it.
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned
+    @task.on_result
     def tell_optimizer(report: Trial.Report) -> None:
         random_search.tell(report)
 
-    @task.on_returned
+    @task.on_result
     def launch_another_trial(_: Trial.Report) -> None:
         trial = random_search.ask()
         task(trial)
 
-    @task.on_returned
+    @task.on_result
     def save_result(report: Trial.Report) -> None:
         cost = report["cost"]
         results.append(cost)
@@ -761,10 +767,10 @@ That concludes the main portion of our `Optimization` guide. AutoML-Toolkit prov
 a host of more useful options, such as:
 
 * Setting constraints on your evaluation function, such as memory, wall time and cpu time, concurrency limits
-and call limits. Please refer to the [Task guide](./tasks.md) for more information.
-* Stop the scheduler with whatever stopping criterion you wish. Please refer to the [Tasks guide](./tasks.md) for more information.
+and call limits. Please refer to the [Scheduling guide](./scheduling.md) for more information.
+* Stop the scheduler with whatever stopping criterion you wish. Please refer to the [Scheduling guide](./scheduling.md) for more information.
 * Optimize over complex pipelines. Please refer to the [Pipeline guide](./pipelines.md) for more information.
 * Using different parallelization strategies, such as [Dask](https://dask.org/), [Ray](https://ray.io/),
 [Slurm](https://slurm.schedmd.com/), and [Apache Airflow](https://airflow.apache.org/).
-* Use a whole host of more callbacks to control you system, check out the [Task guide](./tasks.md) for more information.
+* Use a whole host of more callbacks to control you system, check out the [Scheduling guide](./scheduling.md) for more information.
 * Run the scheduler using `asyncio` to allow interactivity, run as a server or other more advanced use cases.

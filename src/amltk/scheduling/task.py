@@ -20,12 +20,17 @@ from typing import (
 from typing_extensions import Concatenate, ParamSpec, Self, override
 from uuid import uuid4 as uuid
 
+from more_itertools import first_true
+
 from amltk.events import Emitter, Event, Subscriber
-from amltk.functional import callstring, funcname
+from amltk.exceptions import EventNotKnownError, SchedulerNotRunningError
+from amltk.functional import callstring
+from amltk.scheduling.task_plugin import TaskPlugin
 
 if TYPE_CHECKING:
+    from rich.panel import Panel
+
     from amltk.scheduling.scheduler import Scheduler
-    from amltk.scheduling.task_plugin import TaskPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +46,15 @@ CallableT = TypeVar("CallableT", bound=Callable)
 class Task(Generic[P, R]):
     """A task is a unit of work that can be scheduled by the scheduler.
 
-    It is defined by its `name` and a `function` to call. Whenever a task
+    It is defined by its `function` to call. Whenever a task
     has its `__call__` method called, the function will be dispatched to run
     by a [`Scheduler`][amltk.scheduling.scheduler.Scheduler].
 
-    The scheduler will emit specific events
-    to this task which look like `(task.name, TaskEvent)`.
-
     To interact with the results of these tasks, you must subscribe to to these
     events and provide callbacks.
+
+    The usual way to create a task is with
+    [`Scheduler.task()`][amltk.scheduling.scheduler.Scheduler.task].
 
     ```python
     from amltk import Task, Scheduler
@@ -61,11 +66,11 @@ class Task(Generic[P, R]):
     # And a scheduler to run it on
     scheduler = Scheduler.with_processes(2)
 
-    # Create the task object, the type anotation Task[[int], int] isn't required
-    my_task = Task(f, scheduler)
+    # Create the task object
+    my_task = scheduler.task(f)
 
     # Subscribe to events
-    @my_task.on_returned
+    @my_task.on_result
     def print_result(future: Future[int], result: int):
         print(f"Future {future} returned {result}")
 
@@ -88,7 +93,7 @@ class Task(Generic[P, R]):
 
 
     scheduler = Scheduler.with_processes(1)
-    task = Task(f, scheduler, plugins=[CallLimiter(max_calls=1)])
+    task = scheduler.task(f, plugins=[CallLimiter(max_calls=1)])
 
     @scheduler.on_start(repeat=3)
     def start():
@@ -102,8 +107,6 @@ class Task(Generic[P, R]):
     ```
     """
 
-    name: str
-    """The name of the task."""
     uuid: str
     """A unique identifier for this task."""
     unique_ref: str
@@ -149,12 +152,12 @@ class Task(Generic[P, R]):
         print(f"Future {future} was cancelled")
     ```
     """
-    on_returned: Subscriber[Future[R], R]
+    on_result: Subscriber[Future[R], R]
     """Called when a task has successfully returned a value.
     Comes with Future
     ```python
-    @task.on_returned
-    def on_returned(future: Future[R], result: R):
+    @task.on_result
+    def on_result(future: Future[R], result: R):
         print(f"Future {future} returned {result}")
     ```
     """
@@ -168,20 +171,19 @@ class Task(Generic[P, R]):
     ```
     """
 
-    SUBMITTED: Event[Concatenate[Future[R], P]] = Event("task-submitted")
-    DONE: Event[Future[R]] = Event("task-done")
+    SUBMITTED: Event[Concatenate[Future[R], P]] = Event("on_submitted")
+    DONE: Event[Future[R]] = Event("on_done")
 
-    CANCELLED: Event[Future[R]] = Event("task-cancelled")
-    RETURNED: Event[Future[R], R] = Event("task-returned")
-    EXCEPTION: Event[Future[R], BaseException] = Event("task-exception")
+    CANCELLED: Event[Future[R]] = Event("on_cancelled")
+    RESULT: Event[Future[R], R] = Event("on_result")
+    EXCEPTION: Event[Future[R], BaseException] = Event("on_exception")
 
     def __init__(
         self: Self,
         function: Callable[P, R],
         scheduler: Scheduler,
         *,
-        name: str | None = None,
-        plugins: Iterable[TaskPlugin] = (),
+        plugins: TaskPlugin | Iterable[TaskPlugin] = (),
         init_plugins: bool = True,
     ) -> None:
         """Initialize a task.
@@ -189,17 +191,17 @@ class Task(Generic[P, R]):
         Args:
             function: The function of this task
             scheduler: The scheduler that this task is registered with.
-            name: The name of the task.
             plugins: The plugins to use for this task.
             init_plugins: Whether to initialize the plugins or not.
         """
         super().__init__()
-        self.name = name if name is not None else funcname(function)
-        self.unique_ref = f"{self.name}-{uuid()}"
+        self.unique_ref = str(uuid())
 
-        self.emitter = Emitter(self.unique_ref)
+        self.emitter = Emitter()
         self.event_counts = self.emitter.event_counts
-        self.plugins: list[TaskPlugin] = list(plugins)
+        self.plugins: list[TaskPlugin] = (
+            [plugins] if isinstance(plugins, TaskPlugin) else list(plugins)
+        )
         self.function: Callable[P, R] = function
         self.scheduler: Scheduler = scheduler
         self.init_plugins: bool = init_plugins
@@ -208,7 +210,7 @@ class Task(Generic[P, R]):
         # Set up subscription methods to events
         self.on_submitted = self.emitter.subscriber(self.SUBMITTED)
         self.on_done = self.emitter.subscriber(self.DONE)
-        self.on_returned = self.emitter.subscriber(self.RETURNED)
+        self.on_result = self.emitter.subscriber(self.RESULT)
         self.on_exception = self.emitter.subscriber(self.EXCEPTION)
         self.on_cancelled = self.emitter.subscriber(self.CANCELLED)
 
@@ -230,12 +232,24 @@ class Task(Generic[P, R]):
         event: Event[P2],
         callback: None = None,
         *,
-        name: str | None = ...,
         when: Callable[[], bool] | None = ...,
         limit: int | None = ...,
         repeat: int = ...,
-        every: int | None = ...,
+        every: int = ...,
     ) -> Subscriber[P2]:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: str,
+        callback: None = None,
+        *,
+        when: Callable[[], bool] | None = ...,
+        limit: int | None = ...,
+        repeat: int = ...,
+        every: int = ...,
+    ) -> Subscriber[...]:
         ...
 
     @overload
@@ -244,43 +258,67 @@ class Task(Generic[P, R]):
         event: Event[P2],
         callback: Callable[P2, Any] | Iterable[Callable[P2, Any]],
         *,
-        name: str | None = ...,
         when: Callable[[], bool] | None = ...,
         limit: int | None = ...,
         repeat: int = ...,
-        every: int | None = ...,
-    ) -> Subscriber[P2]:
+        every: int = ...,
+    ) -> None:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: str,
+        callback: Callable | Iterable[Callable],
+        *,
+        when: Callable[[], bool] | None = ...,
+        limit: int | None = ...,
+        repeat: int = ...,
+        every: int = ...,
+    ) -> None:
         ...
 
     def on(
         self,
-        event: Event[P2],
+        event: Event[P2] | str,
         callback: Callable[P2, Any] | Iterable[Callable[P2, Any]] | None = None,
         *,
-        name: str | None = None,
         when: Callable[[], bool] | None = None,
         limit: int | None = None,
         repeat: int = 1,
-        every: int | None = None,
-    ) -> Subscriber[P2] | None:
+        every: int = 1,
+        hidden: bool = False,
+    ) -> Subscriber[P2] | Subscriber[...] | None:
         """Subscribe to an event.
 
         Args:
             event: The event to subscribe to.
             callback: The callback to call when the event is emitted.
                 If not specified, what is returned can be used as a decorator.
-            name: The name of the subscriber.
             when: A predicate to determine whether to call the callback.
             limit: The number of times to call the callback.
             repeat: The number of times to repeat the subscription.
             every: The number of times to wait between repeats.
+            hidden: Whether to hide the callback in visual output.
+                This is mainly used to facilitate TaskPlugins who
+                act upon events but don't want to be seen, primarily
+                as they are just book-keeping callbacks.
 
         Returns:
             The subscriber if no callback was provided, otherwise `None`.
         """
+        if isinstance(event, str):
+            _e = first_true(self.emitter.events, None, lambda e: e.name == event)
+            if _e is None:
+                raise EventNotKnownError(
+                    f"{event=} is not a valid event."
+                    f"\nKnown events are: {[e.name for e in self.emitter.events]}",
+                )
+        else:
+            _e = event
+
         subscriber = self.emitter.subscriber(
-            event,
-            name=name,
+            _e,  # type: ignore
             when=when,
             limit=limit,
             repeat=repeat,
@@ -289,7 +327,7 @@ class Task(Generic[P, R]):
         if callback is None:
             return subscriber
 
-        subscriber(callback)
+        subscriber(callback, hidden=hidden)
         return None
 
     @property
@@ -330,7 +368,6 @@ class Task(Generic[P, R]):
         return self.__class__(
             self.function,
             self.scheduler,
-            name=self.name,
             plugins=tuple(p.copy() for p in self.plugins),
             init_plugins=init_plugins,
         )
@@ -352,15 +389,14 @@ class Task(Generic[P, R]):
 
             fn, args, kwargs = items  # type: ignore
 
-        future = self.scheduler.submit(fn, *args, **kwargs)
-
-        if future is None:
-            msg = (
-                f"Task {callstring(self.function, *args, **kwargs)} was not"
-                " able to be submitted. The scheduler is likely already finished."
-            )
-            logger.debug(msg)
-            return None
+        try:
+            future = self.scheduler.submit(fn, *args, **kwargs)
+        except SchedulerNotRunningError as e:
+            logger.exception("Scheduler is not running", exc_info=e)
+            raise e
+        except Exception as e:
+            logger.exception("Error submitting task", exc_info=e)
+            raise e
 
         self.queue.append(future)
 
@@ -394,7 +430,7 @@ class Task(Generic[P, R]):
             self.on_exception.emit(future, exception)
         else:
             result = future.result()
-            self.on_returned.emit(future, result)
+            self.on_result.emit(future, result)
 
     def attach_plugin(self, plugin: TaskPlugin) -> None:
         """Attach a plugin to this task.
@@ -425,3 +461,18 @@ class Task(Generic[P, R]):
         kwargs = {"unique_ref": self.unique_ref}
         kwargs_str = ", ".join(f"{k}={v}" for k, v in kwargs.items())
         return f"{self.__class__.__name__}({kwargs_str})"
+
+    def __rich__(self) -> Panel:
+        from rich.panel import Panel
+        from rich.tree import Tree
+
+        from amltk.richutil import Function
+
+        tree = Tree(label="", hide_root=True)
+        tree.add(self.emitter)
+        return Panel(
+            tree,
+            title=Function(self.function, prefix="Task").__rich__(),
+            title_align="left",
+            border_style="deep_sky_blue2",
+        )

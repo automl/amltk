@@ -10,6 +10,19 @@ DEFAULT_MKDOCS_CODE_BLOCK_WIDTH = 82
 FONTSIZE_RICH_HTML = "0.5rem"
 
 
+def make_picklable(thing: Any, name: str | None = None) -> None:
+    """This is hack to make the examples code with schedulers work.
+
+    Scheduler uses multiprocessing and multiprocessing requires that
+    all objects passed to the scheduler are picklable. This is not
+    the case for the classes/functions defined in the example code.
+    """
+    import __main__
+
+    _name = thing.__name__ if name is None else name
+    setattr(__main__, _name, thing)
+
+
 def as_rich_svg(
     *renderable: RenderableType,
     title: str = "",

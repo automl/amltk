@@ -33,18 +33,18 @@ that can be listened to and acted upon if needed.
 
 The maximum amount of wall clock time this task can use.
 If the wall clock time limit triggered and the function crashes as a result,
-the [`TIMEOUT`][amltk.pynisher.PynisherPlugin.TIMEOUT] and
-[`WALL_TIME_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.WALL_TIME_LIMIT_REACHED] events
+the [`@pynisher-timeout`][amltk.pynisher.PynisherPlugin.TIMEOUT] and
+[`@pynisher-wall-time-limit`][amltk.pynisher.PynisherPlugin.WALL_TIME_LIMIT_REACHED] events
 will be emitted.
 
 ```python
-from amltk.scheduling import Task
+from amltk.scheduling import Scheduler
 from amltk.pynisher import PynisherPlugin
 
-pynisher = PynisherPlugin(wall_time_limit=(5, "m")) # (1)!
-task = Task(..., plugins=[pynisher])
+scheduler = Scheduler.with_processes(1)
+task = scheduler.task(..., plugins=PynisherPlugin(wall_time_limit=(5, "m")) # (1)!
 
-@task.on(pynisher.WALL_TIME_LIMIT_REACHED)
+@task.on("pynisher-wall-time-limit")
 def print_it(exception):
     print(f"Failed with {exception=}")
 ```
@@ -54,16 +54,17 @@ def print_it(exception):
 ### Memory
 
 The maximum amount of memory this task can use.
-If the memory limit is triggered, the function crashes as a result, emitting the [`MEMORY_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.MEMORY_LIMIT_REACHED] event.
+If the memory limit is triggered, the function crashes as a result,
+emitting the [`@pynisher-memory-limit`][amltk.pynisher.PynisherPlugin.MEMORY_LIMIT_REACHED] event.
 
 ```python
-from amltk.scheduling import Task
+from amltk.scheduling import Scheduling
 from amltk.pynisher import PynisherPlugin
 
-pynisher = PynisherPlugin(memory_limit=(2, "gb")) # (1)!
-task = Task(..., plugins=[pynisher])
+scheduler = Scheduler.with_processes(1)
+task = scheduler.task(..., plugins=PynisherPlugin(memory_limit=(2, "gb")) # (1)!
 
-@task.on(pynisher.MEMORY_LIMIT_REACHED)
+@task.on("pynisher-memory-limit")
 def print_it(exception):
     print(f"Failed with {exception=}")
 ```
@@ -79,18 +80,19 @@ def print_it(exception):
 
 The maximum amount of CPU time this task can use.
 If the CPU time limit triggered and the function crashes as a result,
-the [`TIMEOUT`][amltk.pynisher.PynisherPlugin.TIMEOUT] and
-[`CPU_TIME_LIMIT_REACHED`][amltk.pynisher.PynisherPlugin.CPU_TIME_LIMIT_REACHED]
+the [`@pynisher-timeout`][amltk.pynisher.PynisherPlugin.TIMEOUT] and
+[`@pynisher-cpu-time-limit`][amltk.pynisher.PynisherPlugin.CPU_TIME_LIMIT_REACHED]
 events will be emitted.
 
 ```python
-from amltk.scheduling import Task
+from amltk.scheduling import Scheduler
 from amltk.pynisher import PynisherPlugin
 
-pynisher = PynisherPlugin(cpu_time_limit=(60, "s")) # (1)!
-task = Task(..., plugins=[pynisher])
 
-@task.on(pynisher.CPU_TIME_LIMIT_REACHED)
+scheduler = Scheduler.with_processes(1)
+task = scheduler.task(..., plugins=PynisherPlugin(cpu_time_limit=(60, "s"))) # (1)!
+
+@task.on("pynisher-cpu-time-limit")
 def print_it(exception):
     print(f"Failed with {exception=}")
 ```

@@ -1,4 +1,8 @@
 ## Comm Plugin
+!!! todo "Update these docs"
+
+    Sorry
+
 The [`Comm`][amltk.scheduling.Comm] is the access point to to enable
 two way communication between a worker and the server.
 
@@ -27,7 +31,7 @@ Below we show an example of both `send()` and
 === "`send()`"
 
     ```python hl_lines="7 9 12 16 17 18 19 20 21"
-    from amltk import Scheduler, Task, Comm
+    from amltk import Scheduler, Comm
 
     # The function must accept an optional `Comm` keyword argument
     def echoer(xs: list[int], comm: Comm | None = None):
@@ -38,7 +42,7 @@ Below we show an example of both `send()` and
               comm.send(x)  # (2)!
 
     scheduler = Scheduler.with_processes(1)
-    task = Task(echoer, scheduler, plugin=[Comm.Plugin()])
+    task = scheduler.task(echoer, plugin=Comm.Plugin())
 
     @scheduler.on_start
     def start():
@@ -71,7 +75,7 @@ Below we show an example of both `send()` and
               response = comm.request(n)  # (1)!
 
     scheduler = Scheduler(...)
-    task = Task(requester, scheduler, plugin=[Comm.Plugin()])
+    task = scheduler.task(requester, plugin=Comm.Plugin())
 
     @scheduler.on_start
     def start():

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections import Counter
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Hashable, Iterator
 
@@ -10,7 +11,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from amltk.scheduling import ExitState, Scheduler, Task
+from amltk.scheduling import ExitState, Scheduler
 from amltk.scheduling.comms import Comm
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 pytest.skip(
     "We havn't revisited the Comm's works in a while and it has issues with "
     " dask. We will revisit this in the future.",
-    allow_module_level=True,
 )
 
 
@@ -105,10 +105,9 @@ def test_sending_worker(scheduler: Scheduler) -> None:
     replies = [1, 2, 3]
     results: list[int] = []
 
-    comm_plugin = Comm.Plugin()
-    task = Task(sending_worker, scheduler=scheduler, plugins=[comm_plugin])
+    task = scheduler.task(sending_worker, plugins=Comm.Plugin())
 
-    @task.on(Comm.MESSAGE)
+    @task.on("comm-message")
     def handle_msg(msg: Any) -> None:
         results.append(msg.data)
 
@@ -118,24 +117,28 @@ def test_sending_worker(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run()
 
-    task_counts: dict[Hashable, int] = {
-        task.SUBMITTED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-        Comm.MESSAGE: len(replies),
-        Comm.CLOSE: 1,
-    }
+    task_counts: dict[Hashable, int] = Counter(
+        {
+            task.SUBMITTED: 1,
+            task.DONE: 1,
+            task.RESULT: 1,
+            Comm.MESSAGE: len(replies),
+            Comm.CLOSE: 1,
+        },
+    )
     assert task.event_counts == task_counts
 
     assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
-    scheduler_counts = {
-        scheduler.STARTED: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    scheduler_counts = Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+        },
+    )
     assert scheduler.event_counts == scheduler_counts
     assert results == [1, 2, 3]
 
@@ -145,14 +148,13 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
     requests = [1, 2, 3]
     results: list[int] = []
 
-    comm_plugin = Comm.Plugin()
-    task = Task(requesting_worker, scheduler=scheduler, plugins=[comm_plugin])
+    task = scheduler.task(requesting_worker, plugins=Comm.Plugin())
 
-    @task.on(Comm.REQUEST)
+    @task.on("comm-request")
     def handle_waiting(msg: Comm.Msg) -> None:
         msg.respond(msg.data * 2)
 
-    @task.on(Comm.MESSAGE)
+    @task.on("comm-message")
     def handle_msg(msg: Comm.Msg) -> None:
         results.append(msg.data)
 
@@ -165,20 +167,24 @@ def test_waiting_worker(scheduler: Scheduler) -> None:
 
     assert results == [2, 4, 6]
 
-    assert task.event_counts == {
-        task.SUBMITTED: 1,
-        task.DONE: 1,
-        task.RETURNED: 1,
-        Comm.MESSAGE: len(results),
-        Comm.REQUEST: len(requests),
-        Comm.CLOSE: 1,
-    }
+    assert task.event_counts == Counter(
+        {
+            task.SUBMITTED: 1,
+            task.DONE: 1,
+            task.RESULT: 1,
+            Comm.MESSAGE: len(results),
+            Comm.REQUEST: len(requests),
+            Comm.CLOSE: 1,
+        },
+    )
 
-    assert scheduler.event_counts == {
-        scheduler.STARTED: 1,
-        scheduler.FINISHING: 1,
-        scheduler.FINISHED: 1,
-        scheduler.EMPTY: 1,
-        scheduler.FUTURE_SUBMITTED: 1,
-        scheduler.FUTURE_DONE: 1,
-    }
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+        },
+    )

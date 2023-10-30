@@ -154,7 +154,7 @@ nav:
     - "guides/index.md"
     - "guides/optimization.md"
     - "guides/pipelines.md"
-    - "guides/tasks.md"
+    - "guides/scheduling.md"
   - Reference:
     - "reference/index.md"
     - "reference/buckets.md"
@@ -173,6 +173,7 @@ nav:
     - "reference/wandb.md"
     - "reference/prebuilt_pipelines.md"
     - "reference/neps.md"
+    - "reference/plugins.md"
   - Examples: "examples/"
     # Auto generated with docs/examples_runner.py
   - API: "api/"
