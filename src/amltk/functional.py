@@ -381,6 +381,7 @@ class Flag(Generic[T]):
 
     def __init__(self, initial: T) -> None:
         """Initialize the flag."""
+        super().__init__()
         self.value = initial
         self.initial = initial
 

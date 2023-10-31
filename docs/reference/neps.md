@@ -20,7 +20,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
-from amltk import History, Pipeline, Task, Trial, step
+from amltk import History, Pipeline, Trial, step
 from amltk.neps import NEPSOptimizer, NEPSTrialInfo
 from amltk.scheduling.scheduler import Scheduler
 
@@ -50,7 +50,7 @@ optimizer = NEPSOptimizer.create(space=pipeline.space(), overwrite=True)
 
 N_WORKERS = 4
 scheduler = Scheduler.with_processes(N_WORKERS)
-task = Task(target_function, scheduler=scheduler)
+task = scheduler.task(target_function)
 
 history = History()
 
@@ -61,14 +61,14 @@ def on_start():
     task.submit(trial, pipeline)
 
 
-@task.on_returned
+@task.on_result
 def tell_and_launch_trial(_, report: Trial.Report):
     optimizer.tell(report)
     trial = optimizer.ask()
     task.submit(trial, pipeline)
 
 
-@task.on_returned
+@task.on_result
 def add_to_history(_, report: Trial.Report):
     history.add(report)
 

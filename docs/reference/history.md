@@ -61,14 +61,14 @@ see the [optimization guide](../guides/optimization.md) for more details.
     optimizer = RandomSearch(space=search_space.space(), seed=42)
 
     scheduler = Scheduler.with_processes(2)
-    task = Trial.Task(quadratic)
+    task = scheduler.task(quadratic)
 
     @scheduler.on_start(repeat=n_workers)
     def launch_trial():
         trial = optimizer.ask()
         task(trial)
 
-    @task.on_returned
+    @task.on_result
     def add_to_history(report):
         history.add(report)
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Callable, ClassVar, Generic, TypeVar
-from typing_extensions import ParamSpec, Self
+from typing_extensions import ParamSpec, Self, override
 
 from amltk.scheduling.task_plugin import TaskPlugin
 
@@ -63,6 +63,7 @@ class ThreadPoolCTLPlugin(TaskPlugin):
     name: ClassVar = "threadpoolctl-plugin"
     """The name of the plugin."""
 
+    @override
     def __init__(
         self,
         max_threads: int | dict[str, int] | None = None,
@@ -76,14 +77,17 @@ class ThreadPoolCTLPlugin(TaskPlugin):
             max_threads: The maximum number of threads to use.
             user_api: The user API to limit.
         """
+        super().__init__()
         self.max_threads = max_threads
         self.user_api = user_api
         self.task: Task | None = None
 
+    @override
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
 
+    @override
     def pre_submit(
         self,
         fn: Callable[P, R],
@@ -104,6 +108,7 @@ class ThreadPoolCTLPlugin(TaskPlugin):
         )
         return fn, args, kwargs
 
+    @override
     def copy(self) -> Self:
         """Return a copy of the plugin.
 

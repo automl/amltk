@@ -52,9 +52,9 @@ def target_function(trial: Trial) -> Trial.Report:
     # Finally report the success
     return trial.success(cost=cost)
 
-scheduler = Scheduler.with_processes()
+scheduler = Scheduler.with_processes(1)
 
-task = Task(target_function, scheduler)
+task = scheduler.task(target_function)
 
 configs = enumerate(
     [
@@ -107,7 +107,7 @@ To use the wandb plugin, the only thing we need to do is create a
 
 ```python hl_lines="3 4 5 6 7 8 13"
 from amltk.wandb import WandbPlugin
-from amltk.scheduling import Task
+from amltk.scheduling import Scheduler
 
 wandb_plugin = WandbPlugin(
     project="amltk-test2",
@@ -116,11 +116,8 @@ wandb_plugin = WandbPlugin(
     mode=...,
 )
 
-task = Task(
-    target_function,
-    scheduler,
-    plugins=[wandb_plugin.trial_tracker()],
-)
+scheduler = Scheduler.with_processes(1)
+task = scheduler.task(target_function, plugins=wandb_plugin.trial_tracker())
 ```
 
 These lines above will automatically attach the wandb run to the trial under
@@ -168,15 +165,14 @@ The below example will add tag runs based on if the `x` value is positive or neg
 
 !!! example "Modifying the run"
 
-    ```python hl_lines="1 2 3 9"
+    ```python hl_lines="1 2 3 7"
     def modify_run(trial: Trial, params: WandbParams) -> WandbParams:
         tags = ["positive"] if trial.config["x"] > 0 else ["negative"]
         return params.modify(tags=tags)
 
     # Later
-    task = Task(
+    task = scheduler.task(
         target_function,
-        scheduler,
         plugins=[wandb_plugin.trial_tracker(modify=modify_run)],
     )
     ```

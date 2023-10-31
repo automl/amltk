@@ -7,23 +7,32 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import warnings
+from asyncio import Future
 from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import dataclass
 from enum import Enum, auto
 from threading import Timer
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, TypeVar
+from uuid import uuid4
 
 from amltk.asyncm import ContextEvent
 from amltk.events import Emitter, Event, Subscriber
+from amltk.exceptions import SchedulerNotRunningError
 from amltk.functional import Flag
 from amltk.scheduling.sequential_executor import SequentialExecutor
+from amltk.scheduling.task import Task
 from amltk.scheduling.termination_strategies import termination_strategy
 
 if TYPE_CHECKING:
     from multiprocessing.context import BaseContext
     from typing_extensions import ParamSpec, Self
 
+    from rich.console import RenderableType
+    from rich.live import Live
+
     from amltk.dask_jobqueue import DJQ_NAMES
+    from amltk.scheduling.task_plugin import TaskPlugin
 
     P = ParamSpec("P")
     R = TypeVar("R")
@@ -46,7 +55,7 @@ class ExitState:
     exception: BaseException | None = None
 
 
-class Scheduler(Emitter):
+class Scheduler:
     """A scheduler for submitting tasks to an Executor.
 
     ```python
@@ -73,100 +82,135 @@ class Scheduler(Emitter):
 
     executor: Executor
     """The executor to use to run tasks."""
-    queue: list[asyncio.Future]
+
+    emitter: Emitter
+    """The emitter to use for events."""
+
+    queue: dict[Future, tuple[Callable, tuple, dict]]
     """The queue of tasks running."""
-    on_finishing: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
-        scheduler is finishing up.
-        ```python
-        @task.on_finishing
-        def on_finishing():
-            ...
-        ```
-    """
+
     on_start: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when the
     scheduler starts.
 
     ```python
-    @task.on_start
-    def on_start():
+    @scheduler.on_start
+    def my_callback():
         ...
     ```
     """
-    on_future_submitted: Subscriber[asyncio.Future]
+    on_future_submitted: Subscriber[Future]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when
     a future is submitted.
+
     ```python
-    @task.on_submission
-    def on_submission(future: Future):
+    @scheduler.on_submission
+    def my_callback(future: Future):
         ...
     ```
     """
-    on_future_done: Subscriber[asyncio.Future]
+    on_future_done: Subscriber[Future]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when
     a future is done.
+
     ```python
-    @task.on_future_done
-    def on_future_done(future: Future):
+    @scheduler.on_future_done
+    def my_callback(future: Future):
         ...
     ```
     """
-    on_future_cancelled: Subscriber[asyncio.Future]
+    on_future_result: Subscriber[Future, Any]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    a future returned with a result.
+
+    ```python
+    @scheduler.on_future_result
+    def my_callback(future: Future, result: Any):
+        ...
+    ```
+    """
+    on_future_exception: Subscriber[Future, BaseException]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    a future has an exception.
+
+    ```python
+    @scheduler.on_future_exception
+    def my_callback(future: Future, exception: BaseException):
+        ...
+    ```
+    """
+    on_future_cancelled: Subscriber[Future]
     """A [`Subscriber`][amltk.events.Subscriber] which is called
     when a future is cancelled.
+
     ```python
-    @task.on_future_cancelled
-    def on_future_cancelled(future: Future):
+    @scheduler.on_future_cancelled
+    def my_callback(future: Future):
+        ...
+    ```
+    """
+    on_finishing: Subscriber[[]]
+    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
+    scheduler is finishing up.
+
+    ```python
+    @scheduler.on_finishing
+    def my_callback():
         ...
     ```
     """
     on_finished: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when
     the scheduler finishes.
+
     ```python
-    @task.on_finished
-    def on_finished():
+    @scheduler.on_finished
+    def my_callback():
         ...
     ```
     """
     on_stop: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when the
     scheduler is stopped.
+
     ```python
-    @task.on_stop
-    def on_stop():
+    @scheduler.on_stop
+    def my_callback():
         ...
     ```
     """
     on_timeout: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when
     the scheduler reaches the timeout.
+
     ```python
-    @task.on_timeout
-    def on_timeout():
+    @scheduler.on_timeout
+    def my_callback():
         ...
     ```
     """
     on_empty: Subscriber[[]]
     """A [`Subscriber`][amltk.events.Subscriber] which is called when the
     queue is empty.
+
     ```python
-    @task.on_empty
-    def on_empty():
+    @scheduler.on_empty
+    def my_callback():
         ...
     ```
     """
 
-    STARTED: Event[[]] = Event("scheduler-started")
-    FINISHING: Event[[]] = Event("scheduler-finishing")
-    FINISHED: Event[[]] = Event("scheduler-finished")
-    STOP: Event[[]] = Event("scheduler-stop")
-    TIMEOUT: Event[[]] = Event("scheduler-timeout")
-    EMPTY: Event[[]] = Event("scheduler-empty")
-    FUTURE_SUBMITTED: Event[asyncio.Future] = Event("scheduler-future-submitted")
-    FUTURE_DONE: Event[asyncio.Future] = Event("scheduler-future-done")
-    FUTURE_CANCELLED: Event[asyncio.Future] = Event("scheduler-future-cancelled")
+    STARTED: Event[[]] = Event("on_start")
+    FINISHING: Event[[]] = Event("on_finishing")
+    FINISHED: Event[[]] = Event("on_finished")
+    STOP: Event[[]] = Event("on_stop")
+    TIMEOUT: Event[[]] = Event("on_timeout")
+    EMPTY: Event[[]] = Event("on_empty")
+    FUTURE_SUBMITTED: Event[Future] = Event("on_future_submitted")
+    FUTURE_DONE: Event[Future] = Event("on_future_done")
+    FUTURE_CANCELLED: Event[Future] = Event("on_future_cancelled")
+    FUTURE_RESULT: Event[Future, Any] = Event("on_future_result")
+    FUTURE_EXCEPTION: Event[Future, BaseException] = Event("on_future_exception")
 
     def __init__(
         self,
@@ -207,21 +251,29 @@ class Scheduler(Emitter):
                 If False, shutdown will not be called and the executor will
                 remain active.
         """
-        super().__init__(event_manager="Scheduler")
+        super().__init__()
         self.executor = executor
+        self.unique_ref = f"Scheduler-{uuid4()}"
+        self.emitter = Emitter()
+        self.event_counts = self.emitter.event_counts
 
         # The current state of things and references to them
-        self.queue: list[asyncio.Future] = []
+        self.queue = {}
 
-        self.on_start = self.subscriber(self.STARTED)
-        self.on_finishing = self.subscriber(self.FINISHING)
-        self.on_future_submitted = self.subscriber(self.FUTURE_SUBMITTED)
-        self.on_future_done = self.subscriber(self.FUTURE_DONE)
-        self.on_future_cancelled = self.subscriber(self.FUTURE_CANCELLED)
-        self.on_finished = self.subscriber(self.FINISHED)
-        self.on_stop = self.subscriber(self.STOP)
-        self.on_timeout = self.subscriber(self.TIMEOUT)
-        self.on_empty = self.subscriber(self.EMPTY)
+        # Set up subscribers for events
+        self.on_start = self.emitter.subscriber(self.STARTED)
+        self.on_finishing = self.emitter.subscriber(self.FINISHING)
+        self.on_finished = self.emitter.subscriber(self.FINISHED)
+        self.on_stop = self.emitter.subscriber(self.STOP)
+        self.on_timeout = self.emitter.subscriber(self.TIMEOUT)
+        self.on_empty = self.emitter.subscriber(self.EMPTY)
+
+        self.on_future_submitted = self.emitter.subscriber(self.FUTURE_SUBMITTED)
+        self.on_future_done = self.emitter.subscriber(self.FUTURE_DONE)
+        self.on_future_cancelled = self.emitter.subscriber(self.FUTURE_CANCELLED)
+        self.on_future_exception = self.emitter.subscriber(self.FUTURE_EXCEPTION)
+        self.on_future_result = self.emitter.subscriber(self.FUTURE_RESULT)
+
         self._terminate: Callable[[Executor], None] | None
         if terminate is True:
             self._terminate = termination_strategy(executor)
@@ -247,6 +299,19 @@ class Scheduler(Emitter):
         # because the sync code of submit could possibly keep calling itself
         # endlessly, preventing any of the async code from running.
         self._timeout_timer: Timer | None = None
+
+        # A collection of things that want to register as being part of something
+        # to render when the Scheduler is rendered.
+        self._renderables: list[RenderableType] = [self.emitter]
+
+        # These are extra user provided renderables during a call to `run()`. We
+        # seperate these out so that we can remove them when the scheduler is
+        # stopped.
+        self._extra_renderables: list[RenderableType] | None = None
+
+        # An indicator an object to render live output (if requested) with
+        # `display=` on a call to `run()`
+        self._live_output: Live | None = None
 
     @classmethod
     def with_processes(
@@ -613,7 +678,7 @@ class Scheduler(Emitter):
         function: Callable[P, R],
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> asyncio.Future[R] | None:
+    ) -> Future[R]:
         """Submits a callable to be executed with the given arguments.
 
         Args:
@@ -623,34 +688,76 @@ class Scheduler(Emitter):
             args: positional arguments to pass to the function
             kwargs: keyword arguments to pass to the function
 
+        Raises:
+            Scheduler.NotRunningError: If the scheduler is not running.
+
         Returns:
             A Future representing the given call.
         """
         if not self.running():
-            logger.debug(f"Scheduler is not running, cannot submit task {function}")
-            return None
+            msg = (
+                f"Scheduler is not running, cannot submit task {function}"
+                f" with {args=}, {kwargs=}"
+            )
+            raise SchedulerNotRunningError(msg)
 
         try:
             sync_future = self.executor.submit(function, *args, **kwargs)
             future = asyncio.wrap_future(sync_future)
-        except RuntimeError:
-            logger.warning(f"Executor is not running, cannot submit task {function}")
-            return None
+        except Exception as e:
+            logger.exception(f"Could not submit task {function}", exc_info=e)
+            raise e
 
-        self._register_future(future)
+        self._register_future(future, function, *args, **kwargs)
         return future
 
-    def _register_future(self, future: asyncio.Future) -> None:
-        self.queue.append(future)
+    def task(
+        self,
+        function: Callable[P, R],
+        *,
+        plugins: TaskPlugin | Iterable[TaskPlugin] = (),
+        init_plugins: bool = True,
+    ) -> Task[P, R]:
+        """Create a new task.
+
+        Args:
+            function: The function to run using the scheduler.
+            plugins: The plugins to attach to the task.
+            init_plugins: Whether to initialize the plugins.
+
+        Returns:
+            A new task.
+        """
+        task = Task(function, self, plugins=plugins, init_plugins=init_plugins)
+        self.add_renderable(task)
+        return task
+
+    def _register_future(
+        self,
+        future: Future,
+        function: Callable,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Registers the future into the queue and add a callback that will be called
+        upon future completion. This callback will remove the future from the queue.
+        """
+        self.queue[future] = (function, args, kwargs)
         self._queue_has_items_event.set()
 
         self.on_future_submitted.emit(future)
         future.add_done_callback(self._register_complete)
 
-    def _register_complete(self, future: asyncio.Future) -> None:
-        try:
-            self.queue.remove(future)
+        # Display if requested
+        if self._live_output:
+            self._live_output.refresh()
+            future.add_done_callback(
+                lambda _, live=self._live_output: live.refresh(),  # type: ignore
+            )
 
+    def _register_complete(self, future: Future) -> None:
+        try:
+            self.queue.pop(future)
         except ValueError as e:
             logger.error(
                 f"{future=} was not found in the queue {self.queue}: {e}!",
@@ -664,8 +771,13 @@ class Scheduler(Emitter):
         self.on_future_done.emit(future)
 
         exception = future.exception()
-        if exception and self._end_on_exception_flag and future.done():
-            self.stop(stop_msg="Ending on first exception", exception=exception)
+        if exception:
+            self.on_future_exception.emit(future, exception)
+            if self._end_on_exception_flag and future.done():
+                self.stop(stop_msg="Ending on first exception", exception=exception)
+        else:
+            result = future.result()
+            self.on_future_result.emit(future, result)
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
@@ -674,7 +786,7 @@ class Scheduler(Emitter):
 
         while True:
             while self.queue:
-                queue = self.queue[:]
+                queue = list(self.queue)
                 await asyncio.wait(queue, return_when=asyncio.ALL_COMPLETED)
 
             # Signal that the queue is now empty
@@ -696,7 +808,7 @@ class Scheduler(Emitter):
         logger.debug("Stop event triggered, stopping scheduler")
         return True
 
-    async def _run_scheduler(
+    async def _run_scheduler(  # noqa: C901, PLR0912, PLR0915
         self,
         *,
         timeout: float | None = None,
@@ -705,6 +817,19 @@ class Scheduler(Emitter):
     ) -> ExitCode | BaseException:
         self.executor.__enter__()
         self._stop_event = ContextEvent()
+
+        if self._live_output is not None:
+            self._live_output.__enter__()
+
+            # If we are doing a live display, we have to disable
+            # warnings as they will screw up the display rendering
+            # However, we re-enable it after the scheduler has finished running
+            warning_catcher = warnings.catch_warnings()
+            warning_catcher.__enter__()
+            warnings.filterwarnings("ignore")
+        else:
+            warning_catcher = None
+
         # Declare we are running
         self._running_event.set()
 
@@ -726,7 +851,7 @@ class Scheduler(Emitter):
         # Monitor for the queue being empty
         monitor_empty = asyncio.create_task(self._monitor_queue_empty())
         if end_on_empty:
-            self.on_empty(lambda: monitor_empty.cancel())
+            self.on_empty(lambda: monitor_empty.cancel(), hidden=True)
 
         # The timeout criterion is satisifed by the `timeout` arg
         await asyncio.wait(
@@ -760,12 +885,13 @@ class Scheduler(Emitter):
             logger.warning("Scheduler stopping for unknown reason!")
             stop_reason = Scheduler.ExitCode.UNKNOWN
 
-        # Stop monitoring the queue to trigger an event
-        monitor_empty.cancel()
-        stop_triggered.cancel()
+        # Stop all runnings async tasks, i.e. monitoring the queue to trigger an event
+        tasks = [monitor_empty, stop_triggered]
+        for task in tasks:
+            task.cancel()
 
         # Await all the cancelled tasks and read the exceptions
-        await asyncio.gather(*[monitor_empty, stop_triggered], return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         self.on_finishing.emit()
         logger.debug("Scheduler is finished")
@@ -778,7 +904,7 @@ class Scheduler(Emitter):
         # This will try to end the tasks based on wait and self._terminate
         Scheduler._end_pending(
             wait=wait,
-            futures=self.queue,
+            futures=list(self.queue.keys()),
             executor=self.executor,
             termination_strategy=self._terminate,
         )
@@ -790,6 +916,16 @@ class Scheduler(Emitter):
         self._stop_event.clear()
         self._queue_has_items_event.clear()
 
+        if self._live_output is not None:
+            self._live_output.refresh()
+            self._live_output.stop()
+
+        if self._timeout_timer is not None:
+            self._timeout_timer.cancel()
+
+        if warning_catcher is not None:
+            warning_catcher.__exit__()  # type: ignore
+
         return stop_reason
 
     def run(
@@ -800,6 +936,7 @@ class Scheduler(Emitter):
         wait: bool = True,
         on_exception: Literal["raise", "end", "ignore"] = "raise",
         asyncio_debug_mode: bool = False,
+        display: bool | list[RenderableType] = False,
     ) -> ExitState:
         """Run the scheduler.
 
@@ -816,6 +953,10 @@ class Scheduler(Emitter):
                 If "end", the scheduler will end but not raise.
             asyncio_debug_mode: Whether to run the async loop in debug mode.
                 Defaults to `False`. Please see [asyncio.run][] for more.
+            display: Whether to display things in the console.
+                If `True`, will display the scheduler and all its
+                renderables. If a list of renderables, will display
+                the scheduler itself plus those renderables.
 
         Returns:
             The reason for the scheduler ending.
@@ -829,6 +970,7 @@ class Scheduler(Emitter):
                 end_on_empty=end_on_empty,
                 wait=wait,
                 on_exception=on_exception,
+                display=display,
             ),
             debug=asyncio_debug_mode,
         )
@@ -840,6 +982,7 @@ class Scheduler(Emitter):
         end_on_empty: bool = True,
         wait: bool = True,
         on_exception: Literal["raise", "end", "ignore"] = "raise",
+        display: bool | list[RenderableType] = False,
     ) -> ExitState:
         """Async version of `run`.
 
@@ -853,6 +996,10 @@ class Scheduler(Emitter):
                 if "raise", the exception will be raised.
                 If "ignore", the scheduler will continue running.
                 If "end", the scheduler will end but not raise.
+            display: Whether to display things in the console.
+                If `True`, will display the scheduler and all its
+                renderables. If a list of renderables, will display
+                the scheduler itself plus those renderables.
 
         Returns:
             The reason for the scheduler ending.
@@ -862,33 +1009,59 @@ class Scheduler(Emitter):
 
         logger.debug("Starting scheduler")
 
-        # Make sure the flag is set
+        # Make sure flags are set
         self._end_on_exception_flag.set(value=on_exception in ("raise", "end"))
 
+        # If the user has requested to have a live display,
+        # we will need to setup a `Live` instance to render to
+        if display:
+            from rich.live import Live
+
+            if isinstance(display, list):
+                self._extra_renderables = display
+
+            self._live_output = Live(
+                auto_refresh=False,
+                get_renderable=self.__rich__,
+            )
+
+        loop = asyncio.get_running_loop()
+
+        # Set the exception handler for asyncio
+        previous_exception_handler = None
         if on_exception in ("raise", "end"):
+            previous_exception_handler = loop.get_exception_handler()
 
             def custom_exception_handler(
                 loop: asyncio.AbstractEventLoop,
                 context: dict[str, Any],
             ) -> None:
-                # first, handle with default handler
-                loop.default_exception_handler(context)
-
                 exception = context.get("exception")
                 message = context.get("message")
                 self.stop(stop_msg=message, exception=exception)
 
-            loop = asyncio.get_running_loop()
+                # handle with previous handler
+                if previous_exception_handler:
+                    previous_exception_handler(loop, context)
+                else:
+                    loop.default_exception_handler(context)
+
             loop.set_exception_handler(custom_exception_handler)
 
+        # Run the actual scheduling loop
         result = await self._run_scheduler(
             timeout=timeout,
             end_on_empty=end_on_empty,
             wait=wait,
         )
 
-        # Reset it back to its default
+        # Reset variables back to its default
+        self._live_output = None
+        self._extra_renderables = None
         self._end_on_exception_flag.reset()
+
+        if previous_exception_handler is not None:
+            loop.set_exception_handler(previous_exception_handler)
 
         # If we were meant to end on an exception and the result
         # we got back from the scheduler was an exception, raise it
@@ -899,6 +1072,9 @@ class Scheduler(Emitter):
             return ExitState(code=Scheduler.ExitCode.EXCEPTION, exception=result)
 
         return ExitState(code=result)
+
+    run_in_notebook = async_run
+    """Alias for [`async_run()`][amltk.Scheduler.async_run]"""
 
     def stop(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         """Stop the scheduler.
@@ -932,7 +1108,7 @@ class Scheduler(Emitter):
     @staticmethod
     def _end_pending(
         *,
-        futures: list[asyncio.Future],
+        futures: list[Future],
         executor: Executor,
         wait: bool = True,
         termination_strategy: Callable[[Executor], Any] | None = None,
@@ -963,6 +1139,79 @@ class Scheduler(Emitter):
                     future.cancel()
             termination_strategy(executor)
             executor.shutdown(wait=wait)
+
+    def add_renderable(self, renderable: RenderableType) -> None:
+        """Add a renderable to the scheduler.
+
+        This will be displayed whenever the scheduler is displayed.
+        """
+        self._renderables.append(renderable)
+
+    def __rich__(self) -> RenderableType:
+        from rich.console import Group
+        from rich.panel import Panel
+        from rich.table import Column, Table
+        from rich.text import Text
+        from rich.tree import Tree
+
+        from amltk.richutil import richify
+        from amltk.richutil.renderers.function import Function
+
+        MAX_FUTURE_ITEMS = 5
+        OFFSETS = 1 + 1 + 2  # Header + ellipses space + panel borders
+
+        title = Text("Scheduler", style="magenta bold")
+        if self.running():
+            title.append(" (running)", style="green")
+
+        future_table = Table.grid()
+
+        # Select the most latest items
+        future_items = list(self.queue.items())[-MAX_FUTURE_ITEMS:]
+        for future, (func, args, kwargs) in future_items:
+            entry = Function(
+                func,
+                (args, kwargs),
+                link=False,
+                prefix=future._state,
+                no_wrap=True,
+            )
+            future_table.add_row(entry)
+
+        if len(self.queue) > MAX_FUTURE_ITEMS:
+            future_table.add_row(Text("...", style="yellow"))
+
+        queue_column_text = Text.assemble(
+            "Queue: (",
+            (f"{len(self.queue)}", "yellow"),
+            ")",
+        )
+
+        layout_table = Table(
+            Column("Executor", ratio=1),
+            Column(queue_column_text, ratio=2),
+            box=None,
+            expand=True,
+            padding=(0, 1),
+        )
+        layout_table.add_row(richify(self.executor), future_table)
+
+        title = Panel(
+            layout_table,
+            title=title,
+            title_align="left",
+            border_style="magenta",
+            height=MAX_FUTURE_ITEMS + OFFSETS,
+        )
+        tree = Tree(title, guide_style="magenta bold")
+
+        for renderable in self._renderables:
+            tree.add(renderable)
+
+        if not self._extra_renderables:
+            return tree
+
+        return Group(tree, *self._extra_renderables)
 
     class ExitCode(Enum):
         """The reason the scheduler ended."""

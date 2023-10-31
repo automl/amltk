@@ -53,19 +53,57 @@ class Comm:
     [`Pipe`][multiprocessing.Pipe], use the
     [`create(duplex=...)`][amltk.Comm.create] class method.
 
+    Adds three new events to the task:
+
+    * [`MESSAGE`][amltk.scheduling.comms.Comm.MESSAGE]
+        - subscribe with `@task.on("comm-message")`
+    * [`REQUEST`][amltk.scheduling.comms.Comm.REQUEST]
+        - subscribe with `@task.on("comm-request")`
+    * [`CLOSE`][amltk.scheduling.comms.Comm.CLOSE]
+        - subscribe with `@task.on("comm-close")`
+
     Attributes:
         connection: The underlying Connection
         id: The id of the comm.
     """
 
-    MESSAGE: Event[Comm.Msg] = Event("commtask-message")
-    """A Task has sent a message."""
+    MESSAGE: Event[Comm.Msg] = Event("comm-message")
+    """A Task has sent a message.
 
-    REQUEST: Event[Comm.Msg] = Event("commtask-request")
-    """A Task is waiting for a response."""
+    ```python
+    @task.on("comm-message")
+    def on_message(msg: Comm.Msg[int]):
+        task: Task = msg.task
+        data: int = msg.data
+        identifier: int = msg.identifier
 
-    CLOSE: Event[[]] = Event("commtask-close")
-    """The task has signalled it's close."""
+        msg.respond("hello")
+    ```
+    """
+
+    REQUEST: Event[Comm.Msg] = Event("comm-request")
+    """A Task is waiting for a response to this message.
+
+    ```python
+    @task.on("comm-message")
+    def on_request(msg: Comm.Msg[int]):
+        task: Task = msg.task
+        data: int = msg.data
+        identifier: int = msg.identifier
+
+        msg.respond(data * 2)
+    ```
+    """
+
+    CLOSE: Event[[]] = Event("comm-close")
+    """The task has signalled it's close.
+
+    ```python
+    @task.on("comm-close")
+    def on_close():
+        ...
+    ```
+    """
 
     def __init__(self, connection: Connection) -> None:
         """Initialize the Comm.
@@ -374,7 +412,7 @@ class Comm:
             the comms have finished.
             """
             worker_id = worker_comm.id
-            task_name = self.task.name
+            task_name = self.task.unique_ref
             name = f"{task_name}({worker_id})"
 
             while True:
@@ -386,7 +424,7 @@ class Comm:
                     # close and we emit a CLOSE event. This should break out
                     # of the loop as we expect no more signals after this point
                     if data is Comm.Msg.Kind.CLOSE:
-                        self.task.emit(Comm.CLOSE)
+                        self.task.emitter.emit(Comm.CLOSE)
                         break
 
                     # When we recieve (REQUEST, data), this was sent with
@@ -404,7 +442,7 @@ class Comm:
                             real_data,
                             identifier=worker_id,
                         )
-                        self.task.emit(Comm.REQUEST, msg)
+                        self.task.emitter.emit(Comm.REQUEST, msg)
 
                     # Otherwise it's just a simple `send` with some data we
                     # emit as a MESSAGE event
@@ -416,7 +454,7 @@ class Comm:
                             data,
                             identifier=worker_id,
                         )
-                        self.task.emit(Comm.MESSAGE, msg)
+                        self.task.emitter.emit(Comm.MESSAGE, msg)
 
                 except EOFError:
                     logger.debug(f"{name}: closed connection")

@@ -12,7 +12,6 @@ from typing import (
     Iterator,
     List,
     Mapping,
-    NewType,
     NoReturn,
     Protocol,
     Sequence,
@@ -50,8 +49,6 @@ Seed: TypeAlias = Union[int, np.random.RandomState, np.random.Generator]
 """Type alias for kinds of Seeded objects"""
 
 FidT = Union[Tuple[int, int], Tuple[float, float], List[Any]]
-
-UniqueRef = NewType("UniqueRef", str)
 
 
 class Comparable(Protocol):
@@ -114,7 +111,6 @@ def safe_isinstance(obj: Any, t: str | tuple[str, ...]) -> bool:
     return safe_issubclass(type(obj), t)
 
 
-@dataclass
 class Requeue(Iterator[T]):
     """A queue that can have items requeued.
 
@@ -154,10 +150,10 @@ class Requeue(Iterator[T]):
             Requeue an item to the start of the queue
     """
 
-    generator: Iterator[T]
-
-    def __post_init__(self) -> None:
-        self.generator = iter(self.generator)
+    def __init__(self, generator: Iterable[T]) -> None:
+        """Create a requeue from an iterable."""
+        super().__init__()
+        self.generator = iter(generator)
 
     @override
     def __next__(self) -> T:

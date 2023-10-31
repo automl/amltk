@@ -1,13 +1,16 @@
 """This module contains the TaskPlugin class."""
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from itertools import chain
-from typing import Any, Callable, ClassVar, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, Iterable, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
-from amltk.events import Emitter, Event, Subscriber
-from amltk.scheduling.task import Task
+from amltk.events import Event
+
+if TYPE_CHECKING:
+    from amltk.scheduling.task import Task
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -110,59 +113,61 @@ class TaskPlugin(ABC):
         ...
 
 
-class CallLimiter(Emitter, TaskPlugin):
-    """A plugin that limits the submission of a task."""
+class CallLimiter(TaskPlugin):
+    """A plugin that limits the submission of a task.
+
+    Adds three new events to the task:
+
+    * [`CALL_LIMIT_REACHED`][amltk.scheduling.CallLimiter.CALL_LIMIT_REACHED]
+        - subscribe with `@task.on("call-limit-reached")`
+    * [`CONCURRENT_LIMIT_REACHED`][amltk.scheduling.CallLimiter.CONCURRENT_LIMIT_REACHED]
+        - subscribe with `@task.on("concurrent-limit-reached")`
+    * [`DISABLED_DUE_TO_RUNNING_TASK`][amltk.scheduling.CallLimiter.DISABLED_DUE_TO_RUNNING_TASK]
+        - subscribe with `@task.on("disabled-due-to-running-task")`
+    """  # noqa: E501
 
     name: ClassVar = "call-limiter"
     """The name of the plugin."""
 
-    on_max_call_limit: Subscriber[...]
-    """A subscriber that is called when the maximum number of calls to the task
-    is reached.
-    ```python
-    limiter = CallLimiter(max_calls=2)
-    task = Task(..., plugins=[limiter])
+    CALL_LIMIT_REACHED: Event[...] = Event("call-limit-reached")
+    """The event emitted when the task has reached its call limit.
 
-    @limiter.on_max_call_limit
-    def on_max_call_limit(task, *args, **kwargs):
-        print("Task {task.name} disable as max calls reached")
+    Will call any subscribers with the task as the first argument,
+    followed by the arguments and keyword arguments that were passed to the task.
+
+    ```python
+    @task.on("call-limit-reached")
+    def on_call_limit_reached(task: Task, *args, **kwargs):
+        ...
     ```
     """
 
-    on_max_concurrent: Subscriber[...]
-    """A subscriber that is called when the number of concurrent runs of this task
-    would exceed the maximum number of concurrent runs.
-    ```python
-    limiter = CallLimiter(max_concurrent=2)
-    task = Task(..., plugins=[limiter])
+    CONCURRENT_LIMIT_REACHED: Event[...] = Event("concurrent-limit-reached")
+    """The event emitted when the task has reached its concurrent call limit.
 
-    @limiter.on_max_concurrent
-    def on_max_concurrent(task, *args, **kwargs):
-        print("Task {task.name} disable as max concurrent runs reached")
+    Will call any subscribers with the task as the first argument, followed by the
+    arguments and keyword arguments that were passed to the task.
+
+    ```python
+    @task.on("concurrent-limit-reached")
+    def on_concurrent_limit_reached(task: Task, *args, **kwargs):
+        ...
     ```
     """
 
-    on_disabled_due_to_running_task: Subscriber[...]
-    """A subscriber that is called when the maximum number of calls to the task
-    is reached.
+    DISABLED_DUE_TO_RUNNING_TASK: Event[...] = Event("disabled-due-to-running-task")
+    """The event emitter when the task was not submitted due to some other
+    running task.
+
+    Will call any subscribers with the task as first argument, followed by
+    the arguments and keyword arguments that were passed to the task.
+
     ```python
-    task1 = Task(...)
-
-    limiter = CallLimiter(not_while_running=task1)
-    task2 = Task(..., plugins=[limiter])
-
-    @limiter.on_disabled_due_to_running_task
-    def on_disabled_due_to_running_task(other_task, task, *args, **kwargs):
-        print(
-            f"Task {task.name} was not submitted because {other_task.name} is currently"
-            " running"
-        )
+    @task.on("disabled-due-to-running-task")
+    def on_disabled_due_to_running_task(task: Task, *args, **kwargs):
+        ...
     ```
     """
-
-    CALL_LIMIT_REACHED: Event[...] = Event("call-limiter-call-limit")
-    CONCURRENT_LIMIT_REACHED: Event[...] = Event("call-limiter-concurrent-limit")
-    DISABLED_DUE_TO_RUNNING_TASK: Event[...] = Event("call-limiter-disabled")
 
     def __init__(
         self,
@@ -182,12 +187,12 @@ class CallLimiter(Emitter, TaskPlugin):
         """
         super().__init__()
 
-        if isinstance(not_while_running, Task):
-            not_while_running = [not_while_running]
-        elif not_while_running is None:
+        if not_while_running is None:
             not_while_running = []
-        else:
+        elif isinstance(not_while_running, Iterable):
             not_while_running = list(not_while_running)
+        else:
+            not_while_running = [not_while_running]
 
         self.max_calls = max_calls
         self.max_concurrent = max_concurrent
@@ -203,12 +208,6 @@ class CallLimiter(Emitter, TaskPlugin):
         self._calls = 0
         self._concurrent = 0
 
-        self.on_max_call_limit = self.subscriber(self.CALL_LIMIT_REACHED)
-        self.on_max_concurrent = self.subscriber(self.CONCURRENT_LIMIT_REACHED)
-        self.on_disabled_due_to_running_task = self.subscriber(
-            self.DISABLED_DUE_TO_RUNNING_TASK,
-        )
-
     @override
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
@@ -216,13 +215,19 @@ class CallLimiter(Emitter, TaskPlugin):
 
         if self.task in self.not_while_running:
             raise ValueError(
-                f"Task {self.task.name} was found in the {self.not_while_running=}"
+                f"Task {self.task} was found in the {self.not_while_running=}"
                 " list. This is disabled but please raise an issue if you think this"
                 " has sufficient use case.",
             )
 
+        task.emitter.add_event(
+            self.CALL_LIMIT_REACHED,
+            self.CONCURRENT_LIMIT_REACHED,
+            self.DISABLED_DUE_TO_RUNNING_TASK,
+        )
+
         # Make sure to increment the count when a task was submitted
-        task.on_submitted(self._increment_call_count)
+        task.on_submitted(self._increment_call_count, hidden=True)
 
     @override
     def pre_submit(
@@ -238,19 +243,25 @@ class CallLimiter(Emitter, TaskPlugin):
         assert self.task is not None
 
         if self.max_calls is not None and self._calls >= self.max_calls:
-            self.on_max_call_limit.emit(self.task, *args, **kwargs)
+            self.task.emitter.emit(self.CALL_LIMIT_REACHED, self.task, *args, **kwargs)
             return None
 
         if (
             self.max_concurrent is not None
             and len(self.task.queue) >= self.max_concurrent
         ):
-            self.on_max_concurrent.emit(self.task, *args, **kwargs)
+            self.task.emitter.emit(
+                self.CONCURRENT_LIMIT_REACHED,
+                self.task,
+                *args,
+                **kwargs,
+            )
             return None
 
         for other_task in self.not_while_running:
             if other_task.running():
-                self.on_disabled_due_to_running_task.emit(
+                self.task.emitter.emit(
+                    self.DISABLED_DUE_TO_RUNNING_TASK,
                     other_task,
                     self.task,
                     *args,
@@ -270,3 +281,77 @@ class CallLimiter(Emitter, TaskPlugin):
 
     def _increment_call_count(self, *_: Any, **__: Any) -> None:
         self._calls += 1
+
+
+class _IgnoreWarningWrapper(Generic[P, R]):
+    """A wrapper to ignore warnings."""
+
+    def __init__(
+        self,
+        fn: Callable[P, R],
+        *warning_args: Any,
+        **warning_kwargs: Any,
+    ):
+        """Initialize the wrapper.
+
+        Args:
+            fn: The function to wrap.
+            *warning_args: arguments to pass to
+                [`warnings.filterwarnings`][warnings.filterwarnings].
+            **warning_kwargs: keyword arguments to pass to
+                [`warnings.filterwarnings`][warnings.filterwarnings].
+        """
+        super().__init__()
+        self.fn = fn
+        self.warning_args = warning_args
+        self.warning_kwargs = warning_kwargs
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(*self.warning_args, **self.warning_kwargs)
+            return self.fn(*args, **kwargs)
+
+
+class WarningFilterPlugin(TaskPlugin):
+    """A plugin that disables warnings emitted from tasks."""
+
+    name: ClassVar = "warning-filter"
+    """The name of the plugin."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """Initialize the plugin.
+
+        Args:
+            *args: arguments to pass to
+                [`warnings.filterwarnings`][warnings.filterwarnings].
+            **kwargs: keyword arguments to pass to
+                [`warnings.filterwarnings`][warnings.filterwarnings].
+        """
+        super().__init__()
+        self.task: Task | None = None
+        self.warning_args = args
+        self.warning_kwargs = kwargs
+
+    @override
+    def attach_task(self, task: Task) -> None:
+        """Attach the plugin to a task."""
+        self.task = task
+
+    @override
+    def pre_submit(
+        self,
+        fn: Callable[P, R],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> tuple[Callable[P, R], tuple, dict]:
+        """Pre-submit hook.
+
+        Wraps the function to ignore warnings.
+        """
+        wrapped_f = _IgnoreWarningWrapper(fn, *self.warning_args, **self.warning_kwargs)
+        return wrapped_f, args, kwargs
+
+    @override
+    def copy(self) -> Self:
+        """Return a copy of the plugin."""
+        return self.__class__(*self.warning_args, **self.warning_kwargs)

@@ -26,7 +26,7 @@ to create the most flexible optimization framework we could imagine.
         * A wide set of events to plug into.
         * An easy to extend system to create your own specialized events and tasks.
 
-    Checkout the [Task guide](./tasks.md)
+    Checkout the [Scheduling guide](./scheduling.md)
 
 ---
 

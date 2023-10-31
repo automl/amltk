@@ -3,9 +3,13 @@
 # where rich not being installed.
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor
 from typing import TYPE_CHECKING, Any
 
-from amltk.richutil.renderers import rich_make_column_selector
+from amltk.richutil.renderers import (
+    ProcessPoolExecutorRenderer,
+    rich_make_column_selector,
+)
 from amltk.types import safe_isinstance
 
 if TYPE_CHECKING:
@@ -34,6 +38,9 @@ def richify(
     """
     if safe_isinstance(obj, "make_column_selector"):
         return rich_make_column_selector(obj)
+
+    if isinstance(obj, ProcessPoolExecutor):
+        return ProcessPoolExecutorRenderer(obj)
 
     if otherwise:
         return otherwise(obj)
