@@ -62,7 +62,7 @@ class NeuralNetwork(torch.nn.Module):
         return x
         
 class NN_Classifier:
-    def __init__(self, neurons, depth, learning_rate,batch_size, dropout_factor, n_epochs ):
+    def __init__(self, neurons, depth, learning_rate, batch_size, dropout_factor, n_epochs ):
         self.layers_data = [neurons]*depth
         self.dropout_factor = dropout_factor
         self.learning_rate = learning_rate
@@ -293,7 +293,7 @@ X_train, y_train = data["train"]
 X_val, y_val = data["val"]
 X_test, y_test = data["test"]
 
-output_path = Path("../../amltk-experiments/AutoPytorch")
+output_path = Path("result/hpo_pytorch")
 if output_path.exists():
     shutil.rmtree(output_path)
 
@@ -333,7 +333,7 @@ def launch_initial_tasks() -> None:
     task.submit(trial, bucket=bucket, _pipeline=pipeline)
 
 
-@task.on_returned
+@task.on_result
 def tell_optimizer(future: Future, report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
@@ -347,13 +347,13 @@ optimization afterwords.
 trial_history = History()
 
 
-@task.on_returned
+@task.on_result
 def add_to_history(future: Future, report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
 
 
-@task.on_returned
+@task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
