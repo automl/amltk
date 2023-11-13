@@ -53,7 +53,7 @@ dev = [
   "distributed",
   "openpyxl",
   "pyarrow",
-  "amltk[smac, optuna, neps, sklearn, docs-examples, rich, loky, dask, xgboost, wandb, pynisher]",
+  "amltk[smac, optuna, sklearn, docs-examples, rich, loky, dask, xgboost, wandb, pynisher]",
 ]
 sklearn = ["scikit-learn", "threadpoolctl"]
 smac = ["smac>=2.0", "amltk[configspace]"]
