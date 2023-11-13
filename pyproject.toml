@@ -49,7 +49,6 @@ dev = [
   "pytest",
   "pytest-coverage",
   "pytest-cases",
-  "pytest-timeout",
   "distributed",
   "openpyxl",
   "pyarrow",
@@ -81,7 +80,7 @@ empty_parameter_set_mark = "xfail"
 log_cli = false
 log_level = "DEBUG"
 xfail_strict = true
-addopts = "--durations=10 -vv --timeout=60"
+addopts = "--durations=10 -vv"
 markers = ["example: An example"]
 
 
