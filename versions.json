@@ -2,6 +2,8 @@
   {
     "version": "0.10.2",
     "title": "0.10.2",
-    "aliases": []
+    "aliases": [
+      "latest"
+    ]
   }
 ]
