@@ -1,3 +1,13 @@
+## 0.10.0 (2023-11-13)
+
+### Feat
+
+- **Pynisher**: add  for introspection of capability
+
+### Fix
+
+- Add `__main__` gaurd to examples
+
 ## 0.9.0 (2023-11-13)
 
 ### Feat
