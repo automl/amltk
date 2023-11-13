@@ -33,7 +33,7 @@ def start_computing() -> None:
 @task.on_result
 def compute_next(_, next_n: int) -> None:
     answers.append(next_n)
-    if scheduler.running() or next_n != 1:
+    if scheduler.running() and next_n != 1:
         task.submit(next_n)
 
 # Run the scheduler
