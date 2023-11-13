@@ -3,76 +3,108 @@ of AutoML-Toolkit. Notably, we have three core concepts at the heart of
 AutoML-Toolkit, with supporting types and auxiliary functionality to
 enable these concepts.
 
-These take the form of a [`Task`][amltk.scheduling.Task], a [`Pipeline`][amltk.pipeline.Pipeline]
-and an [`Optimizer`][amltk.optimization.Optimizer] which combines the two
-to create the most flexible optimization framework we could imagine.
+These take the form of a **scheduling**, a **pipeline construction**
+and **optimization**. By combining these concepts, we provide an extensive
+framework from which to do AutoML research, utilize AutoML for you
+task or build brand new AutoML systems.
 
 ---
 
--   **Task**
+-   **Scheduling**
 
-    A `Task` is a function which we want to run _somewhere_, whether it be a local
-    process, on some node of a cluster or out in the cloud. Equipped with an
-    [`asyncio`][asyncio] **event-system** and a [`Scheduler`][amltk.scheduling.Scheduler]
-    to drive the gears of the system, we can provide a truly flexible and performant framework
-    upon to which to build an AutoML system.
+    Dealing with multiple processes and simultaneous compute,
+    can be both difficult in terms of understanding and utilization.
+    Often a prototype script just doesn't work when you need to run
+    larger experiments.
+
+    We provide an **event-driven system** with a flexible **backend**,
+    to help you write code that scales from just a few more cores on your machine
+    to utilizing an entire cluster.
+
+    This guide introduces `Task`s and the `Scheduler` in which they run, as well
+    as `@events` which you can subscribe callbacks to. Define what should run, when
+    it should run and simply define a callback to say what should happen when it's done.
+
+    This framework allows you to write code that simply scales, with as little
+    code change required as possible. Go from a single local process to an entire
+    cluster with the same script and 5 lines of code.
+
+    Checkout the [Scheduling guide!](./scheduling.md) for the full guide.
+    We also cover some of these topics in brief detail in the reference pages.
 
     !!! tip "Notable Features"
 
         * A system that allows incremental and encapsulated feature addition.
-        * An event-driven system with easy to use _callbacks_.
-        * Place constraints on your `Task`.
-        * Integrations for different backends for where to run your tasks.
+        * An [`@event`](site:reference/scheduling/events.md) system with easy to use _callbacks_.
+        * Place constraints and modify your [`Task`](site:reference/scheduling/task.md)
+            with [`Plugins`](site:reference/scheduling/plugins.md)
+        * Integrations for different [backends](site:reference/scheuling/executors.md) for where
+        to run your tasks.
         * A wide set of events to plug into.
-        * An easy to extend system to create your own specialized events and tasks.
-
-    Checkout the [Scheduling guide](./scheduling.md)
+        * An easy way to extend the functionality provided with your own set of domain or task
+            specific events.
 
 ---
 
--   **Pipeline**
+-   **Pipelines**
 
-    A [`Pipeline`][amltk.pipeline.Pipeline] is a definition,
-    defining what your **pipeline** will do and how
-    it can be parametrized. By piecing together [`steps`][amltk.pipeline.api.step],
-    [`choices`][amltk.pipeline.api.choice] and [`splits`][amltk.pipeline.api.split], you can
-    say how your pipeline should look and how it's parametrized. We'll take care
-    of creating the search space to optimize over, configuring it and finally assembling
-    it into something you can actually use.
+    Optimizer require some _search space_ to optimize, yet provide no utility to actually
+    define these search space. When scaling beyond a simple single model, these search space
+    become harder to define, difficult to extend and are often disjoint from the actual pipeline
+    creation. When you want to create search spaces that can have choices between models, parametrized
+    pre-processing and a method to quickly change these setups, it can often feel tedious
+    and error-prone
+
+    By piecing together `Node`s of a pipeline, utilizing a set of different building blocks such
+    as a `Component`, `Sequential`, `Choice`es and more, you can abstractly define your entire pipeline.
+    Once you're done, we'll stitch together the entire `search_space()`, allow you to
+    easily `configure()` it and finally `build()` it into a concrete object you can use,
+    all in the same place.
+
+    Checkout the [Pipeline guide!](./pipelines.md)
+    We also cover some of these topics in brief detail in the reference pages.
 
     !!! tip "Notable Features"
 
-        * An easy to edit pipeline structure, allowing for rapid addition, deletion and
+        * An easy, declaritive pipeline structure, allowing for rapid addition, deletion and
           modification during experimentation.
         * A flexible pipeline capable of handling complex structures and subpipelines.
-        * Easily attachable modules for things close to your pipeline but not a direct
-          part of the main structure.
+        * Mutliple component types to help you define your pipeline.
         * Exporting of pipelines into concrete implementations like an [sklearn.pipeline.Pipeline][]
           for use in your downstream tasks.
+        * Extensible to add your own component types and `builder=`s to use.
 
-    Checkout the [Pipeline guide](./pipelines.md)
 
 ---
 
--   **Optimizer**
+-   **Optimization**
 
-    An [`Optimizer`][amltk.optimization.Optimizer] is the capstone of the preceding two
-    fundamental systems. By leveraging an _"ask-and-tell"_ interface, we put you back
-    in control of how your system interacts with the optimizer. You run what you want,
-    wherever you want, telling the optimizer what you want and you storing what you want,
-    wherever you want.
-    This makes leveraging different optimizers easier than ever. By capturing the high-level
-    core loop of black box optimization into a simple [`Trial`][amltk.optimization.Trial] and
-    a [`Report`][amltk.optimization.Trial.Report], integrating your own optimizer is easy and
-    provides the entire system that AutoML-Toolkit offers with little cost.
+    An optimizer is the backbone behind many AutoML systems and the quickest way
+    to improve the performance of your current pipelines. However optimizer's vary
+    in terms of how they expect you to write code, they vary in how much control they
+    take of your code and can be quite difficult to interact with other than
+    their `run()` function.
+
+    By setting a simple expectation on an `Optimizer`, e.g. that it should have
+    an `ask()` and `tell()`, you are placed get back in terms of defining the loop,
+    define what happens, when and you can store what you'd like to record and put it
+    where you'd like to put it.
+
+    By unifying their suggestions as a `Trial` and a convenient `Report` to hand back
+    to them, you can switch between optimizers with minimal changes required. We have
+    added a load of utility to the `Trial`'s, such that you can easily profile sections,
+    add extra summary information, store artifacts and export DataFrames.
+
+    Checkout the [Optimization guide](./optimization.md). We recommend reading the previous
+    two guides to fully understand the possibilities with optimization.
+    We also cover some of these topics in brief detail in the reference pages.
 
     !!! tip "Notable Features"
 
         * An assortment of different optimizers for you to swap in an out with relative ease
         through a unified interface.
+        * A suite of utilities to help you record that data you want from your HPO experiments.
         * Full control of how you interact with it, allowing for easy warm-starting, complex
         swapping mechanisms or custom stopping criterion.
         * A simple interface to integrate in your own optimizer.
 
-    Checkout the [Optimization guide](./optimization.md). We recommend reading the previous
-    two guides to fully understand the possibilities with optimization.

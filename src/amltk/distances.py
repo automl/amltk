@@ -5,9 +5,9 @@ two vectors
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
-from typing import Any, Callable, Literal
-from typing_extensions import TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 import numpy.typing as npt

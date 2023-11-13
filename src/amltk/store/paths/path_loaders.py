@@ -16,14 +16,7 @@ import logging
 import pickle
 from abc import abstractmethod
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Literal,
-    TypeVar,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 from typing_extensions import override
 
 import numpy as np
@@ -126,7 +119,7 @@ class NPYLoader(PathLoader[np.ndarray]):
     * [`np.ndarray`][numpy.ndarray]
     """
 
-    name: ClassVar[Literal["np"]] = "np"
+    name: ClassVar = "np"
     """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
     @override
@@ -161,7 +154,7 @@ class NPYLoader(PathLoader[np.ndarray]):
         np.save(key, obj, allow_pickle=False)
 
 
-class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
+class PDLoader(PathLoader[pd.DataFrame | pd.Series]):
     """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`pd.DataFrame`][pandas.DataFrame]s.
 
@@ -192,7 +185,7 @@ class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
         Please consider using `".pdpickle"` instead.
     """
 
-    name: ClassVar[Literal["pd"]] = "pd"
+    name: ClassVar = "pd"
     """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
     @override
@@ -212,7 +205,7 @@ class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
     def can_save(cls, obj: Any, key: Path, /) -> bool:
         """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
         if key.suffix == ".pdpickle":
-            return isinstance(obj, (pd.Series, pd.DataFrame))
+            return isinstance(obj, pd.Series | pd.DataFrame)
 
         if key.suffix == ".parquet":
             return isinstance(obj, pd.DataFrame)
@@ -236,7 +229,7 @@ class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
 
         if key.suffix == ".pdpickle":
             obj = pd.read_pickle(key)  # noqa: S301
-            if not isinstance(obj, (pd.Series, pd.DataFrame)):
+            if not isinstance(obj, pd.Series | pd.DataFrame):
                 msg = (
                     f"Expected `pd.Series | pd.DataFrame` from {key=}"
                     f" but got `{type(obj).__name__}`."
@@ -272,7 +265,7 @@ class PDLoader(PathLoader[Union[pd.DataFrame, pd.Series]]):
         raise ValueError(f"Unknown extension {key.suffix=}")
 
 
-class JSONLoader(PathLoader[Union[dict, list]]):
+class JSONLoader(PathLoader[dict | list]):
     """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to JSON.
 
@@ -286,7 +279,7 @@ class JSONLoader(PathLoader[Union[dict, list]]):
     * [`list`][list]
     """
 
-    name: ClassVar[Literal["json"]] = "json"
+    name: ClassVar = "json"
     """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
     @override
@@ -299,7 +292,7 @@ class JSONLoader(PathLoader[Union[dict, list]]):
     @classmethod
     def can_save(cls, obj: Any, key: Path, /) -> bool:
         """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
-        return isinstance(obj, (dict, list)) and key.suffix == ".json"
+        return isinstance(obj, dict | list) and key.suffix == ".json"
 
     @override
     @classmethod
@@ -309,7 +302,7 @@ class JSONLoader(PathLoader[Union[dict, list]]):
         with key.open("r") as f:
             item = json.load(f)
 
-        if not isinstance(item, (dict, list)):
+        if not isinstance(item, dict | list):
             msg = f"Expected `dict | list` from {key=} but got `{type(item).__name__}`"
             raise TypeError(msg)
 
@@ -324,7 +317,7 @@ class JSONLoader(PathLoader[Union[dict, list]]):
             json.dump(obj, f)
 
 
-class YAMLLoader(PathLoader[Union[dict, list]]):
+class YAMLLoader(PathLoader[dict | list]):
     """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to YAML.
 
@@ -339,7 +332,7 @@ class YAMLLoader(PathLoader[Union[dict, list]]):
     * [`list`][list]
     """
 
-    name: ClassVar[Literal["yaml"]] = "yaml"
+    name: ClassVar = "yaml"
     """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
     @override
@@ -352,7 +345,7 @@ class YAMLLoader(PathLoader[Union[dict, list]]):
     @classmethod
     def can_save(cls, obj: Any, key: Path, /) -> bool:
         """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
-        return isinstance(obj, (dict, list)) and key.suffix in (".yaml", ".yml")
+        return isinstance(obj, dict | list) and key.suffix in (".yaml", ".yml")
 
     @override
     @classmethod
@@ -365,7 +358,7 @@ class YAMLLoader(PathLoader[Union[dict, list]]):
         with key.open("r") as f:
             item = yaml.safe_load(f)
 
-        if not isinstance(item, (dict, list)):
+        if not isinstance(item, dict | list):
             msg = f"Expected `dict | list` from {key=} but got `{type(item).__name__}`"
             raise TypeError(msg)
 
@@ -403,7 +396,7 @@ class PickleLoader(PathLoader[Any]):
         attempting to save or load the object.
     """
 
-    name: ClassVar[Literal["pickle"]] = "pickle"
+    name: ClassVar = "pickle"
     """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
     @override
@@ -455,7 +448,7 @@ class TxtLoader(PathLoader[str]):
     * [`str`][str]
     """
 
-    name: ClassVar[Literal["text"]] = "text"
+    name: ClassVar = "text"
     """::: amltk.store.paths.path_loaders.PathLoader.name"""
 
     @override
@@ -501,7 +494,7 @@ class ByteLoader(PathLoader[bytes]):
     * [`bytes`][bytes]
     """
 
-    name: ClassVar[Literal["bytes"]] = "bytes"
+    name: ClassVar = "bytes"
 
     @override
     @classmethod
@@ -513,7 +506,7 @@ class ByteLoader(PathLoader[bytes]):
     @classmethod
     def can_save(cls, obj: Any, key: Path, /) -> bool:
         """::: amltk.store.paths.path_loaders.PathLoader.can_save"""  # noqa: D415
-        return isinstance(obj, (dict, list)) and key.suffix in (".bin", ".bytes")
+        return isinstance(obj, dict | list) and key.suffix in (".bin", ".bytes")
 
     @override
     @classmethod

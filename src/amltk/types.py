@@ -2,24 +2,11 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import chain, repeat
-from typing import (
-    Any,
-    Callable,
-    Generic,
-    Iterable,
-    Iterator,
-    List,
-    Mapping,
-    NoReturn,
-    Protocol,
-    Sequence,
-    Tuple,
-    TypeVar,
-    Union,
-)
-from typing_extensions import TypeAlias, override
+from typing import Any, Generic, NoReturn, Protocol, TypeAlias, TypeVar
+from typing_extensions import override
 
 import numpy as np
 
@@ -45,10 +32,11 @@ Config: TypeAlias = Mapping[str, Any]
 Space = TypeVar("Space")
 """Generic for objects that are aware of a space but not the specific kind"""
 
-Seed: TypeAlias = Union[int, np.random.RandomState, np.random.Generator]
-"""Type alias for kinds of Seeded objects"""
+Seed: TypeAlias = int | np.integer | (np.random.RandomState | np.random.Generator)
+"""Type alias for kinds of Seeded objects."""
 
-FidT = Union[Tuple[int, int], Tuple[float, float], List[Any]]
+FidT: TypeAlias = tuple[int, int] | tuple[float, float] | list[Any]
+"""Type alias for a fidelity bound."""
 
 
 class Comparable(Protocol):

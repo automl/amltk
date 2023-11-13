@@ -5,13 +5,13 @@ import numpy.typing as npt
 import pandas as pd
 from pytest_cases import case, parametrize, parametrize_with_cases
 
+from amltk._functional import funcname
 from amltk.distances import (
     DistanceMetric,
     NamedDistance,
     NearestNeighborsDistance,
     distance_metrics,
 )
-from amltk.functional import funcname
 from amltk.metalearning.dataset_distances import dataset_distance
 
 
@@ -65,25 +65,25 @@ def test_distance_to_itself_is_zero(
     other: npt.ArrayLike,
     metric: DistanceMetric | NearestNeighborsDistance,
 ) -> None:
-    target = np.asarray(target)
-    target = pd.Series(
-        target,
+    _target = np.asarray(target)
+    starget = pd.Series(
+        _target,
         name="target",
-        index=[f"mf{i}" for i in range(len(target))],
+        index=[f"mf{i}" for i in range(len(_target))],
     )
-    other = np.asarray(other)
-    other = pd.Series(
-        other,
+    _other = np.asarray(other)
+    sother = pd.Series(
+        _other,
         name="other",
-        index=[f"mf{i}" for i in range(len(other))],
+        index=[f"mf{i}" for i in range(len(_other))],
     )
-    other2 = other.copy()
+    sother2 = sother.copy()
 
     # We use 2 here to make sure the ordering remains correct
     expected = pd.Series([0, 0], index=["other", "other2"], dtype=float)
     distances = dataset_distance(
-        target=target,
-        dataset_metafeatures={"other": other, "other2": other2},
+        target=starget,
+        dataset_metafeatures={"other": sother, "other2": sother2},
         distance_metric=metric,
     )
 

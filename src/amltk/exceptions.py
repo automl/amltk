@@ -4,8 +4,12 @@ any exception raised.
 from __future__ import annotations
 
 import traceback
-from typing import Any, Callable, Iterable, Iterator, TypeVar
-from typing_extensions import ParamSpec
+from collections.abc import Callable, Iterable, Iterator
+from typing import TYPE_CHECKING, Any, TypeVar
+from typing_extensions import ParamSpec, override
+
+if TYPE_CHECKING:
+    from amltk.pipeline.node import Node
 
 R = TypeVar("R")
 E = TypeVar("E")
@@ -70,3 +74,35 @@ class SchedulerNotRunningError(RuntimeError):
 
 class EventNotKnownError(ValueError):
     """The event is not a known one."""
+
+
+class NoChoiceMadeError(ValueError):
+    """No choice was made."""
+
+
+class NodeNotFoundError(ValueError):
+    """The node was not found."""
+
+
+class RequestNotMetError(ValueError):
+    """Raised when a request is not met."""
+
+
+class DuplicateNamesError(ValueError):
+    """Raised when duplicate names are found."""
+
+    def __init__(self, node: Node) -> None:
+        """Initialize the exception.
+
+        Args:
+            node: The node that has children with duplicate names.
+        """
+        super().__init__(node)
+        self.node = node
+
+    @override
+    def __str__(self) -> str:
+        return (
+            f"Duplicate names found in {self.node.name} and can't be handled."
+            f"\nnodes: {[n.name for n in self.node.nodes]}."
+        )

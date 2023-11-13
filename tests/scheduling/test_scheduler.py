@@ -100,7 +100,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
 
     @scheduler.on_start
     def launch_task() -> None:
-        task(sleep_time=sleep_time)
+        task.submit(sleep_time=sleep_time)
 
     end_status = scheduler.run(timeout=0.1, wait=True)
     assert results == [sleep_time]
@@ -120,7 +120,7 @@ def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None
             scheduler.FUTURE_RESULT: 1,
         },
     )
-    assert end_status == ExitState(code=Scheduler.ExitCode.TIMEOUT)
+    assert end_status == ExitState(code=ExitState.Code.TIMEOUT)
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -139,7 +139,7 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
 
     results: list[float] = []
     task = scheduler.task(sleep_and_return)
-    scheduler.on_start(lambda: task(sleep_time=10))
+    scheduler.on_start(lambda: task.submit(sleep_time=10))
 
     end_status = scheduler.run(timeout=0.1, wait=False)
 
@@ -166,13 +166,13 @@ def test_scheduler_with_timeout_and_not_wait_for_tasks(scheduler: Scheduler) -> 
     # something that can be done with Python's default executors.
     if isinstance(
         scheduler.executor,
-        (ClientExecutor, ProcessPoolExecutor),
+        ClientExecutor | ProcessPoolExecutor,
     ) or safe_isinstance(scheduler.executor, "_ReusablePoolExecutor"):
         expected_scheduler_counts[scheduler.FUTURE_CANCELLED] = 1
         del expected_scheduler_counts[scheduler.FUTURE_DONE]
 
     assert scheduler.event_counts == expected_scheduler_counts
-    assert end_status == ExitState(code=Scheduler.ExitCode.TIMEOUT)
+    assert end_status == ExitState(code=ExitState.Code.TIMEOUT)
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -183,11 +183,11 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
     task_2 = scheduler.task(sleep_and_return)
 
     # Feed the output of task_1 into task_2
-    task_1.on_result(lambda _, res: task_2(sleep_time=res))
+    task_1.on_result(lambda _, res: task_2.submit(sleep_time=res))
     task_1.on_result(lambda _, res: results.append(res))
     task_2.on_result(lambda _, res: results.append(res))
 
-    scheduler.on_start(lambda: task_1(sleep_time=0.1))
+    scheduler.on_start(lambda: task_1.submit(sleep_time=0.1))
 
     end_status = scheduler.run(wait=True)
 
@@ -207,7 +207,7 @@ def test_chained_tasks(scheduler: Scheduler) -> None:
         },
     )
     assert results == [0.1, 0.1]
-    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
+    assert end_status == ExitState(code=ExitState.Code.EXHAUSTED)
     assert scheduler.empty()
     assert not scheduler.running()
 
@@ -218,7 +218,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
     # Reload on the first empty
     @scheduler.on_empty(when=lambda: scheduler.event_counts[scheduler.EMPTY] == 1)
     def launch_first() -> None:
-        task(sleep_time=0.1)
+        task.submit(sleep_time=0.1)
 
     # Stop on the second empty
     @scheduler.on_empty(when=lambda: scheduler.event_counts[scheduler.EMPTY] == 2)
@@ -243,7 +243,7 @@ def test_queue_empty_status(scheduler: Scheduler) -> None:
             scheduler.FUTURE_RESULT: 1,
         },
     )
-    assert end_status == ExitState(code=Scheduler.ExitCode.STOPPED)
+    assert end_status == ExitState(code=ExitState.Code.STOPPED)
     assert scheduler.empty()
 
 
@@ -264,7 +264,7 @@ def test_repeat_on_start(scheduler: Scheduler) -> None:
             scheduler.EMPTY: 1,
         },
     )
-    assert end_status == ExitState(code=Scheduler.ExitCode.EXHAUSTED)
+    assert end_status == ExitState(code=ExitState.Code.EXHAUSTED)
     assert scheduler.empty()
     assert results == [1] * 10
 
@@ -274,7 +274,7 @@ def test_raise_on_exception_in_task(scheduler: Scheduler) -> None:
 
     @scheduler.on_start
     def run_task() -> None:
-        task()
+        task.submit()
 
     with pytest.raises(CustomError):
         scheduler.run(on_exception="raise")
@@ -285,10 +285,10 @@ def test_end_on_exception_in_task(scheduler: Scheduler) -> None:
 
     @scheduler.on_start
     def run_task() -> None:
-        task()
+        task.submit()
 
     end_status = scheduler.run(on_exception="end")
-    assert end_status.code == Scheduler.ExitCode.EXCEPTION
+    assert end_status.code == ExitState.Code.EXCEPTION
     assert isinstance(end_status.exception, CustomError)
 
 
@@ -297,10 +297,10 @@ def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
 
     @scheduler.on_start
     def run_task() -> None:
-        task()
+        task.submit()
 
     end_status = scheduler.run(on_exception="ignore")
-    assert end_status.code == Scheduler.ExitCode.EXHAUSTED
+    assert end_status.code == ExitState.Code.EXHAUSTED
 
 
 def test_cant_subscribe_to_nonexistent_event(scheduler: Scheduler) -> None:

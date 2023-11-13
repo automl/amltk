@@ -5,11 +5,10 @@ dependencies = [
   "typing_extensions", # Better typing
   "more_itertools",    # Better iteration
   "psutil",            # Used for process termination of executors
-  "attrs",
   "pandas",
   "numpy",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [{ name = "Eddie Bergman", email = "eddiebergmanhs@gmail.com" }]
 readme = "README.md"
 description = "AutoML Toolkit: a toolkit for building automl system"
@@ -113,15 +112,13 @@ tag_format = "v$major.$minor.$patch$prerelease"
 update_changelog_on_bump = true
 version_files = ["pyproject.toml:version", "src/amltk/__version__.py"]
 
-[tool.black]
-target-version = ['py38']
-
 # https://github.com/charliermarsh/ruff
 [tool.ruff]
-target-version = "py38"
+target-version = "py310"
 line-length = 88
 show-source = true
 src = ["src", "tests", "examples"]
+extend-safe-fixes = ["ALL"]
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
@@ -188,6 +185,7 @@ ignore = [
   "W292",    # No newline at end of file
   "PLC1901", # "" can be simplified to be falsey
   "TCH003",  # Move stdlib import into TYPE_CHECKING
+  "B010",    # Do not use `setattr`
   # These tend to be lighweight and confuse pyright
 ]
 
@@ -249,7 +247,7 @@ convention = "google"
 max-args = 10 # Changed from default of 5
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 packages = ["src/amltk", "tests"]
 
 show_error_codes = true
@@ -274,6 +272,7 @@ module = ["tests.*"]
 disallow_untyped_defs = false       # Sometimes we just want to ignore verbose types
 disallow_untyped_decorators = false # Test decorators are not properly typed
 disallow_incomplete_defs = false    # Sometimes we just want to ignore verbose types
+disable_error_code = ["var-annotated"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -293,7 +292,7 @@ ignore_missing_imports = true
 [tool.pyright]
 include = ["src", "tests"]
 
-pythonVersion = "3.8"
+pythonVersion = "3.10"
 typeCheckingMode = "strict"
 
 strictListInference = true
@@ -315,3 +314,4 @@ reportUnknownVariableType = false
 reportUnknownArgumentType = false
 reportUnknownLambdaType = false
 reportPrivateUsage = false
+reportUnnecessaryCast = false

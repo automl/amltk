@@ -1,88 +1,42 @@
 from __future__ import annotations
 
-from itertools import chain, combinations
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
-from pytest_cases import case, parametrize, parametrize_with_cases
+from pytest_cases import parametrize
 
-from amltk import step
-from amltk.pipeline import Component, Step
-
-
-@case
-@parametrize("size", [1, 3, 10])
-def case_component_chain(size: int) -> Component:
-    component = Step.join(step(str(i), object) for i in range(size))
-    assert isinstance(component, Component)
-    return component
+from amltk.pipeline.components import Component
 
 
-@parametrize_with_cases("head", cases=".")
-def test_traverse(head: Component) -> None:
-    # Component chains with no splits should traverse as they iter
-    assert list(head.traverse()) == list(head.iter())
+@dataclass
+class Thing:
+    """A thing."""
+
+    x: int = 1
 
 
-@parametrize_with_cases("head", cases=".")
-def test_walk(head: Component) -> None:
-    # Components chains with no splits should walk as they iter
-
-    walk = head.walk([], [])
-
-    # Ensure the head has no splits or parents
-    splits, parents, the_head = next(walk)
-    assert not any(splits)
-    assert not any(parents)
-    assert the_head == head
-
-    for splits, parents, current_step in walk:
-        assert not any(splits)
-        assert any(parents)
-        # Ensure that the parents are all the steps from the head up to the current step
-        assert parents == list(head.head().iter(to=current_step))
+def thing_maker(x: int = 1) -> Thing:
+    return Thing(x)
 
 
-@parametrize_with_cases("head", cases=".")
-def test_replace_one(head: Component) -> None:
-    new_step = step("replacement", object)
-    for to_replace in head.iter():
-        new_chain = list(head.replace({to_replace.name: new_step}))
-        expected = [new_step if s.name == to_replace.name else s for s in head.iter()]
-        assert new_chain == expected
+@parametrize("maker", [Thing, thing_maker])
+def test_component_construction(maker: Any) -> None:
+    component = Component(maker, name="comp", config={"x": 2})
+    assert component.name == "comp"
+    assert component.item == maker
+    assert component.config == {"x": 2}
 
 
-@parametrize_with_cases("head", cases=".")
-def test_replace_many(head: Component) -> None:
-    steps = list(head.iter())
-    lens = range(1, len(steps) + 1)
-    replacements = [
-        {s.name: step(f"{s.name}_r", object) for s in to_replace}
-        for to_replace in chain.from_iterable(
-            combinations(steps, length) for length in lens
-        )
-    ]
-
-    for to_replace in replacements:
-        new_chain = list(head.replace(to_replace))
-        expected = [to_replace.get(s.name, s) for s in head.iter()]
-        assert new_chain == expected
+@parametrize("maker", [Thing, thing_maker])
+def test_component_builds(maker: Callable[[], Thing]) -> None:
+    f = Component(maker, name="comp", config={"x": 5})
+    obj = f.build_item()
+    assert obj == Thing(x=5)
 
 
-@parametrize_with_cases("head", cases=".")
-def test_remove_one(head: Component) -> None:
-    for to_remove in head.iter():
-        removed_chain = list(head.remove([to_remove.name]))
-        expected = [s for s in head.iter() if s.name != to_remove.name]
-        assert expected == removed_chain
-
-
-@parametrize_with_cases("head", cases=".")
-def test_remove_many(head: Component) -> None:
-    steps = list(head.iter())
-    lens = range(1, len(steps) + 1)
-    removals = chain.from_iterable(combinations(steps, length) for length in lens)
-
-    for to_remove in removals:
-        names = [r.name for r in to_remove]
-        remaining = list(head.remove(names))
-        expected = [s for s in head.iter() if s.name not in names]
-        assert expected == remaining
+@parametrize("maker", [Thing, thing_maker])
+def test_copy(maker: Any) -> None:
+    f = Component(maker, name="comp", config={"x": 5}, space={"x": [1, 2, 3]})
+    f2 = f.copy()
+    assert f == f2

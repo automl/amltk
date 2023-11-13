@@ -3,6 +3,16 @@ on:
   # Disabled for now essentially
   workflow_dispatch:
 
+  #push:
+    #  branches:
+    #  - main
+    #tags:
+    #  - "*.*.*"
+
+  #pull_request:
+    #branches:
+    #  - main
+
 permissions:
   contents: write
 
@@ -18,5 +28,4 @@ jobs:
         with:
           key: ${{ github.ref }}
           path: .cache
-      - run: pip install "mkdocs-material" "mkdocs-autorefs" "mkdocstrings[python]"
-      - run: mkdocs gh-deploy --force
+      - run: python -m pip install -e ".[dev]"

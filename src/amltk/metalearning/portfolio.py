@@ -1,7 +1,120 @@
-"""Portfolio selection for meta-learning."""
+"""A portfolio in meta-learning is to a set (ordered or not) of configurations
+that maximize some notion of coverage across datasets or tasks.
+The intuition here is that this also means that any new dataset is also covered!
+
+Suppose we have the given performances of some configurations across some datasets.
+```python exec="true" source="material-block" result="python" title="Initial Portfolio"
+import pandas as pd
+
+performances = {
+    "c1": [90, 60, 20, 10],
+    "c2": [20, 10, 90, 20],
+    "c3": [10, 20, 40, 90],
+    "c4": [90, 10, 10, 10],
+}
+portfolio = pd.DataFrame(performances, index=["dataset_1", "dataset_2", "dataset_3", "dataset_4"])
+print(portfolio)
+```
+
+If we could only choose `#!python k=3` of these configurations on some new given dataset, which ones would
+you choose and in what priority?
+Here is where we can apply [`portfolio_selection()`][amltk.metalearning.portfolio_selection]!
+
+The idea is that we pick a subset of these algorithms that maximise some value of utility for
+the portfolio. We do this by adding a single configuration from the entire set, 1-by-1 until
+we reach `k`, beginning with the empty portfolio.
+
+Let's see this in action!
+
+```python exec="true" source="material-block" result="python" title="Portfolio Selection" hl_lines="12 13 14 15 16"
+import pandas as pd
+from amltk.metalearning import portfolio_selection
+
+performances = {
+    "c1": [90, 60, 20, 10],
+    "c2": [20, 10, 90, 20],
+    "c3": [10, 20, 40, 90],
+    "c4": [90, 10, 10, 10],
+}
+portfolio = pd.DataFrame(performances, index=["dataset_1", "dataset_2", "dataset_3", "dataset_4"])
+
+selected_portfolio, trajectory = portfolio_selection(
+    portfolio,
+    k=3,
+    scaler="minmax"
+)
+
+print(selected_portfolio)
+print()
+print(trajectory)
+```
+
+The trajectory tells us which configuration was added at each time stamp along with the utility
+of the portfolio with that configuration added. However we havn't specified how _exactly_ we defined the
+utility of a given portfolio. We could define our own function to do so:
+
+```python exec="true" source="material-block" result="python" title="Portfolio Selection Custom" hl_lines="12 13 14 20"
+import pandas as pd
+from amltk.metalearning import portfolio_selection
+
+performances = {
+    "c1": [90, 60, 20, 10],
+    "c2": [20, 10, 90, 20],
+    "c3": [10, 20, 40, 90],
+    "c4": [90, 10, 10, 10],
+}
+portfolio = pd.DataFrame(performances, index=["dataset_1", "dataset_2", "dataset_3", "dataset_4"])
+
+def my_function(p: pd.DataFrame) -> float:
+    # Take the maximum score for each dataset and then take the mean across them.
+    return p.max(axis=1).mean()
+
+selected_portfolio, trajectory = portfolio_selection(
+    portfolio,
+    k=3,
+    scaler="minmax",
+    portfolio_value=my_function,
+)
+
+print(selected_portfolio)
+print()
+print(trajectory)
+```
+
+This notion of reducing across all configurations for a dataset and then aggregating these is common
+enough that we can also directly just define these operations and we will perform the rest.
+
+```python exec="true" source="material-block" result="python" title="Portfolio Selection With Reduction" hl_lines="17 18"
+import pandas as pd
+import numpy as np
+from amltk.metalearning import portfolio_selection
+
+performances = {
+    "c1": [90, 60, 20, 10],
+    "c2": [20, 10, 90, 20],
+    "c3": [10, 20, 40, 90],
+    "c4": [90, 10, 10, 10],
+}
+portfolio = pd.DataFrame(performances, index=["dataset_1", "dataset_2", "dataset_3", "dataset_4"])
+
+selected_portfolio, trajectory = portfolio_selection(
+    portfolio,
+    k=3,
+    scaler="minmax",
+    row_reducer=np.max,  # This is actually the default
+    aggregator=np.mean,  # This is actually the default
+)
+
+print(selected_portfolio)
+print()
+print(trajectory)
+```
+"""  # noqa: E501
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Hashable, Literal, TypeVar
+from collections.abc import Callable, Hashable
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -161,9 +274,7 @@ def portfolio_selection(
         # Possible get multiple best choices, we choose one at random if so
         best_keys = [k for k, v in values_possible.items() if v == best_possible]
         best_key = (
-            best_keys[0]
-            if len(best_keys) == 1
-            else rng.choice(best_keys)  # type: ignore
+            best_keys[0] if len(best_keys) == 1 else rng.choice(best_keys)  # type: ignore
         )
 
         # We found something better, add it in

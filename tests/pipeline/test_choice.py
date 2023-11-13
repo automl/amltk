@@ -1,44 +1,75 @@
 from __future__ import annotations
 
-import pytest
+from dataclasses import dataclass
 
-from amltk import choice, step
-
-
-def test_error_when_uneven_weights() -> None:
-    with pytest.raises(ValueError, match="Weights must be the same length as choices"):
-        choice("choice", step("a", object), step("b", object), weights=[1])
+from amltk.pipeline import Choice, Component
 
 
-def test_choice_shallow() -> None:
-    c = choice(
-        "choice",
-        step("a", object),
-        step("b", object) | step("c", object),
+@dataclass
+class Thing1:
+    """A thing."""
+
+    x: int = 1
+
+
+@dataclass
+class Thing2:
+    """A thing."""
+
+    x: int = 2
+
+
+def test_choice_creation_empty() -> None:
+    choice = Choice()
+    assert choice.nodes == ()
+
+
+def test_choice_construction() -> None:
+    choice = Choice(Thing1, Thing2)
+    assert choice.nodes == (Component(Thing1), Component(Thing2))
+
+
+def test_choice_copy() -> None:
+    choice = Choice(Component(Thing2, config={"x": 1}))
+    assert choice == choice.copy()
+
+
+def test_choice_or() -> None:
+    """__or__ changes behavior when compared to other nodes."""
+    choice = (
+        Choice(name="choice")
+        | Component(Thing1, name="comp1", config={"x": 1})
+        | Component(Thing1, name="comp2", config={"x": 1})
+        | Component(Thing1, name="comp3", config={"x": 1})
     )
 
-    assert next(c.select({"choice": "a"})) == step("a", object)
-    assert next(c.select({"choice": "b"})) == step("b", object) | step("c", object)
-
-
-def test_choice_deep() -> None:
-    c = (
-        step("head", object)
-        | choice(
-            "choice",
-            step("a", object),
-            step("b", object),
-            choice("choice2", step("c", object), step("d", object)) | step("e", object),
-        )
-        | step("tail", object)
+    assert choice == Choice(
+        Component(Thing1, name="comp1", config={"x": 1}),
+        Component(Thing1, name="comp2", config={"x": 1}),
+        Component(Thing1, name="comp3", config={"x": 1}),
+        name="choice",
     )
 
-    expected = (
-        step("head", object)
-        | step("d", object)
-        | step("e", object)
-        | step("tail", object)
+
+def test_choice_configured_gives_chosen_node() -> None:
+    choice = (
+        Choice(name="choice_thing")
+        | Component(Thing1, name="comp1", config={"x": 1})
+        | Component(Thing1, name="comp2", config={"x": 1})
+        | Component(Thing1, name="comp3", config={"x": 1})
+    )
+    configured_choice = choice.configure({"__choice__": "comp2"})
+
+    assert configured_choice == Choice(
+        Component(Thing1, name="comp1", config={"x": 1}),
+        Component(Thing1, name="comp2", config={"x": 1}),
+        Component(Thing1, name="comp3", config={"x": 1}),
+        name="choice_thing",
+        config={"__choice__": "comp2"},
     )
 
-    chosen = next(c.select({"choice": "choice2", "choice2": "d"}))
-    assert chosen == expected
+    assert configured_choice.chosen() == Component(
+        Thing1,
+        name="comp2",
+        config={"x": 1},
+    )

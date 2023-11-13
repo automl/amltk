@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Literal, Mapping
+from collections.abc import Mapping
+from typing import Literal
 
 import pytest
 from pytest_cases import parametrize
@@ -26,11 +27,11 @@ def test_xgboost_pipeline_default_creation(
     name = f"name_{kind}_{space}"
     xgb = xgboost_component(name=name, kind=kind, space=space)
     assert xgb.item is expected_type
-    assert isinstance(xgb.search_space, Mapping)
-    assert len(xgb.search_space) > 1
+    assert isinstance(xgb.space, Mapping)
+    assert len(xgb.space) > 1
     assert xgb.name == name
 
-    model = xgb.build()
+    model = xgb.build_item()
     assert isinstance(model, expected_type)
 
 
@@ -38,8 +39,8 @@ def test_xgboost_custom_config() -> None:
     eta = 0.341
     xgb = xgboost_component("classifier", config={"eta": eta})
 
-    assert isinstance(xgb.search_space, Mapping)
-    assert "eta" not in xgb.search_space
+    assert isinstance(xgb.space, Mapping)
+    assert "eta" not in xgb.space
 
     assert xgb.config is not None
     assert xgb.config["eta"] == eta

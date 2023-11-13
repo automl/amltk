@@ -12,20 +12,15 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Any,
+from collections.abc import (
     Callable,
-    Generic,
     Hashable,
     Iterable,
     Iterator,
-    Literal,
     Mapping,
     MutableMapping,
-    TypeVar,
-    overload,
 )
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 from typing_extensions import override
 
 from more_itertools import ilen
@@ -191,7 +186,7 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
         matches = {match.groups(): self[key] for key, match in keys}
 
         # If it's a tuple of length 1, we expand it
-        one_group = len(list(matches.keys())[0]) == 1
+        one_group = len(next(iter(matches.keys()))) == 1
         if one_group:
             if multi_key:
                 raise ValueError(

@@ -1,31 +1,94 @@
-"""This module holds the definition of a Task.
+"""A [`Task`][amltk.scheduling.task.Task] is a unit of work that can be scheduled by the
+[`Scheduler`][amltk.scheduling.Scheduler].
 
-A Task is a unit of work that can be scheduled by the scheduler. It is
-defined by its name, its function, and it's `Future` representing the
-final outcome of the task.
+It is defined by its `function=` to call. Whenever a `Task`
+has its [`submit()`][amltk.scheduling.task.Task.submit] method called,
+the function will be dispatched to run by a `Scheduler`.
+
+When a task has returned, either successfully, or with an exception,
+it will emit `@events` to indicate so. You can subscribe to these events
+with callbacks and act accordingly.
+
+
+??? example "`@events`"
+
+    Check out the [`@events`](site:reference/scheduling/events.md) reference
+    for more on how to customize these callbacks. You can also take a look
+    at the API of [`on()`][amltk.scheduling.task.Task.on] for more information.
+
+    === "`@on_result`"
+
+        ::: amltk.scheduling.task.Task.on_result
+
+    === "`@on_exception`"
+
+        ::: amltk.scheduling.task.Task.on_exception
+
+    === "`@on_done`"
+
+        ::: amltk.scheduling.task.Task.on_done
+
+    === "`@on_submitted`"
+
+        ::: amltk.scheduling.task.Task.on_submitted
+
+    === "`@on_cancelled`"
+
+        ::: amltk.scheduling.task.Task.on_cancelled
+
+??? tip "Usage"
+
+    The usual way to create a task is with
+    [`Scheduler.task()`][amltk.scheduling.scheduler.Scheduler.task],
+    where you provide the `function=` to call.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk import Scheduler
+
+    def f(x: int) -> int:
+        return x * 2
+    from amltk._doc import make_picklable; make_picklable(f)  # markdown-exec: hide
+
+    scheduler = Scheduler.with_processes(2)
+    task = scheduler.task(f)
+
+    @scheduler.on_start
+    def on_start():
+        task.submit(1)
+
+    @task.on_result
+    def on_result(future: Future[int], result: int):
+        print(f"Task {future} returned {result}")
+
+    scheduler.run()
+    from amltk._doc import doc_print; doc_print(print, scheduler)  # markdown-exec: hide
+    ```
+
+    If you'd like to simply just call the original function, without submitting it to
+    the scheduler, you can always just call the task directly, i.e. `#!python task(1)`.
+
+You can also provide [`Plugins`](site:reference/scheduling/plugins.md) to the task,
+to modify tasks, add functionality and add new events.
+
+Please check out the [Scheduling Guide](site:guides/scheduling.md)
+for a more detailed walkthrough.
 """
 from __future__ import annotations
 
 import logging
 from asyncio import Future
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Generic,
-    Iterable,
-    TypeVar,
-    overload,
-)
-from typing_extensions import Concatenate, ParamSpec, Self, override
-from uuid import uuid4 as uuid
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any, Concatenate, Generic, TypeVar, overload
+from typing_extensions import ParamSpec, Self, override
 
 from more_itertools import first_true
 
-from amltk.events import Emitter, Event, Subscriber
+from amltk._functional import callstring
+from amltk._richutil.renderable import RichRenderable
 from amltk.exceptions import EventNotKnownError, SchedulerNotRunningError
-from amltk.functional import callstring
-from amltk.scheduling.task_plugin import TaskPlugin
+from amltk.randomness import randuid
+from amltk.scheduling.events import Emitter, Event, Subscriber
+from amltk.scheduling.plugins.plugin import Plugin
 
 if TYPE_CHECKING:
     from rich.panel import Panel
@@ -43,75 +106,12 @@ R2 = TypeVar("R2")
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
-class Task(Generic[P, R]):
-    """A task is a unit of work that can be scheduled by the scheduler.
+class Task(RichRenderable, Generic[P, R]):
+    """The task class."""
 
-    It is defined by its `function` to call. Whenever a task
-    has its `__call__` method called, the function will be dispatched to run
-    by a [`Scheduler`][amltk.scheduling.scheduler.Scheduler].
-
-    To interact with the results of these tasks, you must subscribe to to these
-    events and provide callbacks.
-
-    The usual way to create a task is with
-    [`Scheduler.task()`][amltk.scheduling.scheduler.Scheduler.task].
-
-    ```python
-    from amltk import Task, Scheduler
-
-    # Define some function to run
-    def f(x: int) -> int:
-        return x * 2
-
-    # And a scheduler to run it on
-    scheduler = Scheduler.with_processes(2)
-
-    # Create the task object
-    my_task = scheduler.task(f)
-
-    # Subscribe to events
-    @my_task.on_result
-    def print_result(future: Future[int], result: int):
-        print(f"Future {future} returned {result}")
-
-    @my_task.on_exception
-    def print_exception(future: Future[int], result: int):
-        print(error)
-    ```
-
-    If providing `plugins=` to the task, these may add new events that will be emitted
-    from the task. Do listen to these events, you must use the `on` method. Please
-    see their respective documentation.
-
-    ```python
-    from amltk import Scheduler, Task
-    from amltk.scheduling import CallLimiter
-
-
-    def f() -> None:
-        print("task ran")
-
-
-    scheduler = Scheduler.with_processes(1)
-    task = scheduler.task(f, plugins=[CallLimiter(max_calls=1)])
-
-    @scheduler.on_start(repeat=3)
-    def start():
-        task()
-
-    @task.on(CallLimiter.CALL_LIMIT_REACHED)
-    def on_limit_reached(task: Task, *args, **kwargs):
-        print(f"Task {task} reached its call limit with {args=} and {kwargs=}")
-
-    scheduler.run()
-    ```
-    """
-
-    uuid: str
-    """A unique identifier for this task."""
     unique_ref: str
     """A unique reference to this task."""
-    plugins: list[TaskPlugin]
+    plugins: list[Plugin]
     """The plugins to use for this task."""
     function: Callable[P, R]
     """The function of this task"""
@@ -183,7 +183,7 @@ class Task(Generic[P, R]):
         function: Callable[P, R],
         scheduler: Scheduler,
         *,
-        plugins: TaskPlugin | Iterable[TaskPlugin] = (),
+        plugins: Plugin | Iterable[Plugin] = (),
         init_plugins: bool = True,
     ) -> None:
         """Initialize a task.
@@ -195,12 +195,12 @@ class Task(Generic[P, R]):
             init_plugins: Whether to initialize the plugins or not.
         """
         super().__init__()
-        self.unique_ref = str(uuid())
+        self.unique_ref = randuid(8)
 
         self.emitter = Emitter()
         self.event_counts = self.emitter.event_counts
-        self.plugins: list[TaskPlugin] = (
-            [plugins] if isinstance(plugins, TaskPlugin) else list(plugins)
+        self.plugins: list[Plugin] = (
+            [plugins] if isinstance(plugins, Plugin) else list(plugins)
         )
         self.function: Callable[P, R] = function
         self.scheduler: Scheduler = scheduler
@@ -255,21 +255,8 @@ class Task(Generic[P, R]):
     @overload
     def on(
         self,
-        event: Event[P2],
-        callback: Callable[P2, Any] | Iterable[Callable[P2, Any]],
-        *,
-        when: Callable[[], bool] | None = ...,
-        limit: int | None = ...,
-        repeat: int = ...,
-        every: int = ...,
-    ) -> None:
-        ...
-
-    @overload
-    def on(
-        self,
         event: str,
-        callback: Callable | Iterable[Callable],
+        callback: Callable,
         *,
         when: Callable[[], bool] | None = ...,
         limit: int | None = ...,
@@ -281,7 +268,7 @@ class Task(Generic[P, R]):
     def on(
         self,
         event: Event[P2] | str,
-        callback: Callable[P2, Any] | Iterable[Callable[P2, Any]] | None = None,
+        callback: Callable[P2, Any] | None = None,
         *,
         when: Callable[[], bool] | None = None,
         limit: int | None = None,
@@ -300,7 +287,7 @@ class Task(Generic[P, R]):
             repeat: The number of times to repeat the subscription.
             every: The number of times to wait between repeats.
             hidden: Whether to hide the callback in visual output.
-                This is mainly used to facilitate TaskPlugins who
+                This is mainly used to facilitate Plugins who
                 act upon events but don't want to be seen, primarily
                 as they are just book-keeping callbacks.
 
@@ -348,32 +335,12 @@ class Task(Generic[P, R]):
 
         Returns:
             The future of the task, or `None` if the limit was reached.
+
+        Raises:
+            SchedulerNotRunningError: If the scheduler is not running.
+                You can protect against this using,
+                [`scheduler.running()`][amltk.scheduling.scheduler.Scheduler.running].
         """
-        return self.__call__(*args, **kwargs)
-
-    def copy(self, *, init_plugins: bool = True) -> Self:
-        """Create a copy of this task.
-
-        Will use the same scheduler and function, but will have a different
-        event manager such that any events listend to on the old task will
-        **not** trigger with the copied task.
-
-        Args:
-            init_plugins: Whether to initialize the copied plugins on the copied
-                task. Usually you will want to leave this as `True`.
-
-        Returns:
-            A copy of this task.
-        """
-        return self.__class__(
-            self.function,
-            self.scheduler,
-            plugins=tuple(p.copy() for p in self.plugins),
-            init_plugins=init_plugins,
-        )
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Future[R] | None:
-        """Please see [`Task.submit()`][amltk.Task.submit]."""
         # Inform all plugins that the task is about to be called
         # They have chance to cancel submission based on their return
         # value.
@@ -413,6 +380,27 @@ class Task(Generic[P, R]):
         future.add_done_callback(self._process_future)
         return future
 
+    def copy(self, *, init_plugins: bool = True) -> Self:
+        """Create a copy of this task.
+
+        Will use the same scheduler and function, but will have a different
+        event manager such that any events listend to on the old task will
+        **not** trigger with the copied task.
+
+        Args:
+            init_plugins: Whether to initialize the copied plugins on the copied
+                task. Usually you will want to leave this as `True`.
+
+        Returns:
+            A copy of this task.
+        """
+        return self.__class__(
+            self.function,
+            self.scheduler,
+            plugins=tuple(p.copy() for p in self.plugins),
+            init_plugins=init_plugins,
+        )
+
     def _process_future(self, future: Future[R]) -> None:
         try:
             self.queue.remove(future)
@@ -432,7 +420,7 @@ class Task(Generic[P, R]):
             result = future.result()
             self.on_result.emit(future, result)
 
-    def attach_plugin(self, plugin: TaskPlugin) -> None:
+    def attach_plugin(self, plugin: Plugin) -> None:
         """Attach a plugin to this task.
 
         Args:
@@ -462,17 +450,29 @@ class Task(Generic[P, R]):
         kwargs_str = ", ".join(f"{k}={v}" for k, v in kwargs.items())
         return f"{self.__class__.__name__}({kwargs_str})"
 
+    @override
     def __rich__(self) -> Panel:
+        from rich.console import Group as RichGroup
         from rich.panel import Panel
+        from rich.text import Text
         from rich.tree import Tree
 
-        from amltk.richutil import Function
+        from amltk._richutil import Function
+
+        items: list[RichRenderable | Tree] = []
+
+        if any(self.plugins):
+            for plugin in self.plugins:
+                items.append(plugin)
 
         tree = Tree(label="", hide_root=True)
         tree.add(self.emitter)
+        items.append(tree)
+
         return Panel(
-            tree,
+            RichGroup(*items),
             title=Function(self.function, prefix="Task").__rich__(),
             title_align="left",
             border_style="deep_sky_blue2",
+            subtitle=Text("Ref: ").append(self.unique_ref, "yellow italic"),
         )

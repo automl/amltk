@@ -1,22 +1,107 @@
-"""Calculate distances between datasets based on metafeatures.
+"""One common way to define how similar two datasets are is to compute some "similarity"
+between them. This notion of "similarity" requires computing some features of a dataset
+(**metafeatures**) first, such that we can numerically compute some distance function.
 
-Please see the reference section on
-[Metalearning](site:reference/metalearning.md) for more!
-"""
+Let's see how we can quickly compute the distance between some datasets with
+[`dataset_distance()`][amltk.metalearning.dataset_distance]!
+
+```python exec="true" source="material-block" result="python" title="Dataset Distances P.1" session='dd'
+import pandas as pd
+import openml
+
+from amltk.metalearning import compute_metafeatures
+
+def get_dataset(dataset_id: int) -> tuple[pd.DataFrame, pd.Series]:
+    dataset = openml.datasets.get_dataset(
+        dataset_id,
+        download_data=True,
+        download_features_meta_data=False,
+        download_qualities=False,
+    )
+    X, y, _, _ = dataset.get_data(
+        dataset_format="dataframe",
+        target=dataset.default_target_attribute,
+    )
+    return X, y
+
+d31 = get_dataset(31)
+d3 = get_dataset(3)
+d4 = get_dataset(4)
+
+metafeatures_dict = {
+    "dataset_31": compute_metafeatures(*d31),
+    "dataset_3": compute_metafeatures(*d3),
+    "dataset_4": compute_metafeatures(*d4),
+}
+
+metafeatures = pd.DataFrame(metafeatures_dict)
+print(metafeatures)
+```
+
+Now we want to know which one of `#!python "dataset_3"` or `#!python "dataset_4"` is
+more _similar_ to `#!python "dataset_31"`.
+
+```python exec="true" source="material-block" result="python" title="Dataset Distances P.2" session='dd'
+from amltk.metalearning import dataset_distance
+
+target = metafeatures_dict.pop("dataset_31")
+others = metafeatures_dict
+
+distances = dataset_distance(target, others, distance_metric="l2")
+print(distances)
+```
+
+Seems like `#!python "dataset_3"` is some notion of closer to `#!python "dataset_31"`
+than `#!python "dataset_4"`. However the scale of the metafeatures are not exactly all close.
+For example, many lie between `#!python (0, 1)` but some like `instance_count` can completely
+dominate the show.
+
+Lets repeat the computation but specify that we should apply a `#!python "minmax"` scaling
+across the rows.
+
+```python exec="true" source="material-block" result="python" title="Dataset Distances P.3" session='dd' hl_lines="5"
+distances = dataset_distance(
+    target,
+    others,
+    distance_metric="l2",
+    scaler="minmax"
+)
+print(distances)
+```
+
+Now `#!python "dataset_3"` is considered more similar but the difference between the two is a lot less
+dramatic. In general, applying some scaling to values of different scales is required for metalearning.
+
+You can also use an [sklearn.preprocessing.MinMaxScaler][] or anything other scaler from scikit-learn
+for that matter.
+
+```python exec="true" source="material-block" result="python" title="Dataset Distances P.3" session='dd' hl_lines="7"
+from sklearn.preprocessing import MinMaxScaler
+
+distances = dataset_distance(
+    target,
+    others,
+    distance_metric="l2",
+    scaler=MinMaxScaler()
+)
+print(distances)
+```
+"""  # noqa: E501
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Callable, Literal, Mapping, TypeVar
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import pandas as pd
 
+from amltk._functional import funcname
 from amltk.distances import (
     DistanceMetric,
     NamedDistance,
     NearestNeighborsDistance,
     distance_metrics,
 )
-from amltk.functional import funcname
 from amltk.types import safe_isinstance
 
 if TYPE_CHECKING:

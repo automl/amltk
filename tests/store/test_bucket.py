@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import operator
 import shutil
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Callable, Iterator, Literal, TypeVar
+from typing import Any, Literal, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -31,7 +32,7 @@ def bucket_path_bucket(tmp_path: Path) -> Iterator[PathBucket]:
     shutil.rmtree(path)
 
 
-def unjson_serialisable(x):
+def unjson_serialisable(x: Any) -> Any:
     return x
 
 

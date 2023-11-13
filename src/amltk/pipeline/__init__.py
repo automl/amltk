@@ -1,28 +1,26 @@
 from __future__ import annotations
 
-from amltk.pipeline.api import choice, group, request, searchable, split, step
-from amltk.pipeline.components import Choice, Component, Group, Searchable, Split
-from amltk.pipeline.parser import Parser
-from amltk.pipeline.pipeline import Pipeline
-from amltk.pipeline.sampler import Sampler
-from amltk.pipeline.space import SpaceAdapter
-from amltk.pipeline.step import Step
+from amltk.pipeline.components import (
+    Choice,
+    Component,
+    Fixed,
+    Join,
+    Searchable,
+    Sequential,
+    Split,
+    as_node,
+)
+from amltk.pipeline.node import Node, request
 
 __all__ = [
-    "Pipeline",
-    "split",
-    "step",
-    "choice",
-    "searchable",
-    "Step",
+    "Node",
     "Component",
     "Split",
     "Choice",
-    "Parser",
-    "Sampler",
-    "SpaceAdapter",
     "Searchable",
-    "group",
-    "Group",
+    "Sequential",
+    "Fixed",
+    "Join",
     "request",
+    "as_node",
 ]

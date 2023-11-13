@@ -27,19 +27,19 @@ answers = []
 @scheduler.on_start
 def start_computing() -> None:
     answers.append(12)
-    task(12)  # Launch the task with the argument 12
+    task.submit(12)  # Launch the task with the argument 12
 
 # Tell the scheduler what to do when the task returns
 @task.on_result
 def compute_next(_, next_n: int) -> None:
     answers.append(next_n)
-    if next_n != 1:
-        task(next_n)
+    if scheduler.running() or next_n != 1:
+        task.submit(next_n)
 
 # Run the scheduler
 scheduler.run(timeout=1)  # One second timeout
 print(answers)
-from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, scheduler, fontsize="small")  # markdown-exec: hide
 ```
 
 
@@ -51,14 +51,14 @@ However, the `Scheduler` is rather useless without some fuel. For this,
 we present [`Tasks`][amltk.scheduling.Task], the computational task to
 perform with the `Scheduler` and start the system's gears turning.
 
-Finally, we show the [`Event`][amltk.events.Event] and how you can use this with
-an [`Emitter`][amltk.events.Emitter] to create your own event-driven systems.
-
 ??? tip "`rich` printing"
 
     To get the same output locally (terminal or Notebook), you can either
     call `thing.__rich()__`, use `from rich import print; print(thing)`
     or in a Notebook, simply leave it as the last object of a cell.
+
+    You'll have to install with `amltk[jupyter]` or
+    `pip install rich[jupyter]` manually.k
 
 ## Scheduler
 The core engine of the AutoML-Toolkit is the [`Scheduler`][amltk.scheduling.Scheduler].
@@ -86,277 +86,24 @@ computation is actually performed. This allows us to easily switch between
 different backends, such as threads, processes, clusters, cloud resources,
 or even custom backends.
 
+!!! info inline end "Available Executors"
+
+    You can find a list of these in our
+    [executor reference](site:reference/scheduling/executors.md).
+
 The simplest one is a [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor]
-which will create a pool of processes to run the compute in parallel.
+which will create a pool of processes to run the compute in parallel. We provide
+a convenience function for this as
+[`Scheduler.with_processes()`][amltk.scheduling.Scheduler.with_processes]
+well as some other builder
 
 ```python exec="true" source="material-block" html="True"
 from concurrent.futures import ProcessPoolExecutor
 from amltk.scheduling import Scheduler
 
-scheduler = Scheduler(
-    executor=ProcessPoolExecutor(max_workers=2),
-)
-from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
+scheduler = Scheduler.with_processes(2)
+from amltk._doc import doc_print; doc_print(print, scheduler)  # markdown-exec: hide
 ```
-
-We provide convenience functions for some common backends, such as
-[`with_processes(max_workers=2)`][amltk.scheduling.Scheduler.with_processes]
-which does exactly this.
-
-!!! tip "Builtin backends"
-
-    If there's any executor background you wish to integrate, we would
-    be happy to consider it and greatly appreciate a PR!
-
-    === ":material-language-python: `Python`"
-
-        Python supports the `Executor` interface natively with the
-        [`concurrent.futures`][concurrent.futures] module for processes with the
-        [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor] and
-        [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor] for threads.
-
-        !!! example
-
-            === "Process Pool Executor"
-
-                ```python
-                from amltk.scheduling import Scheduler
-
-                scheduler = Scheduler.with_processes(2)  # (1)!
-                ```
-
-                1. Explicitly use the `with_processes` method to create a `Scheduler` with
-                   a `ProcessPoolExecutor` with 2 workers.
-                   ```python
-                    from concurrent.futures import ProcessPoolExecutor
-                    from amltk.scheduling import Scheduler
-
-                    executor = ProcessPoolExecutor(max_workers=2)
-                    scheduler = Scheduler(executor=executor)
-                   ```
-
-            === "Thread Pool Executor"
-
-                ```python
-                from amltk.scheduling import Scheduler
-
-                scheduler = Scheduler.with_threads(2)  # (1)!
-                ```
-
-                1. Explicitly use the `with_threads` method to create a `Scheduler` with
-                   a `ThreadPoolExecutor` with 2 workers.
-                   ```python
-                    from concurrent.futures import ThreadPoolExecutor
-                    from amltk.scheduling import Scheduler
-
-                    executor = ThreadPoolExecutor(max_workers=2)
-                    scheduler = Scheduler(executor=executor)
-                   ```
-
-                !!! danger "Why to not use threads"
-
-                    Python also defines a [`ThreadPoolExecutor`][concurrent.futures.ThreadPoolExecutor]
-                    but there are some known drawbacks to offloading heavy compute to threads. Notably,
-                    there's no way in python to terminate a thread from the outside while it's running.
-
-    === ":simple-dask: `dask`"
-
-        [Dask](https://distributed.dask.org/en/stable/) and the supporting extension [`dask.distributed`](https://distributed.dask.org/en/stable/)
-        provide a robust and flexible framework for scheduling compute across workers.
-
-        !!! example
-
-            ```python hl_lines="5"
-            from dask.distributed import Client
-            from amltk.scheduling import Scheduler
-
-            client = Client(...)
-            executor = client.get_executor()
-            scheduler = Scheduler(executor=executor)
-            ```
-
-    === ":simple-dask: `dask-jobqueue`"
-
-        [`dask-jobqueue`](https://jobqueue.dask.org/en/latest/) is a package
-        for scheduling jobs across common clusters setups such as
-        PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
-
-
-        !!! example
-
-            Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
-            In particular, we only control the parameter `#!python n_workers=` to
-            use the [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
-            method, every other keyword is forwarded to the relative
-            [cluster implementation](https://jobqueue.dask.org/en/latest/api.html).
-
-            In general, you should specify the requirements of each individual worker and
-            and tune your load with the `#!python n_workers=` parameter.
-
-            If you have any tips, tricks, working setups, gotchas, please feel free
-            to leave a PR or simply an issue!
-
-            === "Slurm"
-
-                ```python hl_lines="3 4 5 6 7 8 9"
-                from amltk.scheduling import Scheduler
-
-                scheduler = Scheduler.with_slurm(
-                    n_workers=10,  # (1)!
-                    queue=...,
-                    cores=4,
-                    memory="6 GB",
-                    walltime="00:10:00"
-                )
-                ```
-
-                1. The `n_workers` parameter is used to set the number of workers
-                   to start with.
-                   The [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
-                   method will be called on the cluster to dynamically scale up to `#!python n_workers=` based on
-                   the load.
-                   The `with_slurm` method will create a [`SLURMCluster`][dask_jobqueue.SLURMCluster]
-                   and pass it to the `Scheduler` constructor.
-                   ```python hl_lines="10"
-                   from dask_jobqueue import SLURMCluster
-                   from amltk.scheduling import Scheduler
-
-                   cluster = SLURMCluster(
-                       queue=...,
-                       cores=4,
-                       memory="6 GB",
-                       walltime="00:10:00"
-                   )
-                   cluster.adapt(max_workers=10)
-                   executor = cluster.get_client().get_executor()
-                   scheduler = Scheduler(executor=executor)
-                   ```
-
-                !!! warning "Running outside the login node"
-
-                    If you're running the scheduler itself in a job, this may not
-                    work on some cluster setups. The scheduler itself is lightweight
-                    and can run on the login node without issue.
-                    However you should make sure to offload heavy computations
-                    to a worker.
-
-                    If you get it to work, for example in an interactive job, please
-                    let us know!
-
-                !!! info "Modifying the launch command"
-
-                    On some cluster commands, you'll need to modify the launch command.
-                    You can use the following to do so:
-
-                    ```python
-                    from amltk.scheduling import Scheduler
-
-                    scheduler = Scheduler.with_slurm(n_workers=..., submit_command="sbatch --extra"
-                    ```
-
-            === "Others"
-
-                Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
-                and the following methods:
-
-                * [`Scheduler.with_pbs()`][amltk.scheduling.Scheduler.with_pbs]
-                * [`Scheduler.with_lsf()`][amltk.scheduling.Scheduler.with_lsf]
-                * [`Scheduler.with_moab()`][amltk.scheduling.Scheduler.with_moab]
-                * [`Scheduler.with_sge()`][amltk.scheduling.Scheduler.with_sge]
-                * [`Scheduler.with_htcondor()`][amltk.scheduling.Scheduler.with_htcondor]
-
-    === ":octicons-gear-24: `loky`"
-
-        [Loky](https://loky.readthedocs.io/en/stable/API.html) is the default backend executor behind
-        [`joblib`](https://joblib.readthedocs.io/en/stable/), the parallelism that
-        powers scikit-learn.
-
-        !!! example "Scheduler with Loky Backend"
-
-            === "Simple"
-
-                ```python
-                from amltk import Scheduler
-
-                # Pass any arguments you would pass to `loky.get_reusable_executor`
-                scheduler = Scheduler.with_loky(...)
-                ```
-
-
-            === "Explicit"
-
-                ```python
-                import loky
-                from amltk import Scheduler
-
-                scheduler = Scheduler(executor=loky.get_reusable_executor(...))
-                ```
-
-        !!! warning "BLAS numeric backend"
-
-            The loky executor seems to pick up on a different BLAS library (from scipy)
-            which is different than those used by jobs from something like a `ProcessPoolExecutor`.
-
-            This is likely not to matter for a majority of use-cases.
-
-    === ":simple-ray: `ray`"
-
-        [Ray](https://docs.ray.io/en/master/) is an open-source unified compute framework that makes it easy
-        to scale AI and Python workloads
-        — from reinforcement learning to deep learning to tuning,
-        and model serving.
-
-        !!! info "In progress"
-
-            Ray is currently in the works of supporting the Python
-            `Executor` interface. See this [PR](https://github.com/ray-project/ray/pull/30826)
-            for more info.
-
-    === ":simple-apacheairflow: `airflow`"
-
-        [Airflow](https://airflow.apache.org/) is a platform created by the community to programmatically author,
-        schedule and monitor workflows. Their list of integrations to platforms is endless
-        but features compute platforms such as Kubernetes, AWS, Microsoft Azure and
-        GCP.
-
-        !!! info "Planned"
-
-            We plan to support `airflow` in the future. If you'd like to help
-            out, please reach out to us!
-
-    === ":material-debug-step-over: Debugging"
-
-        Sometimes you'll need to debug what's going on and remove the noise
-        of processes and parallelism. For this, we have implemented a very basic
-        [`SequentialExecutor`][amltk.scheduling.SequentialExecutor] to run everything
-        in a sequential manner!
-
-        === "Easy"
-
-            ```python
-            from amltk.scheduling import Scheduler
-
-            scheduler = Scheduler.with_sequential()
-            ```
-
-        === "Explicit"
-
-            ```python
-            from amltk.scheduling import Scheduler, SequetialExecutor
-
-            scheduler = Scheduler(executor=SequentialExecutor())
-            ```
-
-        !!! warning "Recursion"
-
-            If you use The `SequentialExecutor`, be careful that the stack
-            of function calls can get quite large, quite quick. If you are
-            using this for debugging, keep the number of submitted tasks
-            from callbacks small and focus in on debugging. If using this
-            for sequential ordering of operations, prefer to use
-            `with_processes(1)` as this will still maintain order but not
-            have these stack issues.
-
 
 ### Running the Scheduler
 
@@ -419,6 +166,13 @@ scheduler.run()
 from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
+!!! tip "Determinism"
+
+    It's worth noting that even though we are using an event based system, we
+    are still guaranteed deterministic execution of the callbacks for any given
+    event. The source of indeterminism is the order in which events are emitted,
+    this is determined entirely by your compute functions themselves.
+
 ### Submitting Compute
 The `Scheduler` exposes a simple [`submit()`][amltk.scheduling.Scheduler.submit]
 method which allows you to submit compute to be performed **while the scheduler is running**.
@@ -462,7 +216,9 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
     its result/exception of some computation which may not have completed yet.
 
 ### Scheduler Events
-We won't cover all possible scheduler events but we provide the complete list here:
+Here are some of the possible `@events` a `Scheduler` can emit, but
+please visit the [scheduler reference](site:reference/scheduling/scheduler.md)
+for a complete list.
 
 === "`@on_start`"
 
@@ -509,17 +265,9 @@ We won't cover all possible scheduler events but we provide the complete list he
     ::: amltk.scheduling.Scheduler.on_empty
 
 We can access all the counts of all events through the
-[`scheduler.event_counts`][amltk.events.Emitter.event_counts] property.
+[`scheduler.event_counts`][amltk.scheduling.events.Emitter.event_counts] property.
 This is a `dict` which has the events as keys and the amount of times
 it was emitted as the values.
-
-!!! tip "Determinism"
-
-    It's worth noting that even though we are using an event based system, we
-    are still guaranteed deterministic execution of the callbacks for any given
-    event. The source of indeterminism is the order in which events are emitted,
-    this is determined entirely by your compute functions themselves.
-
 
 ### Controlling Callbacks
 There's a few parameters you can pass to any event subscriber
@@ -527,7 +275,7 @@ such as `@on_start` or `@on_future_result`.
 These control the behavior of what happens when its event is fired and can
 be used to control the flow of your system.
 
-You can find their docs here [`Emitter.on()`][amltk.events.Emitter.on].
+These are covered more extensively in our [events reference](site:reference/scheduling/events.md).
 
 === "`repeat=`"
 
@@ -691,7 +439,8 @@ However there are more explicit methods.
     # The will endlessly loop the scheduler
     @scheduler.on_future_done
     def submit_again(future: Future) -> None:
-        scheduler.submit(expensive_function)
+        if scheduler.running():
+            scheduler.submit(expensive_function)
 
     scheduler.run(timeout=1)  # End after 1 second
     from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
@@ -730,7 +479,7 @@ def submit_calculations() -> None:
 
 @scheduler.on_future_exception
 def stop_the_scheduler(future: Future, exception: Exception) -> None:
-    print("Got exception {exception}")
+    print(f"Got exception {exception}")
     scheduler.stop()  # You can optionally pass `exception=` for logging purposes.
 
 scheduler.run(on_exception="ignore")  # Scheduler will not stop because of the error
@@ -740,7 +489,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 The second kind of exception that can happen is one that happens in the main process.
 For example this could happen in one of your callbacks or in the `Scheduler` itself (please raise an issue if this occurs!).
 By default when you call [`run()`][amltk.scheduling.Scheduler.run] it will set
-`#!python run(on_exception="raise")` and raise the exception that occured, with its traceback.
+`#!python run(on_exception="raise")` and raise the exception that occurred, with its traceback.
 This is to help you debug your program.
 
 You may also use `#!python run(on_exception="end")` which will just end the `Scheduler` and raise no exception,
@@ -750,7 +499,7 @@ are next to process.
 ## Tasks
 Now that we have seen how the [`Scheduler`][amltk.scheduling.Scheduler] works,
 we can look at the [`Task`][amltk.scheduling.Task], a wrapper around a function
-that you'll want to submit to the `Scheduler`. The preffered way to create one
+that you'll want to submit to the `Scheduler`. The preferred way to create one
 of these `Tasks` is to use [`scheduler.task(function)`][amltk.scheduling.Scheduler.task].
 
 ### Running a task
@@ -772,7 +521,7 @@ scheduler = Scheduler.with_processes(1)
 collatz_task = scheduler.task(collatz)
 
 try:
-    collatz_task(5)
+    collatz_task.submit(5)
 except Exception as e:
     print(f"{type(e)}: {e}")
 ```
@@ -798,7 +547,7 @@ collatz_task = scheduler.task(collatz)
 
 @scheduler.on_start
 def launch_initial_task() -> None:
-    collatz_task(5)
+    collatz_task.submit(5)
 
 scheduler.run()
 from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
@@ -827,7 +576,7 @@ echo_task = scheduler.task(echo)
 # Launch the task and do a raw `submit()` with the Scheduler
 @scheduler.on_start
 def launch_initial_task() -> None:
-    echo_task("hello")
+    echo_task.submit("hello")
     scheduler.submit(echo, "hi")
 
 # Callback for anything result from the scheduler
@@ -846,7 +595,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 We can see in the output of the above code that the `@scheduler.on_future_result` was called twice,
 meaning our callback `#!python def from_scheduler()` was called twice,
-one for the result of `#!python echo_task("hello")` and the other
+one for the result of `#!python echo_task.submit("hello")` and the other
 from `#!python scheduler.submit(echo, "hi")`. On the other hand, the event `@task.on_result`
 was only called once, meaning our callback `#!python def from_task()` was only called once.
 
@@ -880,19 +629,19 @@ items = iter([1, 2, 3])
 @scheduler.on_start
 def submit_initial() -> None:
     next_item = next(items)
-    task_1(next_item)
+    task_1.submit(next_item)
 
 @task_1.on_result
 def submit_task_2_with_results_of_task_1(_, result: int) -> None:
     """When task_1 returns, send the result to task_2"""
-    task_2(result)
+    task_2.submit(result)
 
 @task_1.on_result
 def submit_task_1_with_next_item(_, result: int) -> None:
     """When task_1 returns, launch it again with the next items"""
     next_item = next(items, None)
     if next_item is not None:
-        task_1(next_item)
+        task_1.submit(next_item)
         return
 
     print("Done!")
@@ -909,15 +658,15 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 ## Task Plugins
 Another benefit of [`Task`][amltk.scheduling.Task] objects is that we can attach
-a [`TaskPlugin`][amltk.scheduling.TaskPlugin] to them. These plugins can automate control
+a [`Plugin`][amltk.scheduling.Plugin] to them. These plugins can automate control
 behaviour of tasks, either through preventing their execution,
-modifying the function and its arugments or even attaching plugin specific events!
+modifying the function and its arguments or even attaching plugin specific events!
 
 For a complete reference, please see the [plugin reference page](site:reference/plugins).
 
 ### Call Limiter
 Perhaps one of the more useful plugins, at least when designing an AutoML System is the
-[`CallLimiter`][amltk.scheduling.task_plugin.CallLimiter] plugin. This can help you control
+[`Limiter`][amltk.scheduling.plugins.Limiter] plugin. This can help you control
 both it's concurrency or the absolute limit of how many times a certain task can be
 successfully submitted.
 
@@ -926,7 +675,7 @@ to submit a `Task` 4 times in rapid succession. However we have the constraint t
 only ever want 2 of these tasks running at a given time. Let's see how we could achieve that.
 
 ```python exec="true" source="material-block" html="True" hl_lines="9"
-from amltk import Scheduler, CallLimiter
+from amltk.scheduling import Scheduler, Limiter
 
 def my_func(x: int) -> int:
     return x
@@ -935,7 +684,7 @@ from amltk._doc import make_picklable; make_picklable(my_func)  # markdown-exec:
 scheduler = Scheduler.with_processes(2)
 
 # Specify a concurrency limit of 2
-task = scheduler.task(my_func, plugins=CallLimiter(max_concurrent=2))
+task = scheduler.task(my_func, plugins=Limiter(max_concurrent=2))
 
 # A list of 10 things we want to compute
 items = iter(range(10))
@@ -944,7 +693,7 @@ results = []
 @scheduler.on_start(repeat=4)  # Repeat callback 4 times
 def submit() -> None:
     next_item = next(items)
-    task(next_item)
+    task.submit(next_item)
 
 @task.on_result
 def record_result(_, result: int) -> None:
@@ -954,7 +703,7 @@ def record_result(_, result: int) -> None:
 def launch_another(_, result: int) -> None:
     next_item = next(items, None)
     if next_item is not None:
-        task(next_item)
+        task.submit(next_item)
 
 scheduler.run()
 print(results)
@@ -963,7 +712,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 You can notice that this limiting worked, given the numbers `#!python 2` and `#!python 3`
 were skipped and not printed. As expected, we successfully launched the task with both 
-`#!python 0` and `#!python 1` but as these tasks were not done processing, the `CallLimiter`
+`#!python 0` and `#!python 1` but as these tasks were not done processing, the `Limiter`
 kicks in and prevents the other two.
 
 A natural extension to ask is then, "how do we requeue these?". Well lets take a look at the above
@@ -976,7 +725,7 @@ method. Below is the same example except here we respond to `@call-limit-reached
 and requeue the submissions that failed.
 
 ```python exec="true" source="material-block" html="True" hl_lines="11 19-21"
-from amltk import Scheduler, CallLimiter
+from amltk.scheduling import Scheduler, Limiter, Task
 from amltk.types import Requeue
 
 def my_func(x: int) -> int:
@@ -984,7 +733,7 @@ def my_func(x: int) -> int:
 from amltk._doc import make_picklable; make_picklable(my_func)  # markdown-exec: hide
 
 scheduler = Scheduler.with_processes(2)
-task = scheduler.task(my_func, plugins=CallLimiter(max_concurrent=2))
+task = scheduler.task(my_func, plugins=Limiter(max_concurrent=2))
 
 # A list of 10 things we want to compute
 items = Requeue(range(10))  # A convenience type that you can requeue/append to
@@ -993,7 +742,7 @@ results = []
 @scheduler.on_start(repeat=4)  # Repeat callback 4 times
 def submit() -> None:
     next_item = next(items)
-    task(next_item)
+    task.submit(next_item)
 
 @task.on("concurrent-limit-reached")
 def add_back_to_queue(task: Task, x: int) -> None:
@@ -1007,40 +756,24 @@ def record_result(_, result: int) -> None:
 def launch_another(_, result: int) -> None:
     next_item = next(items, None)
     if next_item is not None:
-        task(next_item)
+        task.submit(next_item)
 
 scheduler.run()
 print(results)
 from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
-### Creating Your Own Task Plugins
-The [`CallLimiter`][amltk.scheduling.task_plugin.CallLimiter] plugin is a good example
-of what you can achieve with a [`TaskPlugin`][amltk.scheduling.task_plugin.TaskPlugin]
-and serves as a reference point for how you can add new events and control
-task submission.
+### Under Construction
 
-Another good example is the [`PynisherPlugin`][amltk.pynisher.pynisher_task_plugin.PynisherPlugin] which
-wraps a `Task` when it's submitted, allowing you to limit memory and wall clock time
-of your compute functions, in a cross-platform manner.
+    Please see the following reference pages in the meantime:
 
-If you have any cool new plugins, we'd love to hear about them!
-Please see the [plugin reference page](site:reference/plugins.md) for more.
-
-## Emitters and the Event System
-
-!!! todo "TODO"
-
-    This section should contain a little overview of how the
-    [`Emitter`][amltk.events.Emitter] class works as it's the main
-    layer through which objects register and emit events, often
-    by creating a [`subscriber()`][amltk.events.Emitter.subscriber].
-
-    This should also briefly mention what an [`Event`][amltk.events.Event]
-    is.
-
-### Events
-TODO
-
-### Emitters
-TODO
+    * [scheduler reference](site:reference/scheduling/scheduler.md) - A slighltly
+        more condensed version of how to use the `Scheduler`.
+    * [task reference](site:reference/scheduling/task.md) - A more comprehensive
+        explanation of `Task`s and their `@events`.
+    * [plugin reference](site:reference/scheduling/plugins.md) - An intro to plugins
+        and how to create your own.
+    * [executors reference](site:reference/scheduling/executors.md) - A list of
+        executors and how to use them.
+    * [events reference](site:reference/scheduling/events.md) - A more comprehensive
+        look at the event system in AutoML-Toolkit and how to work with them or extend them.

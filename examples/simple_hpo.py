@@ -27,20 +27,17 @@ from typing import Any
 
 import numpy as np
 import openml
-from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.compose import make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import (
-    LabelEncoder,
-    OneHotEncoder,
-)
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 from amltk.optimization import History, Trial
-from amltk.pipeline import Pipeline, split, step
+from amltk.optimization.optimizers.smac import SMACOptimizer
+from amltk.pipeline import Component, Node, Sequential, Split
 from amltk.scheduling import Scheduler
 from amltk.sklearn.data import split_data
-from amltk.smac import SMACOptimizer
 from amltk.store import PathBucket
 
 """
@@ -81,46 +78,34 @@ the `RandomForestClassifier`.
 For more on definitions of pipelines, see the [Pipeline](site:guides/pipeline.md)
 guide.
 """
-categorical_imputer = step(
-    "categoricals",
-    SimpleImputer,
-    config={
-        "strategy": "constant",
-        "fill_value": "missing",
-    },
-)
-one_hot_encoding = step("ohe", OneHotEncoder, config={"drop": "first"})
-
-numerical_imputer = step(
-    "numerics",
-    SimpleImputer,
-    space={"strategy": ["mean", "median"]},
-)
-
-pipeline = Pipeline.create(
-    split(
-        "feature_preprocessing",
-        categorical_imputer | one_hot_encoding,
-        numerical_imputer,
-        item=ColumnTransformer,
-        config={
-            "categoricals": make_column_selector(dtype_include=object),
-            "numerics": make_column_selector(dtype_include=np.number),
+pipeline = (
+    Sequential(name="Pipeline")
+    >> Split(
+        {
+            "categories": [
+                SimpleImputer(strategy="constant", fill_value="missing"),
+                OneHotEncoder(drop="first"),
+            ],
+            "numbers": Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
         },
-    ),
-    step(
-        "rf",
+        config={
+            "categories": make_column_selector(dtype_include=object),
+            "numbers": make_column_selector(dtype_include=np.number),
+        },
+        name="feature_preprocessing",
+    )
+    >> Component(
         RandomForestClassifier,
         space={
             "n_estimators": (10, 100),
             "max_features": (0.0, 1.0),
             "criterion": ["gini", "entropy", "log_loss"],
         },
-    ),
+    )
 )
 
 print(pipeline)
-print(pipeline.space())
+print(pipeline.search_space("configspace"))
 
 """
 ## Target Function
@@ -128,8 +113,7 @@ The function we will optimize must take in a `Trial` and return a `Trial.Report`
 We also pass in a [`PathBucket`][amltk.store.Bucket] which is a dict-like view of the
 file system, where we have our dataset stored.
 
-We also pass in our [`Pipeline`][amltk.pipeline.Pipeline] representation of our
-pipeline, which we will use to build our sklearn pipeline with a specific
+We also pass in our pipeline, which we will use to build our sklearn pipeline with a specific
 `trial.config` suggested by the [`Optimizer`][amltk.optimization.Optimizer].
 """
 
@@ -138,7 +122,7 @@ def target_function(
     trial: Trial,
     /,
     bucket: PathBucket,
-    _pipeline: Pipeline,
+    _pipeline: Node,
 ) -> Trial.Report:
     # Load in data
     X_train, X_val, X_test, y_train, y_val, y_test = (
@@ -152,7 +136,7 @@ def target_function(
 
     # Configure the pipeline with the trial config before building it.
     configured_pipeline = _pipeline.configure(trial.config)
-    sklearn_pipeline = configured_pipeline.build()
+    sklearn_pipeline = configured_pipeline.build("sklearn")
 
     # Fit the pipeline, indicating when you want to start the trial timing and error
     # catchnig.
@@ -210,7 +194,7 @@ def target_function(
 
 Now we can run the whole thing. We will use the
 [`Scheduler`][amltk.scheduling.Scheduler]
-to run the optimization, and the [`SMACOptimizer`][amltk.smac.SMACOptimizer] to
+to run the optimization, and the [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] to
 to optimize the pipeline.
 
 ### Getting and storing data
@@ -251,13 +235,16 @@ optimization.
 
 Please check out the full [guides](site:guides/index.md) to learn more!
 
-We then create an [`SMACOptimizer`][amltk.smac.SMACOptimizer] which will
+We then create an [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] which will
 optimize the pipeline. We pass in the space of the pipeline, which is the space of
 the hyperparameters we want to optimize.
 """
 scheduler = Scheduler.with_processes(2)
-optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)
 
+parser = SMACOptimizer.preferred_parser()
+space = pipeline.search_space(parser=parser)
+
+optimizer = SMACOptimizer.create(space=space, seed=seed)
 
 """
 Next we create a [`Task`][amltk.Task], passing in the function we
@@ -282,7 +269,7 @@ launches the task we created earlier with this trial.
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
-    task(trial, bucket=bucket, _pipeline=pipeline)
+    task.submit(trial, bucket=bucket, _pipeline=pipeline)
 
 
 """
@@ -330,7 +317,7 @@ a report. This will launch a new task as soon as one finishes.
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
-    task(trial, bucket=bucket, _pipeline=pipeline)
+    task.submit(trial, bucket=bucket, _pipeline=pipeline)
 
 
 """
@@ -359,4 +346,3 @@ scheduler.run(timeout=20)
 print("Trial history:")
 history_df = trial_history.df()
 print(history_df)
-
