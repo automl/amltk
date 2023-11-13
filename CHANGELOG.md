@@ -1,3 +1,9 @@
+## 0.10.2 (2023-11-13)
+
+### Fix
+
+- Move NePs to not be included in dev
+
 ## 0.10.1 (2023-11-13)
 
 ### Fix
