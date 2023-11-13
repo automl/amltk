@@ -50,6 +50,7 @@ dev = [
   "pytest",
   "pytest-coverage",
   "pytest-cases",
+  "pytest-timeout",
   "distributed",
   "openpyxl",
   "pyarrow",
@@ -83,6 +84,7 @@ log_level = "DEBUG"
 xfail_strict = true
 addopts = "--durations=10 -vv"
 markers = ["example: An example"]
+timeout = 60  # Nothing should take longer than this...
 
 
 [tool.coverage.run]
