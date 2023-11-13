@@ -12,6 +12,12 @@ is a wrapper around the [`NePs`](https://github.com/automl/neps) optimizer.
     pip install neural-pipeline-search
     ```
 
+!!! warning "NePs is still in development"
+
+    NePs is still in development and is not yet stable.
+    There are likely going to be issues. Please report any issues to NePs or in
+    AMLTK.
+
 This uses `ConfigSpace` as its [`search_space()`][amltk.pipeline.Node.search_space] to
 optimize. Please see
 [amltk.pipeline.parsers.configspace][amltk.pipeline.parsers.configspace.parser]
@@ -36,7 +42,7 @@ Visit their documentation for what you can pass to
 
 The below example shows how you can use neps to optimize an sklearn pipeline.
 
-```python exec="True" source="material-block" result="python"
+```python exec="False" source="material-block" result="python"
 from __future__ import annotations
 
 import logging
