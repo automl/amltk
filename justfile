@@ -8,7 +8,7 @@ list:
 
 # Install all required and development dependancies
 install:
-  pip install -e ".[dev, test, doc, smac, optuna]"
+  pip install -e ".[dev]"
   pre-commit install
   pre-commit install --hook-type commit-msg
 
