@@ -353,7 +353,6 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
                 config,
                 pipeline_directory,
                 previous_pipeline_directory,
-                _,
             ) = metahyper.api._sample_config(  # type: ignore
                 optimization_dir=self.working_dir,
                 sampler=self.optimizer,
