@@ -157,24 +157,32 @@ nav:
     - "guides/scheduling.md"
   - Reference:
     - "reference/index.md"
-    - "reference/buckets.md"
-    - "reference/call_limiter.md"
-    - "reference/comms.md"
-    - "reference/configspace.md"
-    - "reference/dask-jobqueue.md"
-    - "reference/data.md"
-    - "reference/history.md"
-    - "reference/metalearning.md"
-    - "reference/optuna.md"
-    - "reference/pynisher.md"
-    - "reference/sklearn.md"
-    - "reference/smac.md"
-    - "reference/threadpoolctl.md"
-    - "reference/wandb.md"
-    - "reference/prebuilt_pipelines.md"
-    - "reference/neps.md"
-    - "reference/plugins.md"
-  - Examples: "examples/"
+    - Scheduling:
+      - "reference/scheduling/scheduler.md"
+      - "reference/scheduling/executors.md"
+      - "reference/scheduling/task.md"
+      - "reference/scheduling/plugins.md"
+      - "reference/scheduling/events.md"
+    - Pipelines:
+      - "reference/pipelines/pipeline.md"
+      - "reference/pipelines/spaces.md"
+      - "reference/pipelines/builders.md"
+      # - "reference/pipelines/prebuilts.md"
+    - Optimization:
+      - "reference/optimization/optimizers.md"
+      - "reference/optimization/trials.md"
+      - "reference/optimization/history.md"
+      - "reference/optimization/profiling.md"
+    - Data:
+      - "reference/data/index.md"
+      - "reference/data/buckets.md"
+    - Meta-Learning:
+      - "reference/metalearning/index.md"
+
+  - Examples:
+      - "examples/index.md"
+      - "examples/simple_hpo.md"
+      - "examples/hpo_with_ensembling.md"
     # Auto generated with docs/examples_runner.py
   - API: "api/"
     # Auto generated with docs/api_generator.py

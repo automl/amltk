@@ -1,19 +1,76 @@
-"""Classes for keeping track of trials."""
+"""The [`History`][amltk.optimization.History] is
+used to keep a structured record of what occured with
+[`Trial`][amltk.optimization.Trial]s and their associated
+[`Report`][amltk.optimization.Trial.Report]s.
+
+??? tip "Usage"
+
+    ```python exec="true" source="material-block" html="true" hl_lines="19 23-24"
+    from amltk.optimization import Trial, History
+    from amltk.store import PathBucket
+
+    def target_function(trial: Trial) -> Trial.Report:
+        x = trial.config["x"]
+        y = trial.config["y"]
+        trial.store({"config.json": trial.config})
+
+        with trial.begin():
+            cost = x**2 - y
+
+        if trial.exception:
+            return trial.fail()
+
+        return trial.success(cost=cost)
+
+    # ... usually obtained from an optimizer
+    bucket = PathBucket("all-trial-results")
+    history = History()
+
+    for x, y in zip([1, 2, 3], [4, 5, 6]):
+        trial = Trial(name="some-unique-name", config={"x": x, "y": y}, bucket=bucket)
+        report = target_function(trial)
+        history.add(report)
+
+    print(history.df())
+    bucket.rmdir()  # markdon-exec: hide
+    ```
+
+You'll often need to perform some operations on a
+[`History`][amltk.optimization.History] so we provide some utility functions here:
+
+* [`filter(by=...)`][amltk.optimization.History.filter] - Filters the history by some
+    predicate, e.g. `#!python history.filter(lambda report: report.status == "success")`
+* [`groupby(key=...)`][amltk.optimization.History.groupby] - Groups the history by some
+    key, e.g. `#!python history.groupby(lambda report: report.config["x"] < 5)`
+* [`sortby(key=...)`][amltk.optimization.History.sortby] - Sorts the history by some
+    key, e.g. `#!python history.sortby(lambda report: report.time.end)`
+
+    This will return a [`Trace`][amltk.optimization.Trace] which is the same
+    as a `History` in many respects, other than the fact it now has a sorted order.
+
+There is also some serialization capabilities built in, to allow you to store
+your results and load them back in later:
+
+* [`df(...)`][amltk.optimization.History.df] - Output a `pd.DataFrame` of all
+ the information available.
+* [`from_df(...)`][amltk.optimization.History.from_df] - Create a `History` from
+    a `pd.DataFrame`.
+
+You can also retrieve individual reports from the history by using their
+name, e.g. `#!python history["some-unique-name"]` or iterate through
+the history with `#!python for report in history: ...`.
+"""
 from __future__ import annotations
 
 import operator
 from collections import defaultdict
+from collections.abc import Callable, Hashable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
-    Callable,
-    Hashable,
-    Iterable,
-    Iterator,
     Literal,
-    Sequence,
     TypeVar,
     overload,
 )
@@ -21,9 +78,9 @@ from typing_extensions import override
 
 import pandas as pd
 
-from amltk.functional import compare_accumulate
+from amltk._functional import compare_accumulate
+from amltk._richutil import RichRenderable
 from amltk.optimization.trial import Trial
-from amltk.richutil import RichRenderable
 from amltk.types import Comparable
 
 if TYPE_CHECKING:
@@ -341,10 +398,10 @@ class History(RichRenderable):
         """
         _df = (
             pd.read_csv(
-                path,
+                path,  # type: ignore
                 float_precision="round_trip",  # type: ignore
             )
-            if isinstance(path, (IO, str, Path))
+            if isinstance(path, IO | str | Path)
             else path
         )
 
@@ -366,7 +423,7 @@ class History(RichRenderable):
 
     @override
     def __rich__(self) -> RenderableType:
-        from amltk.richutil import df_to_table
+        from amltk._richutil import df_to_table
 
         return df_to_table(
             self.df(configs=False, profiles=False, summary=False),
@@ -578,8 +635,6 @@ class Trace(Sequence[Trial.Report]):
             if op not in {"min", "max"}:
                 raise ValueError(f"Unknown op: {op}")
             op = operator.lt if op == "min" else operator.gt  # type: ignore
-        else:
-            op = op  # type: ignore
 
         if isinstance(key, str):
             trace = self.filter(lambda report: key in report.summary)

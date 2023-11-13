@@ -1,52 +1,11 @@
-## Search Spaces
-* [ConfigSpace](./configspace.md) - A serializable search space definition which
- supports choices and search space constraints. A great default go to!
-* [Optuna](./optuna.md) - A search space for using Optuna as your optimizer. Only
- done as a static definition and currently does not support Optuna's define-by-run.
+# Reference
+Here you'll find a non-exhaustive but quick reference to
+many of the core types and utilities available to AMLTK.
+Please use the Table of Contents on the left to browse them.
 
-## Optimizers
+If you're looking for a more in depth understanding of how
+automl-toolkit works, please take a look at the
+[guides section](site:guides/index.md).
 
-* [SMAC](./smac.md) - A powerful Bayesian-Optimization framework, primarly based on a custom
- Random Forest, supporting complex conditionals in a bayesian manner.
-* [Optuna](./optuna.md) - A highly flexible Optimization framework based on Tree-Parzan
- Estimators.
-* [NEPS](./neps.md) - An optimizer focused on optimizing neural architectures, allowing for
- continuatios and graph based search spaces
-
-## Pipeline Builders
-
-* [sklearn](./sklearn.md) - Export your pipelines to a pure [sklearn.pipeline.Pipeline][]
-    and some utility to ease data splitting.
-
-## Prebuilt Pipelines
-
-* [Prebuilt pipelines][./prebuilt_pipelines.md] - A collection of pre-built pipelines
-
-    * XGBoost
-
-## Scheduler Executors
-
-* [DaskJobQueue](./dask-jobqueue.md) - A set of [`Executors`][concurrent.futures.Executor]
-    usable with the [`Scheduler`][amltk.Scheduler] for different cluster setups.
-
-## Plugins
-
-* [CallLimiter](./call_limiter.md) - A simple plugin to limit how many times your task
-    can be called, how many concurrent instances of it can be run and prevent a task being
-    submitted while another task is running.
-* [pynisher](./pynisher.md) - A plugin to limit the maximum time or memory a task can
-    use, highly suitable for creating AutoML systems.
-* [wandb](./wandb.md) - A plugin that automatically logs your runs to
-    [weights and biases](https://wandb.ai/site)!
-* [threadpoolctl](./threadpoolctl.md) - A plugin that uses
-[`threadpoolctl`](https://github.com/joblib/threadpoolctl) to limit the number of threads used
-by certain numerical libraries within a tasks execution.
-
-## Utility
-
-* [Buckets](./buckets.md) - A nice utility to view the file system in a dictionary like
-    fashion, enabling quick and easy storing of many file types at once.
-* [History](./history.md) - A datastructure to house the results of an optimization run and
-    pull out information after.
-* [data](./data.md) - Utilities for working with data containers like numpy arrays, pandas
-    dataframes and series.
+If you're looking for signatures and specific function
+documentation, check out the API docs.

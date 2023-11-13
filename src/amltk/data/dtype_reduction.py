@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TypeVar, Union
-from typing_extensions import TypeAlias
+from typing import TypeAlias, TypeVar
 
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-DataContainer: TypeAlias = Union[np.ndarray, pd.DataFrame, pd.Series]
+DataContainer: TypeAlias = np.ndarray | (pd.DataFrame | pd.Series)
 D = TypeVar("D", bound=DataContainer)
 
 
@@ -95,10 +94,10 @@ def reduce_dtypes(x: D, *, reduce_int: bool = True, reduce_float: bool = True) -
         reduce_int: Whether to reduce integer dtypes.
         reduce_float: Whether to reduce floating point dtypes.
     """
-    if not isinstance(x, (pd.DataFrame, pd.Series, np.ndarray)):
+    if not isinstance(x, pd.DataFrame | pd.Series | np.ndarray):
         raise TypeError(f"Cannot reduce data of type {type(x)}.")
 
-    if isinstance(x, (pd.Series, pd.DataFrame)):
+    if isinstance(x, pd.Series | pd.DataFrame):
         x = x.convert_dtypes()
 
     if reduce_int:

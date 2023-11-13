@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from typing import TYPE_CHECKING, Callable, Hashable, Iterable, Mapping, TypeVar
+from collections.abc import Callable, Hashable, Iterable, Mapping
+from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 

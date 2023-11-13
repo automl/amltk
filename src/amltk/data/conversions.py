@@ -58,7 +58,7 @@ def to_numpy(
     Returns:
         The converted data
     """
-    _x = x.to_numpy() if isinstance(x, (pd.DataFrame, pd.Series)) else np.asarray(x)
+    _x = x.to_numpy() if isinstance(x, pd.DataFrame | pd.Series) else np.asarray(x)
 
     if (
         flatten_if_1d

@@ -1,26 +1,148 @@
-"""Metafeatures for use in metalearning.
+'''A [`MetaFeature`][amltk.metalearning.MetaFeature] is some
+statistic about a dataset/task, that can be used to make datasets or
+tasks more comparable, thus enabling meta-learning methods.
 
-Please see the reference section on
-[Metalearning](site:reference/metalearning.md) for more!
-"""
+Calculating meta-features of a dataset is quite straight foward.
+
+```python exec="true" source="material-block" result="python" title="Metafeatures" hl_lines="10"
+import openml
+from amltk.metalearning import compute_metafeatures
+
+dataset = openml.datasets.get_dataset(
+    31,  # credit-g
+    download_data=True,
+    download_features_meta_data=False,
+    download_qualities=False,
+)
+X, y, _, _ = dataset.get_data(
+    dataset_format="dataframe",
+    target=dataset.default_target_attribute,
+)
+
+mfs = compute_metafeatures(X, y)
+
+print(mfs)
+```
+
+By default [`compute_metafeatures()`][amltk.metalearning.compute_metafeatures] will
+calculate all the [`MetaFeature`][amltk.metalearning.MetaFeature] implemented,
+iterating through their subclasses to do so. You can pass an explicit list
+as well to `compute_metafeatures(X, y, features=[...])`.
+
+To implement your own is also quite straight forward:
+
+```python exec="true" source="material-block" result="python" title="Create Metafeature" hl_lines="10 11 12 13 14 15 16 17 18 19"
+from amltk.metalearning import MetaFeature, compute_metafeatures
+import openml
+
+dataset = openml.datasets.get_dataset(
+    31,  # credit-g
+    download_data=True,
+    download_features_meta_data=False,
+    download_qualities=False,
+)
+X, y, _, _ = dataset.get_data(
+    dataset_format="dataframe",
+    target=dataset.default_target_attribute,
+)
+
+class TotalValues(MetaFeature):
+
+    @classmethod
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: dict,
+    ) -> int:
+        return int(x.shape[0] * x.shape[1])
+
+mfs = compute_metafeatures(X, y, features=[TotalValues])
+print(mfs)
+```
+
+As many metafeatures rely on pre-computed dataset statistics, and they do not
+need to be calculated more than once, you can specify the dependancies of
+a meta feature. When a metafeature would return something other than a single
+value, i.e. a `dict` or a `pd.DataFrame`, we instead call those a
+[`DatasetStatistic`][amltk.metalearning.DatasetStatistic]. These will
+**not** be included in the result of [`compute_metafeatures()`][amltk.metalearning.compute_metafeatures].
+These `DatasetStatistic`s will only be calculated once on a call to `compute_metafeatures()` so
+they can be re-used across all `MetaFeature`s that require that dependancy.
+
+```python exec="true" source="material-block" result="python" title="Metafeature Dependancy" hl_lines="10 11 12 13 14 15 16 17 18 19 20 23 26 35"
+from amltk.metalearning import MetaFeature, DatasetStatistic, compute_metafeatures
+import openml
+
+dataset = openml.datasets.get_dataset(
+    31,  # credit-g
+    download_data=True,
+    download_features_meta_data=False,
+    download_qualities=False,
+)
+X, y, _, _ = dataset.get_data(
+    dataset_format="dataframe",
+    target=dataset.default_target_attribute,
+)
+
+class NAValues(DatasetStatistic):
+    """A mask of all NA values in a dataset"""
+
+    @classmethod
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: dict,
+    ) -> pd.DataFrame:
+        return x.isna()
+
+
+class PercentageNA(MetaFeature):
+    """The percentage of values missing"""
+
+    dependencies = (NAValues,)
+
+    @classmethod
+    def compute(
+        cls,
+        x: pd.DataFrame,
+        y: pd.Series | pd.DataFrame,
+        dependancy_values: dict,
+    ) -> int:
+        na_values = dependancy_values[NAValues]
+        n_na = na_values.sum().sum()
+        n_values = int(x.shape[0] * x.shape[1])
+        return float(n_na / n_values)
+
+mfs = compute_metafeatures(X, y, features=[PercentageNA])
+print(mfs)
+```
+
+To view the description of a particular `MetaFeature`, you can call
+[`.description()`][amltk.metalearning.DatasetStatistic.description]
+on it. Otherwise you can access all of them in the following way:
+
+```python exec="true" source="tabbed-left" result="python" title="Metafeature Descriptions" hl_lines="4"
+from pprint import pprint
+from amltk.metalearning import metafeature_descriptions
+
+descriptions = metafeature_descriptions()
+for name, description in descriptions.items():
+    print("---")
+    print(name)
+    print("---")
+    print(" * " + description)
+```
+'''  # noqa: E501
 from __future__ import annotations
 
 import logging
 import re
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Dict,
-    Generic,
-    Iterable,
-    Iterator,
-    Mapping,
-    Tuple,
-    TypeVar,
-)
-from typing_extensions import TypeAlias, override
+from collections.abc import Iterable, Iterator, Mapping
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeAlias, TypeVar
+from typing_extensions import override
 
 import numpy as np
 import pandas as pd
@@ -30,7 +152,7 @@ logger = logging.getLogger(__name__)
 CAMEL_CASE_PATTERN = re.compile(r"(?<!^)(?=[A-Z])")
 
 if TYPE_CHECKING:
-    DSdict: TypeAlias = Dict[type["DatasetStatistic"], Any]
+    DSdict: TypeAlias = dict[type["DatasetStatistic"], Any]
 
 S = TypeVar("S")
 M = TypeVar("M", bound=float)
@@ -189,7 +311,7 @@ class NAValues(DatasetStatistic[pd.DataFrame]):
         return x.isna()
 
 
-class ClassImbalanceRatios(DatasetStatistic[Tuple[pd.Series, float]]):
+class ClassImbalanceRatios(DatasetStatistic[tuple[pd.Series, float]]):
     """Imbalance ratios of each class in the dataset.
 
     Will return the ratios of each class, the ratio expected if perfectly balanced,
@@ -206,7 +328,7 @@ class ClassImbalanceRatios(DatasetStatistic[Tuple[pd.Series, float]]):
         return imbalance_ratios(y)
 
 
-class CategoricalImbalanceRatios(DatasetStatistic[Dict[str, Tuple[pd.Series, float]]]):
+class CategoricalImbalanceRatios(DatasetStatistic[dict[str, tuple[pd.Series, float]]]):
     """Imbalance ratios of each class in the dataset.
 
     Will return the ratios of each class, the ratio expected if perfectly balanced,
@@ -660,7 +782,7 @@ class ClassImbalance(MetaFeature[float]):
         return column_imbalance(ratios, balanced_ratio)
 
 
-class ImbalancePerCategory(DatasetStatistic[Dict[str, float]]):
+class ImbalancePerCategory(DatasetStatistic[dict[str, float]]):
     """Imbalance of each categorical feature. 0 => Balanced. 1 most imbalanced.
 
     No categories implies perfectly balanced.
@@ -726,7 +848,7 @@ class StdCategoricalImbalance(MetaFeature[float]):
         return float(np.std(list(imbalances.values())))
 
 
-class SkewnessPerNumericalColumn(DatasetStatistic[Dict[str, float]]):
+class SkewnessPerNumericalColumn(DatasetStatistic[dict[str, float]]):
     """Skewness of each numerical feature."""
 
     dependencies = (NumericalColumns,)
@@ -827,7 +949,7 @@ class SkewnessMax(MetaFeature[float]):
         return float(np.max(list(skews.values())))
 
 
-class KurtosisPerNumericalColumn(DatasetStatistic[Dict[str, float]]):
+class KurtosisPerNumericalColumn(DatasetStatistic[dict[str, float]]):
     """Kurtosis of each numerical feature."""
 
     dependencies = (NumericalColumns,)

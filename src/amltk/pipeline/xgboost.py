@@ -13,14 +13,11 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from xgboost import XGBClassifier, XGBRegressor
 
-from amltk.pipeline.api import step
-
-if TYPE_CHECKING:
-    from amltk.pipeline.components import Component
+from amltk.pipeline import Component
 
 
 def xgboost_component(
@@ -94,12 +91,7 @@ def xgboost_component(
                 f"Space and kwargs overlap: {overlap}, please remove one of them",
             )
 
-    return step(
-        name=name,
-        item=estimator_type,
-        config=config,
-        space=space,
-    )
+    return Component(name=name, item=estimator_type, config=config, space=space)
 
 
 def xgboost_large_space(

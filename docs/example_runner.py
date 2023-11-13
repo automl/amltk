@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from itertools import takewhile
 from pathlib import Path
 from typing import Any
+from typing_extensions import override
 
 import mkdocs_gen_files
 from more_itertools import first_true, peekable
@@ -15,7 +16,7 @@ from more_itertools import first_true, peekable
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)
 
-nav = mkdocs_gen_files.Nav()  # pyright: reportPrivateImportUsage=false
+nav = mkdocs_gen_files.Nav()  # pyright: ignore[reportPrivateImportUsage]=false
 
 ENV_VAR = "AMLTK_DOC_RENDER_EXAMPLES"
 
@@ -119,6 +120,7 @@ class CodeSegment:
         body = "\n".join(s)
         return body
 
+    @override
     def __str__(self) -> str:
         return self.code(self.lines)
 
@@ -127,6 +129,7 @@ class CodeSegment:
 class CommentSegment:
     lines: list[str]
 
+    @override
     def __str__(self) -> str:
         return "\n".join(self.lines)
 
@@ -289,8 +292,5 @@ for path in sorted(Path("examples").rglob("*.py")):
     mkdocs_gen_files.set_edit_path(full_doc_path, path)
 
 lines = list(nav.build_literate_nav())
-with mkdocs_gen_files.open("examples/SUMMARY.md", "w") as nav_file:  #
+with mkdocs_gen_files.open("examples/index.md", "w") as nav_file:  #
     nav_file.writelines(lines)  #
-
-with mkdocs_gen_files.open("examples/index.md", "w") as index_file:
-    index_file.writelines(lines)  #

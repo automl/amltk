@@ -1,56 +1,75 @@
 # Pipelines Guide
 AutoML-toolkit was built to support future development of AutoML systems and
-a central part of an AutoML system is its Pipeline. The purpose of this
+a central part of an AutoML system is its pipeline. The purpose of this
 guide is to help you understand all the utility AutoML-toolkit can
 provide to help you define your pipeline. We will do this by introducing concepts
 from the ground up, rather than top down.
-Please see [examples](site:examples/index.md) if you would rather see copy-pastable examples.
+Please see [the reference](site:reference/pipelines/pipeline.md)
+if you just want to quickly look something up.
 
 ---
 
 ## Introduction
+The kinds of pipelines that exist in an AutoML system come in many different
+forms. For example, one might be an [sklearn.pipeline.Pipeline][], other's
+might be some deep-learning pipeline while some might even stand for some
+real life machinery process and the settings of these machines.
 
-At the core of a [`Pipeline`][amltk.pipeline.Pipeline] definition
-is the many [`Steps`][amltk.pipeline.Step] it consists of.
-By combining these together, you can define a _directed acyclic graph_ (DAG),
-that represents the structure of your [`Pipeline`][amltk.pipeline.Pipeline].
-Here is one such example that we will build up towards.
+To accomodate this, what AutoML-Toolkit provides is an **abstract** representation
+of a pipeline, to help you define its search space and also to build concrete
+objects in code if possible (see [builders](site:reference/pipelines/builders.md).
+
+We categorize this into 4 steps:
+
+1. Parametrize your pipeline using the various [components](site:reference/piplines/pipeline.md),
+    including the kinds of items in the pipeline, the search spaces and any additional configuration.
+    Each of the various types of components give a syntactic meaning when performing the next steps.
+
+2. [`pipeline.search_space(parser=...)`][amltk.pipeline.Node.search_space],
+    Get a useable search space out of the pipeline. This can then be passed to an
+    [`Optimizer`](site:reference/optimization/optimizers.md).
+
+3. [`pipeline.configure(config=...)`][amltk.pipeline.Node.configure],
+    Configure your pipeline, either manually or using a configuration suggested by
+    an optimizers.
+
+4. [`pipeline.build(builder=)`][amltk.pipeline.Node.build],
+    Build your configured pipeline definition into something useable, i.e.
+    an [`sklearn.pipeline.Pipeline`][sklearn.pipeline.Pipeline] or a
+    `torch.nn.Module` (_todo_).
+
+At the core of these definitions is the many [`Nodes`][amltk.pipeline.node.Node]
+it consists of. By combining these together, you can define a _directed acyclic graph_ (DAG),
+that represents the structure of your pipeline.
+Here is one such sklearn example that we will build up towards.
 
 ```python exec="true" source="tabbed-right" html="True" title="Pipeline"
-from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.compose import make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder
 import numpy as np
 
-from amltk import step, split, group, Pipeline
+from amltk.pipeline import Component, Split, Sequential
 
-categorical_preprocessing = (
-    step("categorical_imputer", SimpleImputer, config={"strategy": "constant", "fill_value": "missing"})
-    | step("one_hot_encoding", OneHotEncoder, config={"drop": "first"})
+feature_preprocessing = Split(
+    {
+        "categoricals": [SimpleImputer(strategy="constant", fill_value="missing"), OneHotEncoder(drop="first")],
+        "numerics": Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
+    },
+    config={
+        "categoricals": make_column_selector(dtype_include=object),
+        "numerics": make_column_selector(dtype_include=np.number),
+    },
+    name="preprocessing",
 )
-numerical_preprocessing = step("numeric_imputer", SimpleImputer, space={"strategy": ["mean", "median"]})
 
-pipeline = Pipeline.create(
-    split(
-        "feature_preprocessing",
-        group("categoricals", categorical_preprocessing),
-        group("numerics", numerical_preprocessing),
-        item=ColumnTransformer,
-        config={
-            "categoricals": make_column_selector(dtype_include=object),
-            "numerics": make_column_selector(dtype_include=np.number),
-        },
-    ),
-    step(
-        "rf",
-        RandomForestClassifier,
-        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy", "log_loss"]},
-    ),
-    name="My Classification Pipeline"
+pipeline = Sequential(
+    feature_preprocessing,
+    Component(RandomForestClassifier, space={"n_estimators": (10, 100), "criterion": ["gini", "log_loss"]}),
+    name="Classy Pipeline",
 )
-from amltk._doc import doc_print; doc_print(print, pipeline, output="html", fontsize="small", width=120)  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
 ```
 
 ??? tip "`rich` printing"
@@ -62,32 +81,38 @@ from amltk._doc import doc_print; doc_print(print, pipeline, output="html", font
 Once we have our pipeline definition, extracting a search space, configuring
 it and building it into something useful can be done with the methods.
 
-* [`pipeline.space()`][amltk.pipeline.Pipeline.space],
-    Get a useable search space out of the pipeline to pass to an optimizer.
+!!! tip "Guide Requirements"
 
-* [`pipeline.sample()`][amltk.pipeline.Pipeline.sample],
-    Sample a valid configuration from the pipeline.
+    For this guide, we will be using `ConfigSpace` and `scikit-learn`, you can
+    install them manually or as so:
 
-* [`pipeline.configure(config=...)`][amltk.pipeline.Pipeline.configure],
-    Configure a pipeline with a given config
-
-* [`pipeline.build()`][amltk.pipeline.Pipeline.build],
-    Build a configured pipeline into some useable object.
+    ```bash
+    pip install "amltk[sklearn, configspace]"
+    ```
 
 ## Component
-A `Pipeline` consists of building blocks which we can combine together
+A pipeline consists of building blocks which we can combine together
 to create a DAG. We will start by introducing the `Component`, the common operations,
 and then show how to combine them together.
 
-A [`Component`][amltk.pipeline.Component] is a single atomic step in a pipeline. While
-you can construct a component directly, it is recommended to use the
-[`step()`][amltk.pipeline.api.step] function to create one.
+A [`Component`][amltk.pipeline.Component] is the most common kind of node a pipeline.
+Like all parts of the pipeline, they subclass [`Node`][amltk.pipeline.Node] but a
+`Component` signifies this is some concrete object, with a possible
+[`.space`][amltk.pipeline.Node.space] and [`.config`][amltk.pipeline.Node.config].
+
 
 ### Definition
+
+??? tip inline end "Naming Nodes"
+
+    By default, a `Component` (or any `Node` for that matter), will use the function/classname
+    for the [`.name`][amltk.pipeline.Node.name] of the `Node`. You can explicitly pass
+    a `name=` **as a keyword argument** when constructing these.
+
 ```python exec="true" source="material-block" html="true" session="Pipeline-Component"
 from dataclasses import dataclass
 
-from amltk import step
+from amltk.pipeline import Component
 
 @dataclass
 class MyModel:
@@ -95,15 +120,14 @@ class MyModel:
     i: int
     c: str
 
-mystep = step(
-    "mystep",
+my_component = Component(
     MyModel,
     space={"f": (0.0, 1.0), "i": (0, 10), "c": ["red", "green", "blue"]},
 )
-from amltk._doc import doc_print; doc_print(print, mystep, output="html", fontsize="small")  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, my_component, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
-You can also use a **function** instead of a class if that is preffered.
+You can also use a **function** instead of a class if that is preferred.
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Component"
 def myfunc(f: float, i: int, c: str) -> MyModel:
@@ -111,210 +135,206 @@ def myfunc(f: float, i: int, c: str) -> MyModel:
         c = "red"
     return MyModel(f=f, i=i, c=c)
 
-step_with_function = step(
-    "step_with_function",
+component_with_function = Component(
     myfunc,
     space={"f": (0.0, 1.0), "i": (0, 10), "c": ["red", "green", "blue"]},
 )
-from amltk._doc import doc_print; doc_print(print, step_with_function, output="html", fontsize="small")  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, component_with_function, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
-### Sample
-We now have a basic `Component` that parametrizes the class `MyModel`. What can be quite useful
-is to now [`sample()`][amltk.pipeline.Step.sample] from it to get a valid configuration.
+### Search Space
+If interacting with an [`Optimizer`](site:reference/optimization/optimizers.md), you'll often require some
+search space object to pass to it.
+To extract a search space from a `Component`, we can call [`search_space(parser=)`][amltk.pipeline.Node.search_space],
+passing in the kind of search space you'd like to get out of it.
 
 ```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-config = mystep.sample(seed=1)
-print(config)
-```
-
-### Space
-If interacting with an `Optimizer`, you'll often require some search space object to pass to it.
-To extract a search space from a `Component`, we can call [`space()`][amltk.pipeline.Step.space].
-
-```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-space = mystep.space(seed=1)
+space = my_component.search_space("configspace")
 print(space)
 ```
 
-??? tip "What type of space is this?"
+!!! tip inline end "Available Search Spaces"
 
-    Depending on the libraries you have installed and the values inside `space`, we will attempt
-    to produce a valid search space for you. In this case, we have a `ConfigSpace` implementation
-    installed and so we get a `ConfigSpace.ConfigurationSpace` object. If you wish to use a different
-    space, you can always pass a specific [`step.space(parser=...)`][amltk.pipeline.Step.space]. Do
-    note that not all spaces support all features.
+    Please see the [spaces reference](site:reference/pipelines/spaces.md)
 
-    === "`ConfigSpace`"
+Depending on what you pass as the `parser=` to `search_space(parser=...)`, we'll attempt
+to give you a valid search space. In this case, we specified `#!python "configspace"` and 
+so we get a `ConfigSpace` implementation.
 
-        ```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-        from amltk.configspace import ConfigSpaceAdapter
+You may also define your own `parser=` and use that if desired.
 
-        configspace_space = mystep.space(parser=ConfigSpaceAdapter)
-        print(configspace_space)
-        ```
-
-    === "`Optuna`"
-
-        ```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-        from amltk.optuna import OptunaSpaceAdapter
-
-        optuna_space = mystep.space(parser=OptunaSpaceAdapter)
-        print(optuna_space)
-        ```
-
-    You may also construct your own parser and use that if desired.
 
 ### Configure
 Pretty straight forward but what do we do with this `config`? Well we can
-[`configure(config=...)`][amltk.pipeline.Step.configure] the component with it.
+[`configure(config=...)`][amltk.pipeline.Node.configure] the component with it.
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Component"
-configured_step = mystep.configure(config)
-from amltk._doc import doc_print; doc_print(print, configured_step, output="html", fontsize="small")  # markdown-exec: hide
+config = space.sample_configuration()
+configured_component = my_component.configure(config)
+from amltk._doc import doc_print; doc_print(print, configured_component)  # markdown-exec: hide
 ```
 
 You'll notice that each variable in the space has been set to some value. We could also manually
 define a config and pass that in. You are **not** obliged to fully specify this either.
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Component"
-manually_configured_step = mystep.configure({"f": 0.5, "i": 1})
-from amltk._doc import doc_print; doc_print(print, manually_configured_step, output="html")  # markdown-exec: hide
+manually_configured_component = my_component.configure({"f": 0.5, "i": 1})
+from amltk._doc import doc_print; doc_print(print, manually_configured_component, output="html")  # markdown-exec: hide
 ```
 
 !!! tip "Immutable methods!"
 
-    One thing you may have noticed is that we assigned the result of `configure(...)` to a new
-    variable. This is because we do not mutate the original `mystep` and instead return a copy
+    One thing you may have noticed is that we assigned the result of `configure(config=...)` to a new
+    variable. This is because we do not mutate the original `my_component` and instead return a copy
     with all of the `config` variables set.
 
 ### Build
-The last important thing we can do with a `Component` is to [`build()`][amltk.pipeline.Component.build]
-it. Thisa step is very straight-forward for a `Component` and it simply calls the `.item` with the
-config we have set.
+To build the individual item of a `Component` we can use [`build_item()`][amltk.pipeline.Component.build_item]
+and it simply calls the `.item` with the config we have set.
 
 ```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-the_built_model = configured_step.build()
+the_built_model = configured_component.build_item()
 
-# Same as if we did `configured_step.item(**configured_step.config)`
+# Same as if we did `configured_component.item(**configured_component.config)`
 print(the_built_model)
 ```
 
-You may also pass additional items to `build()` which will overwrite any config values set.
+However, as we'll see later, we often have multiple steps of a pipeline joined together and so
+we need some way to get a full object out of it that takes into account all of these items
+joined together. We can do this with [`build(builder=...)`][amltk.pipeline.Node.build].
 
 ```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-the_built_model = configured_step.build(f=0.5, i=1)
+the_built_model = configured_component.build(builder="sklearn")
 print(the_built_model)
+```
+
+For a look at the available arguments to pass to `builder=`, see the
+[builder reference](site:reference/pipelines/builders.md)
+
+### Fixed
+
+Sometimes we just have some part of the pipeline with no search space and
+no configuration required, i.e. just some prebuilt thing. We can
+use the [`Fixed`][amltk.pipeline.Fixed] node type to signify this.
+
+```python exec="true" source="material-block" result="python"
+from amltk.pipeline import Fixed
+from sklearn.ensemble import RandomForestClassifier
+
+frozen_rf = Fixed(RandomForestClassifier(n_estimators=5))
 ```
 
 ### Parameter Requests
 Sometimes you may wish to explicitly specify some value should be added to the `.config` during
-`configure()` which would be difficult to include in the `config`, for example the `random_state`
+`configure()` which would be difficult to include in the `config` directly, for example the `random_state`
 of an sklearn estimator. You can pass these extra parameters into `configure(params={...})`, which
 do not require any namespace prefixing.
 
-For this reason, we have the concept of a [`request()`][amltk.pipeline.request], allowing
+For this reason, we introduce the concept of a [`request()`][amltk.pipeline.request], allowing
 you to specify that a certain parameter should be added to the config during `configure()`.
 
 ```python exec="true" hl_lines="14 17 18" source="material-block" html="true" session="Pipeline-Parameter-Request"
 from dataclasses import dataclass
 
-from amltk import step, request
+from amltk import Component, request
 
 @dataclass
 class MyModel:
     f: float
     random_state: int
 
-mystep = step(
-    "mystep",
+my_component = Component(
     MyModel,
     space={"f": (0.0, 1.0)},
     config={"random_state": request("seed", default=42)}
 )
 
-configured_step_with_seed = mystep.configure({"f": 0.5}, params={"seed": 1337})
-configured_step_no_seed = mystep.configure({"f": 0.5})
-from amltk._doc import doc_print; doc_print(print, configured_step_with_seed, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, configured_step_no_seed, output="html", fontsize="small")  # markdown-exec: hide
+# Without passing the params
+configured_component_no_seed = my_component.configure({"f": 0.5})
+
+# With passing the params
+configured_component_with_seed = my_component.configure({"f": 0.5}, params={"seed": 1337})
+from amltk._doc import doc_print; doc_print(print, configured_component_no_seed)  # markdown-exec: hide
+doc_print(print, configured_component_with_seed)  # markdown-exec: hide
 ```
 
-If you explicitly require a parameter to be set, you can pass `required=True` to the request.
+If you explicitly require a parameter to be set, just do not set a `default=`.
 
 ```python exec="true" source="material-block" result="python" session="Pipeline-Parameter-Request"
-mystep = step(
-    "mystep",
+my_component = Component(
     MyModel,
     space={"f": (0.0, 1.0)},
-    config={"random_state": request("seed", required=True)}
+    config={"random_state": request("seed")}
 )
 
-mystep.configure({"f": 0.5}, params={"seed": 5})  # All good
+my_component.configure({"f": 0.5}, params={"seed": 5})  # All good
 
 try:
-    mystep.configure({"f": 0.5})  # Missing required parameter
+    my_component.configure({"f": 0.5})  # Missing required parameter
 except ValueError as e:
     print(e)
 ```
 
 ### Config Transform
 Some search space and optimizers may have limitations in terms of the kinds of parameters they
-can support, one notable example is tuple parameters. To get around this, we can pass
-a `config_transform` to `step` which will transform the config before it is passed to the
+can support, one notable example is **tuple** parameters. To get around this, we can pass
+a `config_transform=` to `component` which will transform the config before it is passed to the
 `.item` during `build()`.
 
 ```python exec="true" hl_lines="9-13 19" source="material-block" html="true"
 from dataclasses import dataclass
 
-from amltk import step
+from amltk import Component
 
 @dataclass
 class MyModel:
     dimensions: tuple[int, int]
 
 def config_transform(config: dict, _) -> dict:
+    """Convert "dim1" and "dim2" into a tuple."""
     dim1 = config.pop("dim1")
     dim2 = config.pop("dim2")
     config["dimensions"] = (dim1, dim2)
     return config
 
-mystep = step(
-    "mystep",
+my_component = Component(
     MyModel,
     space={"dim1": (1, 10), "dim2": (1, 10)},
     config_transform=config_transform,
 )
 
-configured_step = mystep.configure({"dim1": 5, "dim2": 5})
-from amltk._doc import doc_print; doc_print(print, configured_step, output="html", fontsize="small")  # markdown-exec: hide
+configured_component = my_component.configure({"dim1": 5, "dim2": 5})
+from amltk._doc import doc_print; doc_print(print, configured_component, fontsize="small")  # markdown-exec: hide
 ```
 
-Lastly, there may be times where you may have some additional context which you may only
-know at configuration time, you may pass this to `configure(..., transform_context=...)`
-which will be forwarded as the second argument to your `.config_transform`.
+!!! tip inline end "Transform Context"
 
-## Pipelines
-A single step might be enough for some basic definitions but generally we need to combine multiple
-steps. AutoML-Toolkit is designed for large and more complex structures which can be made from
-simple atomic steps.
+    There may be times where you may have some additional context which you may only
+    know at configuration time, you may pass this to `configure(..., transform_context=...)`
+    which will be forwarded as the second argument to your `.config_transform`.
 
-### Joining Steps
+## Sequential
+A single component might be enough for some basic definitions but generally we need to combine multiple
+components together. AutoML-Toolkit is designed for large and more complex structures which can be
+made from simple atomic [`Node`][amltk.pipeline.Node]s.
+
+### Chaining Together Nodes
 We'll begin by creating two components that wrap scikit-learn estimators.
 
-```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
+```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Nodes"
 from sklearn.impute import SimpleImputer
 from sklearn.ensemble import RandomForestClassifier
 
-from amltk import step
+from amltk.pipeline import Component
 
-imputer_step = step("imputer", SimpleImputer, space={"strategy": ["median", "mean"]})
-rf_step = step("random_forest", RandomForestClassifier, space={"n_estimators": (10, 100)})
+imputer = Component(SimpleImputer, space={"strategy": ["median", "mean"]})
+rf = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
 
-from amltk._doc import doc_print; doc_print(print, imputer_step, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, rf_step, output="html", fontsize="small")  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, imputer)  # markdown-exec: hide
+doc_print(print, rf)  # markdown-exec: hide
 ```
 
-!!! tip "Modifying Display Output"
+!!! info inline end "Modifying Display Output"
 
     By default, `amltk` will show full function signatures, including a link to their documentation
     if available.
@@ -329,146 +349,72 @@ doc_print(print, rf_step, output="html", fontsize="small")  # markdown-exec: hid
 
     You can find the [available options here][amltk.options.AMLTKOptions].
 
-To join these two steps together, we can either use the infix notation using `|` (reminiscent of a bash pipe)
-or directly call [`append(nxt)`][amltk.pipeline.Step.append] on the first step.
 
-```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
-joined_steps = imputer_step | rf_step
-from amltk._doc import doc_print; doc_print(print, joined_steps, output="html", fontsize="small")  # markdown-exec: hide
+```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Nodes"
+from amltk.pipeline import Sequential
+pipeline = Sequential(imputer, rf, name="My Pipeline")
+from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
 ```
 
-We should point out two key things here:
+!!! info inline end "Infix `>>`"
 
-* You are always returned the _head_ of the steps, i.e. the first step in the list
-* You can see the `rf_step` is now attached to the `imputer_step` as its `nxt` attribute.
+    To join these two components together, we can either use the infix notation using `>>`,
+    or passing them directly to a [`Sequential`][amltk.pipeline.Sequential]. However
+    a random name will be given.
 
-However viewing only one step at a time is not so useful. We can get a [`Pipeline`][amltk.pipeline.Pipeline]
-out of these steps quite easily which will display a lot more nicely and allow you to perform operations
-
-```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
-pipeline = joined_steps.as_pipeline(name="My Pipeline")
-from amltk._doc import doc_print; doc_print(print, pipeline, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-??? tip "Using `Pipeline.create(...)` instead"
-
-    You can also use [`Pipeline.create(...)`][amltk.pipeline.Pipeline.create] to create a pipeline
-    from a set of steps.
-
-    ```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
-    from amltk import Pipeline
-
-    pipeline2 = Pipeline.create(joined_steps, name="My Pipeline")
-    from amltk._doc import doc_print; doc_print(print, pipeline2, output="html", fontsize="small")  # markdown-exec: hide
+    ```python
+    joined_components = imputer >> rf
     ```
 
-### Pipeline Usage
-
-You can perform much of the same operations as we did for the individual step but now taking into account
+### Operations
+You can perform much of the same operations as we did for the individual node but now taking into account
 everything in the pipeline.
 
-```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
-space = pipeline.space()
-config = pipeline.sample(seed=1337)
+```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Nodes"
+space = pipeline.search_space("configspace")
+config = space.sample_configuration()
 configured_pipeline = pipeline.configure(config)
-from amltk._doc import doc_print; doc_print(print, space, output="html")  # markdown-exec: hide
-doc_print(print, config, output="html")  # markdown-exec: hide
-doc_print(print, configured_pipeline, output="html", fontsize="small")  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, space)  # markdown-exec: hide
+doc_print(print, config)  # markdown-exec: hide
+doc_print(print, configured_pipeline)  # markdown-exec: hide
 ```
 
-Pipelines also support a number of other operations such as traversal with [`iter()`][amltk.pipeline.Pipeline.iter],
-[`traverse()`][amltk.pipeline.Pipeline.traverse] and [`walk()`][amltk.pipeline.Pipeline.walk],
-search with [`find()`][amltk.pipeline.Pipeline.find], modification with [`remove()`][amltk.pipeline.Pipeline.remove],
-[`apply()`][amltk.pipeline.Pipeline.apply] and [`replace()`][amltk.pipeline.Pipeline.replace].
+!!! inline end "Other notions of Sequential"
 
-### Pipeline Building
-Perhaps the most significant difference when working with a `Pipeline` is what should something
-like [`build()`][amltk.pipeline.Pipeline.build] do? Well, there are perhaps multiple steps and perhaps
-even nested `choice` and `split` components which we will introduce later.
+    We'll see this later but wherever we expect a `Node`, for example as an argument to
+    `Sequential` or any other type of pipeline component, a list, i.e. `[node_1, node_2]`,
+    will automatically be joined together and interpreted as a `Sequential`.
 
-The answer depends on what is contained within your steps. For this example, using sklearn, we can
-directly return an sklearn [`Pipeline`][sklearn.pipeline.Pipeline] object. This is auto detected
-based on the `.item` contained in each step.
+To build a pipeline of nodes, we simply call [`build(builder=)`][amltk.pipeline.Node.build]. We
+explicitly pass the builder we want to use, which informs `build()` how to go from the abstract
+pipeline definition you've defined to something concrete you can use.
+You can find the [available builders here](site:reference/pipelines/builders.md).
 
-```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
+```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Nodes"
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
-built_pipeline = configured_pipeline.build()
+built_pipeline = configured_pipeline.build("sklearn")
 assert isinstance(built_pipeline, SklearnPipeline)
 print(built_pipeline._repr_html_())  # markdown-exec: hide
 ```
 
-We currently support the following builders which are auto detected based on the `.item` contained:
 
-=== "Scikit-Learn"
-
-    Using [`sklearn_pipeline()`][amltk.sklearn.sklearn_pipeline] will builds
-    an [`SklearnPipeline`][sklearn.pipeline.Pipeline] from the steps. The
-    possible pipelines allowed follow the rules of an sklearn pipeline, i.e.
-    only the final step can be an estimator and everything else before it must
-    be a transformer.
-
-    ```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
-    from amltk.sklearn import sklearn_pipeline
-
-    built_pipeline = configured_pipeline.build(builder=sklearn_pipeline)
-    print(built_pipeline._repr_html_())
-    ```
-
-    If using something like `imblearn` components, you will need to have an
-    `imblearn.pipeline.Pipeline` as output type. We can pass this directly to
-    the builder.
-
-    ```python
-    from amltk.sklearn import sklearn_pipeline
-    from imblearn.pipeline import Pipeline as ImblearnPipeline
-
-    built_pipeline = configured_pipeline.build(
-        builder=sklearn_pipeline,
-        pipeline_type=ImblearnPipeline
-    )
-    ```
-
-=== "`pytorch_builder()`"
-
-    !!! todo "TODO"
-
-        This is currently in progress and will be available soon. Please
-        feel free to reach out to help
-
-=== "Custom Builder"
-
-    You can also provide your own `builder=` function which has a very basic premise that
-    you must be able to parse the pipeline and return _something_. Here is a basic example
-    which will just return a dict with the step names as keys and the values as the built
-    components.
-
-    ```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Steps"
-    def mybuilder(pipeline: Pipeline, **kwargs) -> dict:
-        return {step.name: step.build() for step in pipeline.traverse()}
-
-    components = configured_pipeline.build(builder=mybuilder)
-    ```
-
-## Building blocks
+## Other Building blocks
 We saw the basic building block of a `Component` but AutoML-Toolkit also provides support
-for some other kinds of building blocks. These building blocks can be attached and appended
-just like a `Component` can and allow for much more complex pipeline structures.
+for some other kinds of building blocks. These building blocks can be attached and joined
+together just like a `Component` can and allow for much more complex pipeline structures.
 
 ### Choice
 A [`Choice`][amltk.pipeline.Choice] is a way to define a choice between multiple
 components. This is useful when you want to search over multiple algorithms, which
 may each have their own hyperparameters.
 
-The preferred way to create a `Choice` is to use the [`choice(...)`][amltk.pipeline.choice]
-function.
-
-We'll start again by creating two steps:
+We'll start again by creating two nodes:
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Choice"
 from dataclasses import dataclass
 
-from amltk import step
+from amltk.pipeline import Component
 
 @dataclass
 class ModelA:
@@ -478,8 +424,8 @@ class ModelA:
 class ModelB:
     c: str
 
-model_a = step("model_a", ModelA, space={"i": (0, 100)})
-model_b = step("model_b", ModelB, space={"c": ["red", "blue"]})
+model_a = Component(ModelA, space={"i": (0, 100)})
+model_b = Component(ModelB, space={"c": ["red", "blue"]})
 from amltk._doc import doc_print; doc_print(print, model_a, output="html", fontsize="small")  # markdown-exec: hide
 doc_print(print, model_b, output="html", fontsize="small")  # markdown-exec: hide
 ```
@@ -487,200 +433,100 @@ doc_print(print, model_b, output="html", fontsize="small")  # markdown-exec: hid
 Now combining them into a choice is rather straight forward:
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Choice"
-from amltk import choice
+from amltk.pipeline import Choice
 
-model_choice = choice("model", model_a, model_b)
+model_choice = Choice(model_a, model_b, name="estimator")
 from amltk._doc import doc_print; doc_print(print, model_choice, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
-Just as we did with a `Component`, we can also get a `space()` from the choice. If the space
-parser supports conditionals from a space, it will even add conditionals to the space to
-account for the choice and that some hyperparameters are only active depending on if the
-model is chosen.
+Just as we did with a `Component`, we can also get a [`search_space()`][amltk.pipeline.Node.search_space]
+from the choice.
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Choice"
-space = model_choice.space()
+space = model_choice.search_space("configspace")
 from amltk._doc import doc_print; doc_print(print, space, output="html")  # markdown-exec: hide
 ```
+
+??? warning inline end "Conditionals and Search Spaces"
+
+    Not all search space implementations support conditionals and so some
+    `parser=` may not be able to handle this. In this case, there won't be
+    any conditionality in the search space.
+
+    Check out the [parser reference](site:reference/pipelines/spaces.md)
+    for more information.
 
 When we `configure()` a choice, we will collapse it down to a single component. This is
 done according to what is set in the config.
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Choice"
-config = model_choice.sample(seed=1)
-configured_model = model_choice.configure(config)
-from amltk._doc import doc_print; doc_print(print, configured_model, output="html")  # markdown-exec: hide
+config = space.sample_configuration()
+configured_choice = model_choice.configure(config)
+from amltk._doc import doc_print; doc_print(print, configured_choice, output="html")  # markdown-exec: hide
 ```
-
-### Group
-The purpose of a [`Group`][amltk.pipeline.Group] is to _"draw a box"_ around a certain
-subsection of a pipeline. This essentially acts as a namespacing mechanism for the
-config and space of the steps contained within it. This can be useful
-when you need to refer to a `Choice` in part of a `Pipeline`, where when configured,
-this `Choice` will disappear and be replaced by a single component.
-
-To illustrate this, let's revisit what happens when we `configure()` a choice. First we'll
-build a small pipeline.
-
-```python exec="true" source="material-block" html="true" session="Pipeline-Group"
-from amltk import step, choice, group
-
-model_a = step("model_a", object)
-model_b = step("model_b", object)
-
-preprocessing = step("preprocessing", object)
-model_choice = choice("classifier_choice", model_a, model_b)
-
-pipeline = (preprocessing | model_choice).as_pipeline(name="My Pipeline")
-
-from amltk._doc import doc_print; doc_print(print, pipeline, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-Now let's sample a config from the pipeline space and `configure()` it to see what we get out.
-
-
-```python exec="true" source="material-block" html="true" session="Pipeline-Group"
-space = pipeline.space()
-config = pipeline.sample(seed=1)
-configured_pipeline = pipeline.configure(config)
-doc_print(print, space, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, config, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, configured_pipeline, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-We can't know ahead of time whether we need to refer to `#!python "model_a"`
-or `#!python "model_b"` and we can no longer refer to `#!python "classifier_choice"` as this
-has been configured away.
-
-To circumvent this, we can use a [`Group`][amltk.pipeline.Group] to wrap the choice, with
-the preferred way to create one being [`group(...)`][amltk.pipeline.group].
-
-```python exec="true" source="material-block" html="true" session="Pipeline-Group"
-from amltk import step, choice, group
-
-model_a = step("model_a", object)
-model_b = step("model_b", object)
-
-preprocessing = step("preprocessing", object)
-classifier_group = group(
-    "classifier",
-    choice("classifier_choice", model_a, model_b)
-)
-
-pipeline = (preprocessing | classifier_group).as_pipeline(name="My Pipeline")
-from amltk._doc import doc_print; doc_print(print, pipeline, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-Now let's configure it:
-```python exec="true" source="material-block" html="true" session="Pipeline-Group"
-config = pipeline.sample(seed=1)
-configured_pipeline = pipeline.configure(config)
-doc_print(print, config, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, configured_pipeline, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-If we need to access the chosen classifier, we can do so in a straightforward manner:
-```python exec="true" source="material-block" html="true" session="Pipeline-Group"
-chosen_classifier = configured_pipeline.find("classifier").first()
-doc_print(print, chosen_classifier, output="html", fontsize="small")  # markdown-exec: hide
-```
-
+You'll notice that it set the `.config` of the `Choice` to `#!python {"__choice__": "model_a"}` or
+`#!python {"__choice__": "model_b"}`. This lets a builder know which of these two to build.
 
 ### Split
-A [`Split`][amltk.pipeline.Split] is a way to signify a split in the dataflow of a pipeline,
-with the preferred way to create one being [`split(...)`][amltk.pipeline.split]. This `Split`
-by itself will not do anything but it informs the builder about what to do. Each builder
-will have if it's own specific strategy for dealing with one.
+A [`Split`][amltk.pipeline.Split] is a way to signify a split in the dataflow of a pipeline.
+This `Split` by itself will not do anything but it informs the builder about what to do.
+Each builder will have if it's own specific strategy for dealing with one.
 
-Before we go ahead with a full scikit-learn example and build it, we'll start with
-an abstract representation of a `Split`.
-
-```python exec="true" source="material-block" html="True" session="Pipeline-Split1"
-from amltk import step, split, group, Pipeline
-
-preprocesser = split(
-    "preprocesser",
-    step("cat_imputer", object) | step("cat_encoder", object),
-    step("num_imputer", object),
-    config={"cat_imputer": object, "num_imputer": object}
-)
-from amltk._doc import doc_print; doc_print(print, preprocesser, output="html", fontsize="small", width=120)  # markdown-exec: hide
-```
-
-You'll notice that if we have any hope to configure this `Split` which normally requires
-mentioning each of it's paths, we can only reference the first step of the path, in this
-case `#!python "cat_imputer"` and `#!python "num_imputer"`. In the case of the first step
-being a `Choice`, we may not even have a name we can refer to!
-
-We fix this situation by giving each split path its own name. We can either do this manually
-with a `Group` or we can simply pass a `dict` of paths to a sequence of steps.
-
-```python exec="true" source="material-block" html="True" session="Pipeline-Split2"
-from amltk import step, split, group, Pipeline
-
-preprocesser = split(
-    "preprocesser",
-    {
-        "categories": step("cat_imputer", object) | step("cat_encoder", object),
-        "numericals": step("num_imputer", object),
-    },
-    config={"categories": object, "numericals": object}
-)
-from amltk._doc import doc_print; doc_print(print, preprocesser, output="html", fontsize="small", width=120)  # markdown-exec: hide
-```
-
-This construction will use a `Group` around each of the paths, which will allow us to refer
-to the different paths, regardless of what happens to the path.
-
-Now this time we will use a scikit-learn example, as an example.
+Let's go ahead with a scikit-learn example, where we'll split the data into categorical
+and numerical features and then perform some preprocessing on each of them.
 
 ```python exec="true" source="material-block" html="True" session="Pipeline-Split3"
-from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.compose import make_column_selector
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder
 import numpy as np
 
-from amltk import step, split, group, Pipeline
+from amltk.pipeline import Component, Split
 
-# We'll impute categorical features and then OneHotEncode them
-category_pipeline = step("categorical_imputer", SimpleImputer) | step("one_hot_encoding", OneHotEncoder)
+select_categories = make_column_selector(dtype_include=object)
+select_numerical = make_column_selector(dtype_include=np.number)
 
-# We just impute numerical features
-numerical_pipeline = step("numeric_imputer", SimpleImputer, config={"strategy": "median"})
-
-feature_preprocessing = split(
-    "feature_preprocessing",
-    group("categoricals", category_pipeline),
-    group("numerics", numerical_pipeline),
-    item=ColumnTransformer,
-    config={
-        # Here we specify which columns should be passed to which group
-        "categoricals": make_column_selector(dtype_include=object),
-        "numerics": make_column_selector(dtype_include=np.number),
+preprocessor = Split(
+    {
+        "categories": [SimpleImputer(strategy="constant", fill_value="missing"), OneHotEncoder(drop="first")],
+        "numerics": Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
     },
+    config={"categories": select_categories, "numerics": select_numerical},
+    name="feature_preprocessing",
 )
-from amltk._doc import doc_print; doc_print(print, feature_preprocessing, output="html", fontsize="small", width=120)  # markdown-exec: hide
+from amltk._doc import doc_print; doc_print(print, preprocessor)  # markdown-exec: hide
 ```
 
-Our last step is just to convert this into a `Pipeline` and `build()` it. First,
-to convert it into a pipeline with a classifier at the end.
+An important thing to note here is that first, we passed a `dict` to `Split`, such that
+we can name the individual paths. This is important because we need some name to refer
+to them when configuring the `Split`. It does this by simply wrapping
+each of the paths in a [`Sequential`][amltk.pipeline.Sequential].
+
+The second thing is that the parameters set for the `.config` matches those of the
+paths. This let's the `Split` know which data should be sent where. Each `builder=`
+will have it's own way of how to set up a `Split` and you should refer to
+the [builders reference](site:reference/pipelines/builders.md) for more information.
+
+Our last step is just to convert this into a useable object and so once again
+we use [`build()`][amltk.pipeline.Node.build].
 
 ```python exec="true" source="material-block" html="True" session="Pipeline-Split3"
-from sklearn.ensemble import RandomForestClassifier
-
-classifier = step("random_forest", RandomForestClassifier)
-pipeline = (feature_preprocessing | classifier).as_pipeline(name="Classification Pipeline")
-from amltk._doc import doc_print; doc_print(print, pipeline, output="html", fontsize="small", width=120)  # markdown-exec: hide
+built_pipeline = preprocessor.build("sklearn")
+from amltk._doc import doc_print; doc_print(print, built_pipeline)  # markdown-exec: hide
 ```
 
-And finally, to build it:
-```python exec="true" source="material-block" html="True" session="Pipeline-Split3"
-from sklearn.pipeline import Pipeline as SklearnPipeline
+### Join
 
-sklearn_pipeline = pipeline.build()
-assert isinstance(sklearn_pipeline, SklearnPipeline)
-print(sklearn_pipeline._repr_html_())  # markdown-exec: hide
-```
+!!! todo "TODO"
+
+    TODO
+ 
+
+### Searchable
+
+!!! todo "TODO"
+
+    TODO
 
 ### Option
 
@@ -688,47 +534,3 @@ print(sklearn_pipeline._repr_html_())  # markdown-exec: hide
 
     Please feel free to provide a contribution!
 
-## Modules
-A pipeline is often not sufficient to represent everything surrounding the pipeline
-that you'd wish to associate with it. For that reason we introduce the concept
-of _module_.
-These are components or pipelines that you [`attach()`][amltk.pipeline.Pipeline.attach]
-to your main pipeline, but are not directly part of the dataflow.
-
-For example, we can create a simple [`searchable()`][amltk.pipeline.api.searchable]
-which we `attach()` to our pipeline.
-This will be included in the `space()` that it outputed from the `Pipeline.
-
-```python exec="true" source="material-block" html="True" session="Pipeline-Modules"
-from amltk.pipeline import step, searchable
-
-# Some extra things we want to include in the search space of the pipeline
-params_a = searchable("params_a", space={"a": (1, 10), "b": ["apple", "frog"]})
-params_b = searchable("params_b", space={"c": (1.5, 1.8)})
-
-# Create a basic pipeline of two steps
-pipeline = (step("step1", object) | step("step2", object)).as_pipeline()
-pipeline = pipeline.attach(modules=[params_a, params_b])
-
-space = pipeline.space()
-from amltk._doc import doc_print; doc_print(print, pipeline, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, space, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-These will also be included in any configurations `sample()`'ed and will be configured with
-`configure()`.
-
-```python exec="true" source="material-block" html="True" session="Pipeline-Modules"
-config = pipeline.sample()
-pipeline = pipeline.configure(config)
-
-doc_print(print, config, output="html", fontsize="small")  # markdown-exec: hide
-doc_print(print, pipeline, output="html", fontsize="small")  # markdown-exec: hide
-```
-
-Lastly, we can access the config directly through the pipelines `.modules`
-
-```python exec="true" source="material-block" html="True" session="Pipeline-Modules"
-module_config = pipeline.modules["params_a"].config
-doc_print(print, module_config, output="html", fontsize="small")  # markdown-exec: hide
-```

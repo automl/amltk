@@ -1,17 +1,18 @@
 """Module to measure memory."""
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Iterator, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import override
 
 import numpy as np
 import pandas as pd
 import psutil
 
-from amltk.functional import dict_get_not_none
+from amltk._functional import dict_get_not_none
 
 if TYPE_CHECKING:
     from pandas._libs.missing import NAType

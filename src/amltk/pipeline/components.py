@@ -1,643 +1,871 @@
-"""The various components that can be part of a pipeline.
+"""You can use the various different node types to build a pipeline.
 
-These can all be created through the functions `step`, `split`, `choice`
-exposed through the `amltk.pipeline` module and this is the preffered way to do so.
-"""
+The syntactic meaning of these components are dependant upon
+the [search space parser](site:reference/pipelines/spaces.md)
+and [builder](site:reference/pipelines/builders.md) you use.
+
+You can connect these nodes together using either the constructors explicitly,
+as shown in the examples. We also provide some index operators:
+
+* `>>` - Connect nodes together to form a [`Sequential`][amltk.pipeline.components.Sequential]
+* `&` - Connect nodes together to form a [`Join`][amltk.pipeline.components.Join]
+* `|` - Connect nodes together to form a [`Choice`][amltk.pipeline.components.Choice]
+
+There is also another short-hand that you may find useful to know:
+
+* `{comp1, comp2, comp3}` - This will automatically be converted into a
+    [`Choice`][amltk.pipeline.Choice] between the given components.
+* `(comp1, comp2, comp3)` - This will automatically be converted into a
+    [`Join`][amltk.pipeline.Join] between the given components.
+* `[comp1, comp2, comp3]` - This will automatically be converted into a
+    [`Sequential`][amltk.pipeline.Sequential] between the given components.
+
+For each of these components we will show examples using
+the `#! "sklearn"` builder but please check out the
+[builder reference](site:reference/pipelines/builders.md)
+for more.
+
+The components are:
+
+### Component
+
+::: amltk.pipeline.components.Component
+    options:
+        members: false
+
+### Sequential
+
+::: amltk.pipeline.components.Sequential
+    options:
+        members: false
+
+### Choice
+
+::: amltk.pipeline.components.Choice
+    options:
+        members: false
+
+### Split
+
+::: amltk.pipeline.components.Split
+    options:
+        members: false
+
+### Join
+
+::: amltk.pipeline.components.Join
+    options:
+        members: false
+
+### Fixed
+
+::: amltk.pipeline.components.Fixed
+    options:
+        members: false
+
+### Searchable
+
+::: amltk.pipeline.components.Searchable
+    options:
+        members: false
+"""  # noqa: E501
 from __future__ import annotations
 
-from contextlib import suppress
-from itertools import chain, repeat
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ClassVar,
-    Generic,
-    Iterator,
-    Literal,
-    Mapping,
-    Sequence,
-)
+import inspect
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, overload
 from typing_extensions import override
 
-from attrs import field, frozen
-from more_itertools import first_true
+from more_itertools import all_unique, first_true
 
-from amltk.pipeline.step import ParamRequest, Step, mapping_select, prefix_keys
-from amltk.types import Config, FidT, Item, Space
+from amltk._functional import entity_name
+from amltk.exceptions import DuplicateNamesError, NoChoiceMadeError, NodeNotFoundError
+from amltk.pipeline.node import Node, RichOptions
+from amltk.randomness import randuid
+from amltk.types import Config, Item, Space
 
 if TYPE_CHECKING:
-    from rich.console import RenderableType
+    from amltk.pipeline.node import NodeLike
 
 
-@frozen(kw_only=True)
-class Searchable(Step[Space], Generic[Space]):
-    """A step to be searched over.
+T = TypeVar("T")
+NodeT = TypeVar("NodeT", bound=Node)
+
+
+@overload
+def as_node(thing: Node, name: str | None = ...) -> Node:  # type: ignore
+    ...
+
+
+@overload
+def as_node(thing: tuple[Node | NodeLike, ...], name: str | None = ...) -> Join:  # type: ignore
+    ...
+
+
+@overload
+def as_node(thing: set[Node | NodeLike], name: str | None = ...) -> Choice:  # type: ignore
+    ...
+
+
+@overload
+def as_node(thing: list[Node | NodeLike], name: str | None = ...) -> Sequential:  # type: ignore
+    ...
+
+
+@overload
+def as_node(  # type: ignore
+    thing: Callable[..., Item],
+    name: str | None = ...,
+) -> Component[Item, None]:
+    ...
+
+
+@overload
+def as_node(thing: Item, name: str | None = ...) -> Fixed[Item]:
+    ...
+
+
+def as_node(  # noqa: PLR0911
+    thing: Node | NodeLike[Item],
+    name: str | None = None,
+) -> Node | Choice | Join | Sequential | Fixed[Item]:
+    """Convert a node, pipeline, set or tuple into a component, copying anything
+    in the process and removing all linking to other nodes.
+
+    Args:
+        thing: The thing to convert
+        name: The name of the node. If it already a node, it will be renamed to that
+            one.
+
+    Returns:
+        The component
+    """
+    match thing:
+        case set():
+            return Choice(*thing, name=name)
+        case tuple():
+            return Join(*thing, name=name)
+        case list():
+            return Sequential(*thing, name=name)
+        case Node():
+            name = thing.name if name is None else name
+            return thing.mutate(name=name)
+        case type():
+            return Component(thing, name=name)
+        case thing if (inspect.isfunction(thing) or inspect.ismethod(thing)):
+            return Component(thing, name=name)
+        case _:
+            return Fixed(thing, name=name)
+
+
+@dataclass(init=False, frozen=True, eq=True)
+class Join(Node[Item, Space]):
+    """[`Join`][amltk.pipeline.Join] together different parts of the pipeline.
+
+    This indicates the different children in
+    [`.nodes`][amltk.pipeline.Node.nodes] should act in tandem with one
+    another, for example, concatenating the outputs of the various members of the
+    `Join`.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Join, Component
+    from sklearn.decomposition import PCA
+    from sklearn.feature_selection import SelectKBest
+
+    pca = Component(PCA, space={"n_components": (1, 3)})
+    kbest = Component(SelectKBest, space={"k": (1, 3)})
+
+    join = Join(pca, kbest, name="my_feature_union")
+    from amltk._doc import doc_print; doc_print(print, join)  # markdown-exec: hide
+
+    space = join.search_space("configspace")
+    from amltk._doc import doc_print; doc_print(print, space)  # markdown-exec: hide
+
+    pipeline = join.build("sklearn")
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+    ```
+
+    You may also just join together nodes using an infix operator `&` if you prefer:
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Join, Component
+    from sklearn.decomposition import PCA
+    from sklearn.feature_selection import SelectKBest
+
+    pca = Component(PCA, space={"n_components": (1, 3)})
+    kbest = Component(SelectKBest, space={"k": (1, 3)})
+
+    # Can not parametrize or name the join
+    join = pca & kbest
+    from amltk._doc import doc_print; doc_print(print, join)  # markdown-exec: hide
+
+    # With a parametrized join
+    join = (
+        Join(name="my_feature_union") & pca & kbest
+    )
+    item = join.build("sklearn")
+    from amltk._doc import doc_print; doc_print(print, item)  # markdown-exec: hide
+    ```
+
+    Whenever some other node sees a tuple, i.e. `(comp1, comp2, comp3)`, this
+    will automatically be converted into a `Join`.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Sequential, Component
+    from sklearn.decomposition import PCA
+    from sklearn.feature_selection import SelectKBest
+    from sklearn.ensemble import RandomForestClassifier
+
+    pca = Component(PCA, space={"n_components": (1, 3)})
+    kbest = Component(SelectKBest, space={"k": (1, 3)})
+
+    # Can not parametrize or name the join
+    join = Sequential(
+        (pca, kbest),
+        RandomForestClassifier(n_estimators=5),
+        name="my_feature_union",
+    )
+    from amltk._doc import doc_print; doc_print(print, join)  # markdown-exec: hide
+    ```
+
+    Like all [`Node`][amltk.pipeline.node.Node]s, a `Join` accepts an explicit
+    [`name=`][amltk.pipeline.node.Node.name],
+    [`item=`][amltk.pipeline.node.Node.item],
+    [`config=`][amltk.pipeline.node.Node.config],
+    [`space=`][amltk.pipeline.node.Node.space],
+    [`fidelities=`][amltk.pipeline.node.Node.fidelities],
+    [`config_transform=`][amltk.pipeline.node.Node.config_transform] and
+    [`meta=`][amltk.pipeline.node.Node.meta].
 
     See Also:
-        [`Step`][amltk.pipeline.step.Step]
+        * [`Node`][amltk.pipeline.node.Node]
     """
 
-    name: str
-    """Name of the step"""
+    nodes: tuple[Node, ...]
+    """The nodes that this node leads to."""
 
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-    """The configuration for this step"""
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(panel_color="#7E6B8F")
 
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    """The search space for this step"""
+    _NODES_INIT: ClassVar = "args"
 
-    fidelity_space: Mapping[str, FidT] | None = field(
-        default=None,
-        hash=False,
-        repr=False,
-    )
-    """The fidelities for this step"""
+    def __init__(
+        self,
+        *nodes: Node | NodeLike,
+        name: str | None = None,
+        item: Item | Callable[[Item], Item] | None = None,
+        config: Config | None = None,
+        space: Space | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        config_transform: Callable[[Config, Any], Config] | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        _nodes = tuple(as_node(n) for n in nodes)
+        if not all_unique(_nodes, key=lambda node: node.name):
+            raise ValueError(
+                f"Can't handle nodes they do not all contain unique names, {nodes=}."
+                "\nAll nodes must have a unique name. Please provide a `name=` to them",
+            )
 
-    config_transform: (
-        Callable[
-            [Mapping[str, Any], Any],
-            Mapping[str, Any],
-        ]
-        | None
-    ) = field(default=None, hash=False, repr=False)
-    """A function that transforms the configuration of this step"""
+        if name is None:
+            name = f"Join-{randuid(8)}"
 
-    meta: Mapping[str, Any] | None = None
-    """Any meta information about this step"""
-
-    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "light_steel_blue"
-
-
-@frozen(kw_only=True)
-class Component(Step[Space], Generic[Item, Space]):
-    """A Fixed component with an item attached.
-
-    See Also:
-        [`Step`][amltk.pipeline.step.Step]
-    """
-
-    item: Callable[..., Item] | Any = field(hash=False)
-    """The item attached to this step"""
-
-    name: str
-    """Name of the step"""
-
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-    """The configuration for this step"""
-
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    """The search space for this step"""
-
-    fidelity_space: Mapping[str, FidT] | None = field(
-        default=None,
-        hash=False,
-        repr=False,
-    )
-    """The fidelities for this step"""
-
-    config_transform: (
-        Callable[
-            [Mapping[str, Any], Any],
-            Mapping[str, Any],
-        ]
-        | None
-    ) = field(default=None, hash=False, repr=False)
-    """A function that transforms the configuration of this step"""
-
-    meta: Mapping[str, Any] | None = None
-    """Any meta information about this step"""
-
-    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "default"
+        super().__init__(
+            *_nodes,
+            name=name,
+            item=item,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
+        )
 
     @override
-    def build(self, **kwargs: Any) -> Item:
-        """Build the item attached to this component.
+    def __and__(self, other: Node | NodeLike) -> Join:
+        other_node = as_node(other)
+        if any(other_node.name == node.name for node in self.nodes):
+            raise ValueError(
+                f"Can't handle node with name '{other_node.name} as"
+                f" there is already a node called '{other_node.name}' in {self.name}",
+            )
 
-        Args:
-            **kwargs: Any additional arguments to pass to the item
+        nodes = (*tuple(as_node(n) for n in self.nodes), other_node)
+        return self.mutate(name=self.name, nodes=nodes)
+
+
+@dataclass(init=False, frozen=True, eq=True)
+class Choice(Node[Item, Space]):
+    """A [`Choice`][amltk.pipeline.Choice] between different subcomponents.
+
+    This indicates that a choice should be made between the different children in
+    [`.nodes`][amltk.pipeline.Node.nodes], usually done when you
+    [`configure()`][amltk.pipeline.node.Node.configure] with some `config` from
+    a [`search_space()`][amltk.pipeline.node.Node.search_space].
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Choice, Component
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.neural_network import MLPClassifier
+
+    rf = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
+    mlp = Component(MLPClassifier, space={"activation": ["logistic", "relu", "tanh"]})
+
+    estimator_choice = Choice(rf, mlp, name="estimator")
+    from amltk._doc import doc_print; doc_print(print, estimator_choice)  # markdown-exec: hide
+
+    space = estimator_choice.search_space("configspace")
+    from amltk._doc import doc_print; doc_print(print, space)  # markdown-exec: hide
+
+    config = space.sample_configuration()
+    from amltk._doc import doc_print; doc_print(print, config)  # markdown-exec: hide
+
+    configured_choice = estimator_choice.configure(config)
+    from amltk._doc import doc_print; doc_print(print, configured_choice)  # markdown-exec: hide
+
+    chosen_estimator = configured_choice.chosen()
+    from amltk._doc import doc_print; doc_print(print, chosen_estimator)  # markdown-exec: hide
+
+    estimator = chosen_estimator.build_item()
+    from amltk._doc import doc_print; doc_print(print, estimator)  # markdown-exec: hide
+    ```
+
+    You may also just add nodes to a `Choice` using an infix operator `|` if you prefer:
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Choice, Component
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.neural_network import MLPClassifier
+
+    rf = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
+    mlp = Component(MLPClassifier, space={"activation": ["logistic", "relu", "tanh"]})
+
+    estimator_choice = (
+        Choice(name="estimator") | mlp | rf
+    )
+    from amltk._doc import doc_print; doc_print(print, estimator_choice)  # markdown-exec: hide
+    ```
+
+    Whenever some other node sees a set, i.e. `{comp1, comp2, comp3}`, this
+    will automatically be converted into a `Choice`.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Choice, Component, Sequential
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.impute import SimpleImputer
+
+    rf = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
+    mlp = Component(MLPClassifier, space={"activation": ["logistic", "relu", "tanh"]})
+
+    pipeline = Sequential(
+        SimpleImputer(fill_value=0),
+        {mlp, rf},
+        name="my_pipeline",
+    )
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+    ```
+
+    Like all [`Node`][amltk.pipeline.node.Node]s, a `Choice` accepts an explicit
+    [`name=`][amltk.pipeline.node.Node.name],
+    [`item=`][amltk.pipeline.node.Node.item],
+    [`config=`][amltk.pipeline.node.Node.config],
+    [`space=`][amltk.pipeline.node.Node.space],
+    [`fidelities=`][amltk.pipeline.node.Node.fidelities],
+    [`config_transform=`][amltk.pipeline.node.Node.config_transform] and
+    [`meta=`][amltk.pipeline.node.Node.meta].
+
+    !!! warning "Order of nodes"
+
+        The given nodes of a choice are always ordered according
+        to their name, so indexing `choice.nodes` may not be reliable
+        if modifying the choice dynamically.
+
+        Please use `choice["name"]` to access the nodes instead.
+
+    See Also:
+        * [`Node`][amltk.pipeline.node.Node]
+    """  # noqa: E501
+
+    nodes: tuple[Node, ...]
+    """The nodes that this node leads to."""
+
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(panel_color="#FF4500")
+    _NODES_INIT: ClassVar = "args"
+
+    def __init__(
+        self,
+        *nodes: Node | NodeLike,
+        name: str | None = None,
+        item: Item | Callable[[Item], Item] | None = None,
+        config: Config | None = None,
+        space: Space | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        config_transform: Callable[[Config, Any], Config] | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        _nodes: tuple[Node, ...] = tuple(
+            sorted((as_node(n) for n in nodes), key=lambda n: n.name),
+        )
+        if not all_unique(_nodes, key=lambda node: node.name):
+            raise ValueError(
+                f"Can't handle nodes as we can not generate a __choice__ for {nodes=}."
+                "\nAll nodes must have a unique name. Please provide a `name=` to them",
+            )
+
+        if name is None:
+            name = f"Choice-{randuid(8)}"
+
+        super().__init__(
+            *_nodes,
+            name=name,
+            item=item,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
+        )
+
+    @override
+    def __or__(self, other: Node | NodeLike) -> Choice:
+        other_node = as_node(other)
+        if any(other_node.name == node.name for node in self.nodes):
+            raise ValueError(
+                f"Can't handle node with name '{other_node.name} as"
+                f" there is already a node called '{other_node.name}' in {self.name}",
+            )
+
+        nodes = tuple(
+            sorted(
+                [as_node(n) for n in self.nodes] + [other_node],
+                key=lambda n: n.name,
+            ),
+        )
+        return self.mutate(name=self.name, nodes=nodes)
+
+    def chosen(self) -> Node:
+        """The chosen branch.
 
         Returns:
-            Item
-                The built item
+            The chosen branch
         """
-        if callable(self.item):
-            config = self.config or {}
-            return self.item(**{**config, **kwargs})
+        match self.config:
+            case {"__choice__": choice}:
+                chosen = first_true(
+                    self.nodes,
+                    pred=lambda node: node.name == choice,
+                    default=None,
+                )
+                if chosen is None:
+                    raise NodeNotFoundError(choice, self.name)
 
-        if self.config is not None:
-            raise ValueError(f"Can't pass config to a non-callable item in step {self}")
-
-        return self.item
-
-    @override
-    def _rich_table_items(self) -> Iterator[tuple[RenderableType, ...]]:
-        from rich.pretty import Pretty
-
-        from amltk.richutil import Function
-
-        if self.item is not None:
-            if callable(self.item):
-                yield "item", Function(self.item)
-            else:
-                yield "item", Pretty(self.item)
-
-        yield from super()._rich_table_items()
+                return chosen
+            case _:
+                raise NoChoiceMadeError(self.name)
 
 
-@frozen(kw_only=True)
-class Group(Mapping[str, Step], Step[Space]):
-    """A Fixed component with an item attached.
+@dataclass(init=False, frozen=True, eq=True)
+class Sequential(Node[Item, Space]):
+    """A [`Sequential`][amltk.pipeline.Sequential] set of operations in a pipeline.
+
+    This indicates the different children in
+    [`.nodes`][amltk.pipeline.Node.nodes] should act one after
+    another, feeding the output of one into the next.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Component, Sequential
+    from sklearn.decomposition import PCA
+    from sklearn.ensemble import RandomForestClassifier
+
+    pipeline = Sequential(
+        PCA(n_components=3),
+        Component(RandomForestClassifier, space={"n_estimators": (10, 100)}),
+        name="my_pipeline"
+    )
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+
+    space = pipeline.search_space("configspace")
+    from amltk._doc import doc_print; doc_print(print, space)  # markdown-exec: hide
+
+    configuration = space.sample_configuration()
+    from amltk._doc import doc_print; doc_print(print, configuration)  # markdown-exec: hide
+
+    configured_pipeline = pipeline.configure(configuration)
+    from amltk._doc import doc_print; doc_print(print, configured_pipeline)  # markdown-exec: hide
+
+    sklearn_pipeline = pipeline.build("sklearn")
+    from amltk._doc import doc_print; doc_print(print, sklearn_pipeline)  # markdown-exec: hide
+    ```
+
+    You may also just chain together nodes using an infix operator `>>` if you prefer:
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Join, Component, Sequential
+    from sklearn.decomposition import PCA
+    from sklearn.ensemble import RandomForestClassifier
+
+    pipeline = (
+        Sequential(name="my_pipeline")
+        >> PCA(n_components=3)
+        >> Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
+    )
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+    ```
+
+    Whenever some other node sees a list, i.e. `[comp1, comp2, comp3]`, this
+    will automatically be converted into a `Sequential`.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Choice
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.neural_network import MLPClassifier
+
+    pipeline_choice = Choice(
+        [SimpleImputer(), RandomForestClassifier()],
+        [StandardScaler(), MLPClassifier()],
+        name="pipeline_choice"
+    )
+    from amltk._doc import doc_print; doc_print(print, pipeline_choice)  # markdown-exec: hide
+    ```
+
+    Like all [`Node`][amltk.pipeline.node.Node]s, a `Sequential` accepts an explicit
+    [`name=`][amltk.pipeline.node.Node.name],
+    [`item=`][amltk.pipeline.node.Node.item],
+    [`config=`][amltk.pipeline.node.Node.config],
+    [`space=`][amltk.pipeline.node.Node.space],
+    [`fidelities=`][amltk.pipeline.node.Node.fidelities],
+    [`config_transform=`][amltk.pipeline.node.Node.config_transform] and
+    [`meta=`][amltk.pipeline.node.Node.meta].
 
     See Also:
-        [`Step`][amltk.pipeline.step.Step]
-    """
+        * [`Node`][amltk.pipeline.node.Node]
+    """  # noqa: E501
 
-    paths: Sequence[Step]
-    """The paths that can be taken from this split"""
+    nodes: tuple[Node, ...]
+    """The nodes in series."""
 
-    name: str
-    """Name of the step"""
-
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-    """The configuration for this step"""
-
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    """The search space for this step"""
-
-    fidelity_space: Mapping[str, FidT] | None = field(
-        default=None,
-        hash=False,
-        repr=False,
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(
+        panel_color="#7E6B8F",
+        node_orientation="vertical",
     )
-    """The fidelities for this step"""
+    _NODES_INIT: ClassVar = "args"
 
-    config_transform: (
-        Callable[
-            [Mapping[str, Any], Any],
-            Mapping[str, Any],
-        ]
-        | None
-    ) = field(default=None, hash=False, repr=False)
-    """A function that transforms the configuration of this step"""
+    def __init__(
+        self,
+        *nodes: Node | NodeLike,
+        name: str | None = None,
+        item: Item | Callable[[Item], Item] | None = None,
+        config: Config | None = None,
+        space: Space | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        config_transform: Callable[[Config, Any], Config] | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        _nodes = tuple(as_node(n) for n in nodes)
 
-    meta: Mapping[str, Any] | None = None
-    """Any meta information about this step"""
+        # Perhaps we need to do a deeper check on this...
+        if not all_unique(_nodes, key=lambda node: node.name):
+            raise DuplicateNamesError(self)
 
-    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "deep_sky_blue2"
+        if name is None:
+            name = f"Seq-{randuid(8)}"
 
-    def __attrs_post_init__(self) -> None:
-        """Ensure that the paths are all unique."""
-        if len(self) != len(set(self)):
-            raise ValueError("Paths must be unique")
+        super().__init__(
+            *_nodes,
+            name=name,
+            item=item,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
+        )
 
-        for path_head in self.paths:
-            object.__setattr__(path_head, "parent", self)
-            object.__setattr__(path_head, "prv", None)
+    @property
+    def tail(self) -> Node:
+        """The last step in the pipeline."""
+        return self.nodes[-1]
+
+    def __len__(self) -> int:
+        """Get the number of nodes in the pipeline."""
+        return len(self.nodes)
 
     @override
-    def path_to(
-        self,
-        key: str | Step | Callable[[Step], bool],
-        *,
-        direction: Literal["forward", "backward"] | None = None,
-    ) -> list[Step] | None:
-        """See [`Step.path_to`][amltk.pipeline.step.Step.path_to]."""
-        if callable(key):
-            pred = key
-        elif isinstance(key, Step):
-            pred = lambda step: step == key
-        else:
-            pred = lambda step: step.name == key
+    def __rshift__(self, other: Node | NodeLike) -> Sequential:
+        other_node = as_node(other)
+        if any(other_node.name == node.name for node in self.nodes):
+            raise ValueError(
+                f"Can't handle node with name '{other_node.name} as"
+                f" there is already a node called '{other_node.name}' in {self.name}",
+            )
 
-        # We found our target, just return now
-        if pred(self):
-            return [self]
-
-        if direction in (None, "forward"):
-            for member in self.paths:
-                if path := member.path_to(pred, direction="forward"):
-                    return [self, *path]
-
-            if self.nxt is not None and (
-                path := self.nxt.path_to(pred, direction="forward")
-            ):
-                return [self, *path]
-
-        if direction in (None, "backward"):
-            back = self.prv or self.parent
-            if back and (path := back.path_to(pred, direction="backward")):
-                return [self, *path]
-
-            return None
-
-        return None
-
-    @override
-    def traverse(
-        self,
-        *,
-        include_self: bool = True,
-        backwards: bool = False,
-    ) -> Iterator[Step]:
-        """See `Step.traverse`."""
-        if include_self:
-            yield self
-
-        # Backward mode
-        if backwards:
-            if self.prv is not None:
-                yield from self.prv.traverse(backwards=True)
-            elif self.parent is not None:
-                yield from self.parent.traverse(backwards=True)
-
-            if include_self:
-                yield self
-
-            return
-
-        # Forward mode
-        yield from chain.from_iterable(path.traverse() for path in self.paths)
-        if self.nxt is not None:
-            yield from self.nxt.traverse()
+        nodes = (*tuple(as_node(n) for n in self.nodes), other_node)
+        return self.mutate(name=self.name, nodes=nodes)
 
     @override
     def walk(
         self,
-        groups: Sequence[Group] | None = None,
-        parents: Sequence[Step] | None = None,
-    ) -> Iterator[tuple[list[Group], list[Step], Step]]:
-        """See `Step.walk`."""
-        groups = list(groups) if groups is not None else []
-        parents = list(parents) if parents is not None else []
-        yield groups, parents, self
-
-        for path in self.paths:
-            yield from path.walk(groups=[*groups, self], parents=[])
-
-        if self.nxt:
-            yield from self.nxt.walk(
-                groups=groups,
-                parents=[*parents, self],
-            )
-
-    @override
-    def replace(self, replacements: Mapping[str, Step]) -> Iterator[Step]:
-        """See `Step.replace`."""
-        if self.name in replacements:
-            yield replacements[self.name]
-        else:
-            # Otherwise, we need to call replace over any paths and create a new
-            # split with those replacements
-            paths = [
-                Step.join(path.replace(replacements=replacements))
-                for path in self.paths
-            ]
-            yield self.mutate(paths=paths)
-
-        if self.nxt is not None:
-            yield from self.nxt.replace(replacements=replacements)
-
-    @override
-    def remove(self, keys: Sequence[str]) -> Iterator[Step]:
-        """See `Step.remove`."""
-        if self.name not in keys:
-            # We need to call remove on all the paths. If this removes a
-            # path that only has one entry, leading to an empty path, then
-            # we ignore any errors from joining and remove the path
-            paths = []
-            for path in self.paths:
-                with suppress(ValueError):
-                    new_path = Step.join(path.remove(keys))
-                    paths.append(new_path)
-
-            yield self.mutate(paths=paths)
-
-        if self.nxt is not None:
-            yield from self.nxt.remove(keys)
-
-    @override
-    def apply(self, func: Callable[[Step], Step]) -> Step:
-        """Apply a function to all the steps in this group.
+        path: Sequence[Node] | None = None,
+    ) -> Iterator[tuple[list[Node], Node]]:
+        """Walk the nodes in this chain.
 
         Args:
-            func: The function to apply
+            path: The current path to this node
 
-        Returns:
-            Step: The new group
+        Yields:
+            The parents of the node and the node itself
         """
-        new_paths = [path.apply(func) for path in self.paths]
-        new_nxt = self.nxt.apply(func) if self.nxt else None
+        path = list(path) if path is not None else []
+        yield path, self
 
-        # NOTE: We can't be sure that the function will return a new instance of
-        # `self` so we have to make a copy of `self` and then apply the function
-        # to that copy.
-        new_self = func(self.copy())
+        path = [*path, self]
+        for node in self.nodes:
+            yield from node.walk(path=path)
 
-        if new_nxt is not None:
-            # HACK: Frozen objects do not allow setting attributes after
-            # instantiation. Join the two steps together.
-            object.__setattr__(new_self, "nxt", new_nxt)
-            object.__setattr__(new_self, "paths", new_paths)
-            object.__setattr__(new_nxt, "prv", new_self)
-
-        return new_self
-
-    # OPTIMIZE: Unlikely to be an issue but I figure `.items()` on
-    # a split of size `n` will cause `n` iterations of `paths`
-    # Fixable by implementing more of the `Mapping` functions
-
-    @override
-    def __getitem__(self, key: str) -> Step:
-        if val := first_true(self.paths, pred=lambda p: p.name == key):
-            return val
-        raise KeyError(key)
-
-    @override
-    def __len__(self) -> int:
-        return len(self.paths)
-
-    @override
-    def __iter__(self) -> Iterator[str]:
-        return iter(p.name for p in self.paths)
-
-    @override
-    def configure(  # noqa: PLR0912, C901
-        self,
-        config: Config,
-        *,
-        prefixed_name: bool | None = None,
-        transform_context: Any | None = None,
-        params: Mapping[str, Any] | None = None,
-        clear_space: bool | Literal["auto"] = "auto",
-    ) -> Step:
-        """Configure this step and anything following it with the given config.
-
-        Args:
-            config: The configuration to apply
-            prefixed_name: Whether items in the config are prefixed by the names
-                of the steps.
-                * If `None`, the default, then `prefixed_name` will be assumed to
-                    be `True` if this step has a next step or if the config has
-                    keys that begin with this steps name.
-                * If `True`, then the config will be searched for items prefixed
-                    by the name of the step (and subsequent chained steps).
-                * If `False`, then the config will be searched for items without
-                    the prefix, i.e. the config keys are exactly those matching
-                    this steps search space.
-            transform_context: Any context to give to `config_transform=` of individual
-                steps.
-            params: The params to match any requests when configuring this step.
-                These will match against any ParamRequests in the config and will
-                be used to fill in any missing values.
-            clear_space: Whether to clear the search space after configuring.
-                If `"auto"` (default), then the search space will be cleared of any
-                keys that are in the config, if the search space is a `dict`. Otherwise,
-                `True` indicates that it will be removed in the returned step and
-                `False` indicates that it will remain as is.
-
-        Returns:
-            Step: The configured step
-        """
-        if prefixed_name is None:
-            if any(key.startswith(f"{self.name}:") for key in config):
-                prefixed_name = True
-            else:
-                prefixed_name = self.nxt is not None
-
-        nxt = (
-            self.nxt.configure(
-                config,
-                prefixed_name=prefixed_name,
-                transform_context=transform_context,
-                params=params,
-                clear_space=clear_space,
-            )
-            if self.nxt
-            else None
-        )
-
-        # Configure all the paths, we assume all of these must
-        # have the prefixed name and hence use `mapping_select`
-        subconfig = mapping_select(config, f"{self.name}:") if prefixed_name else config
-
-        paths = [
-            path.configure(
-                subconfig,
-                prefixed_name=True,
-                transform_context=transform_context,
-                params=params,
-                clear_space=clear_space,
-            )
-            for path in self.paths
-        ]
-
-        this_config = subconfig if prefixed_name else config
-
-        # The config for this step is anything that doesn't have
-        # another delimiter in it and is not a part of a subpath
-        this_config = {
-            k: v
-            for k, v in this_config.items()
-            if ":" not in k and not any(k.startswith(f"{p.name}") for p in self.paths)
-        }
-
-        if self.config is not None:
-            this_config = {**self.config, **this_config}
-
-        _params = params or {}
-        reqs = [(k, v) for k, v in this_config.items() if isinstance(v, ParamRequest)]
-        for k, request in reqs:
-            if request.key in _params:
-                this_config[k] = _params[request.key]
-            elif request.has_default:
-                this_config[k] = request.default
-            elif request.required:
-                raise ParamRequest.RequestNotMetError(
-                    f"Missing required parameter {request.key} for step {self.name}"
-                    " and no default was provided."
-                    f"\nThe request given was: {request}",
-                    f"Please use the `params=` argument to provide a value for this"
-                    f" request. What was given was `{params=}`",
-                )
-
-        # If we have a `dict` for a space, then we can remove any configured keys that
-        # overlap it.
-        _space: Any
-        if clear_space == "auto":
-            _space = self.search_space
-            if isinstance(self.search_space, dict) and any(self.search_space):
-                _overlap = set(this_config).intersection(self.search_space)
-                _space = {
-                    k: v for k, v in self.search_space.items() if k not in _overlap
-                }
-                if len(_space) == 0:
-                    _space = None
-
-        elif clear_space is True:
-            _space = None
-        else:
-            _space = self.search_space
-
-        if self.config_transform is not None:
-            this_config = self.config_transform(this_config, transform_context)
-
-        new_self = self.mutate(
-            paths=paths,
-            config=this_config if this_config else None,
-            nxt=nxt,
-            search_space=_space,
-        )
-
-        if nxt is not None:
-            # HACK: This is a hack to to modify the fact `nxt` is a frozen
-            # object. Frozen objects do not allow setting attributes after
-            # instantiation.
-            object.__setattr__(nxt, "prv", new_self)
-
-        return new_self
-
-    def first(self) -> Step:
-        """Get the first step in this group."""
-        return self.paths[0]
-
-    @override
-    def select(self, choices: Mapping[str, str]) -> Iterator[Step]:
-        """See `Step.select`."""
-        if self.name in choices:
-            choice = choices[self.name]
-            chosen = first_true(self.paths, pred=lambda path: path.name == choice)
-            if chosen is None:
-                raise ValueError(
-                    f"{self.__class__.__qualname__} {self.name} has no path '{choice}'"
-                    f"\n{self}",
-                )
-            yield chosen
-        else:
-            # Otherwise, we need to call select over the paths
-            paths = [Step.join(path.select(choices)) for path in self.paths]
-            yield self.mutate(paths=paths)
-
-        if self.nxt is not None:
-            yield from self.nxt.select(choices)
-
-    @override
-    def fidelities(self) -> dict[str, FidT]:
-        """See `Step.fidelities`."""
-        fids = {}
-        for path in self.paths:
-            fids.update(prefix_keys(path.fidelities(), f"{self.name}:"))
-
-        if self.nxt is not None:
-            fids.update(self.nxt.fidelities())
-
-        return fids
-
-    @override
-    def linearized_fidelity(self, value: float) -> dict[str, int | float | Any]:
-        """Get the linearized fidelity for this step.
-
-        Args:
-            value: The value to linearize. Must be between [0, 1]
-
-        Return:
-            dictionary from key to it's linearized fidelity.
-        """
-        assert 1.0 <= value <= 100.0, f"{value=} not in [1.0, 100.0]"  # noqa: PLR2004
-        d = {}
-        if self.fidelity_space is not None:
-            for f_name, f_range in self.fidelity_space.items():
-                low, high = f_range
-                fid = low + (high - low) * value
-                fid = low + (high - low) * (value - 1) / 100
-                fid = fid if isinstance(low, float) else round(fid)
-                d[f_name] = fid
-
-            d = prefix_keys(d, f"{self.name}:")
-
-        for path in self.paths:
-            path_fids = prefix_keys(path.linearized_fidelity(value), f"{self.name}:")
-            d.update(path_fids)
-
-        if self.nxt is None:
-            return d
-
-        nxt_fids = self.nxt.linearized_fidelity(value)
-        return {**d, **nxt_fids}
-
-    @override
-    def _rich_panel_contents(self) -> Iterator[RenderableType]:
-        from rich.console import Group as RichGroup
-        from rich.table import Table
-        from rich.text import Text
-
-        if panel_contents := list(self._rich_table_items()):
-            table = Table.grid(padding=(0, 1), expand=False)
-            for tup in panel_contents:
-                table.add_row(*tup, style="default")
-            table.add_section()
-
-            yield table
-
-        if any(self.paths):
-            # HACK : Unless we exposed this through another function, we
-            # just assume this is desired behaviour.
-            connecter = Text("↓", style="bold", justify="center")
-
-            pipeline_table = Table.grid(padding=(0, 1), expand=False)
-            pipelines = [RichGroup(*p._rich_iter(connecter)) for p in self.paths]
-            pipeline_table.add_row(*pipelines)
-
-            yield pipeline_table
+            # Append the previous node so that the next node in the sequence is
+            # lead to from the previous node
+            path = [*path, node]
 
 
-@frozen(kw_only=True)
-class Split(Group[Space], Generic[Item, Space]):
-    """A split in the pipeline.
+@dataclass(init=False, frozen=True, eq=True)
+class Split(Node[Item, Space]):
+    """A [`Split`][amltk.pipeline.Split] of data in a pipeline.
+
+    This indicates the different children in
+    [`.nodes`][amltk.pipeline.Node.nodes] should
+    act in parallel but on different subsets of data.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Component, Split
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import OneHotEncoder
+    from sklearn.compose import make_column_selector
+
+    categorical_pipeline = [
+        SimpleImputer(strategy="constant", fill_value="missing"),
+        OneHotEncoder(drop="first"),
+    ]
+    numerical_pipeline = Component(SimpleImputer, space={"strategy": ["mean", "median"]})
+
+    preprocessor = Split(
+        {
+            "categories": categorical_pipeline,
+            "numerical": numerical_pipeline,
+        },
+        config={
+            # This is how you would configure the split for the sklearn builder in particular
+            "categories": make_column_selector(dtype_include="category"),
+            "numerical": make_column_selector(dtype_exclude="category"),
+        },
+        name="my_split"
+    )
+    from amltk._doc import doc_print; doc_print(print, preprocessor)  # markdown-exec: hide
+
+    space = preprocessor.search_space("configspace")
+    from amltk._doc import doc_print; doc_print(print, space)  # markdown-exec: hide
+
+    configuration = space.sample_configuration()
+    from amltk._doc import doc_print; doc_print(print, configuration)  # markdown-exec: hide
+
+    configured_preprocessor = preprocessor.configure(configuration)
+    from amltk._doc import doc_print; doc_print(print, configured_preprocessor)  # markdown-exec: hide
+
+    built_preprocessor = configured_preprocessor.build("sklearn")
+    from amltk._doc import doc_print; doc_print(print, built_preprocessor)  # markdown-exec: hide
+    ```
+
+    The split is a slight oddity when compared to the other kinds of components in that
+    it allows a `dict` as it's first argument, where the keys are the names of the
+    different paths through which data will go and the values are the actual nodes that
+    will receive the data.
+
+    If nodes are passed in as they are for all other components, usually the name of the
+    first node will be important for any [builder](site:reference/pipelines/builders.md),
+    trying to make sense of how to use the `Split`
+
+
+    Like all [`Node`][amltk.pipeline.node.Node]s, a `Split` accepts an explicit
+    [`name=`][amltk.pipeline.node.Node.name],
+    [`item=`][amltk.pipeline.node.Node.item],
+    [`config=`][amltk.pipeline.node.Node.config],
+    [`space=`][amltk.pipeline.node.Node.space],
+    [`fidelities=`][amltk.pipeline.node.Node.fidelities],
+    [`config_transform=`][amltk.pipeline.node.Node.config_transform] and
+    [`meta=`][amltk.pipeline.node.Node.meta].
 
     See Also:
-        * [`Step`][amltk.pipeline.step.Step]
-        * [`Group`][amltk.pipeline.components.Group]
+        * [`Node`][amltk.pipeline.node.Node]
+    """  # noqa: E501
+
+    nodes: tuple[Node, ...]
+    """The nodes that this node leads to."""
+
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(
+        panel_color="#777DA7",
+        node_orientation="horizontal",
+    )
+
+    _NODES_INIT: ClassVar = "args"
+
+    def __init__(
+        self,
+        *nodes: Node | NodeLike | dict[str, Node | NodeLike],
+        name: str | None = None,
+        item: Item | Callable[[Item], Item] | None = None,
+        config: Config | None = None,
+        space: Space | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        config_transform: Callable[[Config, Any], Config] | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        if any(isinstance(n, dict) for n in nodes):
+            if len(nodes) > 1:
+                raise ValueError(
+                    "Can't handle multiple nodes with a dictionary as a node.\n"
+                    f"{nodes=}",
+                )
+            _node = nodes[0]
+            assert isinstance(_node, dict)
+
+            def _construct(key: str, value: Node | NodeLike) -> Node:
+                match value:
+                    case list():
+                        return Sequential(*value, name=key)
+                    case set() | tuple():
+                        return as_node(value, name=key)
+                    case _:
+                        return Sequential(value, name=key)
+
+            _nodes = tuple(_construct(key, value) for key, value in _node.items())
+        else:
+            _nodes = tuple(as_node(n) for n in nodes)
+
+        if not all_unique(_nodes, key=lambda node: node.name):
+            raise ValueError(
+                f"Can't handle nodes they do not all contain unique names, {nodes=}."
+                "\nAll nodes must have a unique name. Please provide a `name=` to them",
+            )
+
+        if name is None:
+            name = f"Split-{randuid(8)}"
+
+        super().__init__(
+            *_nodes,
+            name=name,
+            item=item,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
+        )
+
+
+@dataclass(init=False, frozen=True, eq=True)
+class Component(Node[Item, Space]):
+    """A [`Component`][amltk.pipeline.Component] of the pipeline with
+    a possible item and **no children**.
+
+    This is the basic building block of most pipelines, it accepts
+    as it's [`item=`][amltk.pipeline.node.Node.item] some function that will be
+    called with [`build_item()`][amltk.pipeline.components.Component.build_item] to
+    build that one part of the pipeline.
+
+    When [`build_item()`][amltk.pipeline.Component.build_item] is called,
+    The [`.config`][amltk.pipeline.node.Node.config] on this node will be passed
+    to the function to build the item.
+
+    A common pattern is to use a [`Component`][amltk.pipeline.Component] to
+    wrap a constructor, specifying the [`space=`][amltk.pipeline.node.Node.space]
+    and [`config=`][amltk.pipeline.node.Node.config] to be used when building the
+    item.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Component
+    from sklearn.ensemble import RandomForestClassifier
+
+    rf = Component(
+        RandomForestClassifier,
+        config={"max_depth": 3},
+        space={"n_estimators": (10, 100)}
+    )
+    from amltk._doc import doc_print; doc_print(print, rf)  # markdown-exec: hide
+
+    config = {"n_estimators": 50}  # Sample from some space or something
+    configured_rf = rf.configure(config)
+
+    estimator = configured_rf.build_item()
+    from amltk._doc import doc_print; doc_print(print, estimator)  # markdown-exec: hide
+    ```
+
+    Whenever some other node sees a function/constructor, i.e. `RandomForestClassifier`,
+    this will automatically be converted into a `Component`.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Sequential
+    from sklearn.ensemble import RandomForestClassifier
+
+    pipeline = Sequential(RandomForestClassifier, name="my_pipeline")
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+    ```
+
+    The default `.name` of a component is the name of the class/function that it will
+    use. You can explicitly set the `name=` if you want to when constructing the
+    component.
+
+    Like all [`Node`][amltk.pipeline.node.Node]s, a `Component` accepts an explicit
+    [`name=`][amltk.pipeline.node.Node.name],
+    [`item=`][amltk.pipeline.node.Node.item],
+    [`config=`][amltk.pipeline.node.Node.config],
+    [`space=`][amltk.pipeline.node.Node.space],
+    [`fidelities=`][amltk.pipeline.node.Node.fidelities],
+    [`config_transform=`][amltk.pipeline.node.Node.config_transform] and
+    [`meta=`][amltk.pipeline.node.Node.meta].
+
+    See Also:
+        * [`Node`][amltk.pipeline.node.Node]
     """
 
-    item: Callable[..., Item] | Any | None = field(default=None, hash=False)
-    """The item attached to this step"""
+    item: Callable[..., Item]
+    """A node which constructs an item in the pipeline."""
 
-    paths: Sequence[Step]
-    """The paths that can be taken from this split"""
+    nodes: tuple[()]
+    """A component has no children."""
 
-    name: str
-    """Name of the step"""
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(panel_color="#E6AF2E")
 
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-    """The configuration for this step"""
+    _NODES_INIT: ClassVar = None
 
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    """The search space for this step"""
+    def __init__(
+        self,
+        item: Callable[..., Item],
+        *,
+        name: str | None = None,
+        config: Config | None = None,
+        space: Space | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        config_transform: Callable[[Config, Any], Config] | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        super().__init__(
+            name=name if name is not None else entity_name(item),
+            item=item,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
+        )
 
-    fidelity_space: Mapping[str, FidT] | None = field(
-        default=None,
-        hash=False,
-        repr=False,
-    )
-    """The fidelities for this step"""
-
-    config_transform: (
-        Callable[
-            [Mapping[str, Any], Any],
-            Mapping[str, Any],
-        ]
-        | None
-    ) = field(default=None, hash=False, repr=False)
-    """A function that transforms the configuration of this step"""
-
-    meta: Mapping[str, Any] | None = None
-    """Any meta information about this step"""
-
-    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "chartreuse4"
-
-    @override
-    def build(self, **kwargs: Any) -> Item:
+    def build_item(self, **kwargs: Any) -> Item:
         """Build the item attached to this component.
 
         Args:
@@ -647,252 +875,168 @@ class Split(Group[Space], Generic[Item, Space]):
             Item
                 The built item
         """
-        if self.item is None:
-            raise ValueError(f"Can't build a split without an item in step {self}")
-
-        if callable(self.item):
-            config = self.config or {}
-            return self.item(**{**config, **kwargs})
-
-        if self.config is not None:
-            raise ValueError(f"Can't pass config to a non-callable item in step {self}")
-
-        return self.item
-
-    @override
-    def _rich_table_items(self) -> Iterator[tuple[RenderableType, ...]]:
-        from rich.pretty import Pretty
-
-        from amltk.richutil import Function
-
-        if self.item is not None:
-            if callable(self.item):
-                yield "item", Function(self.item)
-            else:
-                yield "item", Pretty(self.item)
-
-        yield from super()._rich_table_items()
+        config = self.config or {}
+        return self.item(**{**config, **kwargs})
 
 
-@frozen(kw_only=True)
-class Choice(Group[Space]):
-    """A Choice between different subcomponents.
+@dataclass(init=False, frozen=True, eq=True)
+class Searchable(Node[None, Space]):  # type: ignore
+    """A [`Searchable`][amltk.pipeline.Searchable]
+    node of the pipeline which just represents a search space, no item attached.
+
+    While not usually applicable to pipelines you want to build, this component
+    is useful for creating a search space, especially if the the real pipeline you
+    want to optimize can not be built directly. For example, if you are optimize
+    a script, you may wish to use a `Searchable` to represent the search space
+    of that script.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Searchable
+
+    script_space = Searchable({"mode": ["orange", "blue", "red"], "n": (10, 100)})
+    from amltk._doc import doc_print; doc_print(print, script_space)  # markdown-exec: hide
+    ```
+
+    A `Searchable` explicitly does not allow for `item=` to be set, nor can it have
+    any children. A `Searchable` accepts an explicit
+    [`name=`][amltk.pipeline.node.Node.name],
+    [`config=`][amltk.pipeline.node.Node.config],
+    [`space=`][amltk.pipeline.node.Node.space],
+    [`fidelities=`][amltk.pipeline.node.Node.fidelities],
+    [`config_transform=`][amltk.pipeline.node.Node.config_transform] and
+    [`meta=`][amltk.pipeline.node.Node.meta].
 
     See Also:
-        * [`Step`][amltk.pipeline.step.Step]
-        * [`Group`][amltk.pipeline.components.Group]
+        * [`Node`][amltk.pipeline.node.Node]
+    """  # noqa: E501
+
+    item: None = None
+    """A searchable has no item."""
+
+    nodes: tuple[()] = ()
+    """A component has no children."""
+
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(panel_color="light_steel_blue")
+
+    _NODES_INIT: ClassVar = None
+
+    def __init__(
+        self,
+        space: Space | None = None,
+        *,
+        name: str | None = None,
+        config: Config | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        config_transform: Callable[[Config, Any], Config] | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        if name is None:
+            name = f"Searchable-{randuid(8)}"
+
+        super().__init__(
+            name=name,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
+        )
+
+
+@dataclass(init=False, frozen=True, eq=True)
+class Fixed(Node[Item, None]):  # type: ignore
+    """A [`Fixed`][amltk.pipeline.Fixed] part of the pipeline that
+    represents something that can not be configured and used directly as is.
+
+    It consists of an [`.item`][amltk.pipeline.node.Node.item] that is fixed,
+    non-configurable and non-searchable. It also has no children.
+
+    This is useful for representing parts of the pipeline that are fixed, for example
+    if you have a pipeline that is a `Sequential` of nodes, but you want to
+    fix the first component to be a `PCA` with `n_components=3`, you can use a `Fixed`
+    to represent that.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Component, Fixed, Sequential
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.decomposition import PCA
+
+    rf = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
+    pca = Fixed(PCA(n_components=3))
+
+    pipeline = Sequential(pca, rf, name="my_pipeline")
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+    ```
+
+    Whenever some other node sees an instance of something, i.e. something that can't be
+    called, this will automatically be converted into a `Fixed`.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.pipeline import Sequential
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.decomposition import PCA
+
+    pipeline = Sequential(
+        PCA(n_components=3),
+        RandomForestClassifier(n_estimators=50),
+        name="my_pipeline",
+    )
+    from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
+    ```
+
+    The default `.name` of a component is the class name of the item that it will
+    use. You can explicitly set the `name=` if you want to when constructing the
+    component.
+
+    A `Fixed` accepts only an explicit [`name=`][amltk.pipeline.node.Node.name],
+    [`item=`][amltk.pipeline.node.Node.item],
+    [`meta=`][amltk.pipeline.node.Node.meta].
+
+    See Also:
+        * [`Node`][amltk.pipeline.node.Node]
     """
 
-    paths: Sequence[Step]
-    """The paths that can be taken from this choice"""
+    item: Item = field()
+    """The fixed item that this node represents."""
 
-    weights: Sequence[float] | None = field(hash=False)
-    """The weights to assign to each path"""
+    space: None = None
+    """A frozen node has no search space."""
 
-    name: str
-    """Name of the step"""
+    fidelities: None = None
+    """A frozen node has no search space."""
 
-    config: Mapping[str, Any] | None = field(default=None, hash=False)
-    """The configuration for this step"""
+    config: None = None
+    """A frozen node has no config."""
 
-    search_space: Space | None = field(default=None, hash=False, repr=False)
-    """The search space for this step"""
+    config_transform: None = None
+    """A frozen node has no config so no transform."""
 
-    fidelity_space: Mapping[str, FidT] | None = field(
-        default=None,
-        hash=False,
-        repr=False,
-    )
-    """The fidelities for this step"""
+    nodes: tuple[()] = ()
+    """A component has no children."""
 
-    config_transform: (
-        Callable[
-            [Mapping[str, Any], Any],
-            Mapping[str, Any],
-        ]
-        | None
-    ) = field(default=None, hash=False, repr=False)
-    """A function that transforms the configuration of this step"""
+    RICH_OPTIONS: ClassVar[RichOptions] = RichOptions(panel_color="#56351E")
 
-    meta: Mapping[str, Any] | None = None
-    """Any meta information about this step"""
+    _NODES_INIT: ClassVar = None
 
-    RICH_PANEL_BORDER_COLOR: ClassVar[str] = "orange4"
-
-    def iter_weights(self) -> Iterator[tuple[Step, float]]:
-        """Iter over the paths with their weights."""
-        return zip(self.paths, (repeat(1) if self.weights is None else self.weights))
-
-    @override
-    def configure(  # noqa: PLR0912, C901
+    def __init__(
         self,
-        config: Config,
+        item: Item,
         *,
-        prefixed_name: bool | None = None,
-        transform_context: Any | None = None,
-        params: Mapping[str, Any] | None = None,
-        clear_space: bool | Literal["auto"] = "auto",
-    ) -> Step:
-        """Configure this step and anything following it with the given config.
-
-        Args:
-            config: The configuration to apply
-            prefixed_name: Whether items in the config are prefixed by the names
-                of the steps.
-                * If `None`, the default, then `prefixed_name` will be assumed to
-                    be `True` if this step has a next step or if the config has
-                    keys that begin with this steps name.
-                * If `True`, then the config will be searched for items prefixed
-                    by the name of the step (and subsequent chained steps).
-                * If `False`, then the config will be searched for items without
-                    the prefix, i.e. the config keys are exactly those matching
-                    this steps search space.
-            transform_context: The context to pass to the config transform function.
-            params: The params to match any requests when configuring this step.
-                These will match against any ParamRequests in the config and will
-                be used to fill in any missing values.
-            clear_space: Whether to clear the search space after configuring.
-                If `"auto"` (default), then the search space will be cleared of any
-                keys that are in the config, if the search space is a `dict`. Otherwise,
-                `True` indicates that it will be removed in the returned step and
-                `False` indicates that it will remain as is.
-
-        Returns:
-            Step: The configured step
-        """
-        if prefixed_name is None:
-            if any(key.startswith(self.name) for key in config):
-                prefixed_name = True
-            else:
-                prefixed_name = self.nxt is not None
-
-        nxt = (
-            self.nxt.configure(
-                config,
-                prefixed_name=prefixed_name,
-                transform_context=transform_context,
-                params=params,
-                clear_space=clear_space,
-            )
-            if self.nxt
-            else None
+        name: str | None = None,
+        config: None = None,
+        space: None = None,
+        fidelities: None = None,
+        config_transform: None = None,
+        meta: Mapping[str, Any] | None = None,
+    ):
+        """See [`Node`][amltk.pipeline.node.Node] for details."""
+        super().__init__(
+            name=name if name is not None else entity_name(item),
+            item=item,
+            config=config,
+            space=space,
+            fidelities=fidelities,
+            config_transform=config_transform,
+            meta=meta,
         )
-
-        # For a choice to be made, the config must have the a key
-        # for the name of this choice and the choice made.
-        chosen_path_name = config.get(self.name)
-
-        if chosen_path_name is not None:
-            chosen_path = first_true(
-                self.paths,
-                pred=lambda path: path.name == chosen_path_name,
-            )
-            if chosen_path is None:
-                raise Step.ConfigurationError(
-                    step=self,
-                    config=config,
-                    reason=f"Choice {self.name} has no path '{chosen_path_name}'",
-                )
-
-            # Configure the chosen path
-            subconfig = mapping_select(config, f"{self.name}:")
-            chosen_path = chosen_path.configure(
-                subconfig,
-                prefixed_name=prefixed_name,
-                transform_context=transform_context,
-                params=params,
-                clear_space=clear_space,
-            )
-
-            object.__setattr__(chosen_path, "old_parent", self.name)
-
-            if nxt is not None:
-                # HACK: This is a hack to to modify the fact `nxt` is a frozen
-                # object. Frozen objects do not allow setting attributes after
-                # instantiation.
-                object.__setattr__(nxt, "prv", chosen_path)
-                object.__setattr__(chosen_path, "nxt", nxt)
-
-            return chosen_path
-
-        # Otherwise there is no chosen path and we simply configure what we can
-        # of the choices and return that
-        subconfig = mapping_select(config, f"{self.name}:")
-        paths = [
-            path.configure(
-                subconfig,
-                prefixed_name=True,
-                transform_context=transform_context,
-                params=params,
-                clear_space=clear_space,
-            )
-            for path in self.paths
-        ]
-
-        # The config for this step is anything that doesn't have
-        # another delimiter in it
-        config_for_this_choice = {k: v for k, v in subconfig.items() if ":" not in k}
-
-        if self.config is not None:
-            config_for_this_choice = {**self.config, **config_for_this_choice}
-
-        _params = params or {}
-        reqs = [
-            (k, v)
-            for k, v in config_for_this_choice.items()
-            if isinstance(v, ParamRequest)
-        ]
-        for k, request in reqs:
-            if request.key in _params:
-                config_for_this_choice[k] = _params[request.key]
-            elif request.has_default:
-                config_for_this_choice[k] = request.default
-            elif request.required:
-                raise ParamRequest.RequestNotMetError(
-                    f"Missing required parameter {request.key} for step {self.name}"
-                    " and no default was provided."
-                    f"\nThe request given was: {request}",
-                    f"Please use the `params=` argument to provide a value for this"
-                    f" request. What was given was `{params=}`",
-                )
-
-        # If we have a `dict` for a space, then we can remove any configured keys that
-        # overlap it.
-        _space: Any
-        if clear_space == "auto":
-            _space = self.search_space
-            if isinstance(self.search_space, dict) and any(self.search_space):
-                _overlap = set(config_for_this_choice).intersection(self.search_space)
-                _space = {
-                    k: v for k, v in self.search_space.items() if k not in _overlap
-                }
-                if len(_space) == 0:
-                    _space = None
-
-        elif clear_space is True:
-            _space = None
-        else:
-            _space = self.search_space
-
-        if self.config_transform is not None:
-            _config_for_this_choice = self.config_transform(
-                config_for_this_choice,
-                transform_context,
-            )
-        else:
-            _config_for_this_choice = config_for_this_choice
-
-        new_self = self.mutate(
-            paths=paths,
-            config=_config_for_this_choice if _config_for_this_choice else None,
-            nxt=nxt,
-            search_space=_space,
-        )
-
-        if nxt is not None:
-            # HACK: This is a hack to to modify the fact `nxt` is a frozen
-            # object. Frozen objects do not allow setting attributes after
-            # instantiation.
-            object.__setattr__(nxt, "prv", new_self)
-
-        return new_self

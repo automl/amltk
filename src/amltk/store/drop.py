@@ -4,12 +4,13 @@ is a reference to a resource.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
 from more_itertools.more import first
 
-from amltk.functional import funcname
+from amltk._functional import funcname
 from amltk.types import StoredValue
 
 if TYPE_CHECKING:

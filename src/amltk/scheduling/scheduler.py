@@ -1,84 +1,273 @@
-"""A scheduler which uses asyncio and an executor to run tasks concurrently.
+"""The [`Scheduler`][amltk.scheduling.Scheduler] uses
+an [`Executor`][concurrent.futures.Executor], a builtin python native with
+a `#!python submit(f, *args, **kwargs)` function to submit compute to
+be compute else where, whether it be locally or remotely.
 
-It's primary use is to dispatch tasks to an executor and manage callbacks
-for when they complete.
-"""
+The `Scheduler` is primarily used to dispatch compute to an `Executor` and
+emit [`@events`](site:reference/scheduling/events.md), which can
+trigger user callbacks.
+
+Typically you should not use the `Scheduler` directly for dispatching and
+responding to computed functions, but rather use a [`Task`](site:reference/scheduling/task.md).
+
+For a complete walk-through please check out the
+[Scheduling Guide](site:guides/scheduling.md), this page is more for a quick reference.
+
+!!! note "Jupyter Notebook"
+
+    If you are using a Jupyter Notebook, you _might_ need to replace usages
+    of [`#!python scheduler.run()`][amltk.scheduling.Scheduler.run].
+
+    You should instead use [`#!python scheduler.run_in_notebook()`][amltk.scheduling.Scheduler.run_in_notebook].
+    This is most likely is only necessary for using the [`run(display=...)`][amltk.scheduling.Scheduler.run] feature.
+
+??? tip "Basic Usage"
+
+    In this example, we create a scheduler that uses local processes as
+    workers. We then create a task that will run a function `fn` and submit it
+    to the scheduler. Lastly, a callback is registered to `@on_future_result` to print the
+    result when the compute is done.
+
+    ```python exec="true" source="material-block" html="true"
+    from amltk.scheduling import Scheduler
+
+    def fn(x: int) -> int:
+        return x + 1
+    from amltk._doc import make_picklable; make_picklable(fn)  # markdown-exec: hide
+
+    scheduler = Scheduler.with_processes(1)
+
+    @scheduler.on_start
+    def launch_the_compute():
+        scheduler.submit(fn, 1)
+
+    @scheduler.on_future_result
+    def callback(future, result):
+        print(f"Result: {result}")
+
+    scheduler.run()
+    from amltk._doc import doc_print; doc_print(print, scheduler)  # markdown-exec: hide
+    ```
+
+    The last line in the previous example called
+    [`scheduler.run()`][amltk.scheduling.Scheduler.run] is what starts the scheduler
+    running, in which it will first emit the `@on_start` event. This triggered the
+    callback `launch_the_compute()` which submitted the function `fn` with the
+    arguments `#!python 1`.
+
+    The scheduler then ran the compute and waited for it to complete, emitting the
+    `@on_future_result` event when it was done successfully. This triggered the callback
+    `callback()` which printed the result.
+
+    At this point, there is no more compute happening and no more events to respond to
+    so the scheduler will halt.
+
+There are many `@events` emitted by the `Scheduler`, with the most important being
+[`@on_start`][amltk.scheduling.Scheduler.on_start]. There are however many more events
+you can respond to.
+
+??? example "`@events`"
+
+    Check out the [`@events`](site:reference/scheduling/events.md)
+    reference for more on how to customize these callbacks.
+
+    === "Scheduler Status Events"
+
+        When the scheduler enters some important state, it will emit an event
+        to let you know.
+
+        === "`@on_start`"
+
+            ::: amltk.scheduling.Scheduler.on_start
+
+        === "`@on_finishing`"
+
+            ::: amltk.scheduling.Scheduler.on_finishing
+
+        === "`@on_finished`"
+
+            ::: amltk.scheduling.Scheduler.on_finished
+
+        === "`@on_stop`"
+
+            ::: amltk.scheduling.Scheduler.on_stop
+
+        === "`@on_timeout`"
+
+            ::: amltk.scheduling.Scheduler.on_timeout
+
+        === "`@on_empty`"
+
+            ::: amltk.scheduling.Scheduler.on_empty
+
+    === "Submitted Compute Events"
+
+        When any compute goes through the `Scheduler`, it will emit an event
+        to let you know. You should however prefer to use a
+        [`Task`](site:reference/scheduling/task.md) as it will emit specific events
+        for the task at hand, and not all compute.
+
+        === "`@on_future_submitted`"
+
+            ::: amltk.scheduling.Scheduler.on_future_submitted
+
+        === "`@on_future_result`"
+
+            ::: amltk.scheduling.Scheduler.on_future_result
+
+        === "`@on_future_exception`"
+
+            ::: amltk.scheduling.Scheduler.on_future_exception
+
+        === "`@on_future_done`"
+
+            ::: amltk.scheduling.Scheduler.on_future_done
+
+        === "`@on_future_cancelled`"
+
+            ::: amltk.scheduling.Scheduler.on_future_cancelled
+
+There are various ways to [`run()`][amltk.scheduling.Scheduler.run] the
+scheduler, notably how long it should run with `timeout=` and also how
+it should react to any exception that may have occurred within the `Scheduler`
+itself or your callbacks.
+
+??? tip "Usage of `run()`"
+
+    Please see the [`run()`][amltk.scheduling.Scheduler.run] API doc for more
+    details and features, however we show two common use cases of using the `timeout=`
+    parameter.
+
+    === "`run(timeout=...)`"
+
+        You can tell the `Scheduler` to stop after a certain amount of time
+        with the `timeout=` argument to [`run()`][amltk.scheduling.Scheduler.run].
+
+        This will also trigger the `@on_timeout` event as seen in the `Scheduler` output.
+
+        ```python exec="true" source="material-block" html="True" hl_lines="19"
+        import time
+        from amltk.scheduling import Scheduler
+
+        scheduler = Scheduler.with_processes(1)
+
+        def expensive_function() -> int:
+            time.sleep(0.1)
+            return 42
+        from amltk._doc import make_picklable; make_picklable(expensive_function)  # markdown-exec: hide
+
+        @scheduler.on_start
+        def submit_calculations() -> None:
+            scheduler.submit(expensive_function)
+
+        # The will endlessly loop the scheduler
+        @scheduler.on_future_done
+        def submit_again(future: Future) -> None:
+            if scheduler.running():
+                scheduler.submit(expensive_function)
+
+        scheduler.run(timeout=1)  # End after 1 second
+        from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
+        ```
+
+    === "`run(timeout=..., wait=False)`"
+
+        By specifying that the `Scheduler` should not wait for ongoing tasks
+        to finish, the `Scheduler` will attempt to cancel and possibly terminate
+        any running tasks.
+
+        ```python exec="true" source="material-block" html="True"
+        import time
+        from amltk.scheduling import Scheduler
+
+        scheduler = Scheduler.with_processes(1)
+
+        def expensive_function() -> None:
+            time.sleep(10)
+
+        from amltk._doc import make_picklable; make_picklable(expensive_function)  # markdown-exec: hide
+
+        @scheduler.on_start
+        def submit_calculations() -> None:
+            scheduler.submit(expensive_function)
+
+        scheduler.run(timeout=1, wait=False)  # End after 1 second
+        from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
+        ```
+
+        ??? info "Forcibly Terminating Workers"
+
+            As an `Executor` does not provide an interface to forcibly
+            terminate workers, we provide `Scheduler(terminate=...)` as a custom
+            strategy for cleaning up a provided executor. It is not possible
+            to terminate running thread based workers, for example using
+            `ThreadPoolExecutor` and any Executor using threads to spawn
+            tasks will have to wait until all running tasks are finish
+            before python can close.
+
+            It's likely `terminate` will trigger the `EXCEPTION` event for
+            any tasks that are running during the shutdown, **not***
+            a cancelled event. This is because we use a
+            [`Future`][concurrent.futures.Future]
+            under the hood and these can not be cancelled once running.
+            However there is no guarantee of this and is up to how the
+            `Executor` handles this.
+
+Lastly, the `Scheduler` can render a live display using
+[`run(display=...)`][amltk.scheduling.Scheduler.run]. This
+require [`rich`](https://github.com/Textualize/rich) to be installed. You
+can install this with `#!bash pip install rich` or `#!bash pip install amltk[rich]`.
+"""  # noqa: E501
 from __future__ import annotations
 
 import asyncio
 import logging
 import warnings
 from asyncio import Future
+from collections.abc import Callable, Iterable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import dataclass
 from enum import Enum, auto
 from threading import Timer
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Concatenate,
+    Literal,
+    ParamSpec,
+    TypeVar,
+    overload,
+)
+from typing_extensions import Self
 from uuid import uuid4
 
-from amltk.asyncm import ContextEvent
-from amltk.events import Emitter, Event, Subscriber
+from amltk._asyncm import ContextEvent
+from amltk._functional import Flag
 from amltk.exceptions import SchedulerNotRunningError
-from amltk.functional import Flag
-from amltk.scheduling.sequential_executor import SequentialExecutor
+from amltk.scheduling.events import Emitter, Event, Subscriber
+from amltk.scheduling.executors import SequentialExecutor
 from amltk.scheduling.task import Task
 from amltk.scheduling.termination_strategies import termination_strategy
 
 if TYPE_CHECKING:
     from multiprocessing.context import BaseContext
-    from typing_extensions import ParamSpec, Self
 
     from rich.console import RenderableType
     from rich.live import Live
 
-    from amltk.dask_jobqueue import DJQ_NAMES
-    from amltk.scheduling.task_plugin import TaskPlugin
+    from amltk.scheduling.executors.dask_jobqueue import DJQ_NAMES
+    from amltk.scheduling.plugins import Plugin
+    from amltk.scheduling.plugins.comm import Comm
 
     P = ParamSpec("P")
     R = TypeVar("R")
 
-    CallableT = TypeVar("CallableT", bound=Callable)
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ExitState:
-    """The exit state of a scheduler.
-
-    Attributes:
-        reason: The reason for the exit.
-        exception: The exception that caused the exit, if any.
-    """
-
-    code: Scheduler.ExitCode
-    exception: BaseException | None = None
-
-
 class Scheduler:
-    """A scheduler for submitting tasks to an Executor.
-
-    ```python
-    from amltk.scheduling import Scheduler
-
-    # For your own custom Executor
-    scheduler = Scheduler(executor=...)
-
-    # Create a scheduler which uses local processes as workers
-    scheduler = Scheduler.with_processes(2)
-
-    # Run a function when the scheduler starts, twice
-    @scheduler.on_start(repeat=2)
-    def say_hello_world():
-        print("hello world")
-
-    @scheduler.on_finish
-    def say_goodbye_world():
-        print("goodbye world")
-
-    scheduler.run(timeout=10)
-    ```
-    """
+    """A scheduler for submitting tasks to an Executor."""
 
     executor: Executor
     """The executor to use to run tasks."""
@@ -90,8 +279,9 @@ class Scheduler:
     """The queue of tasks running."""
 
     on_start: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
-    scheduler starts.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
+    scheduler starts. This is the first event emitted by the scheduler and
+    one of the only ways to submit the initial compute to the scheduler.
 
     ```python
     @scheduler.on_start
@@ -100,18 +290,18 @@ class Scheduler:
     ```
     """
     on_future_submitted: Subscriber[Future]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
-    a future is submitted.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
+    some compute is submitted.
 
     ```python
-    @scheduler.on_submission
+    @scheduler.on_future_submitted
     def my_callback(future: Future):
         ...
     ```
     """
     on_future_done: Subscriber[Future]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
-    a future is done.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
+    some compute is done, regardless of whether it was successful or not.
 
     ```python
     @scheduler.on_future_done
@@ -120,8 +310,8 @@ class Scheduler:
     ```
     """
     on_future_result: Subscriber[Future, Any]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
-    a future returned with a result.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
+    a future returned with a result, no exception raise.
 
     ```python
     @scheduler.on_future_result
@@ -130,8 +320,8 @@ class Scheduler:
     ```
     """
     on_future_exception: Subscriber[Future, BaseException]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
-    a future has an exception.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
+    some compute raised an uncaught exception.
 
     ```python
     @scheduler.on_future_exception
@@ -140,8 +330,9 @@ class Scheduler:
     ```
     """
     on_future_cancelled: Subscriber[Future]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called
-    when a future is cancelled.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called
+    when a future is cancelled. This usually occurs due to the underlying Scheduler,
+    and is not something we do directly, other than when shutting down the scheduler.
 
     ```python
     @scheduler.on_future_cancelled
@@ -150,8 +341,9 @@ class Scheduler:
     ```
     """
     on_finishing: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
-    scheduler is finishing up.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
+    scheduler is finishing up. This occurs right before the scheduler shuts down
+    the executor.
 
     ```python
     @scheduler.on_finishing
@@ -160,8 +352,9 @@ class Scheduler:
     ```
     """
     on_finished: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
-    the scheduler finishes.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
+    the scheduler is finished, has shutdown the executor and possibly
+    terminated any remaining compute.
 
     ```python
     @scheduler.on_finished
@@ -169,18 +362,19 @@ class Scheduler:
         ...
     ```
     """
-    on_stop: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
-    scheduler is stopped.
+    on_stop: Subscriber[str, BaseException | None]
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
+    scheduler is has been stopped due to the [`stop()`][amltk.scheduling.Scheduler.stop]
+    method being called.
 
     ```python
     @scheduler.on_stop
-    def my_callback():
+    def my_callback(stop_msg: str, exception: BaseException | None):
         ...
     ```
     """
     on_timeout: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     the scheduler reaches the timeout.
 
     ```python
@@ -190,8 +384,9 @@ class Scheduler:
     ```
     """
     on_empty: Subscriber[[]]
-    """A [`Subscriber`][amltk.events.Subscriber] which is called when the
-    queue is empty.
+    """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
+    queue is empty. This can be useful to re-fill the queue and prevent the
+    scheduler from exiting.
 
     ```python
     @scheduler.on_empty
@@ -203,7 +398,7 @@ class Scheduler:
     STARTED: Event[[]] = Event("on_start")
     FINISHING: Event[[]] = Event("on_finishing")
     FINISHED: Event[[]] = Event("on_finished")
-    STOP: Event[[]] = Event("on_stop")
+    STOP: Event[str, BaseException | None] = Event("on_stop")
     TIMEOUT: Event[[]] = Event("on_timeout")
     EMPTY: Event[[]] = Event("on_empty")
     FUTURE_SUBMITTED: Event[Future] = Event("on_future_submitted")
@@ -219,24 +414,6 @@ class Scheduler:
         terminate: Callable[[Executor], None] | bool = True,
     ) -> None:
         """Initialize a scheduler.
-
-        !!! note "Forcibully Terminating Workers"
-
-            As an `Executor` does not provide an interface to forcibly
-            terminate workers, we provide `terminate` as a custom
-            strategy for cleaning up a provided executor. It is not possible
-            to terminate running thread based workers, for example using
-            `ThreadPoolExecutor` and any Executor using threads to spawn
-            tasks will have to wait until all running tasks are finish
-            before python can close.
-
-            It's likely `terminate` will trigger the `EXCEPTION` event for
-            any tasks that are running during the shutdown, **not***
-            a cancelled event. This is because we use a
-            [`Future`][concurrent.futures.Future]
-            under the hood and these can not be cancelled once running.
-            However there is no gaurantee of this and is up to how the
-            `Executor` handles this.
 
         Args:
             executor: The dispatcher to use for submitting tasks.
@@ -640,7 +817,7 @@ class Scheduler:
             A new scheduler with a `dask_jobqueue` executor.
         """
         try:
-            from amltk.dask_jobqueue import DaskJobqueueExecutor
+            from amltk.scheduling.executors.dask_jobqueue import DaskJobqueueExecutor
 
         except ImportError as e:
             raise ImportError(
@@ -675,47 +852,70 @@ class Scheduler:
 
     def submit(
         self,
-        function: Callable[P, R],
+        fn: Callable[P, R],
+        /,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> Future[R]:
         """Submits a callable to be executed with the given arguments.
 
         Args:
-            function: The callable to be executed as
+            fn: The callable to be executed as
                 fn(*args, **kwargs) that returns a Future instance representing
                 the execution of the callable.
             args: positional arguments to pass to the function
             kwargs: keyword arguments to pass to the function
 
         Raises:
-            Scheduler.NotRunningError: If the scheduler is not running.
+            SchedulerNotRunningError: If the scheduler is not running.
+                You can protect against this using,
+                [`scheduler.running()`][amltk.scheduling.scheduler.Scheduler.running].
 
         Returns:
             A Future representing the given call.
         """
         if not self.running():
             msg = (
-                f"Scheduler is not running, cannot submit task {function}"
+                f"Scheduler is not running, cannot submit task {fn}"
                 f" with {args=}, {kwargs=}"
             )
             raise SchedulerNotRunningError(msg)
 
         try:
-            sync_future = self.executor.submit(function, *args, **kwargs)
+            sync_future = self.executor.submit(fn, *args, **kwargs)
             future = asyncio.wrap_future(sync_future)
         except Exception as e:
-            logger.exception(f"Could not submit task {function}", exc_info=e)
+            logger.exception(f"Could not submit task {fn}", exc_info=e)
             raise e
 
-        self._register_future(future, function, *args, **kwargs)
+        self._register_future(future, fn, *args, **kwargs)
         return future
 
+    @overload
+    def task(
+        self,
+        function: Callable[Concatenate[Comm, P], R],
+        *,
+        plugins: Comm.Plugin | Iterable[Comm.Plugin | Plugin] = ...,
+        init_plugins: bool = ...,
+    ) -> Task[P, R]:
+        ...
+
+    @overload
     def task(
         self,
         function: Callable[P, R],
         *,
-        plugins: TaskPlugin | Iterable[TaskPlugin] = (),
+        plugins: Plugin | Iterable[Plugin] = (),
+        init_plugins: bool = True,
+    ) -> Task[P, R]:
+        ...
+
+    def task(
+        self,
+        function: Callable[P, R] | Callable[Concatenate[Comm, P], R],
+        *,
+        plugins: Plugin | Iterable[Plugin] = (),
         init_plugins: bool = True,
     ) -> Task[P, R]:
         """Create a new task.
@@ -728,9 +928,13 @@ class Scheduler:
         Returns:
             A new task.
         """
-        task = Task(function, self, plugins=plugins, init_plugins=init_plugins)
+        # HACK: Not that the type: ignore is due to the fact that we can't use type
+        # checking to enforce that
+        # A. `function` is a callable with the first arg being a Comm
+        # B. `plugins`
+        task = Task(function, self, plugins=plugins, init_plugins=init_plugins)  # type: ignore
         self.add_renderable(task)
-        return task
+        return task  # type: ignore
 
     def _register_future(
         self,
@@ -814,7 +1018,7 @@ class Scheduler:
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
-    ) -> ExitCode | BaseException:
+    ) -> ExitState.Code | BaseException:
         self.executor.__enter__()
         self._stop_event = ContextEvent()
 
@@ -853,7 +1057,7 @@ class Scheduler:
         if end_on_empty:
             self.on_empty(lambda: monitor_empty.cancel(), hidden=True)
 
-        # The timeout criterion is satisifed by the `timeout` arg
+        # The timeout criterion is satisfied by the `timeout` arg
         await asyncio.wait(
             [stop_triggered, monitor_empty],
             timeout=timeout,
@@ -861,31 +1065,31 @@ class Scheduler:
         )
 
         # Determine the reason for stopping
-        stop_reason: BaseException | Scheduler.ExitCode
+        stop_reason: BaseException | ExitState.Code
         if stop_triggered.done() and self._stop_event.is_set():
-            stop_reason = Scheduler.ExitCode.STOPPED
+            stop_reason = ExitState.Code.STOPPED
 
             msg, exception = self._stop_event.context
             _log = logger.exception if exception else logger.debug
             _log(f"Stop Message: {msg}", exc_info=exception)
 
-            self.on_stop.emit()
+            self.on_stop.emit(str(msg), exception)
             if self._end_on_exception_flag and exception:
                 stop_reason = exception
             else:
-                stop_reason = Scheduler.ExitCode.STOPPED
+                stop_reason = ExitState.Code.STOPPED
         elif monitor_empty.done():
             logger.debug("Scheduler stopped due to being empty.")
-            stop_reason = Scheduler.ExitCode.EXHAUSTED
+            stop_reason = ExitState.Code.EXHAUSTED
         elif timeout is not None:
             logger.debug(f"Scheduler stopping as {timeout=} reached.")
-            stop_reason = Scheduler.ExitCode.TIMEOUT
+            stop_reason = ExitState.Code.TIMEOUT
             self.on_timeout.emit()
         else:
             logger.warning("Scheduler stopping for unknown reason!")
-            stop_reason = Scheduler.ExitCode.UNKNOWN
+            stop_reason = ExitState.Code.UNKNOWN
 
-        # Stop all runnings async tasks, i.e. monitoring the queue to trigger an event
+        # Stop all running async tasks, i.e. monitoring the queue to trigger an event
         tasks = [monitor_empty, stop_triggered]
         for task in tasks:
             task.cancel()
@@ -943,20 +1147,34 @@ class Scheduler:
         Args:
             timeout: The maximum time to run the scheduler for in
                 seconds. Defaults to `None` which means no timeout and it
-                will end once the queue becomes empty.
-            end_on_empty: Whether to end the scheduler when the
-                queue becomes empty. Defaults to `True`.
-            wait: Whether to wait for the executor to shutdown.
-            on_exception: What to do when an exception occurs.
-                If "raise", the exception will be raised.
-                If "ignore", the scheduler will continue running.
-                If "end", the scheduler will end but not raise.
+                will end once the queue is empty if `end_on_empty=True`.
+            end_on_empty: Whether to end the scheduler when the queue becomes empty.
+            wait: Whether to wait for currently running compute to finish once
+                the `Scheduler` is shutting down.
+
+                * If `#!python True`, will wait for all currently running compute.
+                * If `#!python False`, will attempt to cancel/terminate all currently
+                    running compute and shutdown the executor. This may be useful
+                    if you want to end the scheduler as quickly as possible or
+                    respect the `timeout=` more precisely.
+            on_exception: What to do when an exception occurs in the scheduler
+                or callbacks (**Does not apply to submitted compute!**)
+
+                * If `#!python "raise"`, the scheduler will stop and raise the
+                    exception at the point where you called `run()`.
+                * If `#!python "ignore"`, the scheduler will continue running,
+                    ignoring the exception. This may be useful when requiring more
+                    robust execution.
+                * If `#!python "end"`, similar to `#!python "raise"`, the scheduler
+                    will stop but no exception will occur and the control flow
+                    will return gracefully to the point where you called `run()`.
             asyncio_debug_mode: Whether to run the async loop in debug mode.
                 Defaults to `False`. Please see [asyncio.run][] for more.
-            display: Whether to display things in the console.
-                If `True`, will display the scheduler and all its
-                renderables. If a list of renderables, will display
-                the scheduler itself plus those renderables.
+            display: Whether to display the scheduler live in the console.
+
+                * If `#!python True`, will display the scheduler and all its tasks.
+                * If a `#!python list[RenderableType]` , will display the scheduler
+                    itself plus those renderables.
 
         Returns:
             The reason for the scheduler ending.
@@ -986,23 +1204,10 @@ class Scheduler:
     ) -> ExitState:
         """Async version of `run`.
 
-        Args:
-            timeout: The maximum time to run the scheduler for.
-                Defaults to `None` which means no timeout.
-            end_on_empty: Whether to end the scheduler when the
-                queue becomes empty. Defaults to `True`.
-            wait: Whether to wait for the executor to shutdown.
-            on_exception: Whether to end if an exception occurs.
-                if "raise", the exception will be raised.
-                If "ignore", the scheduler will continue running.
-                If "end", the scheduler will end but not raise.
-            display: Whether to display things in the console.
-                If `True`, will display the scheduler and all its
-                renderables. If a list of renderables, will display
-                the scheduler itself plus those renderables.
+        This can be useful if you are already running in an async context,
+        such as in a web server or Jupyter notebook.
 
-        Returns:
-            The reason for the scheduler ending.
+        Please see [`run()`][amltk.Scheduler.run] for more details.
         """
         if self.running():
             raise RuntimeError("Scheduler already seems to be running")
@@ -1038,13 +1243,14 @@ class Scheduler:
             ) -> None:
                 exception = context.get("exception")
                 message = context.get("message")
-                self.stop(stop_msg=message, exception=exception)
 
                 # handle with previous handler
                 if previous_exception_handler:
                     previous_exception_handler(loop, context)
                 else:
                     loop.default_exception_handler(context)
+
+                self.stop(stop_msg=message, exception=exception)
 
             loop.set_exception_handler(custom_exception_handler)
 
@@ -1069,14 +1275,24 @@ class Scheduler:
             if on_exception == "raise":
                 raise result
 
-            return ExitState(code=Scheduler.ExitCode.EXCEPTION, exception=result)
+            return ExitState(code=ExitState.Code.EXCEPTION, exception=result)
 
         return ExitState(code=result)
 
     run_in_notebook = async_run
-    """Alias for [`async_run()`][amltk.Scheduler.async_run]"""
+    """Alias for [`async_run()`][amltk.Scheduler.async_run].
 
-    def stop(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
+    This allows the `Scheduler` to be run in a Jupyter notebook, which
+    happens to be inside an async context.
+    """
+
+    def stop(
+        self,
+        *args: Any,
+        stop_msg: str | None = None,
+        exception: BaseException | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Stop the scheduler.
 
         The scheduler will stop, finishing currently running tasks depending
@@ -1088,21 +1304,20 @@ class Scheduler:
         Args:
             *args: Logged in a debug message
             **kwargs: Logged in a debug message
-
-                * **stop_msg**: The message to pass to the stop event which
-                    gets logged as the stop reason.
-
-                * **exception**: The exception to pass to the stop event which
-                    gets logged as the stop reason.
+            stop_msg: The message to log when stopping the scheduler.
+            exception: The exception which incited `stop()` to be called.
+                Will be used by the `Scheduler` to possibly raise the exception
+                to the user.
         """
         if not self.running():
             return
 
         assert self._stop_event is not None
 
-        msg = kwargs.get("stop_msg", "stop() called")
+        msg = stop_msg if stop_msg is not None else "scheduler.stop() was called."
+        logger.debug(f"Stopping scheduler: {msg} {args=} {kwargs=}")
 
-        self._stop_event.set(msg=f"{msg}", exception=kwargs.get("exception"))
+        self._stop_event.set(msg=msg, exception=exception)
         self._running_event.clear()
 
     @staticmethod
@@ -1141,7 +1356,7 @@ class Scheduler:
             executor.shutdown(wait=wait)
 
     def add_renderable(self, renderable: RenderableType) -> None:
-        """Add a renderable to the scheduler.
+        """Add a renderable object to the scheduler.
 
         This will be displayed whenever the scheduler is displayed.
         """
@@ -1154,8 +1369,8 @@ class Scheduler:
         from rich.text import Text
         from rich.tree import Tree
 
-        from amltk.richutil import richify
-        from amltk.richutil.renderers.function import Function
+        from amltk._richutil import richify
+        from amltk._richutil.renderers.function import Function
 
         MAX_FUTURE_ITEMS = 5
         OFFSETS = 1 + 1 + 2  # Header + ellipses space + panel borders
@@ -1196,14 +1411,14 @@ class Scheduler:
         )
         layout_table.add_row(richify(self.executor), future_table)
 
-        title = Panel(
+        panel = Panel(
             layout_table,
             title=title,
             title_align="left",
             border_style="magenta",
             height=MAX_FUTURE_ITEMS + OFFSETS,
         )
-        tree = Tree(title, guide_style="magenta bold")
+        tree = Tree(panel, guide_style="magenta bold")
 
         for renderable in self._renderables:
             tree.add(renderable)
@@ -1213,7 +1428,20 @@ class Scheduler:
 
         return Group(tree, *self._extra_renderables)
 
-    class ExitCode(Enum):
+
+@dataclass
+class ExitState:
+    """The exit state of a scheduler.
+
+    Attributes:
+        reason: The reason for the exit.
+        exception: The exception that caused the exit, if any.
+    """
+
+    code: ExitState.Code
+    exception: BaseException | None = None
+
+    class Code(Enum):
         """The reason the scheduler ended."""
 
         STOPPED = auto()

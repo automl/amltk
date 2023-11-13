@@ -1,318 +1,36 @@
 from __future__ import annotations
 
-from amltk import split, step
-from amltk.pipeline import Step, choice
+from dataclasses import dataclass
+
+from amltk.pipeline import Component, Split
 
 
-def test_split() -> None:
-    split_step = split(
-        "split",
-        step("1", object) | step("2", object),
-        step("3", object) | step("4", object),
+@dataclass
+class Thing:
+    """A thing."""
+
+    x: int = 1
+
+
+def test_split_creation_empty() -> None:
+    split = Split(name="split")
+    assert split.name == "split"
+    assert split.nodes == ()
+
+
+def test_split_construction() -> None:
+    split = Split(
+        Component(Thing, name="comp1"),
+        Component(Thing, name="comp2"),
+        name="split",
     )
-    expected_npaths = 2
-    assert len(split_step.paths) == expected_npaths
-
-
-def test_traverse_one_layer() -> None:
-    s1, s2, s3, s4 = (
-        step("1", object),
-        step("2", object),
-        step("3", object),
-        step("4", object),
-    )
-    split_step = split("split", s1 | s2, s3 | s4)
-
-    assert list(split_step.traverse()) == [split_step, s1, s2, s3, s4]
-
-
-def test_traverse_one_deep() -> None:
-    s1, s2, s3, s4 = (
-        step("1", object),
-        step("2", object),
-        step("3", object),
-        step("4", object),
-    )
-    subsplit = split("subsplit", s3 | s4)
-    split_step = split("split", s1, s2 | subsplit)
-
-    assert list(split_step.traverse()) == [split_step, s1, s2, subsplit, s3, s4]
-
-
-def test_traverse_sequential_splits() -> None:
-    s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), object) for i in range(1, 9))
-    split1 = split("split1", s1, s2)
-    split2 = split("split2", s3, s4)
-    split3 = split("split3", s5, s6)
-    split4 = split("split4", s7, s8)
-    steps = Step.join(split1, split2, split3, split4)
-
-    expected = [split1, s1, s2, split2, s3, s4, split3, s5, s6, split4, s7, s8]
-    assert list(steps.traverse()) == expected
-
-
-def test_traverse_deep() -> None:
-    s1, s2, s3, s4, s5, s6, s7, s8 = (step(str(i), object) for i in range(1, 9))
-    subsub_split1 = split("subsplit1", s3 | s4)
-    sub_split1 = split("subsubsplit1", s1, s2 | subsub_split1)
-
-    subsub_split2 = split("subsplit2", s7 | s8)
-    sub_split2 = split("subssubplit2", s5, s6 | subsub_split2)
-
-    split_step = split("split1", sub_split1, sub_split2)
-
-    expected = [
-        split_step,
-        sub_split1,
-        s1,
-        s2,
-        subsub_split1,
-        s3,
-        s4,
-        sub_split2,
-        s5,
-        s6,
-        subsub_split2,
-        s7,
-        s8,
-    ]
-    assert list(split_step.traverse()) == expected
-
-
-def test_remove_split() -> None:
-    s1, s2, s3, s4, s5 = (
-        step("1", object),
-        step("2", object),
-        step("3", object),
-        step("4", object),
-        step("5", object),
-    )
-    split_step = split(
-        "split",
-        s1,
-        s2 | split("subsplit", s3 | s4) | s5,
-    )
-
-    new = Step.join(split_step.remove(["subsplit"]))
-    assert new == split(
-        "split",
-        s1,
-        s2 | s5,
-    )
-
-    new = Step.join(split_step.remove(["3"]))
-    assert new == split(
-        "split",
-        s1,
-        s2 | split("subsplit", s4) | s5,
+    assert split.name == "split"
+    assert split.nodes == (
+        Component(Thing, name="comp1"),
+        Component(Thing, name="comp2"),
     )
 
 
-def test_replace_split() -> None:
-    s1, s2, s3, s4, s5 = (
-        step("1", object),
-        step("2", object),
-        step("3", object),
-        step("4", object),
-        step("5", object),
-    )
-    split_step = split(
-        "split",
-        s1,
-        s2 | split("subsplit", s3 | s4) | s5,
-    )
-
-    replacement = step("replacement", object)
-    new = Step.join(split_step.replace({"subsplit": replacement}))
-    assert new == split(
-        "split",
-        s1,
-        s2 | replacement | s5,
-    )
-
-    new = Step.join(split_step.replace({"3": replacement}))
-    assert new == split(
-        "split",
-        s1,
-        s2 | split("subsplit", replacement | s4) | s5,
-    )
-
-
-def test_split_on_path_with_one_entry_removes_properly() -> None:
-    s = split("split", step("1", object), step("2", object))
-    result = next(s.remove(["1"]))
-    assert result == split("split", step("2", object))
-
-
-def test_split_on_head_of_path_does_not_remove_rest_of_path() -> None:
-    s = split("split", step("1", object) | step("2", object))
-    result = next(s.remove(["1"]))
-    assert result == split("split", step("2", object))
-
-
-def test_configure_single() -> None:
-    s1 = split(
-        "split",
-        step("1", object, space={"a": [1, 2, 3]})
-        | step("2", object, space={"b": [1, 2, 3]}),
-        step("3", object, space={"c": [1, 2, 3]}),
-        item=object,
-        space={"split_space": [1, 2, 3]},
-    )
-    configured_s1 = s1.configure({"split_space": 1, "1:a": 1, "2:b": 2, "3:c": 3})
-
-    expected_configs_by_name = {
-        "split": {"split_space": 1},
-        "1": {"a": 1},
-        "2": {"b": 2},
-        "3": {"c": 3},
-    }
-    for s in configured_s1.traverse():
-        assert s.config == expected_configs_by_name[s.name]
-        assert s.search_space is None
-
-
-def test_split_with_step_and_nested_choice() -> None:
-    s1 = split(
-        "split",
-        step("1", object, space={"a": [1, 2, 3]})
-        | step("2", object, space={"b": [1, 2, 3]}),
-        choice(
-            "choice",
-            step("3", object, space={"c": [1, 2, 3]})
-            | step("4", object, space={"d": [1, 2, 3]}),
-            step("5", object, space={"e": [1, 2, 3]}),
-        ),
-        config={"hello": "world"},
-    )
-    config = {
-        "split:1:a": 1,
-        "split:2:b": 1,
-        "split:choice": "3",
-        "split:choice:3:c": 1,
-        "split:choice:4:d": 1,
-    }
-
-    expected = split(
-        "split",
-        step("1", object, config={"a": 1}) | step("2", object, config={"b": 1}),
-        step("3", object, config={"c": 1}) | step("4", object, config={"d": 1}),
-        config={"hello": "world"},
-    )
-
-    assert s1.configure(config) == expected
-
-
-def test_configure_chained() -> None:
-    head = (
-        split(
-            "split",
-            step("1", object, space={"a": [1, 2, 3]}),
-        )
-        | step("2", object, space={"b": [1, 2, 3]})
-        | step("3", object, space={"c": [1, 2, 3]})
-    )
-    configured_head = head.configure({"split:1:a": 1, "2:b": 2, "3:c": 3})
-
-    expected_configs = {
-        "split": None,
-        "1": {"a": 1},
-        "2": {"b": 2},
-        "3": {"c": 3},
-    }
-    for s in configured_head.traverse():
-        assert s.config == expected_configs[s.name]
-        assert s.search_space is None
-
-
-def test_qualified_name() -> None:
-    head = split(
-        "split",
-        step("0", object),
-        split("subsplit1", step("1", object) | step("2", object)),
-        split("subsplit2", step("3", object) | step("4", object)),
-    )
-    assert head.qualified_name() == "split"
-
-    s0 = head.find("0")
-    assert s0 is not None
-    assert s0.qualified_name() == "split:0"
-
-    subsplit1 = head.find("subsplit1")
-    assert subsplit1 is not None
-    assert subsplit1.qualified_name() == "split:subsplit1"
-
-    s1 = head.find("1")
-    assert s1 is not None
-    assert s1.qualified_name() == "split:subsplit1:1"
-
-    s2 = head.find("2")
-    assert s2 is not None
-    assert s2.qualified_name() == "split:subsplit1:2"
-
-    subsplit2 = head.find("subsplit2")
-    assert subsplit2 is not None
-    assert subsplit2.qualified_name() == "split:subsplit2"
-
-    s3 = head.find("3")
-    assert s3 is not None
-    assert s3.qualified_name() == "split:subsplit2:3"
-
-    s4 = head.find("4")
-    assert s4 is not None
-    assert s4.qualified_name() == "split:subsplit2:4"
-
-
-def test_path_to() -> None:
-    head = split(
-        "split",
-        step("1", object),
-        split(
-            "subsplit",
-            step("2", object) | step("3", object),
-        ),
-    )
-    _split = head.find("split")
-    assert _split is not None
-
-    s1 = head.find("1")
-    assert s1 is not None
-
-    subsplit = head.find("subsplit")
-    assert subsplit is not None
-
-    s2 = head.find("2")
-    assert s2 is not None
-
-    s3 = head.find("3")
-    assert s3 is not None
-
-    assert _split.path_to(_split) == [_split]
-    assert _split.path_to(s1) == [_split, s1]
-    assert _split.path_to(subsplit) == [_split, subsplit]
-    assert _split.path_to(s2) == [_split, subsplit, s2]
-    assert _split.path_to(s3) == [_split, subsplit, s2, s3]
-
-    assert s1.path_to(_split) == [s1, _split]
-    assert s1.path_to(s1) == [s1]
-    assert s1.path_to(subsplit) is None
-    assert s1.path_to(s2) is None
-    assert s1.path_to(s3) is None
-
-    assert subsplit.path_to(_split) == [subsplit, _split]
-    assert subsplit.path_to(s1) is None
-    assert subsplit.path_to(subsplit) == [subsplit]
-    assert subsplit.path_to(s2) == [subsplit, s2]
-    assert subsplit.path_to(s3) == [subsplit, s2, s3]
-
-    assert s2.path_to(_split) == [s2, subsplit, _split]
-    assert s2.path_to(s1) is None
-    assert s2.path_to(subsplit) == [s2, subsplit]
-    assert s2.path_to(s2) == [s2]
-    assert s2.path_to(s3) == [s2, s3]
-
-    assert s3.path_to(_split) == [s3, s2, subsplit, _split]
-    assert s3.path_to(s1) is None
-    assert s3.path_to(subsplit) == [s3, s2, subsplit]
-    assert s3.path_to(s2) == [s3, s2]
-    assert s3.path_to(s3) == [s3]
+def test_split_copy() -> None:
+    split = Split(Component(Thing, name="comp1", config={"x": 1}), name="split1")
+    assert split == split.copy()

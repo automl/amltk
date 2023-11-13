@@ -23,6 +23,9 @@ for path in sorted(Path("src").rglob("*.py")):
     if parts[-1] in ("__main__", "__version__", "__init__"):
         continue
 
+    if any(part.startswith("_") for part in parts):
+        continue
+
     nav[parts] = doc_path.as_posix()
 
     with mkdocs_gen_files.open(full_doc_path, "w") as fd:

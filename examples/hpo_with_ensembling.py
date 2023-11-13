@@ -38,20 +38,20 @@ from __future__ import annotations
 
 import shutil
 from asyncio import Future
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import openml
-from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.compose import make_column_selector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import (
-    FunctionTransformer,
     LabelEncoder,
     MinMaxScaler,
     OneHotEncoder,
@@ -63,10 +63,10 @@ from sklearn.svm import SVC
 from amltk.data.conversions import probabilities_to_classes
 from amltk.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
 from amltk.optimization import History, Trial
-from amltk.pipeline import Pipeline, choice, group, split, step
+from amltk.optimization.optimizers.smac import SMACOptimizer
+from amltk.pipeline import Choice, Component, Sequential, Split
 from amltk.scheduling import Scheduler
 from amltk.sklearn.data import split_data
-from amltk.smac import SMACOptimizer
 from amltk.store import PathBucket
 
 """
@@ -117,68 +117,40 @@ Multi-Layer Perceptron.
 For more on definitions of pipelines, see the [Pipeline](site:guides/pipeline.md)
 guide.
 """
-pipeline = Pipeline.create(
-    split(
-        "feature_preprocessing",
-        group(  # <!> (3)!
-            "categoricals",
-            step(
-                "category_imputer",
-                SimpleImputer,
-                space={
-                    "strategy": ["most_frequent", "constant"],
-                    "fill_value": ["missing"],
-                },
-            )
-            | step(
-                "ohe",
-                OneHotEncoder,
-                space={
-                    "min_frequency": (0.01, 0.1),
-                    "handle_unknown": ["ignore", "infrequent_if_exist"],
-                },
-                config={"drop": "first"},
-            ),
-        ),
-        group(  # <!> (2)!
-            "numerics",
-            step(
-                "numerical_imputer",
-                SimpleImputer,
-                space={"strategy": ["mean", "median"]},
-            )
-            | step(
-                "variance_threshold",
-                VarianceThreshold,
-                space={"threshold": (0.0, 0.2)},
-            )
-            | choice(
-                "scaler",
-                step("standard", StandardScaler),
-                step("minmax", MinMaxScaler),
-                step("robust", RobustScaler),
-                step("passthrough", FunctionTransformer),
-            ),
-        ),
-        item=ColumnTransformer,
-        config={
-            "categoricals": make_column_selector(dtype_include=object),
-            "numerics": make_column_selector(dtype_include=np.number),
+pipeline = (
+    Sequential(name="Pipeline")
+    >> Split(
+        {
+            "categories": [
+                SimpleImputer(strategy="constant", fill_value="missing"),
+                Component(
+                    OneHotEncoder,
+                    space={
+                        "min_frequency": (0.01, 0.1),
+                        "handle_unknown": ["ignore", "infrequent_if_exist"],
+                    },
+                    config={"drop": "first"},
+                ),
+            ],
+            "numbers": [
+                Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
+                Component(VarianceThreshold, space={"threshold": (0.0, 0.2)}),
+                Choice(StandardScaler, MinMaxScaler, RobustScaler, name="scaler"),
+            ],
         },
-    ),
-    choice(  # <!> (1)!
-        "algorithm",
-        step("svm", SVC, space={"C": (0.1, 10.0)}, config={"probability": True}),
-        step(
-            "rf",
+        name="feature_preprocessing",
+        config={
+            "categories": make_column_selector(dtype_include=object),
+            "numbers": make_column_selector(dtype_include=np.number),
+        },
+    )
+    >> Choice(  # <!> (1)!
+        Component(SVC, space={"C": (0.1, 10.0)}, config={"probability": True}),
+        Component(
             RandomForestClassifier,
-            space={
-                "n_estimators": [10, 100],
-                "criterion": ["gini", "entropy", "log_loss"],
-            },
+            space={"n_estimators": (10, 100), "criterion": ["gini", "log_loss"]},
         ),
-        step(
-            "mlp",
+        Component(
             MLPClassifier,
             space={
                 "activation": ["identity", "logistic", "relu"],
@@ -186,11 +158,11 @@ pipeline = Pipeline.create(
                 "learning_rate": ["constant", "invscaling", "adaptive"],
             },
         ),
-    ),
+    )
 )
 
 print(pipeline)
-print(pipeline.space())
+print(pipeline.search_space("configspace"))
 
 # 1. Here we define a choice of algorithms to use where each entry is a possible
 #   algorithm to use. Each algorithm is defined by a step, which is a
@@ -231,7 +203,7 @@ def target_function(
     trial: Trial,
     /,
     bucket: PathBucket,
-    pipeline: Pipeline,
+    pipeline: Sequential,
 ) -> Trial.Report:
     X_train, X_val, X_test, y_train, y_val, y_test = (  # (1)!
         bucket["X_train.csv"].load(),
@@ -242,7 +214,7 @@ def target_function(
         bucket["y_test.npy"].load(),
     )
     pipeline = pipeline.configure(trial.config)  # <!> (2)!
-    sklearn_pipeline = pipeline.build()  # <!>
+    sklearn_pipeline = pipeline.build("sklearn")  # <!>
 
     with trial.begin():  # <!> (3)!
         sklearn_pipeline.fit(X_train, y_train)
@@ -312,9 +284,9 @@ trial at that point in the trajectory. Finally, we store the configuration
 of each trial in the ensemble.
 
 We could of course add extra functionality to the Ensemble, give it references
-to the [`PathBucket`][amltk.store.PathBucket] and [`Pipeline`][amltk.pipeline.Pipeline]
-objects, and even add methods to train the ensemble, but for the sake of
-simplicity we will leave it as is.
+to the [`PathBucket`][amltk.store.PathBucket] and the pipeline objects,
+and even add methods to train the ensemble, but for the sake of simplicity we will
+leave it as is.
 """
 
 
@@ -388,7 +360,10 @@ bucket.store(  # (2)!
 )
 
 scheduler = Scheduler.with_processes()  # (3)!
-optimizer = SMACOptimizer.create(space=pipeline.space(), seed=seed)  # (4)!
+optimizer = SMACOptimizer.create(
+    space=pipeline.search_space("configspace"),
+    seed=seed,
+)  # (4)!
 
 task = scheduler.task(target_function)  # (6)!
 ensemble_task = scheduler.task(create_ensemble)  # (7)!
@@ -420,14 +395,14 @@ def add_to_history(future: Future, report: Trial.Report) -> None:
 def launch_ensemble_task(future: Future, report: Trial.Report) -> None:
     """When a task successfully completes, launch an ensemble task."""
     if report.status is Trial.Status.SUCCESS:
-        ensemble_task(trial_history, bucket)
+        ensemble_task.submit(trial_history, bucket)
 
 
 @task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     trial = optimizer.ask()
-    task(trial, bucket=bucket, pipeline=pipeline)
+    task.submit(trial, bucket=bucket, pipeline=pipeline)
 
 
 @ensemble_task.on_result
@@ -436,9 +411,15 @@ def save_ensemble(future: Future, ensemble: Ensemble) -> None:
     ensembles.append(ensemble)
 
 
-@task.on_exception
 @ensemble_task.on_exception
 def print_ensemble_exception(future: Future[Any], exception: BaseException) -> None:
+    """When an exception occurs, log it and stop."""
+    print(exception)
+    scheduler.stop()
+
+
+@task.on_exception
+def print_task_exception(future: Future[Any], exception: BaseException) -> None:
     """When an exception occurs, log it and stop."""
     print(exception)
     scheduler.stop()
@@ -447,7 +428,7 @@ def print_ensemble_exception(future: Future[Any], exception: BaseException) -> N
 @scheduler.on_timeout
 def run_last_ensemble_task() -> None:
     """When the scheduler is empty, run the last ensemble task."""
-    ensemble_task(trial_history, bucket)
+    ensemble_task.submit(trial_history, bucket)
 
 
 scheduler.run(timeout=5, wait=True)  # (9)!
@@ -467,8 +448,8 @@ print(best_ensemble)
 # 3. We use [`Scheduler.with_processes()`][amltk.scheduling.Scheduler.with_processes]
 #  create a [`Scheduler`][amltk.scheduling.Scheduler] that runs everything
 #  in a different process. You can of course use a different backend if you want.
-# 4. We use [`SMACOptimizer.create()`][amltk.smac.SMACOptimizer.create] to create a
-#  [`SMACOptimizer`][amltk.smac.SMACOptimizer] given the space from the pipeline
+# 4. We use [`SMACOptimizer.create()`][amltk.optimization.optimizers.smac.SMACOptimizer.create] to create a
+#  [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
 # 6. We create a [`Task`][amltk.scheduling.Task] that will run our objective, passing
 #   in the function to run and the scheduler for where to run it

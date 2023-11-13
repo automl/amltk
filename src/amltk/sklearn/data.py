@@ -1,8 +1,9 @@
 """Data utilities for scikit-learn."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from itertools import chain
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from more_itertools import last
 from sklearn.model_selection import train_test_split

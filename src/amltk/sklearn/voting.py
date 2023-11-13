@@ -68,7 +68,7 @@ def voting_with_preffited_estimators(
 
     if is_classification:
         est0_classes_ = est0.classes_  # type: ignore
-        _voter.classes_ = est0_classes_
+        _voter.classes_ = est0_classes_  # type: ignore
         if np.ndim(est0_classes_) > 1:
             est0_classes_ = est0_classes_[0]
             _voter.le_ = MultiLabelBinarizer().fit(est0_classes_)  # type: ignore

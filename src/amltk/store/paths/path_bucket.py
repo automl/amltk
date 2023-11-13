@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Iterator, Sequence
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator, Sequence
+from typing import TYPE_CHECKING, Any
 from typing_extensions import override
 
 from amltk.store.bucket import Bucket

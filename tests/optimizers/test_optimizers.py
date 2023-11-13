@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING
 import pytest
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from amltk.optimization import Optimizer, RandomSearch, Trial
-from amltk.pipeline import Pipeline, step
+from amltk.optimization import Optimizer, Trial
+from amltk.pipeline import Component
 from amltk.profiling import Memory, Timer
 
 if TYPE_CHECKING:
-    from amltk.neps import NEPSOptimizer
-    from amltk.optuna import OptunaOptimizer
-    from amltk.smac import SMACOptimizer
+    from amltk.optimization.optimizers.neps import NEPSOptimizer
+    from amltk.optimization.optimizers.optuna import OptunaOptimizer
+    from amltk.optimization.optimizers.smac import SMACOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -49,44 +49,40 @@ def valid_time_interval(interval: Timer.Interval) -> bool:
 
 
 @case
-def opt_random_search() -> tuple[RandomSearch, str]:
-    s = step("hi", _A, space={"a": (1, 10)})
-    pipeline = Pipeline.create(s)
-    return RandomSearch(space=pipeline.space()), "cost"
-
-
-@case
 def opt_smac_hpo() -> tuple[SMACOptimizer, str]:
     try:
-        from amltk.smac import SMACOptimizer
+        from amltk.optimization.optimizers.smac import SMACOptimizer
     except ImportError:
         pytest.skip("SMAC is not installed")
 
-    pipeline = Pipeline.create(step("hi", _A, space={"a": (1, 10)}))
-    return SMACOptimizer.create(space=pipeline.space(), seed=2**32 - 1), "cost"
+    pipeline = Component(_A, name="hi", space={"a": (1, 10)})
+    return SMACOptimizer.create(
+        space=pipeline.search_space(SMACOptimizer.preferred_parser()),
+        seed=2**32 - 1,
+    ), "cost"
 
 
 @case
 def opt_optuna() -> tuple[OptunaOptimizer, str]:
     try:
-        from amltk.optuna import OptunaOptimizer, OptunaParser
+        from amltk.optimization.optimizers.optuna import OptunaOptimizer
     except ImportError:
         pytest.skip("Optuna is not installed")
 
-    pipeline = Pipeline.create(step("hi", _A, space={"a": (1, 10)}))
-    space = pipeline.space(parser=OptunaParser())
+    pipeline = Component(_A, name="hi", space={"a": (1, 10)})
+    space = pipeline.search_space(parser=OptunaOptimizer.preferred_parser())
     return OptunaOptimizer.create(space=space), "cost"
 
 
 @case
 def opt_neps() -> tuple[NEPSOptimizer, str]:
     try:
-        from amltk.neps import NEPSOptimizer
+        from amltk.optimization.optimizers.neps import NEPSOptimizer
     except ImportError:
         pytest.skip("NEPS is not installed")
 
-    pipeline = Pipeline.create(step("hi", _A, space={"a": (1, 10)}))
-    space = pipeline.space()
+    pipeline = Component(_A, name="hi", space={"a": (1, 10)})
+    space = pipeline.search_space(parser=NEPSOptimizer.preferred_parser())
     return NEPSOptimizer.create(space=space, overwrite=True), "loss"
 
 
