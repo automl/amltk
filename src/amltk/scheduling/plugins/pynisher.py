@@ -86,6 +86,7 @@ from typing import TYPE_CHECKING, ClassVar, TypeAlias, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
 import pynisher
+import pynisher.exceptions
 
 from amltk.scheduling.events import Event
 from amltk.scheduling.plugins.plugin import Plugin
@@ -148,7 +149,7 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    MEMORY_LIMIT_REACHED: Event[pynisher.MemoryLimitException] = Event(
+    MEMORY_LIMIT_REACHED: Event[pynisher.exceptions.MemoryLimitException] = Event(
         "pynisher-memory-limit",
     )
     """A Task was submitted but reached it's memory limit.
@@ -176,7 +177,7 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    CPU_TIME_LIMIT_REACHED: Event[PynisherPlugin.CpuTimeoutException] = Event(
+    CPU_TIME_LIMIT_REACHED: Event[pynisher.exceptions.CpuTimeoutException] = Event(
         "pynisher-cputime-limit",
     )
     """A Task was submitted but reached it's cpu time limit.
@@ -207,7 +208,7 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    WALL_TIME_LIMIT_REACHED: Event[PynisherPlugin.WallTimeoutException] = Event(
+    WALL_TIME_LIMIT_REACHED: Event[pynisher.exceptions.WallTimeoutException] = Event(
         "pynisher-walltime-limit",
     )
     """A Task was submitted but reached it's wall time limit.
@@ -234,16 +235,16 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    TimeoutException: TypeAlias = pynisher.TimeoutException
+    TimeoutException: TypeAlias = pynisher.exceptions.TimeoutException
     """The exception that is raised when a task times out."""
 
-    MemoryLimitException: TypeAlias = pynisher.MemoryLimitException
+    MemoryLimitException: TypeAlias = pynisher.exceptions.MemoryLimitException
     """The exception that is raised when a task reaches it's memory limit."""
 
-    CpuTimeoutException: TypeAlias = pynisher.CpuTimeoutException
+    CpuTimeoutException: TypeAlias = pynisher.exceptions.CpuTimeoutException
     """The exception that is raised when a task reaches it's cpu time limit."""
 
-    WallTimeoutException: TypeAlias = pynisher.WallTimeoutException
+    WallTimeoutException: TypeAlias = pynisher.exceptions.WallTimeoutException
     """The exception that is raised when a task reaches it's wall time limit."""
 
     def __init__(
