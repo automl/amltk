@@ -35,17 +35,6 @@ dev = [
   "mypy",
   "types-psutil",
   "types-pyyaml",
-]
-test = [
-  "pytest",
-  "pytest-coverage",
-  "pytest-cases",
-  "distributed",
-  "openpyxl",
-  "pyarrow",
-  "amltk[smac, optuna, sklearn, docs-examples]",
-]
-doc = [
   "mkdocs",
   "mkdocs-material",
   "mkdocs-autorefs",
@@ -57,10 +46,15 @@ doc = [
   "mike",
   "pillow",
   "cairosvg",
-  "amltk[smac, sklearn]",
+  "openml",
+  "pytest",
+  "pytest-coverage",
+  "pytest-cases",
+  "distributed",
+  "openpyxl",
+  "pyarrow",
+  "amltk[smac, optuna, neps, sklearn, docs-examples, rich, loky, dask, xgboost, wandb, pynisher]",
 ]
-docs-examples = ["openml", "amltk[smac]"]
-
 sklearn = ["scikit-learn", "threadpoolctl"]
 smac = ["smac>=2.0", "amltk[configspace]"]
 optuna = ["optuna"]
