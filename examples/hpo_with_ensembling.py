@@ -431,16 +431,17 @@ def run_last_ensemble_task() -> None:
     ensemble_task.submit(trial_history, bucket)
 
 
-scheduler.run(timeout=5, wait=True)  # (9)!
+if __name__ == "__main__":
+    scheduler.run(timeout=5, wait=True)  # (9)!
 
-print("Trial history:")
-history_df = trial_history.df()
-print(history_df)
+    print("Trial history:")
+    history_df = trial_history.df()
+    print(history_df)
 
-best_ensemble = max(ensembles, key=lambda e: e.trajectory[-1])
+    best_ensemble = max(ensembles, key=lambda e: e.trajectory[-1])
 
-print("Best ensemble:")
-print(best_ensemble)
+    print("Best ensemble:")
+    print(best_ensemble)
 # 1. We use `#!python get_dataset()` defined earlier to load the
 #  dataset.
 # 2. We use [`store()`][amltk.store.Bucket.store] to store the data in the bucket, with

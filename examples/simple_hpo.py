@@ -341,8 +341,9 @@ def stop_scheduler_on_cancelled(_: Any) -> None:
 Lastly we use [`Scheduler.run`][amltk.scheduling.Scheduler.run] to run the
 scheduler. We pass in a timeout of 20 seconds.
 """
-scheduler.run(timeout=20)
+if __name__ == "__main__":
+    scheduler.run(timeout=20)
 
-print("Trial history:")
-history_df = trial_history.df()
-print(history_df)
+    print("Trial history:")
+    history_df = trial_history.df()
+    print(history_df)
