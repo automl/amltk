@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11"] # "3.12" doesn't work because of ConfigSpace for some reason.
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
 
     steps:
