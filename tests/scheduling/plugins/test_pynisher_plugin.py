@@ -70,6 +70,9 @@ def cpu_time_wasting_function(iterations: int) -> int:
 
 
 def test_memory_limited_task(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("memory"):
+        pytest.skip("Pynisher does not support memory limits on this system")
+
     one_half_gb = int(1e9 * 1.5)
     two_gb = int(1e9) * 2
 
@@ -107,6 +110,9 @@ def test_memory_limited_task(scheduler: Scheduler) -> None:
 
 
 def test_time_limited_task(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("wall_time"):
+        pytest.skip("Pynisher does not support wall time limits on this system")
+
     task = scheduler.task(
         time_wasting_function,
         plugins=PynisherPlugin(walltime_limit=1),
@@ -145,6 +151,9 @@ def test_time_limited_task(scheduler: Scheduler) -> None:
 
 
 def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("cpu_time"):
+        pytest.skip("Pynisher does not support cpu time limits on this system")
+
     task = scheduler.task(
         cpu_time_wasting_function,
         plugins=PynisherPlugin(cputime_limit=1),

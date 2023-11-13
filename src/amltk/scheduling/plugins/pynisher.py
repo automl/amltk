@@ -77,12 +77,17 @@ performed in processes.
 
     Pynisher has some limitations with memory on Mac and Windows:
     https://github.com/automl/pynisher#features
-"""
+
+    You can check this with `PynisherPlugin.supports("memory")`,
+    `PynisherPlugin.supports("cpu_time")` and
+    `PynisherPlugin.supports("wall_time")`.
+    See [`PynisherPlugin.supports()`][amltk.scheduling.plugins.pynisher.PynisherPlugin.supports]
+"""  # noqa: E501
 from __future__ import annotations
 
 from collections.abc import Callable
 from multiprocessing.context import BaseContext
-from typing import TYPE_CHECKING, ClassVar, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Literal, TypeAlias, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
 import pynisher
@@ -343,6 +348,18 @@ class PynisherPlugin(Plugin):
             self.task.emitter.emit(self.WALL_TIME_LIMIT_REACHED, exception)
         elif isinstance(exception, pynisher.MemoryLimitException):
             self.task.emitter.emit(self.MEMORY_LIMIT_REACHED, exception)
+
+    @classmethod
+    def supports(cls, kind: Literal["wall_time", "cpu_time", "memory"]) -> bool:
+        """Check if the task is supported by the plugin.
+
+        Args:
+            kind: The kind of limit to check.
+
+        Returns:
+            `True` if the limit is supported by the plugin for your os, else `False`.
+        """
+        return pynisher.supports(kind)
 
     @override
     def __rich__(self) -> Panel:
