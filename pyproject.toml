@@ -82,9 +82,8 @@ empty_parameter_set_mark = "xfail"
 log_cli = false
 log_level = "DEBUG"
 xfail_strict = true
-addopts = "--durations=10 -vv"
+addopts = "--durations=10 -vv --timeout=60"
 markers = ["example: An example"]
-timeout = 60  # Nothing should take longer than this...
 
 
 [tool.coverage.run]
