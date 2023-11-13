@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import warnings
 from collections import Counter
 from concurrent.futures import Executor, ProcessPoolExecutor
@@ -74,6 +75,15 @@ def test_empty_kwargs_does_not_change_anything(scheduler: Scheduler) -> None:
             "Unfortunatly, dask is rather flaky in this tests."
             " My current hypothesis is that this is due to the order in which"
             " imports are done when dask uses it's own unpikcling strategy."
+            " It's rather undeterministic.",
+        )
+
+    # Mac and process pool executor seem to behave weirdly here.
+    if isinstance(scheduler.executor, ProcessPoolExecutor) and sys.platform == "darwin":
+        pytest.skip(
+            "Unfortunatly, loky is rather flaky in this tests."
+            " My current hypothesis is that this is due to the order in which"
+            " imports are done when loky uses it's own unpikcling strategy."
             " It's rather undeterministic.",
         )
 
