@@ -1,7 +1,8 @@
-## Unreleased
+## 0.11.13 (2023-11-14)
 
 ### Fix
 
+- **ci**: Change versioning to not have the `v`
 - **ci**: Merge docs into build
 - **install**: Segement out dependancies (bump me)
 
