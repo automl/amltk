@@ -6,11 +6,20 @@
 name: release
 on:
   workflow_dispatch:
+    inputs:
+      test:
+        description: "Run tests?"
+        required: true
+        default: true
+      docs:
+        description: "Test docs?"
+        required: true
+        default: true
 permissions:
   contents: write
 jobs:
   test-code:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.inputs.test == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -22,7 +31,7 @@ jobs:
       - run: pytest ${{ env.test-dir }}
   test-docs:
     needs: [test-code]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.inputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -35,6 +44,7 @@ jobs:
   bump-and-build:
     runs-on: ubuntu-latest
     needs: [test-code, test-docs]
+    if: always() && !failure() && !cancelled() && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -59,6 +69,7 @@ jobs:
   release:
     needs: [bump-and-build]
     runs-on: ubuntu-latest
+    if: always() && !failure() && !cancelled() && github.ref == 'refs/heads/main'
     environment:
       name: pypi
       url: https://pypi.org/p/amltk
@@ -84,6 +95,7 @@ jobs:
   deploy-docs:
     needs: [release]  # Only deploy docs if there is a released version
     runs-on: ubuntu-latest
+    if: always() && !failure() && !cancelled() && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
