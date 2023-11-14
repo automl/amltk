@@ -39,6 +39,7 @@ bump:
   git push
   git push origin "v$(cz version --project)"
 
+# Release a draft on github
 release-draft:
   gh release create \
     "v$(cz version --project)" \
