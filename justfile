@@ -43,9 +43,10 @@ bump:
 prerelease:
   gh release create "v$(cz version --project)" \
     --title "v$(cz version --project)" \
-    --notes "#TODO" \
+    --notes "#Will be auto-filled soon" \
     --verify-tag \
     --prerelease
+  gh run view $(gh run list --workflow on-prerelease --limit 1 --json databaseId --jq '.[0].databaseId')
 
 # Publish the repo to pypi
 publish:
