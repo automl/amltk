@@ -25,7 +25,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} dist/*.tar.gz#sdist
+          gh release upload ${{ github.event.release.tag_name }} dist/*.tar.gz
   ensure-docs:
     runs-on: ubuntu-latest
     steps:
@@ -42,7 +42,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tar -czf site.tar.gz site
-          gh release upload ${{ github.event.release.tag_name }} site.tar.gz#docs
+          gh release upload ${{ github.event.release.tag_name }} site.tar.gz
 
   # Create and attach the changelog with commitizen
   create-changelog:
