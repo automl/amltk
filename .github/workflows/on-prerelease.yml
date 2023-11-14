@@ -1,6 +1,8 @@
 # Whenever we have a prerelease, we want to:
 # * Build the sdist and attach it to the release.
 # * Ensure that the docs will build.
+# This should be triggered from the cmdline with `just prerelease`.
+# Could also be triggered from the release page.
 name: on-prerelease
 on:
   release:
