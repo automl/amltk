@@ -1,3 +1,12 @@
+## v0.11.12 (2023-11-14)
+
+### Fix
+
+- **ci**: Should bump and push?
+- **ci**: Install commitizen correctly
+- **ci**: Add comittizen to build step
+- **ci**: New release flow
+
 ## v0.11.11 (2023-11-14)
 
 ### Fix
