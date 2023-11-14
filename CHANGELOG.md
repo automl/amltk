@@ -1,3 +1,9 @@
+## v0.11.10 (2023-11-14)
+
+### Fix
+
+- **ci**: Remove artifact labelling
+
 ## v0.11.9 (2023-11-14)
 
 ### Fix
