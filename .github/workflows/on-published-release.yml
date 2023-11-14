@@ -1,7 +1,7 @@
 name: publish-release
 on:
   release:
-    types: [published]
+    types: [released]
 permissions:
   contents: write
 jobs:

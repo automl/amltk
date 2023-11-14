@@ -1,10 +1,10 @@
-# Whenever we have a draft release, we want to:
+# Whenever we have a prerelease, we want to:
 # * Build the sdist and attach it to the release.
 # * Ensure that the docs will build.
-name: on-draft-release
+name: on-prerelease
 on:
   release:
-    types: [unpublished]
+    types: [prereleased]
 permissions:
   contents: write
 jobs:
