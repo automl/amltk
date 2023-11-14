@@ -1,4 +1,11 @@
-## v0.11.12 (2023-11-14)
+## Unreleased
+
+### Fix
+
+- **ci**: Merge docs into build
+- **install**: Segement out dependancies (bump me)
+
+## 0.11.12 (2023-11-14)
 
 ### Fix
 
@@ -7,71 +14,71 @@
 - **ci**: Add comittizen to build step
 - **ci**: New release flow
 
-## v0.11.11 (2023-11-14)
+## 0.11.11 (2023-11-14)
 
 ### Fix
 
 - **ci**: Onceee more
 
-## v0.11.10 (2023-11-14)
+## 0.11.10 (2023-11-14)
 
 ### Fix
 
 - **ci**: Remove artifact labelling
 
-## v0.11.9 (2023-11-14)
+## 0.11.9 (2023-11-14)
 
 ### Fix
 
 - **ci**: Force update
 
-## v0.11.8 (2023-11-14)
+## 0.11.8 (2023-11-14)
 
 ### Fix
 
 - **ci**: View run on prerelease
 - **ci**: Give tag for `gh`
 
-## v0.11.7 (2023-11-14)
+## 0.11.7 (2023-11-14)
 
 ### Fix
 
 - **ci**: Changelog generator
 
-## v0.11.6 (2023-11-14)
+## 0.11.6 (2023-11-14)
 
 ### Fix
 
 - **ci**: Use event release_tag
 
-## v0.11.5 (2023-11-14)
+## 0.11.5 (2023-11-14)
 
 ### Fix
 
 - **ci**: And again...
 
-## v0.11.4 (2023-11-14)
+## 0.11.4 (2023-11-14)
 
 ### Fix
 
 - **ci**: Lets try again
 
-## v0.11.3 (2023-11-14)
+## 0.11.3 (2023-11-14)
 
 ### Fix
 
 - **ci**: Ensure tag is verified
 - **ci**: Change to creating pre-release draft
 
-## v0.11.2 (2023-11-14)
+## 0.11.2 (2023-11-14)
 
 ### Fix
 
 - Labeled as fix to have message
 
-## v0.11.1 (2023-11-14)
+## 0.11.1 (2023-11-14)
 
-## v0.11.0 (2023-11-14)
+## 0.11.0 (2023-11-14)
 
 ## 0.10.2 (2023-11-13)
 
@@ -245,7 +252,7 @@
 - **Trial**: A config is now always assumed to be a mapping (#23)
 - **tasks**: Events and scheduling (#17)
 
-## v0.8.0 (2023-03-03)
+## 0.8.0 (2023-03-03)
 
 ### Feat
 
@@ -255,44 +262,44 @@
 
 - Merge conflict
 
-## v0.7.0 (2023-02-24)
+## 0.7.0 (2023-02-24)
 
 ### Feat
 
 - **control**: AskAndTell controller
 
-## v0.6.0 (2023-02-22)
+## 0.6.0 (2023-02-22)
 
 ### Feat
 
 - **buckets**: Easy way to store and load data
 
-## v0.5.0 (2023-02-20)
+## 0.5.0 (2023-02-20)
 
 ### Feat
 
 - **scheduler**: Clean concept of task
 
-## v0.4.0 (2023-02-17)
+## 0.4.0 (2023-02-17)
 
 ### Feat
 
 - **scheduler**: Two way coms, nicer API
 
-## v0.3.0 (2023-02-15)
+## 0.3.0 (2023-02-15)
 
 ### Feat
 
 - **Task**: Communcation with workers, simpler api
 
-## v0.2.1 (2023-02-14)
+## 0.2.1 (2023-02-14)
 
 ### Fix
 
 - **dev**: Swtich to justfile
 - **dev**: `make bump` now pushes generated tag
 
-## v0.2.0 (2023-02-14)
+## 0.2.0 (2023-02-14)
 
 ### Feat
 
