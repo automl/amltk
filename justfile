@@ -33,19 +33,12 @@ docs exec_doc_code="true" example="None" offline="false":
     AMLTK_EXEC_DOCS={{exec_doc_code}} mkdocs serve --watch-theme --dirtyreload
   # https://github.com/pawamoy/markdown-exec/issues/19
 
-# Bump the version and generate the changelog based off commit messages
-bump:
-  cz bump || exit
-  git push
-  git push origin "v$(cz version --project)"
 
-# Release a draft on github
-prerelease:
-  gh release create "v$(cz version --project)" \
-    --title "v$(cz version --project)" \
-    --notes "# Will be auto-filled by action" \
-    --verify-tag \
-    --prerelease
+# Release a version on github
+release:
+  gh workflow run release.yml
+  sleep 2
+  gh run view -v
 
 # Publish the repo to pypi
 publish:
