@@ -43,7 +43,7 @@ bump:
 prerelease:
   gh release create "v$(cz version --project)" \
     --title "v$(cz version --project)" \
-    --notes "#Will be auto-filled soon" \
+    --notes "# Will be auto-filled by action" \
     --verify-tag \
     --prerelease
 

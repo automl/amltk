@@ -56,8 +56,14 @@ jobs:
       - name: "Generate changelog and push"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |-
+        run: |
           version="v$(cz version --project)"
-          cz changelog --file-name release-notes.md "${version}"
+          echo "${version}"
+          cz changelog --file-name "release-notes.md" "${version}"
           cat release-notes.md
-          gh release edit --notes-file release-notes.md "${version}"
+          gh release edit --notes-file "release-notes.md" "${version}"
+      - name: "Upload changelog for version"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} release-notes.md
