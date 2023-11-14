@@ -1,3 +1,10 @@
+## v0.11.8 (2023-11-14)
+
+### Fix
+
+- **ci**: View run on prerelease
+- **ci**: Give tag for `gh`
+
 ## v0.11.7 (2023-11-14)
 
 ### Fix
