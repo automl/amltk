@@ -1,18 +1,18 @@
 ## v0.11.0 (2023-11-14)
 
-## v0.10.2 (2023-11-13)
+## 0.10.2 (2023-11-13)
 
 ### Fix
 
 - Move NePs to not be included in dev
 
-## v0.10.1 (2023-11-13)
+## 0.10.1 (2023-11-13)
 
 ### Fix
 
 - Neps metahyper sampler
 
-## v0.10.0 (2023-11-13)
+## 0.10.0 (2023-11-13)
 
 ### Feat
 
@@ -22,7 +22,7 @@
 
 - Add `__main__` gaurd to examples
 
-## v0.9.0 (2023-11-13)
+## 0.9.0 (2023-11-13)
 
 ### Feat
 
@@ -224,17 +224,6 @@
 ### Feat
 
 - **scheduler**: context `when` for callbacks
-
-### Fix
-
-- Change `Config` to be generic TypeVar
-
-## v0.1.1 (2023-02-12)
-
-## v0.1.0 (2023-02-12)
-
-### Feat
-
 - **scheduler**: Implement scheduler
 - **pipeline**: Attach `build`
 - **sklearn**: Build sklearn pipelines!
@@ -252,10 +241,14 @@
 
 ### Fix
 
+- Change `Config` to be generic TypeVar
 - typing
 - **parsers**: ConfigSpace extra early delimiter
 - Escape type annotaiton as str
 - Makefile
+- Testing if this fixed a version bump
+- **versioning**: Sync the different version places
+- **pyproject.toml**: Change version recognition to include prefix `v`
 
 ### Refactor
 
@@ -265,16 +258,3 @@
 - Move to src layout
 - **typing**: Reduce typing on Steps
 - Fixup
-
-## v0.0.3 (2022-10-18)
-
-### Fix
-
-- Testing if this fixed a version bump
-- **versioning**: Sync the different version places
-
-## v0.0.2 (2022-10-18)
-
-### Fix
-
-- **pyproject.toml**: Change version recognition to include prefix `v`

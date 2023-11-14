@@ -39,6 +39,14 @@ bump:
   git push
   git push origin "v$(cz version --project)"
 
+release-draft:
+  gh release create \
+    "v$(cz version --project)" \
+    --title "v$(cz version --project)" \
+    --notes "$(cz changelog --dry-run "v$(cz version --project)")" \
+    --draft
+
+
 # Publish the repo to pypi
 publish:
   echo "TODO"
