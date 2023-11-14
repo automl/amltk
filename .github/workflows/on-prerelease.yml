@@ -56,4 +56,4 @@ jobs:
           changelog="$(cz changelog --dry-run "${version}"))"
           echo "changelog: ${changelog}"
 
-          gh release edit --notes "$changelog"
+          gh release edit --notes "$changelog" "${version}"
