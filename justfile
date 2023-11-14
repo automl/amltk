@@ -40,14 +40,11 @@ bump:
   git push origin "v$(cz version --project)"
 
 # Release a draft on github
-release-draft:
-  gh release create \
-    "v$(cz version --project)" \
+prerelease:
+  gh release create "v$(cz version --project)" \
     --title "v$(cz version --project)" \
     --verify-tag \
-    --notes "$(cz changelog --dry-run "v$(cz version --project)")" \
     --prerelease
-
 
 # Publish the repo to pypi
 publish:

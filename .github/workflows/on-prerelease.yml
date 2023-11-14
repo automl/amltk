@@ -19,11 +19,11 @@ jobs:
         run: |
           python -m pip install build
           python -m build -s
-      - name: "Upload build"
-        uses: actions/upload-artifact@v2
-        with:
-          name: sdist
-          path: dist/*.tar.gz
+      - name: "Attach build dist release with gh cli"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref }} dist/*.tar.gz
 
   ensure-docs:
     runs-on: ubuntu-latest
@@ -35,4 +35,20 @@ jobs:
       - name: "Install dependancies"
         run: python -m pip install -e ".[dev]"
       - name: "Build Docs"
-        run: mkdocs --clean --strict
+        run: mkdocs build --clean --strict
+
+  # Create and attach the changelog with commitizen
+  create-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: "Generate changelog and push"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python -m pip install commitizen
+          changelog="$(cz changelog --dry-run "v$(cz version --project)"))"
+          gh release edit -n "$changelog"
