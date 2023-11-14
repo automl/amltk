@@ -1,3 +1,10 @@
+## v0.11.3 (2023-11-14)
+
+### Fix
+
+- **ci**: Ensure tag is verified
+- **ci**: Change to creating pre-release draft
+
 ## v0.11.2 (2023-11-14)
 
 ### Fix

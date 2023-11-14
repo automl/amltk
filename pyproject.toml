@@ -1,6 +1,6 @@
 [project]
 name = "amltk"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
   "typing_extensions", # Better typing
   "more_itertools",    # Better iteration
@@ -100,7 +100,7 @@ exclude_lines = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.11.2"
+version = "0.11.3"
 tag_format = "v$major.$minor.$patch$prerelease"
 update_changelog_on_bump = true
 version_files = ["pyproject.toml:version", "src/amltk/__version__.py"]
