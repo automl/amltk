@@ -93,6 +93,7 @@ plugins:
   - search
   - autorefs
   - glightbox
+  - site-urls
   - offline:
       enabled: !ENV [AMLTK_DOCS_OFFLINE, false]
   - markdown-exec

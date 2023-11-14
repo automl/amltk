@@ -27,13 +27,11 @@ classifiers = [
 license = { file = "LICENSE" }
 
 [project.optional-dependencies]
-dev = [
-  "commitizen",
-  "pre-commit",
-  "ruff",
-  "mypy",
-  "types-psutil",
-  "types-pyyaml",
+dev = ["amltk[doc, tooling, test, examples]"]
+tooling = ["commitizen", "pre-commit", "ruff", "mypy", "types-psutil", "types-pyyaml"]
+test = ["pytest", "pytest-coverage", "pytest-cases", "amltk[examples]"]
+examples = ["openml", "amltk[optuna, smac, sklearn, rich, loky, dask, xgboost, wandb, pynisher, path_loaders]"]
+doc = [
   "mkdocs",
   "mkdocs-material",
   "mkdocs-autorefs",
@@ -42,24 +40,18 @@ dev = [
   "mkdocs-glightbox",
   "mkdocstrings[python]",
   "markdown-exec[ansi]",
+  "rich",
   "mike",
   "pillow",
   "cairosvg",
-  "openml",
-  "pytest",
-  "pytest-coverage",
-  "pytest-cases",
-  "distributed",
-  "openpyxl",
-  "pyarrow",
-  "amltk[smac, optuna, sklearn, docs-examples, rich, loky, dask, xgboost, wandb, pynisher]",
 ]
+# --- Optional user dependancies
 sklearn = ["scikit-learn", "threadpoolctl"]
 smac = ["smac>=2.0", "amltk[configspace]"]
 optuna = ["optuna"]
 configspace = ["configspace>=0.6"]
 loky = ["loky"]
-dask = ["dask<=2023.4"]
+dask = ["dask<=2023.4", "distributed"]
 pynisher = ["pynisher>=1.0.10"]
 wandb = ["wandb"]
 threadpoolctl = ["threadpoolctl"]
@@ -67,6 +59,7 @@ xgboost = ["xgboost"]
 neps = ["neural-pipeline-search"]
 rich = ["rich"]
 notebook = ["rich[jupyter]"]
+path_loaders = ["openpyxl", "pyarrow"]
 
 [project.urls]
 documentation = "https://github.com/automl/amltk/"
