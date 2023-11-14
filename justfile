@@ -14,7 +14,7 @@ install:
 
 # Run formatters and linters to fix up code
 fix:
-  black --quiet src tests
+  ruff format --exit-zero src
   ruff --silent --exit-zero --no-cache --fix src tests
 
 # Run pre-commit to check all files
@@ -35,14 +35,8 @@ docs exec_doc_code="true" example="None" offline="false":
 
 
 # Release a version on github
-release:
-  gh workflow run release.yml
-  sleep 2
-  gh run view -v
-
-# Publish the repo to pypi
-publish:
-  echo "TODO"
+action:
+  gh workflow run
 
 # Create a `feat` PR with <name>
 pr-feat name:
