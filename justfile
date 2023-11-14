@@ -45,7 +45,7 @@ release-draft:
     "v$(cz version --project)" \
     --title "v$(cz version --project)" \
     --notes "$(cz changelog --dry-run "v$(cz version --project)")" \
-    --draft
+    --prerelease
 
 
 # Publish the repo to pypi
