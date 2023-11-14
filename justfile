@@ -44,6 +44,7 @@ release-draft:
   gh release create \
     "v$(cz version --project)" \
     --title "v$(cz version --project)" \
+    --verify-tag \
     --notes "$(cz changelog --dry-run "v$(cz version --project)")" \
     --prerelease
 
