@@ -1,29 +1,27 @@
 name: pre-commit
-
 on:
-  # Manually triggerable in github
   workflow_dispatch:
-
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
-
   run-all-files:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: recursive
-
-    - name: Setup Python 3.10
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.10
-
-    - name: Install pre-commit
-      run: |
-        pip install pre-commit
-        pre-commit install
-
-    - name: Run pre-commit
-      run: |
-        pre-commit run --all-files
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install pre-commit
+        run: |
+          pip install pre-commit
+          pre-commit install
+      - name: Run pre-commit
+        run: |-
+          pre-commit run --all-files

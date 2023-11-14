@@ -37,7 +37,7 @@ docs exec_doc_code="true" example="None" offline="false":
 bump:
   cz bump || exit
   git push
-  git push origin "$(cz version --project)"
+  git push origin "v$(cz version --project)"
 
 # Publish the repo to pypi
 publish:

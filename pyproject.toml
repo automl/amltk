@@ -100,8 +100,8 @@ exclude_lines = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.10.2"
-tag_format = "$major.$minor.$patch$prerelease"
+version = "v0.10.2"
+tag_format = "v$major.$minor.$patch$prerelease"
 update_changelog_on_bump = true
 version_files = ["pyproject.toml:version", "src/amltk/__version__.py"]
 
