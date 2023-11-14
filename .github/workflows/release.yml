@@ -43,6 +43,7 @@ jobs:
           cache: pip
       - name: "Version Bump"
         run: |
+          pipe install commitizen
           cz bump
       - run: pip install build
       - run: python -m build --sdist
