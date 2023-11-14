@@ -25,7 +25,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} dist/*.tar.gz
+          gh release upload ${{ github.event.release.tag_name }} dist/*.tar.gz#sdist
   ensure-docs:
     runs-on: ubuntu-latest
     steps:
@@ -37,6 +37,13 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: "Build Docs"
         run: mkdocs build --clean --strict
+      - name: "Upload Docs"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tar -czf site.tar.gz site
+          gh release upload ${{ github.event.release.tag_name }} site.tar.gz#docs
+
   # Create and attach the changelog with commitizen
   create-changelog:
     runs-on: ubuntu-latest
@@ -51,9 +58,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |-
           version="v$(cz version --project)"
-          echo "version: ${version}"
-
-          changelog="$(cz changelog --dry-run "${version}"))"
-          echo "changelog: ${changelog}"
-
-          gh release edit --notes "$changelog" "${version}"
+          cz changelog --file-name release-notes.md "${version}"
+          cat release-notes.md
+          gh release edit --notes-file release-notes.md "${version}"

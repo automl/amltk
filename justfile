@@ -33,6 +33,7 @@ docs exec_doc_code="true" example="None" offline="false":
     AMLTK_EXEC_DOCS={{exec_doc_code}} mkdocs serve --watch-theme --dirtyreload
   # https://github.com/pawamoy/markdown-exec/issues/19
 
+
 # Bump the version and generate the changelog based off commit messages
 bump:
   cz bump || exit
@@ -46,7 +47,6 @@ prerelease:
     --notes "#Will be auto-filled soon" \
     --verify-tag \
     --prerelease
-  gh run view $(gh run list --workflow on-prerelease --limit 1 --json databaseId --jq '.[0].databaseId')
 
 # Publish the repo to pypi
 publish:

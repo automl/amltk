@@ -14,5 +14,21 @@ jobs:
           python-version: "3.10"
       - name: "Install dependancies"
         run: python -m pip install -e ".[dev]"
-      - name: "Build Docs"
-        run: mike deploy --push
+      - name: "Build and Deploy Docs"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest_tag="$(git tag | sort --version-sort | tail -n1)"
+          current_version="${{ github.event.release.tag_name }}"
+
+          # Deploy this verison at any rate
+          if [ "$latest_tag" == "$current_version" ]; then
+            mike deploy \
+              --push \
+              --title "${current_version} (latest)" \
+              --update-aliases
+              "${current_version}" \
+              "latest"
+          else
+            mike deploy --push "${current_version}"
+          fi
