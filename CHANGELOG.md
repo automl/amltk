@@ -1,3 +1,9 @@
+## 0.11.27 (2023-11-15)
+
+### Fix
+
+- **ci**: Retitle old docs, pull main at each step
+
 ## 0.11.26 (2023-11-15)
 
 ### Fix
