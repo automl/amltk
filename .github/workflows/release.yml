@@ -52,6 +52,7 @@ jobs:
         with:
           fetch-tags: 1  # Essential to later commitizen
           fetch-depth: 0  # Reccommended by the action
+          token: ${{ secrets.PUSH_ACCESS }}
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
