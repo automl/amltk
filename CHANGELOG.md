@@ -1,3 +1,14 @@
+## 0.11.14 (2023-11-15)
+
+### Fix
+
+- **ci**: Enable push access
+- **ci**: New token
+- **ci**: Commitizen now has access to tags?
+- **ci**: Remove all custom verisiong (bump me?)
+- **ci**: Doc clean build
+- **ci**: Add `ruff format` to just (also bump?)
+
 ## 0.11.13 (2023-11-14)
 
 ### Fix
