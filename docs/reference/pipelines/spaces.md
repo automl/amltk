@@ -5,7 +5,7 @@ each component separately, with the structure of the pipeline adding additional
 constraints.
 
 To facilitate this, we allow the construction of
-[piplines](site:reference/pipelines.pipeline.md), where each part
+[piplines](../../reference/pipelines/pipeline.md), where each part
 of the pipeline can contains a [`.space`][amltk.pipeline.node.Node.space].
 When we wish to extract out the entire search space from the pipeline, we can
 call [`search_space(parser=...)`][amltk.pipeline.node.Node.search_space] on the root node
@@ -15,7 +15,7 @@ Now there are unfortunately quite a few search space implementations out there.
 Some support concepts such as forbidden combinations, conditionals and
 functional constraints, while others are fully constrained just numerical
 parameters. Other reasons to choose a particular space representation is
-dependant upon some [`Optimizer`](site:reference/optimization/optimizers.md)
+dependant upon some [`Optimizer`](../../reference/optimization/optimizers.md)
 you may wish to use, where typically they will only have one preferred search
 space representation.
 

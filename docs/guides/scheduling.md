@@ -89,7 +89,7 @@ or even custom backends.
 !!! info inline end "Available Executors"
 
     You can find a list of these in our
-    [executor reference](site:reference/scheduling/executors.md).
+    [executor reference](../reference/scheduling/executors.md).
 
 The simplest one is a [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor]
 which will create a pool of processes to run the compute in parallel. We provide
@@ -217,7 +217,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 ### Scheduler Events
 Here are some of the possible `@events` a `Scheduler` can emit, but
-please visit the [scheduler reference](site:reference/scheduling/scheduler.md)
+please visit the [scheduler reference](../reference/scheduling/scheduler.md)
 for a complete list.
 
 === "`@on_start`"
@@ -275,7 +275,7 @@ such as `@on_start` or `@on_future_result`.
 These control the behavior of what happens when its event is fired and can
 be used to control the flow of your system.
 
-These are covered more extensively in our [events reference](site:reference/scheduling/events.md).
+These are covered more extensively in our [events reference](../reference/scheduling/events.md).
 
 === "`repeat=`"
 
@@ -662,7 +662,7 @@ a [`Plugin`][amltk.scheduling.Plugin] to them. These plugins can automate contro
 behaviour of tasks, either through preventing their execution,
 modifying the function and its arguments or even attaching plugin specific events!
 
-For a complete reference, please see the [plugin reference page](site:reference/plugins).
+For a complete reference, please see the [plugin reference page](../reference/scheduling/plugins.md).
 
 ### Call Limiter
 Perhaps one of the more useful plugins, at least when designing an AutoML System is the
@@ -767,13 +767,13 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
     Please see the following reference pages in the meantime:
 
-    * [scheduler reference](site:reference/scheduling/scheduler.md) - A slighltly
+    * [scheduler reference](../reference/scheduling/scheduler.md) - A slighltly
         more condensed version of how to use the `Scheduler`.
-    * [task reference](site:reference/scheduling/task.md) - A more comprehensive
+    * [task reference](../reference/scheduling/task.md) - A more comprehensive
         explanation of `Task`s and their `@events`.
-    * [plugin reference](site:reference/scheduling/plugins.md) - An intro to plugins
+    * [plugin reference](../reference/scheduling/plugins.md) - An intro to plugins
         and how to create your own.
-    * [executors reference](site:reference/scheduling/executors.md) - A list of
+    * [executors reference](../reference/scheduling/executors.md) - A list of
         executors and how to use them.
-    * [events reference](site:reference/scheduling/events.md) - A more comprehensive
+    * [events reference](../reference/scheduling/events.md) - A more comprehensive
         look at the event system in AutoML-Toolkit and how to work with them or extend them.

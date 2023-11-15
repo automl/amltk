@@ -12,9 +12,6 @@ Additionally, to aid users from switching between optimizers, the
 method should return either a `parser` function or a string that can be used
 with [`node.search_space(parser=..._)`][amltk.pipeline.Node.search_space] to
 extract the search space for the optimizer.
-
-Please see the [optimizer reference](site:reference/optimization/optimizers.md)
-for more.
 """
 from __future__ import annotations
 

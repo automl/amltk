@@ -4,10 +4,10 @@ Welcome to the AutoML-Toolkit framework docs.
 
     See the navigation links in the header or side-bars. Click the :octicons-three-bars-16: button (top left) on mobile.
 
-For a quick-start, check out [examples](site:examples/index.md) for copy-pastable
+For a quick-start, check out [examples](./examples/index.md) for copy-pastable
 snippets to start from. For a more guided tour through what AutoML-Toolkit can offer, please check
-out our [guides](site:guides/index.md). If you've used AutoML-Toolkit before but need some refreshers, you can look
-through our [reference pages](site:reference/index.md) or the [API docs](site:api).
+out our [guides](./guides/index.md). If you've used AutoML-Toolkit before but need some refreshers, you can look
+through our [reference pages](./reference/index.md) or the [API docs](./api/index.md).
 
 ## What is AutoML-Toolkit?
 
@@ -35,10 +35,10 @@ allowing you to define, search and build machine learning systems.
 
     We can't support all frameworks, and thankfully we don't have to. AutoML-Toolkit was
     designed to be plug-and-play. Integrate in your own
-    [optimizers](site:reference/optimization/optimizers.md),
-    [search spaces](site:reference/pipelines/spaces.md),
-    [execution backends](site:reference/scheduling/executors.md),
-    [builders](site:reference/pipelines/builders.md)
+    [optimizers](./reference/optimization/optimizers.md),
+    [search spaces](./reference/pipelines/spaces.md),
+    [execution backends](./reference/scheduling/executors.md),
+    [builders](./reference/pipelines/builders.md)
     and more.
 
     We've worked hard to make sure that how we integrate tools can be done for
@@ -60,7 +60,7 @@ allowing you to define, search and build machine learning systems.
 -   :material-directions-fork: __Task Agnostic__
 
     AutoML-Toolkit is task agnostic, meaning you can use it for any machine learning task.
-    We provide a base [Task](site:guides/scheduling.md) which you can extend with
+    We provide a base [Task](./guides/scheduling.md) which you can extend with
     events and functionality specific to the tasks you care about.
 
 ---

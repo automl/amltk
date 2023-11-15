@@ -1,4 +1,4 @@
-site_name: "<code>AutoML-Toolkit</code>"
+site_name: "AutoML-Toolkit"
 repo_url: https://github.com/automl/amltk/
 repo_name: automl/amltk
 
@@ -14,6 +14,7 @@ theme:
     - navigation.footer
     - navigation.tabs
     - navigation.tabs.sticky
+    - navigation.expand
     - toc.follow
     - header.autohide
     - search.suggest
@@ -93,7 +94,6 @@ plugins:
   - search
   - autorefs
   - glightbox
-  - site-urls
   - offline:
       enabled: !ENV [AMLTK_DOCS_OFFLINE, false]
   - markdown-exec
@@ -180,12 +180,9 @@ nav:
     - Meta-Learning:
       - "reference/metalearning/index.md"
 
-  - Examples:
-      - "examples/index.md"
-      - "examples/simple_hpo.md"
-      - "examples/hpo_with_ensembling.md"
     # Auto generated with docs/examples_runner.py
-  - API: "api/"
+  - Examples: "examples/"
     # Auto generated with docs/api_generator.py
+  - API: "api/"
   - Contributing: "contributing.md"
 

@@ -79,9 +79,6 @@ messages between the main process and the `Task`.
 
 ??? example "`@events`"
 
-    Check out the [`@events`](site:reference/scheduling/events.md)
-    reference for more on how to customize these callbacks.
-
     === "`@comm-message`"
 
         ::: amltk.scheduling.plugins.comm.Comm.MESSAGE

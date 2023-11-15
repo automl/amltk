@@ -12,8 +12,8 @@ This example shows the basic of setting up a simple HPO loop around a
 get a dataset and also use some static preprocessing as part of our pipeline
 definition.
 
-You can fine the [pipeline guide here](site:guides/pipelines.md)
-and the [optimization guide here](site:guides/optimization.md) to learn more.
+You can fine the [pipeline guide here](../guides/pipelines.md)
+and the [optimization guide here](../guides/optimization.md) to learn more.
 
 You can skip the imports sections and go straight to the
 [pipeline definition](#pipeline-definition).
@@ -75,7 +75,7 @@ Here we define a pipeline which splits categoricals and numericals down two
 different paths, and then combines them back together before passing them to
 the `RandomForestClassifier`.
 
-For more on definitions of pipelines, see the [Pipeline](site:guides/pipeline.md)
+For more on definitions of pipelines, see the [Pipeline](../guides/pipelines.md)
 guide.
 """
 pipeline = (
@@ -233,7 +233,7 @@ We use the [`Scheduler.with_processes`][amltk.scheduling.Scheduler.with_processe
 method to create a [`Scheduler`][amltk.scheduling.Scheduler] that will run the
 optimization.
 
-Please check out the full [guides](site:guides/index.md) to learn more!
+Please check out the full [guides](../guides/index.md) to learn more!
 
 We then create an [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] which will
 optimize the pipeline. We pass in the space of the pipeline, which is the space of
@@ -258,7 +258,7 @@ We use the callback decorators of the [`Scheduler`][amltk.scheduling.Scheduler] 
 the [`Task`][amltk.Task] to add callbacks that get called
 during events that happen during the running of the scheduler. Using this, we can
 control the flow of how things run.
-Check out the [task guide](site:guides/scheduling.md) for more.
+Check out the [task guide](../guides/scheduling.md) for more.
 
 This one here asks the optimizer for a new trial when the scheduler starts and
 launches the task we created earlier with this trial.

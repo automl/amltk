@@ -35,10 +35,6 @@ directly, but instead use the various components to create the pipeline.
     of the node. This include even the `parent` and `branches` fields. This
     means two nodes are considered equal if they look the same and they are
     connected in to nodes that also look the same.
-
-
-You can find the [reference to `Component`s here](site:reference/pipeline/components.md),
-while the [full guide to pipelines can be found here](site:guides/pipelines.md).
 """  # noqa: E501
 from __future__ import annotations
 
@@ -146,10 +142,6 @@ class Node(RichRenderable, Generic[Item, Space]):
     These are simple objects that are named and linked together to form
     a chain. They are then wrapped in a `Pipeline` object to provide
     a convenient interface for interacting with the chain.
-
-    See Also:
-        For creating the concrete implementations of this class, you should use
-        the [components available](site:reference/pipeline/components.md).
     """
 
     name: str = field(hash=True)
@@ -602,7 +594,22 @@ class Node(RichRenderable, Generic[Item, Space]):
         *builder_args: P.args,
         **builder_kwargs: P.kwargs,
     ) -> BuilderOutput | SklearnPipeline:
-        """Get the search space for this node."""
+        """Build a concrete object out of this node.
+
+        Args:
+            builder: The builder to use. This can be a function that takes in
+                the node and returns the object or a string that is one of:
+
+                * `#!python "sklearn"`: Build a
+                    [`sklearn.pipeline.Pipeline`][sklearn.pipeline.Pipeline]
+                    out of this node.
+
+            builder_args: The positional arguments to pass to the builder
+            builder_kwargs: The keyword arguments to pass to the builder
+
+        Returns:
+            The built object
+        """
         match builder:
             case "sklearn":
                 from amltk.pipeline.builders.sklearn import build as _build

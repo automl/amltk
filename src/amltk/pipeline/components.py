@@ -1,9 +1,5 @@
 """You can use the various different node types to build a pipeline.
 
-The syntactic meaning of these components are dependant upon
-the [search space parser](site:reference/pipelines/spaces.md)
-and [builder](site:reference/pipelines/builders.md) you use.
-
 You can connect these nodes together using either the constructors explicitly,
 as shown in the examples. We also provide some index operators:
 
@@ -21,9 +17,7 @@ There is also another short-hand that you may find useful to know:
     [`Sequential`][amltk.pipeline.Sequential] between the given components.
 
 For each of these components we will show examples using
-the `#! "sklearn"` builder but please check out the
-[builder reference](site:reference/pipelines/builders.md)
-for more.
+the [`#! "sklearn"` builder][amltk.pipeline.builders.sklearn.build]
 
 The components are:
 
@@ -686,8 +680,8 @@ class Split(Node[Item, Space]):
     will receive the data.
 
     If nodes are passed in as they are for all other components, usually the name of the
-    first node will be important for any [builder](site:reference/pipelines/builders.md),
-    trying to make sense of how to use the `Split`
+    first node will be important for any builder trying to make sense of how
+    to use the `Split`
 
 
     Like all [`Node`][amltk.pipeline.node.Node]s, a `Split` accepts an explicit

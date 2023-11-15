@@ -26,8 +26,8 @@ to create an ensemble using the
     https://www.cs.cornell.edu/~caruana/ctp/ct.papers/caruana.icml04.icdm06long.pdf
 
 This makes heavy use of the pipelines and the optimization faculties of
-amltk. You can fine the [pipeline guide here](site:guides/pipelines.md)
-and the [optimization guide here](site:guides/optimization.md) to learn more.
+amltk. You can fine the [pipeline guide here](../guides/pipelines.md)
+and the [optimization guide here](../guides/optimization.md) to learn more.
 
 You can skip the imports sections and go straight to the
 [pipeline definition](#pipeline-definition).
@@ -100,9 +100,8 @@ def get_dataset(seed: int) -> tuple[np.ndarray, ...]:
     return x_train, x_val, x_test, y_train, y_val, y_test  # type: ignore
 
 
-# 1. We use the `#!python split_data()` function from the
-#   [sklearn integrations](site:reference/sklearn.md) to split the data into
-#   a custom amount of splits, in this case
+# 1. We use the [`split_data()`][amltk.sklearn.data.split_data] function from the
+#   to split the data into a custom amount of splits, in this case
 #   `#!python "train", "val", "test"`. You could also use the
 #   dedicated [`train_val_test_split()`][amltk.sklearn.data.train_val_test_split]
 #   function instead.
@@ -114,7 +113,7 @@ different paths, and then combines them back together before passing them to
 a choice of classifier between a Random Forest, Support Vector Machine, and
 Multi-Layer Perceptron.
 
-For more on definitions of pipelines, see the [Pipeline](site:guides/pipeline.md)
+For more on definitions of pipelines, see the [Pipeline](../guides/pipelines.md)
 guide.
 """
 pipeline = (
@@ -194,7 +193,7 @@ We make use of a [`PathBucket`][amltk.store.PathBucket]
 to store and load the data, and the `Pipeline` we defined above to
 configure the pipeline with the hyperparameters we are optimizing over.
 
-For more details, please check out the [Optimization](site:guides/optimization.md)
+For more details, please check out the [Optimization](../guides/optimization.md)
 guide for more details.
 """
 

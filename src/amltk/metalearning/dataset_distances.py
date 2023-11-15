@@ -138,8 +138,6 @@ def dataset_distance(  # noqa: C901, PLR0912
     """Calculates the distance between a target dataset and a set of datasets.
 
     This uses the metafeatures of the datasets to calculate the distance.
-    Take a look at [`metalearning`](site:reference/metalearning.md) for more
-    information on computing metafeatures for datasets.
 
     Args:
         target: The target dataset's metafeatures.

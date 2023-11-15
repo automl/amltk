@@ -143,7 +143,7 @@ class Trial(Generic[I]):
     If you've [`profile()`][amltk.optimization.Trial.profile]'ed any other intervals,
     you can access them by name through
     [`trial.profiles`][amltk.optimization.Trial.profiles].
-    Please see the [profiling reference](site:reference/optimization/profiling.md)
+    Please see the [`Profiler`][amltk.profiling.profiler.Profiler]
     for more.
 
     ??? example "Profiling with a trial."

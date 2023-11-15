@@ -4,14 +4,10 @@ a `#!python submit(f, *args, **kwargs)` function to submit compute to
 be compute else where, whether it be locally or remotely.
 
 The `Scheduler` is primarily used to dispatch compute to an `Executor` and
-emit [`@events`](site:reference/scheduling/events.md), which can
-trigger user callbacks.
+emit `@events`, which can trigger user callbacks.
 
 Typically you should not use the `Scheduler` directly for dispatching and
-responding to computed functions, but rather use a [`Task`](site:reference/scheduling/task.md).
-
-For a complete walk-through please check out the
-[Scheduling Guide](site:guides/scheduling.md), this page is more for a quick reference.
+responding to computed functions, but rather use a [`Task`][amltk.scheduling.Task]
 
 !!! note "Jupyter Notebook"
 
@@ -68,9 +64,6 @@ you can respond to.
 
 ??? example "`@events`"
 
-    Check out the [`@events`](site:reference/scheduling/events.md)
-    reference for more on how to customize these callbacks.
-
     === "Scheduler Status Events"
 
         When the scheduler enters some important state, it will emit an event
@@ -104,7 +97,7 @@ you can respond to.
 
         When any compute goes through the `Scheduler`, it will emit an event
         to let you know. You should however prefer to use a
-        [`Task`](site:reference/scheduling/task.md) as it will emit specific events
+        [`Task`][amltk.scheduling.Task] as it will emit specific events
         for the task at hand, and not all compute.
 
         === "`@on_future_submitted`"

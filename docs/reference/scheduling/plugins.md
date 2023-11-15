@@ -7,7 +7,7 @@ or change the behaviour of what goes on in the function that is dispatched to th
 Some plugins will also add new `@event`s to a task, which can be used to respond accordingly to
 something that may have occured with your task.
 
-You can add a plugin to a [`Task`](site:reference/tasks/index.md) as so:
+You can add a plugin to a [`Task`](../../reference/scheduling/plugins.md) as so:
 
 ```python exec="true" html="true" source="material-block"
 from amltk.scheduling import Task, Scheduler

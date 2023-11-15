@@ -1,5 +1,5 @@
 ## Builders
-A [pipeline](site:reference/pipelines/pipeline.md) of [`Node`][amltk.pipeline.Node]s
+A [pipeline](../pipelines/pipeline.md) of [`Node`][amltk.pipeline.Node]s
 is just an abstract representation of some implementation of a pipeline that will actually do
 things, for example an sklearn [`Pipeline`][sklearn.pipeline.Pipeline] or a
 Pytorch `Sequential`.
@@ -8,7 +8,7 @@ To facilitate custom builders and to allow you to customize building,
 there is a explicit argument `builder=` required when
 calling [`.build(builder=...)`][amltk.pipeline.Node] on your pipeline.
 
-Each builder gives the [various kinds of components](site:reference/pipelines/components.md)
+Each builder gives the [various kinds of components](../pipelines/pipeline.md)
 an actual meaning, for example the [`Split`][amltk.pipeline.Split] with
 the sklearn [`builder()`][amltk.pipeline.builders.sklearn.build],
 translates to a [`ColumnTransformer`][sklearn.compose.ColumnTransformer] and

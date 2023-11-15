@@ -38,7 +38,7 @@ print(history.df())
 
 Typically, to use this inside of an optimization run, you would add the reports inside
 of a callback from your [`Task`][amltk.Task]s. Please
-see the [optimization guide](site:guides/optimization.md) for more details.
+see the [optimization guide](../../guides/optimization.md) for more details.
 
 ??? example "With an Optimizer and Scheduler"
 

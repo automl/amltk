@@ -16,8 +16,6 @@ from more_itertools import first_true, peekable
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)
 
-nav = mkdocs_gen_files.Nav()  # pyright: ignore[reportPrivateImportUsage]=false
-
 ENV_VAR = "AMLTK_DOC_RENDER_EXAMPLES"
 
 
@@ -288,9 +286,4 @@ for path in sorted(Path("examples").rglob("*.py")):
         f.write(example.generate_doc())
 
     toc_name = example.name
-    nav[toc_name] = doc_path.as_posix()
     mkdocs_gen_files.set_edit_path(full_doc_path, path)
-
-lines = list(nav.build_literate_nav())
-with mkdocs_gen_files.open("examples/index.md", "w") as nav_file:  #
-    nav_file.writelines(lines)  #

@@ -17,8 +17,7 @@ We provide a thin wrapper called
 you can integrate `Optuna` into your workflow.
 
 This uses an Optuna-like [`search_space()`][amltk.pipeline.Node.search_space] for
-its optimization, please see the
-[search space reference](site:reference/pipeline/spaces.md) for more.
+its optimization.
 
 Users should report results using
 [`trial.success()`][amltk.optimization.Trial.success]

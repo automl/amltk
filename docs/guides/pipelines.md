@@ -4,7 +4,7 @@ a central part of an AutoML system is its pipeline. The purpose of this
 guide is to help you understand all the utility AutoML-toolkit can
 provide to help you define your pipeline. We will do this by introducing concepts
 from the ground up, rather than top down.
-Please see [the reference](site:reference/pipelines/pipeline.md)
+Please see [the reference](../reference/pipelines/pipeline.md)
 if you just want to quickly look something up.
 
 ---
@@ -17,17 +17,17 @@ real life machinery process and the settings of these machines.
 
 To accomodate this, what AutoML-Toolkit provides is an **abstract** representation
 of a pipeline, to help you define its search space and also to build concrete
-objects in code if possible (see [builders](site:reference/pipelines/builders.md).
+objects in code if possible (see [builders](../reference/pipelines/builders.md).
 
 We categorize this into 4 steps:
 
-1. Parametrize your pipeline using the various [components](site:reference/piplines/pipeline.md),
+1. Parametrize your pipeline using the various [components](../reference/pipelines/pipeline.md),
     including the kinds of items in the pipeline, the search spaces and any additional configuration.
     Each of the various types of components give a syntactic meaning when performing the next steps.
 
 2. [`pipeline.search_space(parser=...)`][amltk.pipeline.Node.search_space],
     Get a useable search space out of the pipeline. This can then be passed to an
-    [`Optimizer`](site:reference/optimization/optimizers.md).
+    [`Optimizer`](../reference/optimization/optimizers.md).
 
 3. [`pipeline.configure(config=...)`][amltk.pipeline.Node.configure],
     Configure your pipeline, either manually or using a configuration suggested by
@@ -143,7 +143,7 @@ from amltk._doc import doc_print; doc_print(print, component_with_function, outp
 ```
 
 ### Search Space
-If interacting with an [`Optimizer`](site:reference/optimization/optimizers.md), you'll often require some
+If interacting with an [`Optimizer`](../reference/optimization/optimizers.md), you'll often require some
 search space object to pass to it.
 To extract a search space from a `Component`, we can call [`search_space(parser=)`][amltk.pipeline.Node.search_space],
 passing in the kind of search space you'd like to get out of it.
@@ -155,7 +155,7 @@ print(space)
 
 !!! tip inline end "Available Search Spaces"
 
-    Please see the [spaces reference](site:reference/pipelines/spaces.md)
+    Please see the [spaces reference](../reference/pipelines/spaces.md)
 
 Depending on what you pass as the `parser=` to `search_space(parser=...)`, we'll attempt
 to give you a valid search space. In this case, we specified `#!python "configspace"` and 
@@ -209,7 +209,7 @@ print(the_built_model)
 ```
 
 For a look at the available arguments to pass to `builder=`, see the
-[builder reference](site:reference/pipelines/builders.md)
+[builder reference](../reference/pipelines/builders.md)
 
 ### Fixed
 
@@ -388,7 +388,7 @@ doc_print(print, configured_pipeline)  # markdown-exec: hide
 To build a pipeline of nodes, we simply call [`build(builder=)`][amltk.pipeline.Node.build]. We
 explicitly pass the builder we want to use, which informs `build()` how to go from the abstract
 pipeline definition you've defined to something concrete you can use.
-You can find the [available builders here](site:reference/pipelines/builders.md).
+You can find the [available builders here](../reference/pipelines/builders.md).
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Nodes"
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -453,7 +453,7 @@ from amltk._doc import doc_print; doc_print(print, space, output="html")  # mark
     `parser=` may not be able to handle this. In this case, there won't be
     any conditionality in the search space.
 
-    Check out the [parser reference](site:reference/pipelines/spaces.md)
+    Check out the [parser reference](../reference/pipelines/spaces.md)
     for more information.
 
 When we `configure()` a choice, we will collapse it down to a single component. This is
@@ -505,7 +505,7 @@ each of the paths in a [`Sequential`][amltk.pipeline.Sequential].
 The second thing is that the parameters set for the `.config` matches those of the
 paths. This let's the `Split` know which data should be sent where. Each `builder=`
 will have it's own way of how to set up a `Split` and you should refer to
-the [builders reference](site:reference/pipelines/builders.md) for more information.
+the [builders reference](../reference/pipelines/builders.md) for more information.
 
 Our last step is just to convert this into a useable object and so once again
 we use [`build()`][amltk.pipeline.Node.build].

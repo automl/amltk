@@ -41,9 +41,6 @@ performed in processes.
 
 ??? example "`@events`"
 
-    Check out the [`@events`](site:reference/scheduling/events.md)
-    reference for more on how to customize these callbacks.
-
     === "`@pynisher-timeout`"
 
         ::: amltk.scheduling.plugins.pynisher.PynisherPlugin.TIMEOUT

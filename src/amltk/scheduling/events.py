@@ -1,6 +1,6 @@
 """One of the primary ways to respond to `@events` emitted
-with by a [`Task`](site:reference/scheduling/task.md) or
-the [`Scheduler`](site:reference/scheduling/scheduler.md)
+with by a [`Task`][amltk.scheduling.Task]
+the [`Scheduler`][amltk.scheduling.Scheduler]
 is through use of a **callback**.
 
 The reason for this is to enable an easier time for API's to utilize

@@ -35,10 +35,10 @@ task or build brand new AutoML systems.
     !!! tip "Notable Features"
 
         * A system that allows incremental and encapsulated feature addition.
-        * An [`@event`](site:reference/scheduling/events.md) system with easy to use _callbacks_.
-        * Place constraints and modify your [`Task`](site:reference/scheduling/task.md)
-            with [`Plugins`](site:reference/scheduling/plugins.md)
-        * Integrations for different [backends](site:reference/scheuling/executors.md) for where
+        * An [`@event`](../reference/scheduling/events.md) system with easy to use _callbacks_.
+        * Place constraints and modify your [`Task`](../reference/scheduling/task.md)
+            with [`Plugins`](../reference/scheduling/plugins.md)
+        * Integrations for different [backends](../reference/scheduling/executors.md) for where
         to run your tasks.
         * A wide set of events to plug into.
         * An easy way to extend the functionality provided with your own set of domain or task

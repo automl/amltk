@@ -14,12 +14,12 @@ Once a pipeline is created, you can perform 3 very critical operations on it:
 
 * [`search_space(parser=...)`][amltk.pipeline.node.Node.search_space] - This will return the
   search space of the pipeline, as defined by it's nodes. You can find the reference to
-  the [available parsers and search spaces here](site:reference/pipelines/search_spaces.md).
+  the [available parsers and search spaces here](../pipelines/spaces.md).
 * [`configure(config=...)`][amltk.pipeline.node.Node.configure] - This will return a
   new pipeline where each node is configured correctly.
 * [`build(builder=...)`][amltk.pipeline.node.Node.build] - This will return some
     concrete object from a configured pipeline. You can find the reference to
-    the [available builders here](site:reference/pipelines/builders.md).
+    the [available builders here](../pipelines/builders.md).
 
 ### Components
 

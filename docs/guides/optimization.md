@@ -4,10 +4,10 @@
     Need to document more about `Trial` objects, `Report` and `History`.
     Please see the following references for the time being:
 
-    * [`Optimizer` reference](site:reference/optmization/optimizers.md)
-    * [`Trial` reference](site:reference/optmization/trials.md)
-    * [`Profiler` reference](site:reference/optmization/history.md)
-    * [`History` reference](site:reference/optmization/profiling.md)
+    * [`Optimizer` reference](../reference/optimization/optimizers.md)
+    * [`Trial` reference](../reference/optimization/trials.md)
+    * [`Profiler` reference](../reference/optimization/history.md)
+    * [`History` reference](../reference/optimization/profiling.md)
 
 One of the core tasks of any AutoML system is to optimize some objective,
 whether it be some pipeline, a black-box or even a toy function.
@@ -32,7 +32,7 @@ very central premise.
 
     ```
 
-You can check out the integrated optimizers in our [optimizer reference](site:reference/optimization/optimizers.md)
+You can check out the integrated optimizers in our [optimizer reference](../reference/optimization/optimizers.md)
 
 ??? note "Why?"
 
@@ -51,8 +51,8 @@ You can check out the integrated optimizers in our [optimizer reference](site:re
     to worry that the internal state of the optimizer is updated accordingly to these
     two _"Ask"_ and _"Tell"_ events and that's it.
 
-This guide relies lightly on topics covered in the [Pipeline Guide](site:guides/pipelines.md) for
-creating a pipeline but also the [Scheduling guide](site:guides/scheduling.md) for creating a
+This guide relies lightly on topics covered in the [Pipeline Guide](../guides/pipelines.md) for
+creating a pipeline but also the [Scheduling guide](../guides/scheduling.md) for creating a
 [`Scheduler`][amltk.scheduling.Scheduler] and a [`Task`][amltk.scheduling.Task].
 These aren't required but if something is not clear or you'd like to know **how** something
 works, please refer to these guides or the reference!
@@ -69,7 +69,7 @@ def poly(x: float) -> float:
 
 Our next step is to define the search range over which we want to optimize, in
 this case, the range of values `x` can take. We cover this in more detail
-in the [Pipeline guide](site:guides/pipelines.md).
+in the [Pipeline guide](../guides/pipelines.md).
 
 ```python exec="true" source="material-block" html="true" hl_lines="6"
 from amltk.pipeline import Searchable
@@ -88,7 +88,7 @@ which has one called `#!python "x"` which is in the range `#!python [-10.0, 10.0
 
 We'll utilize by using [SMAC](https://github.com/automl/SMAC3)
 here for optimization as an example but you can find other available
-optimizers [here](site:reference/optimization/optimizers.md).
+optimizers [here](../reference/optimization/optimizers.md).
 
 ??? info "Requirements"
 
@@ -124,7 +124,7 @@ which is the kind of search space that
 !!! info inline end "Available Optimizers"
 
     To see a list of available optimizers and their usage, please
-    see the [optimizer reference](site:reference/optimization/optimizers.md).
+    see the [optimizer reference](../reference/optimization/optimizers.md).
 
 ```python exec="true" result="python" source="material-block"
 from amltk.optimization.optimizers.smac import SMACOptimizer

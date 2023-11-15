@@ -26,9 +26,6 @@ it gives some nice utility.
 
 ??? example "`@events`"
 
-    Check out the [`@events`](site:reference/scheduling/events.md)
-    reference for more on how to customize these callbacks.
-
     === "`@call-limit-reached`"
 
         ::: amltk.scheduling.plugins.Limiter.CALL_LIMIT_REACHED

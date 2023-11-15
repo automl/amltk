@@ -12,7 +12,7 @@ with callbacks and act accordingly.
 
 ??? example "`@events`"
 
-    Check out the [`@events`](site:reference/scheduling/events.md) reference
+    Check out the `@events` reference
     for more on how to customize these callbacks. You can also take a look
     at the API of [`on()`][amltk.scheduling.task.Task.on] for more information.
 
@@ -67,11 +67,8 @@ with callbacks and act accordingly.
     If you'd like to simply just call the original function, without submitting it to
     the scheduler, you can always just call the task directly, i.e. `#!python task(1)`.
 
-You can also provide [`Plugins`](site:reference/scheduling/plugins.md) to the task,
+You can also provide [`Plugins`][amltk.scheduling.plugins.Plugin] to the task,
 to modify tasks, add functionality and add new events.
-
-Please check out the [Scheduling Guide](site:guides/scheduling.md)
-for a more detailed walkthrough.
 """
 from __future__ import annotations
 

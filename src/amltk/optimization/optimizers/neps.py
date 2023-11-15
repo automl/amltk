@@ -19,9 +19,7 @@ is a wrapper around the [`NePs`](https://github.com/automl/neps) optimizer.
     AMLTK.
 
 This uses `ConfigSpace` as its [`search_space()`][amltk.pipeline.Node.search_space] to
-optimize. Please see
-[amltk.pipeline.parsers.configspace][amltk.pipeline.parsers.configspace.parser]
-and the [search space reference](site:reference/pipeline/spaces.md) for more.
+optimize.
 
 Users should report results using
 [`trial.success(loss=...)`][amltk.optimization.Trial.success]
