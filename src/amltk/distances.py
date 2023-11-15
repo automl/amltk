@@ -1,7 +1,7 @@
 """Distance functions.
 
 This module contains functions for calculating the distance between
-two vectors
+two vectors.
 """
 from __future__ import annotations
 
