@@ -52,12 +52,15 @@ jobs:
           github_token: ${{ secrets.PUSH_ACCESS }}
           debug: true
           changelog_increment_filename: changelog-increment.md
-      - run: cat changelog-increment.md
+      - run: |
+          mkdir changelog-output
+          mv changelog-increment.md changelog-output/changelog-increment.md
+          cat changelog-output/changelog-increment.md
       - name: Upload the changelog
         uses: actions/upload-artifact@v3
         with:
           name: changelog
-          path: changelog-increment.md
+          path: changelog-output
 
   build:
     needs: [bump]
@@ -129,13 +132,16 @@ jobs:
         with:
             name: build-output
             path: dist
+      - run: ls -R dist
       - name: Download the changelog
         uses: actions/download-artifact@v3
         with:
           name: changelog
-          path: changelog-increment.md
-      - run: ls -R dist
-      - run: cat changelog-increment.md
+          path: changelog-output
+      - run: |
+          ls -R changelog-output
+          mv changelog-output/changelog-increment.md changelog-increment.md
+          cat changelog-increment.md
       - name: "Create Github Release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
