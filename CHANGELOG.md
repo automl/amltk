@@ -1,3 +1,9 @@
+## 0.11.21 (2023-11-15)
+
+### Fix
+
+- **ci**: Debug dist output from download
+
 ## 0.11.20 (2023-11-15)
 
 ### Fix
