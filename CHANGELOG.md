@@ -1,3 +1,9 @@
+## 0.11.30 (2023-11-15)
+
+### Fix
+
+- **ci**: Download change-log increment at release step
+
 ## 0.11.29 (2023-11-15)
 
 ### Fix
