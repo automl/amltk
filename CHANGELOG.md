@@ -1,3 +1,9 @@
+## 0.11.16 (2023-11-15)
+
+### Fix
+
+- **ci**: Add missing dependancies for doc building
+
 ## 0.11.15 (2023-11-15)
 
 ### Fix
