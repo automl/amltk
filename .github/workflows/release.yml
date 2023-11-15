@@ -51,11 +51,16 @@ jobs:
         with:
           github_token: ${{ secrets.PUSH_ACCESS }}
           debug: true
+
   build:
     needs: [bump]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: "main"  # Necessary to download the latest of main as this will have been updated on the step before
+          fetch-tags: 1
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
@@ -67,12 +72,14 @@ jobs:
         with:
           name: build-output
           path: dist
+
   docs:
     needs: [bump]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: "main"  # Necessary to download the latest of main as this will have been updated on the step before
           fetch-tags: 1
           fetch-depth: 0
       - uses: actions/setup-python@v4
@@ -87,6 +94,14 @@ jobs:
           git config user.name doc-bot
           git config user.email doc-bot@amltk.com
           current_version=$(git tag | sort --version-sort | tail -n 1)
+
+          # This block will rename previous retitled versions
+          retitled_versions=$(mike list -j | jq ".[] | select(.title != .version) | .version")
+          for version in $retitled_versions; do
+            mike retitle "${version}" "${version}"
+          done
+
+          echo "Deploying docs for ${current_version}"
           mike deploy \
             --push \
             --title "${current_version} (latest)" \
@@ -99,6 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          ref: "main"  # Necessary to download the latest of main as this will have been updated on the step before
           fetch-tags: 1
           fetch-depth: 0
       - uses: actions/download-artifact@v3
@@ -111,6 +127,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           current_version=$(git tag | sort --version-sort | tail -n 1)
+          echo "Release for ${current_version}"
           gh release create  \
             --generate-notes \
             --prerelease \
@@ -123,6 +140,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: "main"  # Necessary to download the latest of main as this will have been updated on the step before
       - uses: actions/download-artifact@v3
         with:
             name: build-output
