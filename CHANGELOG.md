@@ -1,3 +1,9 @@
+## 0.11.29 (2023-11-15)
+
+### Fix
+
+- **ci**: Attach proper changelog to release
+
 ## 0.11.28 (2023-11-15)
 
 ### Fix
