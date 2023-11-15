@@ -130,7 +130,7 @@ jobs:
             name: build-output
             path: dist
       - name: Download the changelog
-        uses: actions/upload-artifact@v3
+        uses: actions/download-artifact@v3
         with:
           name: changelog
           path: changelog-increment.md
