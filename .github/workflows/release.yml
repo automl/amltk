@@ -78,13 +78,15 @@ jobs:
         run: |
           current_version="${{ steps.cz.outputs.version }}"
           latest_tag="$(git tag | sort --version-sort | tail -n1)"
+          echo "Updated version: ${current_version}"
+          echo "Latest tag: ${latest_tag}"
 
           # Deploy this verison at any rate
           if [ "$latest_tag" == "$current_version" ]; then
             mike deploy \
               --push \
               --title "${current_version} (latest)" \
-              --update-aliases
+              --update-aliases \
               "${current_version}" \
               "latest"
           else
@@ -105,8 +107,6 @@ jobs:
         with:
             name: python-package-distributions
             path: dist/
-      - name: Publish distribution 📦 to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
       - name: "Create Github Release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -116,3 +116,5 @@ jobs:
             --prerelease \
             --verify-tag \
             ${{ github.event.release.tag_name }} "dist/*.tar.gz"
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
