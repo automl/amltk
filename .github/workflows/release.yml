@@ -28,7 +28,7 @@ jobs:
   # Need to ensure we bump before we create any artifacts
   bump:
     runs-on: ubuntu-latest
-    #needs: [test-code, test-docs]
+    needs: [test-code, test-docs]
     steps:
       - uses: actions/checkout@v3
         with:
