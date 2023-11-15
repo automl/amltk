@@ -51,6 +51,13 @@ jobs:
         with:
           github_token: ${{ secrets.PUSH_ACCESS }}
           debug: true
+          changelog_increment_filename: changelog-increment.md
+      - run: cat changelog-increment.md
+      - name: Upload the changelog
+        uses: actions/upload-artifact@v3
+        with:
+          name: changelog
+          path: changelog-increment.md
 
   build:
     needs: [bump]
@@ -117,11 +124,18 @@ jobs:
           ref: "main"  # Necessary to download the latest of main as this will have been updated on the step before
           fetch-tags: 1
           fetch-depth: 0
-      - uses: actions/download-artifact@v3
+      - name: Download the build artifiact
+        uses: actions/download-artifact@v3
         with:
             name: build-output
             path: dist
+      - name: Download the changelog
+        uses: actions/upload-artifact@v3
+        with:
+          name: changelog
+          path: changelog-increment.md
       - run: ls -R dist
+      - run: cat changelog-increment.md
       - name: "Create Github Release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -130,6 +144,7 @@ jobs:
           echo "Release for ${current_version}"
           gh release create  \
             --generate-notes \
+            --notes-file changelog-increment.md \
             --prerelease \
             --verify-tag \
             "${current_version}" "dist/amltk-${current_version}.tar.gz"
