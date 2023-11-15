@@ -96,7 +96,7 @@ jobs:
           current_version=$(git tag | sort --version-sort | tail -n 1)
 
           # This block will rename previous retitled versions
-          retitled_versions=$(mike list -j | jq ".[] | select(.title != .version) | .version")
+          retitled_versions=$(mike list -j | jq ".[] | select(.title != .version) | .version" | tr -d '"')
           for version in $retitled_versions; do
             mike retitle "${version}" "${version}"
           done
