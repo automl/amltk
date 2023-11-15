@@ -1,3 +1,9 @@
+## 0.11.31 (2023-11-15)
+
+### Fix
+
+- **ci**: Use directory to store changelog-increment.md
+
 ## 0.11.30 (2023-11-15)
 
 ### Fix
