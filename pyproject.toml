@@ -37,6 +37,7 @@ doc = [
   "mkdocs-autorefs",
   "mkdocs-gen-files",
   "mkdocs-literate-nav",
+  "mkdocs-site-urls",
   "mkdocs-glightbox",
   "mkdocstrings[python]",
   "markdown-exec[ansi]",
