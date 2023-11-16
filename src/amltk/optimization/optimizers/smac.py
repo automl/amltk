@@ -36,12 +36,12 @@ from sklearn.model_selection import train_test_split
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.scheduling import Scheduler
 from amltk.optimization import History, Trial
-from amltk.pipeline import Component
+from amltk.pipeline import Component, Node
 
 logging.basicConfig(level=logging.INFO)
 
 
-def target_function(trial: Trial, pipeline: Pipeline) -> Trial.Report:
+def target_function(trial: Trial, pipeline: Node) -> Trial.Report:
     X, y = load_iris(return_X_y=True)
     X_train, X_test, y_train, y_test = train_test_split(X, y)
     clf = pipeline.configure(trial.config).build("sklearn")
