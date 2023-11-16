@@ -311,3 +311,23 @@ def test_cant_subscribe_to_nonexistent_event(scheduler: Scheduler) -> None:
         @task.on("some-typo-in-the-event-here")
         def _blah():
             pass
+
+
+def test_call_later(scheduler: Scheduler) -> None:
+    @scheduler.on_start
+    def register_call_later() -> None:
+        scheduler.call_later(0.1, raise_exception)
+
+    with pytest.raises(CustomError):
+        scheduler.run(end_on_empty=False)
+
+
+def test_call_later_cancellable(scheduler: Scheduler) -> None:
+    @scheduler.on_start
+    def register_call_later() -> None:
+        # The handler is cancelled before it can raise the exception
+        handler = scheduler.call_later(20, raise_exception)
+        handler.cancel()
+
+    end_status = scheduler.run(timeout=1, end_on_empty=False)
+    assert end_status.code == ExitState.Code.TIMEOUT

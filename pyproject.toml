@@ -301,3 +301,4 @@ reportUnknownArgumentType = false
 reportUnknownLambdaType = false
 reportPrivateUsage = false
 reportUnnecessaryCast = false
+reportUnusedFunction = false
