@@ -66,13 +66,13 @@ def as_int(seed: Seed | None = None) -> int:
     """
     match seed:
         case None:
-            return np.random.default_rng().integers(0, MAX_INT)
+            return int(np.random.default_rng().integers(0, MAX_INT))
         case np.integer() | int():
             return int(seed)
         case np.random.Generator():
-            return seed.integers(0, MAX_INT)
+            return int(seed.integers(0, MAX_INT))
         case np.random.RandomState():
-            return seed.randint(0, MAX_INT)
+            return int(seed.randint(0, MAX_INT))
 
     raise ValueError(f"Can't {seed=} ({type(seed)}) to create int")
 
