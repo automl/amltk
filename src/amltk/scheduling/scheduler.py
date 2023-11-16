@@ -206,10 +206,32 @@ itself or your callbacks.
             However there is no guarantee of this and is up to how the
             `Executor` handles this.
 
+??? example "Scheduling something to be run later"
+
+    You can schedule some function to be run later using the
+    [`#!python scheduler.call_later()`][amltk.scheduling.Scheduler.call_later] method.
+
+    ```python exec="true" source="material-block" result="python"
+    from amltk.scheduling import Scheduler
+
+    scheduler = Scheduler.with_processes(1)
+
+    def fn() -> int:
+        print("Ending now!")
+        scheduler.stop()
+
+    @scheduler.on_start
+    def schedule_fn() -> None:
+        scheduler.call_later(1, fn)
+
+    scheduler.run(end_on_empty=False)
+    ```
+
 Lastly, the `Scheduler` can render a live display using
 [`run(display=...)`][amltk.scheduling.Scheduler.run]. This
 require [`rich`](https://github.com/Textualize/rich) to be installed. You
 can install this with `#!bash pip install rich` or `#!bash pip install amltk[rich]`.
+
 """  # noqa: E501
 from __future__ import annotations
 
@@ -221,6 +243,7 @@ from collections.abc import Callable, Iterable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import dataclass
 from enum import Enum, auto
+from functools import partial
 from threading import Timer
 from typing import (
     TYPE_CHECKING,
@@ -1312,6 +1335,32 @@ class Scheduler:
 
         self._stop_event.set(msg=msg, exception=exception)
         self._running_event.clear()
+
+    def call_later(
+        self,
+        delay: float,
+        fn: Callable[P, Any],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> asyncio.TimerHandle:
+        """Schedule a function to be run after a delay.
+
+        Args:
+            delay: The delay in seconds.
+            fn: The function to run.
+            args: The positional arguments to pass to the function.
+            kwargs: The keyword arguments to pass to the function.
+
+        Returns:
+            A timer handle that can be used to cancel the function.
+        """
+        if not self.running():
+            raise RuntimeError("Scheduler is not running!")
+
+        _fn = partial(fn, *args, **kwargs)
+
+        loop = asyncio.get_running_loop()
+        return loop.call_later(delay, self.submit, _fn)
 
     @staticmethod
     def _end_pending(
