@@ -1,0 +1,9 @@
+{% if labels %}
+  {{ log.debug("Rendering labels") }}
+  <span class="doc doc-labels">
+    <br>
+    {% for label in labels|sort %}
+    <small class="doc doc-label doc-label-{{ label }}"><code>{{ label|replace("property", "prop")|replace("instance-attribute", "attr")|replace("dataclass", "dataclass")|replace("class-attribute", "classvar") }}</code></small>
+    {% endfor %}
+  </span>
+{% endif %}
