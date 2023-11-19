@@ -59,6 +59,7 @@ threadpoolctl = ["threadpoolctl"]
 xgboost = ["xgboost"]
 neps = ["neural-pipeline-search"]
 rich = ["rich"]
+cluster = ["dask-jobqueue"]
 notebook = ["rich[jupyter]"]
 path_loaders = ["openpyxl", "pyarrow"]
 
