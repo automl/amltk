@@ -170,6 +170,7 @@ nav:
       - "reference/pipelines/builders.md"
       # - "reference/pipelines/prebuilts.md"
     - Optimization:
+      - "reference/optimization/metrics.md"
       - "reference/optimization/optimizers.md"
       - "reference/optimization/trials.md"
       - "reference/optimization/history.md"

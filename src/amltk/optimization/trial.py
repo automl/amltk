@@ -19,7 +19,7 @@ a simple [`trial.success(cost=...)`][amltk.optimization.Trial.success] or
 
 ### Report
 
-::: amltk.optimization.trial.Trial
+::: amltk.optimization.trial.Trial.Report
     options:
         members: False
 
@@ -29,19 +29,12 @@ from __future__ import annotations
 import copy
 import logging
 import traceback
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Generic,
-    Literal,
-    TypeVar,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 from typing_extensions import ParamSpec, Self, override
 
 import numpy as np
@@ -49,6 +42,7 @@ import pandas as pd
 from rich.text import Text
 
 from amltk._functional import dict_get_not_none, mapping_select, prefix_keys
+from amltk.optimization.metric import Metric
 from amltk.profiling import Memory, Profile, Profiler, Timer
 from amltk.store import Bucket, PathBucket
 
@@ -98,8 +92,10 @@ class Trial(Generic[I]):
         from here.
 
         ```python exec="true" source="material-block" html="true"
-        from amltk.optimization import Trial
+        from amltk.optimization import Trial, Metric
         from amltk.store import PathBucket
+
+        cost = Metric("cost", minimize=True)
 
         def target_function(trial: Trial) -> Trial.Report:
             x = trial.config["x"]
@@ -114,13 +110,23 @@ class Trial(Generic[I]):
             return trial.success(cost=cost)
 
         # ... usually obtained from an optimizer
-        bucket = PathBucket("all-trial-results")
-        trial = Trial(name="some-unique-name", config={"x": 1, "y": 2}, bucket=bucket)
+        trial = Trial(name="some-unique-name", config={"x": 1, "y": 2}, metrics=[cost])
 
         report = target_function(trial)
         print(report.df())
-        bucket.rmdir()  # markdon-exec: hide
         ```
+
+
+    What you can return with [`trial.success()`][amltk.optimization.Trial.success]
+    or [`trial.fail()`][amltk.optimization.Trial.fail] depends on the
+    [`metrics`][amltk.optimization.Trial.metrics] of the trial. Typically
+    an optimizer will provide the trial with the list of metrics.
+
+    ??? tip "Metrics"
+
+        ::: amltk.optimization.metric.Metric
+            options:
+                members: False
 
     Some important properties is that they have a unique
     [`.name`][amltk.optimization.Trial.name] given the optimization run,
@@ -191,6 +197,9 @@ class Trial(Generic[I]):
     info: I | None = field(default=None, repr=False)
     """The info of the trial provided by the optimizer."""
 
+    metrics: Sequence[Metric] = field(default_factory=list)
+    """The metrics associated with the trial."""
+
     seed: int | None = None
     """The seed to use if suggested by the optimizer."""
 
@@ -215,11 +224,6 @@ class Trial(Generic[I]):
     summary: dict[str, Any] = field(default_factory=dict)
     """The summary of the trial. These are for summary statistics of a trial and
     are single values."""
-
-    results: dict[str, Any] = field(default_factory=dict)
-    """The results of the trial. These are what will be reported to the optimizer.
-    These are mainly set by the [`success()`][amltk.optimization.trial.Trial.success]
-    and [`fail()`][amltk.optimization.trial.Trial.fail] methods."""
 
     exception: BaseException | None = field(repr=True, default=None)
     """The exception raised by the trial, if any."""
@@ -258,7 +262,7 @@ class Trial(Generic[I]):
         ```python exec="true" source="material-block" result="python" title="begin" hl_lines="5"
         from amltk.optimization import Trial
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        trial = Trial(name="trial", config={"x": 1})
 
         with trial.begin():
             # Do some work
@@ -271,7 +275,7 @@ class Trial(Generic[I]):
         ```python exec="true" source="material-block" result="python" title="begin-fail" hl_lines="5"
         from amltk.optimization import Trial
 
-        trial = Trial(name="trial", config={"x": -1}, info={})
+        trial = Trial(name="trial", config={"x": -1})
 
         with trial.begin():
             raise ValueError("x must be positive")
@@ -316,7 +320,7 @@ class Trial(Generic[I]):
         from amltk.optimization import Trial
         import time
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        trial = Trial(name="trial", config={"x": 1})
 
         with trial.profile("some_interval"):
             # Do some work
@@ -343,50 +347,95 @@ class Trial(Generic[I]):
             profile = self.profiler[name]
             self.summary.update(profile.to_dict(prefix=name))
 
-    def success(self, **results: Any) -> Trial.Report[I]:
+    def success(self, **metrics: float | int) -> Trial.Report[I]:
         """Generate a success report.
 
         ```python exec="true" source="material-block" result="python" title="success" hl_lines="7"
-        from amltk.optimization import Trial
+        from amltk.optimization import Trial, Metric
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        loss_metric = Metric("loss", minimize=True)
+
+        trial = Trial(name="trial", config={"x": 1}, metrics=[loss_metric])
 
         with trial.begin():
             # Do some work
-            report = trial.success(cost=1)
+            report = trial.success(loss=1)
 
         print(report)
         ```
 
-        Returns:
-            The result of the trial.
-        """  # noqa: E501
-        self.results = results
-        return Trial.Report(trial=self, status=Trial.Status.SUCCESS)
+        Args:
+            **metrics: The metrics of the trial, where the key is the name of the
+                metrics and the value is the metric.
 
-    def fail(self, **results: Any) -> Trial.Report[I]:
+        Returns:
+            The report of the trial.
+        """  # noqa: E501
+        _recorded_values: list[Metric.Value] = []
+        for _metric in self.metrics:
+            if (raw_value := metrics.get(_metric.name)) is not None:
+                _recorded_values.append(_metric.as_value(raw_value))
+            else:
+                raise ValueError(
+                    f"Cannot report success without {self.metrics=}."
+                    f" Please provide a value for the metric.",
+                )
+
+        # Need to check if anything extra was reported!
+        extra = set(metrics.keys()) - {metric.name for metric in self.metrics}
+        if extra:
+            raise ValueError(
+                f"Cannot report success with extra metrics: {extra=}."
+                f"\nOnly {self.metrics=} are allowed.",
+            )
+
+        return Trial.Report(
+            trial=self,
+            status=Trial.Status.SUCCESS,
+            metric_values=tuple(_recorded_values),
+        )
+
+    def fail(self, **metrics: float | int) -> Trial.Report[I]:
         """Generate a failure report.
 
-        ```python exec="true" source="material-block" result="python" title="fail" hl_lines="6 9 10"
-        from amltk.optimization import Trial
+        !!! note "Non specifed metrics"
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+            If you do not specify metrics, this will use
+            the [`.metrics`][amltk.optimization.Trial.metrics] to determine
+            the [`.worst`][amltk.optimization.Metric.worst] value of the metric,
+            using that as the reported result
+
+        ```python exec="true" source="material-block" result="python" title="fail"
+        from amltk.optimization import Trial, Metric
+
+        loss = Metric("loss", minimize=True, bounds=(0, 1_000))
+        trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
         with trial.begin():
             raise ValueError("This is an error")  # Something went wrong
-            report = trial.success(cost=1)
 
         if trial.exception: # You can check for an exception of the trial here
-            report = trial.fail(cost=100)
+            report = trial.fail()
 
+        print(report.metrics)
         print(report)
         ```
 
         Returns:
             The result of the trial.
-        """  # noqa: E501
-        self.results = results
-        return Trial.Report(trial=self, status=Trial.Status.FAIL)
+        """
+        _recorded_values: list[Metric.Value] = []
+        for _metric in self.metrics:
+            if (raw_value := metrics.get(_metric.name)) is not None:
+                _recorded_values.append(_metric.as_value(raw_value))
+            else:
+                _recorded_values.append(_metric.worst)
+
+        return Trial.Report(
+            trial=self,
+            status=Trial.Status.FAIL,
+            metric_values=tuple(_recorded_values),
+        )
 
     def crashed(
         self,
@@ -401,6 +450,12 @@ class Trial(Generic[I]):
             recieve a report from a target function evaluation, but only an error,
             we assume something crashed and generate a crash report for you.
 
+        !!! note "Non specifed metrics"
+
+            We will use the [`.metrics`][amltk.optimization.Trial.metrics] to determine
+            the [`.worst`][amltk.optimization.Metric.worst] value of the metric,
+            using that as the reported metrics
+
         Args:
             exception: The exception that caused the crash. If not provided, the
                 exception will be taken from the trial. If this is still `None`,
@@ -409,7 +464,7 @@ class Trial(Generic[I]):
                 traceback will be taken from the trial if there is one there.
 
         Returns:
-            The result of the trial.
+            The report of the trial.
         """
         if exception is None and self.exception is None:
             raise RuntimeError(
@@ -421,7 +476,11 @@ class Trial(Generic[I]):
         self.exception = exception if exception else self.exception
         self.traceback = traceback if traceback else self.traceback
 
-        return Trial.Report(trial=self, status=Trial.Status.CRASHED)
+        return Trial.Report(
+            trial=self,
+            status=Trial.Status.CRASHED,
+            metric_values=tuple(metric.worst for metric in self.metrics),
+        )
 
     def store(
         self,
@@ -437,7 +496,7 @@ class Trial(Generic[I]):
         from amltk.optimization import Trial
         from amltk.store import PathBucket
 
-        trial = Trial(name="trial", config={"x": 1}, info={}, bucket=PathBucket("results"))
+        trial = Trial(name="trial", config={"x": 1}, bucket=PathBucket("results"))
         trial.store({"config.json": trial.config})
 
         print(trial.storage)
@@ -447,12 +506,9 @@ class Trial(Generic[I]):
 
         ```python exec="true" source="material-block" result="python" title="store-bucket" hl_lines="7"
         from amltk.optimization import Trial
-        from amltk.store import PathBucket
 
-        bucket = PathBucket("results")
-        trial = Trial(name="trial", config={"x": 1}, info={})
-
-        trial.store({"config.json": trial.config}, where=bucket)
+        trial = Trial(name="trial", config={"x": 1})
+        trial.store({"config.json": trial.config}, where="./results")
 
         print(trial.storage)
         ```
@@ -465,6 +521,9 @@ class Trial(Generic[I]):
 
             where: Where to store the items.
 
+                * If `None`, will use the bucket attached to the `Trial` if any,
+                    otherwise it will raise an error.
+
                 * If a `str` or `Path`, will store
                 a bucket will be created at the path, and the items will be
                 stored in a sub-bucket with the name of the trial.
@@ -475,30 +534,24 @@ class Trial(Generic[I]):
                 * If a `Callable`, will call the callable with the name of the
                 trial and the key-valued pair of items to store.
         """  # noqa: E501
-        if where is None:
-            if self.bucket is None:
-                raise ValueError(
-                    "Cannot store items without a bucket. Please specify a bucket"
-                    " or set the bucket on the trial.",
-                )
-            where = self.bucket
-
-        # If not a Callable, we convert to a path bucket
-        method: Callable[[str, dict[str, Any]], None] | Bucket
-        if isinstance(where, str):
-            where = Path(where)
-            method = PathBucket(where, create=True)
-        elif isinstance(where, Path):
-            method = PathBucket(where, create=True)
-        else:
-            method = where
-
-        if isinstance(method, Bucket):
-            # Store in a sub-bucket
-            method.sub(self.name).store(items)
-        else:
-            # Leave it up to supplied method
-            method(self.name, items)
+        match where:
+            case None:
+                if self.bucket is None:
+                    raise ValueError(
+                        "Cannot store items without a `where=`. Please specify"
+                        " `where=` or set the bucket on the trial.",
+                    )
+                method = self.bucket
+                method.sub(self.name).store(items)
+            case str() | Path():
+                method = PathBucket(where, create=True)
+                method.sub(self.name).store(items)
+            case Bucket():
+                method = where
+                method.sub(self.name).store(items)
+            case _:
+                # Leave it up to supplied method
+                where(self.name, items)
 
         # Add the keys to storage
         self.storage.update(items.keys())
@@ -507,17 +560,21 @@ class Trial(Generic[I]):
         self,
         items: Iterable[str],
         *,
-        where: str | Path | Bucket | Callable[[str, Iterable[str]], dict[str, bool]],
+        where: (
+            str | Path | Bucket | Callable[[str, Iterable[str]], dict[str, bool]] | None
+        ) = None,
     ) -> dict[str, bool]:
         """Delete items related to the trial.
 
         ```python exec="true" source="material-block" result="python" title="delete-storage" hl_lines="6"
         from amltk.optimization import Trial
+        from amltk.store import PathBucket
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        bucket = PathBucket("results")
+        trial = Trial(name="trial", config={"x": 1}, info={}, bucket=bucket)
 
-        trial.store({"config.json": trial.config}, where="./results")
-        trial.delete_from_storage(items=["config.json"], where="./results")
+        trial.store({"config.json": trial.config})
+        trial.delete_from_storage(items=["config.json"])
 
         print(trial.storage)
         ```
@@ -529,11 +586,10 @@ class Trial(Generic[I]):
         from amltk.store import PathBucket
 
         bucket = PathBucket("results")
+        trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
-
-        trial.store({"config.json": trial.config}, where=bucket)
-        trial.delete_from_storage(items=["config.json"], where=bucket)
+        trial.store({"config.json": trial.config})
+        trial.delete_from_storage(items=["config.json"])
 
         print(trial.storage)
         ```
@@ -541,6 +597,9 @@ class Trial(Generic[I]):
         Args:
             items: The items to delete, an iterable of keys
             where: Where the items are stored
+
+                * If `None`, will use the bucket attached to the `Trial` if any,
+                    otherwise it will raise an error.
 
                 * If a `str` or `Path`, will lookup a bucket at the path,
                 and the items will be deleted from a sub-bucket with the name of the trial.
@@ -557,15 +616,21 @@ class Trial(Generic[I]):
         """  # noqa: E501
         # If not a Callable, we convert to a path bucket
         method: Bucket
-        if isinstance(where, str):
-            method = PathBucket(Path(where), create=False)
-        elif isinstance(where, Path):
-            method = PathBucket(where, create=False)
-        elif isinstance(where, Bucket):
-            method = where
-        else:
-            # Leave it up to supplied method
-            return where(self.name, items)
+        match where:
+            case None:
+                if self.bucket is None:
+                    raise ValueError(
+                        "Cannot delete items without a `where=`. Please specify"
+                        " `where=` or set the bucket on the trial.",
+                    )
+                method = self.bucket
+            case str() | Path():
+                method = PathBucket(where, create=False)
+            case Bucket():
+                method = where
+            case _:
+                # Leave it up to supplied method
+                return where(self.name, items)
 
         sub_bucket = method.sub(self.name)
         return sub_bucket.remove(items)
@@ -583,7 +648,7 @@ class Trial(Generic[I]):
         self,
         key: str,
         *,
-        where: str | Path | Bucket[str, Any],
+        where: str | Path | Bucket[str, Any] | None = ...,
         check: None = None,
     ) -> Any:
         ...
@@ -593,7 +658,7 @@ class Trial(Generic[I]):
         self,
         key: str,
         *,
-        where: str | Path | Bucket[str, Any],
+        where: str | Path | Bucket[str, Any] | None = ...,
         check: type[R],
     ) -> R:
         ...
@@ -602,7 +667,7 @@ class Trial(Generic[I]):
         self,
         key: str,
         *,
-        where: str | Path | Bucket[str, Any],
+        where: str | Path | Bucket[str, Any] | None = None,
         check: type[R] | None = None,
     ) -> R | Any:
         """Retrieve items related to the trial.
@@ -613,29 +678,33 @@ class Trial(Generic[I]):
 
         ```python exec="true" source="material-block" result="python" title="retrieve" hl_lines="7"
         from amltk.optimization import Trial
+        from amltk.store import PathBucket
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        bucket = PathBucket("results")
 
-        trial.store({"config.json": trial.config}, where="./results")
+        # Create a trial, normally done by an optimizer
+        trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
 
-        config = trial.retrieve("config.json", where="./results")
+        trial.store({"config.json": trial.config})
+        config = trial.retrieve("config.json")
+
         print(config)
         ```
 
-        You could also create a Bucket and use that instead.
+        You could also manually specify where something get's stored and retrieved
 
         ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
 
         from amltk.optimization import Trial
         from amltk.store import PathBucket
 
-        bucket = PathBucket("results")
+        path = "./config_path"
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        trial = Trial(name="trial", config={"x": 1})
 
-        trial.store({"config.json": trial.config}, where=bucket)
+        trial.store({"config.json": trial.config}, where=path)
 
-        config = trial.retrieve("config.json", where=bucket)
+        config = trial.retrieve("config.json", where=path)
         print(config)
         ```
 
@@ -644,7 +713,11 @@ class Trial(Generic[I]):
             check: If provided, will check that the retrieved item is of the
                 provided type. If not, will raise a `TypeError`. This
                 is only used if `where=` is a `str`, `Path` or `Bucket`.
+
             where: Where to retrieve the items from.
+
+                * If `None`, will use the bucket attached to the `Trial` if any,
+                    otherwise it will raise an error.
 
                 * If a `str` or `Path`, will store
                 a bucket will be created at the path, and the items will be
@@ -662,13 +735,20 @@ class Trial(Generic[I]):
         """  # noqa: E501
         # If not a Callable, we convert to a path bucket
         method: Bucket[str, Any]
-        if isinstance(where, str):
-            where = Path(where)
-            method = PathBucket(where, create=True)
-        elif isinstance(where, Path):
-            method = PathBucket(where, create=True)
-        else:
-            method = where
+        match where:
+            case None:
+                if self.bucket is None:
+                    raise ValueError(
+                        "Cannot retrieve items without a `where=`. Please specify"
+                        " `where=` or set the bucket on the trial.",
+                    )
+                method = self.bucket
+            case str():
+                method = PathBucket(where, create=True)
+            case Path():
+                method = PathBucket(where, create=True)
+            case Bucket():
+                method = where
 
         # Store in a sub-bucket
         return method.sub(self.name)[key].load(check=check)
@@ -695,8 +775,8 @@ class Trial(Generic[I]):
         if self.summary:
             yield Panel(Pretty(self.summary), title="Summary", title_align="left")
 
-        if self.results:
-            yield Panel(Pretty(self.results), title="Results", title_align="left")
+        if self.metrics:
+            yield Panel(Pretty(self.metrics), title="Metrics", title_align="left")
 
         if self.fidelities:
             yield Panel(Pretty(self.fidelities), title="Fidelities", title_align="left")
@@ -761,7 +841,7 @@ class Trial(Generic[I]):
     @dataclass
     class Report(Generic[I2]):
         """The [`Trial.Report`][amltk.optimization.Trial.Report] encapsulates
-        a [`Trial`][amltk.optimization.Trial], its status and any results/exceptions
+        a [`Trial`][amltk.optimization.Trial], its status and any metrics/exceptions
         that may have occured.
 
         Typically you will not create these yourself, but instead use
@@ -769,19 +849,21 @@ class Trial(Generic[I]):
         [`trial.fail()`][amltk.optimization.Trial.fail] to generate them.
 
         ```python exec="true" source="material-block" result="python"
-        from amltk.optimization import Trial
+        from amltk.optimization import Trial, Metric
 
-        trial = Trial(name="trial", config={"x": 1}, info={})
+        loss = Metric("loss", minimize=True)
+
+        trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
         with trial.begin():
             # Do some work
             # ...
-            report: Trial.Report = trial.success(cost=1)
+            report: Trial.Report = trial.success(loss=1)
 
         print(report.df())
         ```
 
-        These reports are used to report back results to an
+        These reports are used to report back metrics to an
         [`Optimizer`][amltk.optimization.Optimizer]
         with [`Optimizer.tell()`][amltk.optimization.Optimizer.tell] but can also be
         stored for your own uses.
@@ -794,7 +876,7 @@ class Trial(Generic[I]):
         You may also want to check out the [`History`][amltk.optimization.History] class
         for storing a collection of `Report`s, allowing for an easier time to convert
         them to a dataframe or perform some common Hyperparameter optimization parsing
-        of results.
+        of metrics.
         """
 
         trial: Trial[I2]
@@ -803,10 +885,18 @@ class Trial(Generic[I]):
         status: Trial.Status
         """The status of the trial."""
 
-        @property
-        def results(self) -> dict[str, Any]:
-            """The results of the trial, if any."""
-            return self.trial.results
+        metrics: dict[str, float] = field(init=False)
+        """The metric values of the trial."""
+
+        metric_values: tuple[Metric.Value, ...] = field(default_factory=tuple)
+        """The metrics of the trial, linked to the metrics."""
+
+        metric_names: tuple[str, ...] = field(init=False)
+        """The names of the metrics."""
+
+        def __post_init__(self) -> None:
+            self.metrics = {value.name: value.value for value in self.metric_values}
+            self.metric_names = tuple(metric.name for metric in self.metric_values)
 
         @property
         def exception(self) -> BaseException | None:
@@ -864,16 +954,16 @@ class Trial(Generic[I]):
             profiles: bool = True,
             configs: bool = True,
             summary: bool = True,
-            results: bool = True,
+            metrics: bool = True,
         ) -> pd.DataFrame:
-            """Get a dataframe of the results of the trial.
+            """Get a dataframe of the trial.
 
             !!! note "Prefixes"
 
                 * `summary`: Entries will be prefixed with `#!python "summary:"`
                 * `config`: Entries will be prefixed with `#!python "config:"`
-                * `results`: Entries will be prefixed with `#!python "results:"`
                 * `storage`: Entries will be prefixed with `#!python "storage:"`
+                * `metrics`: Entries will be prefixed with `#!python "metrics:"`
                 * `profile:<name>`: Entries will be prefixed with
                     `#!python "profile:<name>:"`
 
@@ -881,7 +971,7 @@ class Trial(Generic[I]):
                 profiles: Whether to include the profiles.
                 configs: Whether to include the configs.
                 summary: Whether to include the summary.
-                results: Whether to include the results.
+                metrics: Whether to include the metrics.
             """
             items = {
                 "name": self.name,
@@ -890,8 +980,9 @@ class Trial(Generic[I]):
                 "exception": str(self.exception) if self.exception else "NA",
                 "traceback": str(self.traceback) if self.traceback else "NA",
             }
-            if results:
-                items.update(**prefix_keys(self.trial.results, "results:"))
+            if metrics:
+                for value in self.metric_values:
+                    items[f"metric:{value.metric}"] = value.value
             if summary:
                 items.update(**prefix_keys(self.trial.summary, "summary:"))
             if configs:
@@ -911,7 +1002,7 @@ class Trial(Generic[I]):
             self,
             key: str,
             *,
-            where: str | Path | Bucket[str, Any],
+            where: str | Path | Bucket[str, Any] | None = ...,
             check: None = None,
         ) -> Any:
             ...
@@ -921,7 +1012,7 @@ class Trial(Generic[I]):
             self,
             key: str,
             *,
-            where: str | Path | Bucket[str, Any],
+            where: str | Path | Bucket[str, Any] | None = ...,
             check: type[R],
         ) -> R:
             ...
@@ -930,7 +1021,7 @@ class Trial(Generic[I]):
             self,
             key: str,
             *,
-            where: str | Path | Bucket[str, Any],
+            where: str | Path | Bucket[str, Any] | None = None,
             check: type[R] | None = None,
         ) -> R | Any:
             """Retrieve items related to the trial.
@@ -941,14 +1032,16 @@ class Trial(Generic[I]):
 
             ```python exec="true" source="material-block" result="python" title="retrieve" hl_lines="7"
             from amltk.optimization import Trial
+            from amltk.store import PathBucket
 
-            trial = Trial(name="trial", config={"x": 1}, info={})
+            bucket = PathBucket("results")
+            trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
 
-            trial.store({"config.json": trial.config}, where="./results")
+            trial.store({"config.json": trial.config})
             with trial.begin():
                 report = trial.success()
 
-            config = report.retrieve("config.json", where="./results")
+            config = report.retrieve("config.json")
             print(config)
             ```
 
@@ -961,14 +1054,14 @@ class Trial(Generic[I]):
 
             bucket = PathBucket("results")
 
-            trial = Trial(name="trial", config={"x": 1}, info={})
+            trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
 
-            trial.store({"config.json": trial.config}, where="./results")
+            trial.store({"config.json": trial.config})
 
             with trial.begin():
                 report = trial.success()
 
-            config = report.retrieve("config.json", where=bucket)
+            config = report.retrieve("config.json")
             print(config)
             ```
 
@@ -978,6 +1071,9 @@ class Trial(Generic[I]):
                     provided type. If not, will raise a `TypeError`. This
                     is only used if `where=` is a `str`, `Path` or `Bucket`.
                 where: Where to retrieve the items from.
+
+                    * If `None`, will use the bucket attached to the `Trial` if any,
+                        otherwise it will raise an error.
 
                     * If a `str` or `Path`, will store
                     a bucket will be created at the path, and the items will be
@@ -993,18 +1089,7 @@ class Trial(Generic[I]):
                 TypeError: If `check=` is provided and  the retrieved item is not of the provided
                     type.
             """  # noqa: E501
-            # If not a Callable, we convert to a path bucket
-            method: Bucket[str, Any]
-            if isinstance(where, str):
-                where = Path(where)
-                method = PathBucket(where, create=True)
-            elif isinstance(where, Path):
-                method = PathBucket(where, create=True)
-            else:
-                method = where
-
-            # Store in a sub-bucket
-            return method.sub(self.name)[key].load(check=check)
+            return self.trial.retrieve(key, where=where, check=check)
 
         def store(
             self,
@@ -1066,6 +1151,20 @@ class Trial(Generic[I]):
             else:
                 profiles = {}
 
+            # NOTE: We assume the order of the objectives are in the right
+            # order in the dict. If we attempt to force a sort-order, we may
+            # deserialize incorrectly. By not having a sort order, we rely
+            # on serialization to keep the order, which is not ideal either.
+            # May revisit this if we need to
+            raw_metrics: dict[str, float] = mapping_select(d, "metric:")
+            _intermediate = {
+                Metric.from_str(name): value for name, value in raw_metrics.items()
+            }
+            metrics: dict[Metric, Metric.Value] = {
+                metric: metric.as_value(value)
+                for metric, value in _intermediate.items()
+            }
+
             _trial_profile_items = {
                 k: v for k, v in d.items() if k.startswith(("memory:", "time:"))
             }
@@ -1094,17 +1193,18 @@ class Trial(Generic[I]):
                 time=trial_profile.time,
                 memory=trial_profile.memory,
                 profiler=Profiler(profiles=profiles),
-                results=mapping_select(d, "results:"),
+                metrics=list(metrics.keys()),
                 summary=mapping_select(d, "summary:"),
                 exception=exception,
                 traceback=traceback,
             )
             status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
+            _values: dict[str, float] = {m.name: r.value for m, r in metrics.items()}
             if status == Trial.Status.SUCCESS:
-                return trial.success(**trial.results)
+                return trial.success(**_values)
 
             if status == Trial.Status.FAIL:
-                return trial.fail(**trial.results)
+                return trial.fail(**_values)
 
             if status == Trial.Status.CRASHED:
                 return trial.crashed(

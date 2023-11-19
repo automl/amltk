@@ -6,8 +6,10 @@ used to keep a structured record of what occured with
 ??? tip "Usage"
 
     ```python exec="true" source="material-block" html="true" hl_lines="19 23-24"
-    from amltk.optimization import Trial, History
+    from amltk.optimization import Trial, History, Metric
     from amltk.store import PathBucket
+
+    loss = Metric("loss", minimize=True)
 
     def target_function(trial: Trial) -> Trial.Report:
         x = trial.config["x"]
@@ -15,19 +17,19 @@ used to keep a structured record of what occured with
         trial.store({"config.json": trial.config})
 
         with trial.begin():
-            cost = x**2 - y
+            loss = x**2 - y
 
         if trial.exception:
             return trial.fail()
 
-        return trial.success(cost=cost)
+        return trial.success(loss=loss)
 
     # ... usually obtained from an optimizer
     bucket = PathBucket("all-trial-results")
     history = History()
 
     for x, y in zip([1, 2, 3], [4, 5, 6]):
-        trial = Trial(name="some-unique-name", config={"x": x, "y": y}, bucket=bucket)
+        trial = Trial(name="some-unique-name", config={"x": x, "y": y}, bucket=bucket, metrics=[loss])
         report = target_function(trial)
         history.add(report)
 
@@ -38,18 +40,15 @@ used to keep a structured record of what occured with
 You'll often need to perform some operations on a
 [`History`][amltk.optimization.History] so we provide some utility functions here:
 
-* [`filter(by=...)`][amltk.optimization.History.filter] - Filters the history by some
+* [`filter(key=...)`][amltk.optimization.History.filter] - Filters the history by some
     predicate, e.g. `#!python history.filter(lambda report: report.status == "success")`
 * [`groupby(key=...)`][amltk.optimization.History.groupby] - Groups the history by some
     key, e.g. `#!python history.groupby(lambda report: report.config["x"] < 5)`
 * [`sortby(key=...)`][amltk.optimization.History.sortby] - Sorts the history by some
     key, e.g. `#!python history.sortby(lambda report: report.time.end)`
 
-    This will return a [`Trace`][amltk.optimization.Trace] which is the same
-    as a `History` in many respects, other than the fact it now has a sorted order.
-
 There is also some serialization capabilities built in, to allow you to store
-your results and load them back in later:
+your reports and load them back in later:
 
 * [`df(...)`][amltk.optimization.History.df] - Output a `pd.DataFrame` of all
  the information available.
@@ -59,21 +58,15 @@ your results and load them back in later:
 You can also retrieve individual reports from the history by using their
 name, e.g. `#!python history["some-unique-name"]` or iterate through
 the history with `#!python for report in history: ...`.
-"""
+"""  # noqa: E501
 from __future__ import annotations
 
 import operator
 from collections import defaultdict
-from collections.abc import Callable, Hashable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Hashable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Literal,
-    TypeVar,
-    overload,
-)
+from typing import IO, TYPE_CHECKING, Literal, TypeVar
 from typing_extensions import override
 
 import pandas as pd
@@ -86,9 +79,15 @@ from amltk.types import Comparable
 if TYPE_CHECKING:
     from rich.console import RenderableType
 
+    from amltk.optimization.metric import Metric
+
 T = TypeVar("T")
 CT = TypeVar("CT", bound=Comparable)
 HashableT = TypeVar("HashableT", bound=Hashable)
+
+# TODO: It might be faster to basically have the history
+# always be a data frame, however this makes some things
+# such as metrics a bit more difficult to work with.
 
 
 @dataclass
@@ -98,19 +97,16 @@ class History(RichRenderable):
     This is a collections of reports from trials, where you can access
     the reports by their trial name. It is unsorted in general, but
     by using [`sortby()`][amltk.optimization.History.sortby] you
-    can sort the history, giving you a [`Trace`][amltk.optimization.Trace].
-
-    It also provides some convenience methods, namely:
-
-    * [`df()`][amltk.optimization.history.History.df] to get a
-        pandas DataFrame of the history.
-    * [`filter()`][amltk.optimization.history.History.filter] to
-        filter the history by a predicate.
+    can sort the history.
 
     ```python exec="true" source="material-block" result="python" title="History"
-    from amltk.optimization import Trial, History
+    from amltk.optimization import Trial, History, Metric
 
-    trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
+    metric = Metric("cost", minimize=True)
+    trials = [
+        Trial(f"trial_{i}", config={"x": i}, metrics=[metric])
+        for i in range(10)
+    ]
     history = History()
 
     for trial in trials:
@@ -122,6 +118,7 @@ class History(RichRenderable):
     for report in history:
         print(f"{report.name=}, {report}")
 
+    print(history.metrics)
     print(history.df())
     ```
 
@@ -130,6 +127,7 @@ class History(RichRenderable):
     """
 
     reports: list[Trial.Report] = field(default_factory=list)
+    metrics: dict[str, Metric] = field(default_factory=dict, repr=False)
     _lookup: dict[str, int] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -152,14 +150,23 @@ class History(RichRenderable):
         Args:
             report: A report or reports to add.
         """
-        if isinstance(report, Trial.Report):
-            self.reports.append(report)
-            self._lookup[report.name] = len(self.reports) - 1
-            return
+        match report:
+            case Trial.Report():
+                for m in report.metric_values:
+                    if (_m := self.metrics.get(m.name)) is not None:
+                        if m.metric != _m:
+                            raise ValueError(
+                                f"Metric {m.name} has conflicting definitions:"
+                                f"\n{m.metric} != {_m}",
+                            )
+                    else:
+                        self.metrics[m.name] = m.metric
 
-        for _report in report:
-            self.reports.append(_report)
-            self._lookup[_report.name] = len(self.reports) - 1
+                self.reports.append(report)
+                self._lookup[report.name] = len(self.reports) - 1
+            case reports:
+                for _report in reports:
+                    self.add(_report)
 
     def find(self, name: str) -> Trial.Report:
         """Finds a report by trial name.
@@ -178,7 +185,7 @@ class History(RichRenderable):
         profiles: bool = True,
         configs: bool = True,
         summary: bool = True,
-        results: bool = True,
+        metrics: bool = True,
     ) -> pd.DataFrame:
         """Returns a pandas DataFrame of the history.
 
@@ -188,12 +195,13 @@ class History(RichRenderable):
 
             * `summary`: Entries will be prefixed with `#!python "summary:"`
             * `config`: Entries will be prefixed with `#!python "config:"`
-            * `results`: Entries will be prefixed with `#!python "results:"`
+            * `metrics`: Entries will be prefixed with `#!python "metrics:"`
 
         ```python exec="true" source="material-block" result="python" title="df" hl_lines="12"
-        from amltk.optimization import Trial, History
+        from amltk.optimization import Trial, History, Metric
 
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
+        metric = Metric("cost", minimize=True)
+        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -209,7 +217,7 @@ class History(RichRenderable):
             profiles: Whether to include the profiles.
             configs: Whether to include the configs.
             summary: Whether to include the summary.
-            results: Whether to include the results.
+            metrics: Whether to include the metrics.
 
         Returns:
             A pandas DataFrame of the history.
@@ -223,20 +231,21 @@ class History(RichRenderable):
                     profiles=profiles,
                     configs=configs,
                     summary=summary,
-                    results=results,
+                    metrics=metrics,
                 )
                 for report in self.reports
             ],
         )
         return _df.convert_dtypes()
 
-    def filter(self, by: Callable[[Trial.Report], bool]) -> History:
+    def filter(self, key: Callable[[Trial.Report], bool]) -> History:
         """Filters the history by a predicate.
 
         ```python exec="true" source="material-block" result="python" title="filter" hl_lines="12"
-        from amltk.optimization import Trial, History
+        from amltk.optimization import Trial, History, Metric
 
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
+        metric = Metric("cost", minimize=True)
+        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -245,19 +254,19 @@ class History(RichRenderable):
                 report = trial.success(cost=x**2 - x*2 + 4)
                 history.add(report)
 
-        filtered_history = history.filter(lambda report: report.results["cost"] < 10)
+        filtered_history = history.filter(lambda report: report.metrics["cost"] < 10)
         for report in filtered_history:
-            cost = report.results["cost"]
+            cost = report.metrics["cost"]
             print(f"{report.name}, {cost=}, {report}")
         ```
 
         Args:
-            by: A predicate to filter by.
+            key: A predicate to filter by.
 
         Returns:
             A new history with the filtered reports.
         """  # noqa: E501
-        return History.from_reports([report for report in self.reports if by(report)])
+        return History.from_reports([report for report in self.reports if key(report)])
 
     def groupby(
         self,
@@ -266,9 +275,10 @@ class History(RichRenderable):
         """Groups the history by the values of a key.
 
         ```python exec="true" source="material-block" result="python" title="groupby" hl_lines="15"
-        from amltk.optimization import Trial, History
+        from amltk.optimization import Trial, History, Metric
 
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
+        metric = Metric("cost", minimize=True)
+        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -282,6 +292,25 @@ class History(RichRenderable):
 
         for status, history in history.groupby("status").items():
             print(f"{status=}, {len(history)=}")
+        ```
+
+        You can pass a `#!python Callable` to group by any key you like:
+
+        ```python exec="true" source="material-block" result="python"
+        from amltk.optimization import Trial, History, Metric
+
+        metric = Metric("cost", minimize=True)
+        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        history = History()
+
+        for trial in trials:
+            with trial.begin():
+                x = trial.config["x"]
+                report = trial.fail(cost=x)
+                history.add(report)
+
+        for below_5, history in history.groupby(lambda r: r.metrics["cost"] < 5).items():
+            print(f"{below_5=}, {len(history)=}")
         ```
 
         Args:
@@ -301,18 +330,77 @@ class History(RichRenderable):
 
         return {k: History.from_reports(v) for k, v in d.items()}
 
+    def incumbents(
+        self,
+        key: Callable[[Trial.Report, Trial.Report], bool] | str,
+        *,
+        ffill: bool = False,
+    ) -> History:
+        """Returns a trace of the incumbents, where only the report that is better than the previous
+        best report is kept.
+
+        ```python exec="true" source="material-block" result="python" title="incumbents"
+        from amltk.optimization import Trial, History, Metric
+
+        metric = Metric("cost", minimize=True)
+        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        history = History()
+
+        for trial in trials:
+            with trial.begin():
+                x = trial.config["x"]
+                report = trial.success(cost=x**2 - x*2 + 4)
+                history.add(report)
+
+        incumbents = (
+            history
+            .sortby(lambda r: r.time.end)
+            .incumbents("cost")
+        )
+        for report in incumbents:
+            print(f"{report.metrics=}, {report.config=}")
+        ```
+
+        Args:
+            key: The key to use. If given a str, it will use that as the
+                key to use in the metrics, defining if one report is better
+                than another. If given a `#!python Callable`, it should
+                return a `bool`, indicating if the first argument report
+                is better than the second argument report.
+            ffill: Whether to forward fill the incumbents. This means that
+                if a report is not an incumbent, it will be replaced with
+                the current best. This is useful if you want to
+                visualize the incumbents over some x axis, where the
+                you have a point at every place along the axis.
+
+        Returns:
+            The history of incumbents.
+        """  # noqa: E501
+        match key:
+            case str():
+                metric = self.metrics[key]
+                __op = operator.lt if metric.minimize else operator.gt  # type: ignore
+                op = lambda r1, r2: __op(r1.metrics[key], r2.metrics[key])
+            case _:
+                op = key
+
+        incumbents = list(compare_accumulate(self.reports, op=op, ffill=ffill))
+        _lookup = {report.name: i for i, report in enumerate(incumbents)}
+        return History(reports=incumbents, metrics=self.metrics, _lookup=_lookup)
+
     def sortby(
         self,
         key: Callable[[Trial.Report], Comparable] | str,
         *,
-        reverse: bool = False,
-    ) -> Trace:
-        """Sorts the history by a key and returns a Trace.
+        reverse: bool | None = None,
+    ) -> History:
+        """Sorts the history by a key and returns a sorted History.
 
         ```python exec="true" source="material-block" result="python" title="sortby" hl_lines="15"
-        from amltk.optimization import Trial, History
+        from amltk.optimization import Trial, History, Metric
 
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
+        metric = Metric("cost", minimize=True)
+        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -324,32 +412,44 @@ class History(RichRenderable):
         trace = (
             history
             .filter(lambda report: report.status == "success")
-            .sortby(lambda report: report.time.end)
+            .sortby("cost")
         )
 
         for report in trace:
-            print(f"end={report.time.end}, {report}")
+            print(f"{report.metrics}, {report}")
         ```
 
         Args:
             key: The key to sort by. If given a str, it will sort by
-                the value of that key in the summary and also filter
+                the value of that key in the `.metrics` and also filter
                 out anything that does not contain this key.
-            reverse: Whether to sort in reverse order. By default,
-                this is `False` meaning smaller items are sorted first.
+            reverse: Whether to sort in some given order. By
+                default (`None`), if given a metric key, the reports with
+                the best metric values will be sorted first. If
+                given a `#!python Callable`, the reports with the
+                smallest values will be sorted first. Using
+                `reverse=True` will always reverse this order, while
+                `reverse=False` will always preserve it.
 
         Returns:
-            A Trace of the history.
+            A sorted History
         """  # noqa: E501
         # If given a str, filter out anything that doesn't have that key
         if isinstance(key, str):
-            history = self.filter(lambda report: key in report.summary)
-            sort_key = lambda report: report.summary[key]
+            history = self.filter(lambda report: key in report.metric_names)
+            sort_key: Callable[[Trial.Report], Comparable] = lambda r: r.metrics[key]
+            reverse = (
+                reverse if reverse is not None else (not self.metrics[key].minimize)
+            )
         else:
             history = self
             sort_key = key
+            reverse = False if reverse is None else reverse
 
-        return Trace(sorted(history.reports, key=sort_key, reverse=reverse))
+        sorted_reports = sorted(history.reports, key=sort_key, reverse=reverse)
+        metrics = history.metrics
+        _lookup = {report.name: i for i, report in enumerate(sorted_reports)}
+        return History(reports=sorted_reports, metrics=metrics, _lookup=_lookup)
 
     @override
     def __getitem__(  # type: ignore
@@ -373,7 +473,11 @@ class History(RichRenderable):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, History):
             return NotImplemented
-        return self.reports == other.reports
+        return (
+            self.reports == other.reports
+            and self.metrics == other.metrics
+            and self._lookup == other._lookup
+        )
 
     def to_csv(self, path: str | Path | IO[str]) -> None:
         """Saves the history to a csv.
@@ -434,306 +538,3 @@ class History(RichRenderable):
     @override
     def _repr_html_(self) -> str:
         return str(self.df().to_html())
-
-
-@dataclass
-class Trace(Sequence[Trial.Report]):
-    """A trace of trials.
-
-    A trace is a sequence of reports from trials that is ordered
-    in some way.
-
-    These are usually created using a [`History`][amltk.optimization.History]
-    object, specifically its [`sortby`][amltk.optimization.History.sortby]
-    method to create the order.
-
-    Attributes:
-        reports: The reports in the trace.
-    """
-
-    reports: list[Trial.Report]
-
-    @overload
-    def __getitem__(self, key: int) -> Trial.Report:
-        ...
-
-    @overload
-    def __getitem__(self, key: slice) -> Trace:
-        ...
-
-    @override
-    def __getitem__(self, key: int | slice) -> Trial.Report | Trace:
-        if isinstance(key, int):
-            return self.reports[key]
-        return Trace(self.reports[key])
-
-    @override
-    def __iter__(self) -> Iterator[Trial.Report]:
-        return iter(self.reports)
-
-    @override
-    def __len__(self) -> int:
-        return len(self.reports)
-
-    @override
-    def __repr__(self) -> str:
-        return f"Trace({self.reports})"
-
-    @override
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Trace):
-            return NotImplemented
-        return self.reports == other.reports
-
-    def sortby(self, key: Callable[[Trial.Report], Comparable] | str) -> Trace:
-        """Sorts the trace by a key.
-
-        ```python exec="true" source="material-block" result="python" title="sortby" hl_lines="22"
-        from amltk.optimization import Trial, History
-
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
-        history = History()
-
-        for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
-
-        # Sortby the x values
-        trace = history.sortby(lambda report: report.trial.config["x"])
-
-        print("--history sorted by x--")
-        for report in trace:
-            x = report.trial.config["x"]
-            cost = report.results["cost"]
-            print(f"{x=}, {cost=}, {report}")
-
-        # Sort the trace by the cost
-        trace = trace.sortby(lambda report: report.results["cost"])
-
-        print("--trace sorted by cost--")
-        for report in trace:
-            x = report.trial.config["x"]
-            cost = report.results["cost"]
-            print(f"{x=}, {cost=}, {report}")
-        ```
-
-        Args:
-            key: A key to sort the trace by. If given a str, it will
-                sort by the value of that key in the summary and also
-                filter out anything that does not contain this key in
-                its summary.
-
-        Returns:
-            A new trace with the sorted reports.
-        """  # noqa: E501
-        if isinstance(key, str):
-            trace = self.filter(lambda report: key in report.summary)
-            sort_key = lambda report: report.summary[key]
-        else:
-            trace = self
-            sort_key = key
-
-        return Trace(sorted(trace.reports, key=sort_key))
-
-    def filter(self, by: Callable[[Trial.Report], bool]) -> Trace:
-        """Filters the trace by a predicate.
-
-        ```python exec="true" source="material-block" result="python" title="filter" hl_lines="19"
-        from amltk.optimization import Trial, History
-
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
-        history = History()
-
-        for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
-
-        trace = (
-            history
-            .filter(lambda report: report.status == "success")
-            .sortby(lambda report: report.time.end)
-        )
-        print(f"Length pre-filter: {len(trace)}")
-
-        filtered = trace.filter(lambda report: report.results["cost"] < 10)
-
-        print(f"Length post-filter: {len(filtered)}")
-        for report in filtered:
-            cost = report.results["cost"]
-            print(f"{cost=}, {report}")
-        ```
-
-        Args:
-            by: A predicate to filter the trace by.
-
-        Returns:
-            A new trace with the filtered reports.
-        """  # noqa: E501
-        return Trace([report for report in self.reports if by(report)])
-
-    def incumbents(
-        self,
-        key: Callable[[Trial.Report], CT] | str,
-        *,
-        op: Callable[[CT, CT], bool] | Literal["min"] | Literal["max"] = "min",
-        ffill: bool = False,
-    ) -> IncumbentTrace:
-        """Sorts the trace by a key and returns the incumbents.
-
-        ```python exec="true" source="material-block" result="python" title="incumbents" hl_lines="22"
-        from amltk.optimization import Trial, History
-
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
-        history = History()
-
-        for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
-
-        trace = (
-            history
-            .filter(lambda report: report.status == "success")
-            .sortby(lambda report: report.time.end)
-        )
-        print("--trace--")
-        for report in trace:
-            cost = report.results["cost"]
-            print(f"{cost=}, {report}")
-
-        incumbents = trace.incumbents(lambda report: report.results["cost"])
-        print("--incumbents--")
-        for report in incumbents:
-            print(report)
-            cost = report.results["cost"]
-            print(f"{cost=}, {report}")
-        ```
-
-        Args:
-            key: The key to use. If given a str, it will sort by the value
-                of that key in the summary and also filter out anything that
-                does not contain this key in its summary.
-            op: The comparison operator to use when deciding if a report is
-                an incumbent. By default, this is `"min"`, which means
-                that the incumbent is the smallest value. If you want to maximize,
-                you can use `"max"`. You can also use more advanced
-                `Callable`s if you like.
-            ffill: Whether to forward fill the incumbents. This means that
-                if a report is not an incumbent, it will be replaced with
-                the previous incumbent. This is useful if you want to
-                visualize the incumbents over time.
-
-        Returns:
-            A Trace of the incumbents.
-        """  # noqa: E501
-        if isinstance(op, str):
-            if op not in {"min", "max"}:
-                raise ValueError(f"Unknown op: {op}")
-            op = operator.lt if op == "min" else operator.gt  # type: ignore
-
-        if isinstance(key, str):
-            trace = self.filter(lambda report: key in report.summary)
-            _op = lambda r1, r2: op(r1.summary[key], r2.summary[key])  # type: ignore
-        else:
-            trace = self
-            _op = lambda r1, r2: op(key(r1), key(r2))  # type: ignore
-
-        incumbents = list(
-            compare_accumulate(trace.reports, op=_op, ffill=ffill),  # type: ignore
-        )
-        return IncumbentTrace(incumbents)
-
-    def df(
-        self,
-        *,
-        profiles: bool = True,
-        configs: bool = True,
-        summary: bool = True,
-        results: bool = True,
-    ) -> pd.DataFrame:
-        """Returns a pandas DataFrame of the trace.
-
-        Each individual trial will be a row in the DataFrame
-
-        !!! note "Prefixes"
-
-            * `summary`: Entries will be prefixed with `#!python "summary:"`
-            * `config`: Entries will be prefixed with `#!python "config:"`
-            * `results`: Entries will be prefixed with `#!python "results:"`
-
-        ```python exec="true" source="material-block" result="python" title="df" hl_lines="18"
-        from amltk.optimization import Trial, History
-
-        trials = [Trial(f"trial_{i}", info=None, config={"x": i}) for i in range(10)]
-        history = History()
-
-        for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
-
-        trace = (
-            history
-            .filter(lambda report: report.status == "success")
-            .sortby(lambda report: report.time.end)
-        )
-
-        df = trace.df()
-        print(df)
-        ```
-
-        Args:
-            profiles: Whether to include the profiles.
-            configs: Whether to include the configs.
-            summary: Whether to include the summary.
-            results: Whether to include the results.
-
-        Returns:
-            A pandas DataFrame of the trace.
-        """  # noqa: E501
-        if len(self) == 0:
-            return pd.DataFrame()
-
-        return pd.concat(
-            [
-                report.df(
-                    profiles=profiles,
-                    configs=configs,
-                    summary=summary,
-                    results=results,
-                )
-                for report in self.reports
-            ],
-            ignore_index=True,
-        ).convert_dtypes()
-
-    def to_csv(self, path: str | Path | IO[str]) -> None:
-        """Saves the history to a csv.
-
-        Args:
-            path: The path to save the history to.
-        """
-        if isinstance(path, IO):
-            path.write(self.df().to_csv())
-        else:
-            self.df().to_csv(path)
-
-    def _ipython_display(self) -> None:
-        from IPython.display import display
-
-        display(self.df(profiles=False))
-
-
-@dataclass
-class IncumbentTrace(Trace):
-    """A Trace of incumbents.
-
-    Used primarily to distinguish between a general sorted
-    [`Trace`][amltk.optimization.Trace] and one with only the incumbents.
-    """

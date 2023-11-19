@@ -1,55 +1,12 @@
 # Optimization Guide
-!!! todo "Under Construction"
-
-    Need to document more about `Trial` objects, `Report` and `History`.
-    Please see the following references for the time being:
-
-    * [`Optimizer` reference](../reference/optimization/optimizers.md)
-    * [`Trial` reference](../reference/optimization/trials.md)
-    * [`Profiler` reference](../reference/optimization/history.md)
-    * [`History` reference](../reference/optimization/profiling.md)
-
 One of the core tasks of any AutoML system is to optimize some objective,
-whether it be some pipeline, a black-box or even a toy function.
-
-For this we require an [`Optimizer`][amltk.optimization.Optimizer]. We integrate
-several optimizers and integrating your own is very straightforward, under one
-very central premise.
-
-!!! info "Premise: Ask-And-Tell"
-
-    We explicitly require optimizers to support an _"Ask-and-Tell"_ interface.
-    This means we can _"Ask"_ and optimizer for its next suggested configuration
-    and we can _"Tell"_ it a result when we have one. **In fact, here's the entire
-    interface.**
-
-    ```python
-    class Optimizer(Protocol):
-
-        def tell(self, report: Trial.Report) -> None: ...
-
-        def ask(self) -> Trial: ...
-
-    ```
+whether it be some pipeline, a black-box or even a toy function. In the context
+of AMLTK, this means defining some [`Metric(s)`](../reference/optimization/metrics.md) to optimize
+and creating an [`Optimizer`](../reference/optimization/optimizers.md) to optimize
+them.
 
 You can check out the integrated optimizers in our [optimizer reference](../reference/optimization/optimizers.md)
 
-??? note "Why?"
-
-    1. **Easy Parallelization**: Many optimizers handle running the function to optimize and hence roll out their own
-    parallelization schemes and store data in all various different ways.
-
-    2. **API maintenance**: Many optimziers are also unstable with respect to their API so wrapping around them can be difficult.
-    By requiring this _"Ask-and-Tell"_ interface, we reduce the complexity of what is required
-    of both the "Optimizer" and wrapping it.
-
-    2. **Full Integration**: We can fully hook into the life cycle of a running optimizer. We are not relying
-    on the optimizer to support callbacks at every step of their _hot-loop_ and as such, we
-    can fully leverage all the other systems of AutoML-toolkit
-
-    4. **Easy Integration**: it makes developing and integrating new optimizers easy. You only have
-    to worry that the internal state of the optimizer is updated accordingly to these
-    two _"Ask"_ and _"Tell"_ events and that's it.
 
 This guide relies lightly on topics covered in the [Pipeline Guide](../guides/pipelines.md) for
 creating a pipeline but also the [Scheduling guide](../guides/scheduling.md) for creating a
@@ -58,39 +15,53 @@ These aren't required but if something is not clear or you'd like to know **how*
 works, please refer to these guides or the reference!
 
 
-## Optimizing a simple function
-We'll start with a simple example of optimizing a simple polynomial function
+## Optimizing a 1-D function
+We'll start with a simple example of **maximizing** a polynomial function
 The first thing to do is define the function we want to optimize.
 
-```python
-def poly(x: float) -> float:
+```python exec="true" source="material-block" html="true"
+import numpy as np
+import matplotlib.pyplot as plt
+
+def poly(x):
     return (x**2 + 4*x + 3) / x
+
+fig, ax = plt.subplots()
+x = np.linspace(-10, 10, 100)
+ax.plot(x, poly(x))
+from io import StringIO; fig.tight_layout(); buffer = StringIO(); plt.savefig(buffer, format="svg"); print(buffer.getvalue())  # markdown-exec: hide
 ```
 
 Our next step is to define the search range over which we want to optimize, in
-this case, the range of values `x` can take. We cover this in more detail
-in the [Pipeline guide](../guides/pipelines.md).
+this case, the range of values `x` can take. Here we use a simple [`Searchable`][amltk.pipeline.Searchable], however
+we can reprsent entire machine learning pipelines, with conditonality and much more complex ranges. ([Pipeline guide](../guides/pipelines.md))
 
-```python exec="true" source="material-block" html="true" hl_lines="6"
+!!! info inline end "Vocab..."
+
+    When dealing with such functions, one might call the `x` just a parameter. However in
+    the context of Machine Learning, if this `poly()` function was more like `train_model()`,
+    then we would refer to `x` as a _hyperparameter_ with it's range as it's _search space_.
+
+```python exec="true" source="material-block" html="true"
 from amltk.pipeline import Searchable
 
 def poly(x: float) -> float:
     return (x**2 + 4*x + 3) / x
 
-s = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
+s = Searchable(
+    {"x": (-10.0, 10.0)},
+    name="my-searchable"
+)
 from amltk._doc import doc_print; doc_print(print, s)
 ```
 
-Here we say that there is a collection of `#!python "parameters"`
-which has one called `#!python "x"` which is in the range `#!python [-10.0, 10.0]`.
 
 ## Creating an Optimizer
 
-We'll utilize by using [SMAC](https://github.com/automl/SMAC3)
-here for optimization as an example but you can find other available
-optimizers [here](../reference/optimization/optimizers.md).
+We'll utilize [SMAC](https://github.com/automl/SMAC3) here for optimization as an example
+but you can find other available optimizers [here](../reference/optimization/optimizers.md).
 
-??? info "Requirements"
+??? info inline end "Requirements"
 
     This requires `smac` which can be installed with:
 
@@ -101,51 +72,94 @@ optimizers [here](../reference/optimization/optimizers.md).
     pip install smac
     ```
 
-Our first step is to actually get a search space from
-our _pipeline_.
+The first thing we'll need to do is create a [`Metric`](../reference/optimization/metrics.md)
+a definition of some value we want to optimize.
 
-```python exec="true" result="python" source="material-block" hl_lines="9"
-from amltk.optimization.optimizers.smac import SMACOptimizer
-from amltk.pipeline import Searchable
+```python exec="true" result="python" source="material-block"
+from amltk.optimization import Metric
 
-def poly(x: float) -> float:
-    return (x**2 + 4*x + 3) / x
-
-s = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
-
-space = s.search_space(parser="configspace")
-print(space)
+metric = Metric("score", minimize=False)
+print(metric)
 ```
 
-Here we chose that the search space should be a `#!python "configspace"`,
-which is the kind of search space that
-[`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] expects.
-
-!!! info inline end "Available Optimizers"
-
-    To see a list of available optimizers and their usage, please
-    see the [optimizer reference](../reference/optimization/optimizers.md).
+The next step is to actually create an optimizer, you'll have to refer to their
+[reference documentation](../reference/optimization/optimizers.md). However, for most integrated optimizers,
+we expose a helpful [`create()`][amltk.optimization.optimizers.smac.SMACOptimizer.create].
 
 ```python exec="true" result="python" source="material-block"
 from amltk.optimization.optimizers.smac import SMACOptimizer
+from amltk.optimization import Metric
 from amltk.pipeline import Searchable
 
 def poly(x: float) -> float:
     return (x**2 + 4*x + 3) / x
 
-s = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
+metric = Metric("score", minimize=False)
+space = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
 
-space = s.search_space(parser="configspace")
-print(space)
+optimizer = SMACOptimizer.create(space=space, metrics=metric, seed=42)
 ```
 
+## Running an Optimizer
+At this point, we can begin optimizing our function, using the [`ask`][amltk.optimization.Optimizer.ask]
+to get [`Trial`][amltk.optimization.Trial]s and [`tell`][amltk.optimization.Optimizer.tell] methods with
+[`Trial.Report`][amltk.optimization.Trial.Report]s.
+
+```python exec="true" result="python" source="material-block"
+from amltk.optimization.optimizers.smac import SMACOptimizer
+from amltk.optimization import Metric, History, Trial
+from amltk.pipeline import Searchable
+
+def poly(x: float) -> float:
+    return (x**2 + 4*x + 3) / x
+
+metric = Metric("score", minimize=False)
+space = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
+
+optimizer = SMACOptimizer.create(space=space, metrics=metric, seed=42)
+
+reports = []
+for _ in range(10):
+    trial: Trial = optimizer.ask()
+    print(f"Evaluating trial {trial.name} with config {trial.config}")
+    x = trial.config["my-searchable:x"]
+
+    with trial.begin():
+        score = poly(x)
+
+    report: Trial.Report = trial.success(score=score)
+    reports.append(report)
+
+last_report = reports[-1]
+print(last_report.df())
+optimizer.bucket.rmdir()  # markdown-exec: hide
+```
+
+Okay so there are a few things introduced all at once here, let's go over them bit by bit.
+
+### The `Trial` object
+The [`Trial`](../reference/optimization/trials.md) object is the main object that
+you'll be interacting with when optimizing. It contains a load of useful properties and
+functionality to help you during optimization. What we introduced here is the `.config`,
+which contains a key, value mapping of the parameters to optimize, in this case, `x`. We
+also wrap the actual evaluation of the function in a
+[`with trial.begin():`][amltk.optimization.Trial.begin] which will time and profile the
+evaluation of the function and handle any exceptions that occur within the block, attaching
+the exception to [`.exception`][amltk.optimization.Trial.exception] and the traceback to
+[`.traceback`][amltk.optimization.Trial.traceback]. Lastly, we use
+[`trial.success()`][amltk.optimization.Trial.success] which generates a [`Trial.Report`][amltk.optimization.Trial.Report]
+for us.
+
+We'll cover more of this later in the guide but feel free to check out the full [API][amltk.optimization.Trial].
 
 
-The [`ask`][amltk.optimization.Optimizer.ask] method should return a
-new [`Trial`][amltk.optimization.Trial] object, and the [`tell`][amltk.optimization.Optimizer.tell]
-method should update the optimizer with the result of the trial. A [`Trial`][amltk.optimization.Trial]
-should have a unique `name`, a `config` and whatever optimizer specific
-information you want to store should be stored in the `trial.info` property.
+---
+
+!!! todo "TODO"
+
+    Everything past here is likely out-dated, sorry. Matrial
+    in the [pipelines guide](./pipelines.md) guide and the
+    [scheduling guide](./scheduling.md) is more up-to-date.
 
 ## Running an Optimizer
 Now that we have an optimizer that knows the `space` to search, we can begin to
@@ -330,132 +344,3 @@ and call limits. Please refer to the [Scheduling guide](./scheduling.md) for mor
 [Slurm](https://slurm.schedmd.com/), and [Apache Airflow](https://airflow.apache.org/).
 * Use a whole host of more callbacks to control you system, check out the [Scheduling guide](./scheduling.md) for more information.
 * Run the scheduler using `asyncio` to allow interactivity, run as a server or other more advanced use cases.
-
-### Integrating your own Optimizer
-Integrating in your own optimizer is fairly straightforward.
-To integrate you own optimizer, you'll need to implement the following interface:
-
-=== "Simple"
-
-    ```python
-    from amltk.optimization import Trial
-
-    class Optimizer:
-
-        def ask(self) -> Trial: ...
-        def tell(self, report: Trial.Report) -> None: ...
-    ```
-
-=== "Generics"
-
-    ```python
-    from amltk.optimization.trial import Trial
-    from typing import TypeVar, Protocol
-
-    Info = TypeVar("Info")
-
-    class Optimizer(Protocol[Info]):
-
-        def ask(self) -> Trial[Info]: ...
-        def tell(self, report: Trial.Report[Info]) -> None: ...
-    ```
-
-    The `Info` type variable here is whatever underlying information you want to store in the
-    [`Trial`][amltk.optimization.Trial] object, under `trial.info`.
-
-    !!! note "What is a Protocol? What is a TypeVar?"
-
-        Don't worry if this seems mysterious or confusing, you do not need to
-        use these advanced typing features to implement an optimizer.
-
-        These are features in Python that allow for more advanced type checking and
-        type inference. If you are interested in learning more, check out the
-        [Python typing documentation](https://docs.python.org/3/library/typing.html).
-
-??? example "A Simplified Version of SMAC integration"
-
-    Here is a simplified example of wrapping [`SMAC`](https://automl.github.io/SMAC3/stable/).
-    The real implementation is more complex, but this should give you an idea of how to
-    implement your own optimizer.
-
-    === "Integrating SMAC"
-
-        ```python
-        from smac.facade import AbstractFacade
-        from smac.runhistory import StatusType, TrialValue
-
-        from amltk.optimization import Optimizer, Trial
-
-        class SMACOptimizer(Optimizer):
-
-            def __init__(self, *, facade: AbstractFacade) -> None:
-                self.facade = facade
-
-            def ask(self) -> Trial:
-                smac_trial_info = self.facade.ask()  # (2)!
-                config = smac_trial_info.config
-                budget = smac_trial_info.budget
-                instance = smac_trial_info.instance
-                seed = smac_trial_info.seed
-                config_id = self.facade.runhistory.config_ids[config]
-
-                unique_name = f"{config_id=}.{instance=}.{seed=}.{budget=}"  # (3)!
-                return Trial(name=unique_name, config=config, info=smac_trial_info)  # (4)!
-
-            def tell(self, report: Trial.Report) -> None:  # (5)!
-                if report.status in (Trial.Status.SUCCESS, Trial.Status.FAIL):
-                    duration = report.time.duration
-                    start = report.time.start,
-                    endtime = report.time.end,
-                    cost = report.results.get("cost", np.inf)
-                    status = (
-                        StatusType.SUCCESS
-                        if report.status is Trial.Status.SUCCESS
-                        else StatusType.CRASHED
-                    )
-                    additional_info = report.results.get("additional_info", {})
-                else:
-                    duration = 0
-                    start = 0
-                    end = 0
-                    reported_cost = np.inf
-                    additional_info = {}
-
-                trial_value = TrialValue( # (6)!
-                    time=duration,
-                    starttime=start,
-                    endtime=end,
-                    cost=cost,
-                    status=status,
-                    additional_info=additional_info,
-                )
-                self.facade.tell(trial_value)  # (7)!
-        ```
-
-        2. We call `facade.ask()` to get a new `TrialInfo` object from SMAC.
-        3. We need to create a unique name for the trial, so we use the `config_id`, `instance`, `seed` and `budget`
-        to create a unique name.
-        4. We create a new `Trial` object, with the unique name, the configuration, and the `TrialInfo` object.
-        5. We need to implement the `tell` method, which is called when a trial is finished. We need to
-        report the results to the optimizer.
-        6. We create a `TrialValue` object, which is what SMAC uses internally to store the results of a trial.
-        7. We call `facade.tell` to report the results of the trial to SMAC.
-
-    === "To Type Fully"
-
-        ```python
-        from smac.runhistory import TrialInfo
-
-        from amltk.optimization import Optimizer, Trial
-
-        class SMACOptimizer(Optimizer[TrialInfo]):
-
-            def ask(self) -> Trial[TrialInfo]:
-            def tell(self, report: Trial.Report[TrialInfo]) -> None: ...
-        ```
-
-        You'll notice here that we use `TrialInfo` as the type parameter
-        to [`Optimizer`][amltk.optimization.Optimizer], [`Trial`][amltk.optimization.Trial]
-        and [`Trial.Report`][amltk.optimization.Trial.Report]. This is how we
-        tell type checking analyzers that the _thing_ stored in `trial.info`
-        will be a `TrialInfo` object from SMAC.

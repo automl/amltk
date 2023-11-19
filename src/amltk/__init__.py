@@ -1,9 +1,8 @@
 from amltk import options
 from amltk.optimization import (
     History,
-    IncumbentTrace,
+    Metric,
     Optimizer,
-    Trace,
     Trial,
 )
 from amltk.pipeline import (
@@ -53,8 +52,8 @@ __all__ = [
     "Event",
     "Fixed",
     "History",
-    "IncumbentTrace",
     "Join",
+    "Metric",
     "JSONLoader",
     "Limiter",
     "Loader",
@@ -75,7 +74,6 @@ __all__ = [
     "Split",
     "Subscriber",
     "Task",
-    "Trace",
     "Trial",
     "TxtLoader",
     "YAMLLoader",

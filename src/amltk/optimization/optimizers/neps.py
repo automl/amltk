@@ -117,31 +117,36 @@ from __future__ import annotations
 
 import logging
 import shutil
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from typing_extensions import override
 
 import metahyper.api
 from ConfigSpace import ConfigurationSpace
 from metahyper import instance_from_map
+from more_itertools import first_true
 from neps.optimizers import SearcherMapping
 from neps.search_spaces.parameter import Parameter
 from neps.search_spaces.search_space import SearchSpace, pipeline_space_from_configspace
 
+import amltk.randomness
 from amltk.optimization import Optimizer, Trial
+from amltk.pipeline import Node
 from amltk.pipeline.parsers.configspace import parser as configspace_parser
+from amltk.store import PathBucket
 
 if TYPE_CHECKING:
     from typing_extensions import Self
 
     from neps.api import BaseOptimizer
 
-    from amltk.pipeline import Node
+    from amltk.optimization.metric import Metric
     from amltk.store import Bucket
+    from amltk.types import Seed
 
     class NEPSPreferredParser(Protocol):
         """The preferred parser call signature for NEPSOptimizer."""
@@ -242,31 +247,46 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         self,
         *,
         space: SearchSpace,
+        loss_metric: Metric,
+        cost_metric: Metric | None = None,
         optimizer: BaseOptimizer,
         working_dir: Path,
+        seed: Seed | None = None,
         bucket: Bucket | None = None,
-        ignore_errors: bool = True,
-        loss_value_on_error: float | None = None,
-        cost_value_on_error: float | None = None,
     ) -> None:
         """Initialize the optimizer.
 
         Args:
             space: The space to use.
+            loss_metric: The metric to optimize.
+            cost_metric: The cost metric to use. Only certain NePs optimizers support
             optimizer: The optimizer to use.
-            working_dir: The directory to use for the optimization.
+            seed: The seed to use for the trials (and not optimizers).
+            working_dir: The directory to use for the trials.
             bucket: The bucket to give to trials generated from this optimizer.
-            ignore_errors: Whether the optimizers should ignore errors from trials.
-            loss_value_on_error: The value to use for the loss if the trial fails.
-            cost_value_on_error: The value to use for the cost if the trial fails.
         """
-        super().__init__(bucket=bucket)
+        if isinstance(loss_metric, Sequence):
+            raise ValueError("NePs does not support multiple metrics")
+
+        if cost_metric is not None and cost_metric.minimize is False:
+            raise ValueError("NePs only supports minimizing cost metrics")
+
+        if cost_metric is None and optimizer.budget is not None:
+            raise ValueError(
+                "NePs optimizers with a budget require a cost metric to be provided",
+            )
+
+        metrics = [loss_metric]
+        if cost_metric is not None:
+            metrics.append(cost_metric)
+
+        super().__init__(bucket=bucket, metrics=metrics)
         self.space = space
+        self.seed = amltk.randomness.as_int(seed)
         self.optimizer = optimizer
         self.working_dir = working_dir
-        self.ignore_errors = ignore_errors
-        self.loss_value_on_error = loss_value_on_error
-        self.cost_value_on_error = cost_value_on_error
+        self.loss_metric = loss_metric
+        self.cost_metric = cost_metric
 
         self.optimizer_state_file = self.working_dir / "optimizer_state.yaml"
         self.base_result_directory = self.working_dir / "results"
@@ -283,27 +303,45 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             SearchSpace
             | ConfigurationSpace
             | Mapping[str, ConfigurationSpace | Parameter]
+            | Node
         ),
-        bucket: Bucket | None = None,
+        metrics: Metric,
+        cost_metric: Metric | None = None,
+        bucket: Bucket | str | Path | None = None,
         searcher: str | BaseOptimizer = "default",
         working_dir: str | Path = "neps",
         overwrite: bool = True,
-        loss_value_on_error: float | None = None,
-        cost_value_on_error: float | None = None,
+        seed: Seed | None = None,
         max_cost_total: float | None = None,
-        ignore_errors: bool = True,
         searcher_kwargs: Mapping[str, Any] | None = None,
     ) -> Self:
         """Create a new NEPS optimizer.
 
         Args:
             space: The space to use.
+            metrics: The metrics to optimize.
+
+                !!! warning
+
+                    NePs does not support multiple metrics. Please only pass a single
+                    metric.
+
+            cost_metric: The cost metric to use. Only certain NePs optimizers support
+                this.
+            seed: The seed to use for the trials.
+
+                !!! warning
+
+                    NePS optimizers do not support an explicit seeding. If you'd
+                    like to seed their optimizers, they use the global
+                    `torch.manual_seed`, `np.random.seed`, and `random.seed`.
+                    This is not considered a good practice and there is not
+                    much we can do from AMLTK to help with this.
+
             bucket: The bucket to give to trials generated by this optimizer.
             searcher: The searcher to use.
             working_dir: The directory to use for the optimization.
             overwrite: Whether to overwrite the working directory if it exists.
-            loss_value_on_error: The value to use for the loss if the trial fails.
-            cost_value_on_error: The value to use for the cost if the trial fails.
             max_cost_total: The maximum cost to use for the optimization.
 
                 !!! warning
@@ -314,20 +352,18 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
 
                     The user is still expected to stop `ask()`'ing for configs when
                     they have reached some budget.
-
-            ignore_errors: Whether the optimizers should ignore errors from trials
-                or whether they should be taken into account. Please set `loss_on_value`
-                and/or `cost_value_on_error` if you set this to `False`.
             searcher_kwargs: Additional kwargs to pass to the searcher.
         """
+        if isinstance(space, Node):
+            space = space.search_space(parser=NEPSOptimizer.preferred_parser())
+        if isinstance(bucket, str | Path):
+            bucket = PathBucket(bucket)
+
         space = _to_neps_space(space)
         searcher = _to_neps_searcher(
             space=space,
             searcher=searcher,
-            loss_value_on_error=loss_value_on_error,
-            cost_value_on_error=cost_value_on_error,
             max_cost_total=max_cost_total,
-            ignore_errors=ignore_errors,
             searcher_kwargs=searcher_kwargs,
         )
         working_dir = Path(working_dir)
@@ -338,10 +374,11 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         return cls(
             space=space,
             bucket=bucket,
+            seed=seed,
+            loss_metric=metrics,
+            cost_metric=cost_metric,
             optimizer=searcher,
             working_dir=working_dir,
-            loss_value_on_error=loss_value_on_error,
-            cost_value_on_error=cost_value_on_error,
         )
 
     @override
@@ -364,12 +401,14 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
                 logger=logger,
             )
 
-        if isinstance(config, SearchSpace):
-            _config = config.hp_values()
-        else:
-            _config = {
-                k: v.value if isinstance(v, Parameter) else v for k, v in config.items()
-            }
+        match config:
+            case SearchSpace():
+                _config = config.hp_values()
+            case _:  # type: ignore
+                _config = {
+                    k: v.value if isinstance(v, Parameter) else v
+                    for k, v in config.items()  # type: ignore
+                }
 
         info = NEPSTrialInfo(
             name=str(config_id),
@@ -377,12 +416,20 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             pipeline_directory=pipeline_directory,
             previous_pipeline_directory=previous_pipeline_directory,
         )
+
+        match self.cost_metric:
+            case None:
+                metrics = [self.loss_metric]
+            case cost_metric:
+                metrics = [self.loss_metric, cost_metric]
+
         trial = Trial(
             name=info.name,
             config=info.config,
             info=info,
-            seed=None,
+            seed=self.seed,
             bucket=self.bucket,
+            metrics=metrics,
         )
         logger.debug(f"Asked for trial {trial.name}")
         return trial
@@ -398,53 +445,47 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         info = report.info
         assert info is not None
 
-        # This is how NEPS handles errors
-        result: Literal["error"] | dict[str, Any]
-        if report.status in (Trial.Status.CRASHED, Trial.Status.FAIL):
-            result = "error"
-        else:
-            result = report.results
+        # Get a metric result
+        metric_result = first_true(
+            report.metric_values,
+            pred=lambda value: value.metric.name == self.loss_metric.name,
+            default=self.loss_metric.worst,
+        )
 
+        # Convert metric result to a minimization loss
+        neps_loss: float
+        if (_loss := metric_result.distance_to_optimal) is not None:
+            neps_loss = _loss
+        else:
+            neps_loss = metric_result.loss
+
+        result: dict[str, Any] = {"loss": neps_loss}
         metadata: dict[str, Any] = {"time_end": report.time.end}
-        if result == "error":
-            if not self.ignore_errors:
-                if self.loss_value_on_error is not None:
-                    report.results["loss"] = self.loss_value_on_error
-                if self.cost_value_on_error is not None:
-                    report.results["cost"] = self.cost_value_on_error
-        else:
-            if (loss := result.get("loss")) is not None:
-                report.results["loss"] = float(loss)
-            else:
-                raise ValueError(
-                    "The 'loss' should be provided if the trial is successful"
-                    f"\n{result=}",
-                )
 
-            cost = result.get("cost")
-            if (cost := result.get("cost")) is not None:
-                cost = float(cost)
-                result["cost"] = cost
-                account_for_cost = result.get("account_for_cost", True)
+        if self.cost_metric is not None:
+            cost_metric: Metric = self.cost_metric
+            _cost = first_true(
+                report.metric_values,
+                pred=lambda value: value.metric.name == cost_metric.name,
+                default=self.cost_metric.worst,
+            )
+            cost = _cost.value
+            result["cost"] = cost
 
-                if account_for_cost:
-                    with self.optimizer.using_state(
-                        self.optimizer_state_file,
-                        self.serializer,
-                    ):
-                        self.optimizer.used_budget += cost
+            # If it's a budget aware optimizer
+            if self.optimizer.budget is not None:
+                with self.optimizer.using_state(
+                    self.optimizer_state_file,
+                    self.serializer,
+                ):
+                    self.optimizer.used_budget += cost
 
                 metadata["budget"] = {
                     "max": self.optimizer.budget,
                     "used": self.optimizer.used_budget,
                     "eval_cost": cost,
-                    "account_for_cost": account_for_cost,
+                    "account_for_cost": True,
                 }
-            elif self.optimizer.budget is not None:
-                raise ValueError(
-                    "'cost' should be provided when the optimizer has a budget"
-                    f"\n{result=}",
-                )
 
         # Dump results
         self.serializer.dump(result, info.pipeline_directory / "result")

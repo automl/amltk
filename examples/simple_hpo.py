@@ -33,7 +33,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
-from amltk.optimization import History, Trial
+from amltk.optimization import History, Trial, Metric
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.pipeline import Component, Node, Sequential, Split
 from amltk.scheduling import Scheduler
@@ -113,8 +113,8 @@ The function we will optimize must take in a `Trial` and return a `Trial.Report`
 We also pass in a [`PathBucket`][amltk.store.Bucket] which is a dict-like view of the
 file system, where we have our dataset stored.
 
-We also pass in our pipeline, which we will use to build our sklearn pipeline with a specific
-`trial.config` suggested by the [`Optimizer`][amltk.optimization.Optimizer].
+We also pass in our pipeline, which we will use to build our sklearn pipeline with a
+specific `trial.config` suggested by the [`Optimizer`][amltk.optimization.Optimizer].
 """
 
 
@@ -135,8 +135,7 @@ def target_function(
     )
 
     # Configure the pipeline with the trial config before building it.
-    configured_pipeline = _pipeline.configure(trial.config)
-    sklearn_pipeline = configured_pipeline.build("sklearn")
+    sklearn_pipeline = _pipeline.configure(trial.config).build("sklearn")
 
     # Fit the pipeline, indicating when you want to start the trial timing and error
     # catchnig.
@@ -151,9 +150,8 @@ def target_function(
                 "exception.txt": f"{trial.exception}\n traceback: {trial.traceback}",
                 "config.json": dict(trial.config),
             },
-            where=bucket,
         )
-        return trial.fail(cost=np.inf)
+        return trial.fail()
 
     # Make our predictions with the model
     train_predictions = sklearn_pipeline.predict(X_train)
@@ -163,7 +161,7 @@ def target_function(
     val_probabilites = sklearn_pipeline.predict_proba(X_val)
 
     # Save the scores to the summary of the trial
-    val_accuracy = accuracy_score(val_predictions, y_val)
+    val_accuracy = float(accuracy_score(val_predictions, y_val))
     trial.summary.update(
         {
             "train/acc": accuracy_score(train_predictions, y_train),
@@ -186,7 +184,7 @@ def target_function(
     )
 
     # Finally report the success
-    return trial.success(cost=1 - val_accuracy)
+    return trial.success(accuracy=val_accuracy)
 
 
 """
@@ -194,8 +192,9 @@ def target_function(
 
 Now we can run the whole thing. We will use the
 [`Scheduler`][amltk.scheduling.Scheduler]
-to run the optimization, and the [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] to
-to optimize the pipeline.
+to run the optimization, and the
+[`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] to
+optimize the pipeline.
 
 ### Getting and storing data
 We use a [`PathBucket`][amltk.store.PathBucket] to store the data. This is a dict-like
@@ -235,17 +234,26 @@ optimization.
 
 Please check out the full [guides](../guides/index.md) to learn more!
 
-We then create an [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] which will
-optimize the pipeline. We pass in the space of the pipeline, which is the space of
-the hyperparameters we want to optimize.
+We then create an [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer]
+which will optimize the pipeline. We pass in pipeline, and SMAC the optimizer will
+parser out the space of hyperparameters to optimize.
 """
 scheduler = Scheduler.with_processes(2)
 
-parser = SMACOptimizer.preferred_parser()
-space = pipeline.search_space(parser=parser)
+from amltk.optimization.optimizers.smac import SMACOptimizer
+optimizer = SMACOptimizer.create(
+    space=pipeline, # <!> (1)!
+    metrics=Metric("accuracy", minimize=False, bounds=(0.0, 1.0)),
+    bucket=bucket,
+    seed=seed,
+)
 
-optimizer = SMACOptimizer.create(space=space, seed=seed)
-
+# 1. You can also explicitly pass in the space of hyperparameters to optimize.
+#   ```python
+#   space = pipeline.search_space("configspace")
+#   # or
+#   space = pipeline.search_space(SMACOptimizer.preffered_parser())
+#   ```
 """
 Next we create a [`Task`][amltk.Task], passing in the function we
 want to run and the scheduler we will run it in.
@@ -316,8 +324,9 @@ a report. This will launch a new task as soon as one finishes.
 @task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
-    trial = optimizer.ask()
-    task.submit(trial, bucket=bucket, _pipeline=pipeline)
+    if scheduler.running():
+        trial = optimizer.ask()
+        task.submit(trial, bucket=bucket, _pipeline=pipeline)
 
 
 """
@@ -342,8 +351,12 @@ Lastly we use [`Scheduler.run`][amltk.scheduling.Scheduler.run] to run the
 scheduler. We pass in a timeout of 20 seconds.
 """
 if __name__ == "__main__":
-    scheduler.run(timeout=20)
+    scheduler.run(timeout=5)
 
     print("Trial history:")
     history_df = trial_history.df()
     print(history_df)
+    # TEMP
+    history_df.to_csv("history.csv")
+    x = History.from_csv("history.csv")
+    print(x.df())
