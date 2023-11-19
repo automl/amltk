@@ -1,3 +1,9 @@
+## 1.1.1 (2023-11-19)
+
+### Fix
+
+- **doc**: Add classifiers to pypi for bades (#155)
+
 ## 1.1.0 (2023-11-19)
 
 ### Feat
