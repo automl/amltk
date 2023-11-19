@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 from pytest_cases import case, parametrize, parametrize_with_cases
 
-from amltk.optimization import Optimizer, Trial
+from amltk.optimization import Metric, Optimizer, Trial
 from amltk.pipeline import Component
-from amltk.profiling import Memory, Timer
+from amltk.profiling import Timer
 
 if TYPE_CHECKING:
     from amltk.optimization.optimizers.neps import NEPSOptimizer
@@ -22,25 +23,29 @@ class _A:
     pass
 
 
-def target_function(
-    trial: Trial,
-    /,
-    time_kind: Timer.Kind,
-    mem_unit: Memory.Unit,
-    key_to_report_in: str,
-    err: Exception | None = None,
-) -> Trial.Report:
+metrics = [
+    Metric("score_bounded", minimize=False, bounds=(0, 1)),
+    Metric("score_unbounded", minimize=False),
+    Metric("loss_unbounded", minimize=True),
+    Metric("loss_bounded", minimize=True, bounds=(-1, 1)),
+]
+
+
+def target_function(trial: Trial, err: Exception | None = None) -> Trial.Report:
     """A target function for testing optimizers."""
-    with trial.begin(time=time_kind, memory_unit=mem_unit):
+    with trial.begin():
         # Do stuff with trail.info here
         logger.debug(trial.info)
 
         if err is not None:
             raise err
 
-        return trial.success(**{key_to_report_in: 1})
+        return trial.success(
+            **{metric.name: metric.optimal.value for metric in trial.metrics},
+        )
 
-    return trial.fail(**{key_to_report_in: 2000})  # pyright: ignore
+    # Should fill in metric.worst here
+    return trial.fail()  # pyright: ignore
 
 
 def valid_time_interval(interval: Timer.Interval) -> bool:
@@ -48,8 +53,8 @@ def valid_time_interval(interval: Timer.Interval) -> bool:
     return interval.start <= interval.end
 
 
-@case
-def opt_smac_hpo() -> tuple[SMACOptimizer, str]:
+@parametrize("metric", [*metrics, metrics])  # Single obj and multi
+def opt_smac_hpo(metric: Metric, tmp_path: Path) -> SMACOptimizer:
     try:
         from amltk.optimization.optimizers.smac import SMACOptimizer
     except ImportError:
@@ -57,98 +62,68 @@ def opt_smac_hpo() -> tuple[SMACOptimizer, str]:
 
     pipeline = Component(_A, name="hi", space={"a": (1, 10)})
     return SMACOptimizer.create(
-        space=pipeline.search_space(SMACOptimizer.preferred_parser()),
-        seed=2**32 - 1,
-    ), "cost"
+        space=pipeline,
+        bucket=tmp_path,
+        metrics=metric,
+        seed=42,
+    )
 
 
 @case
-def opt_optuna() -> tuple[OptunaOptimizer, str]:
+@parametrize("metric", [*metrics, metrics])  # Single obj and multi
+def opt_optuna(metric: Metric, tmp_path: Path) -> OptunaOptimizer:
     try:
         from amltk.optimization.optimizers.optuna import OptunaOptimizer
     except ImportError:
         pytest.skip("Optuna is not installed")
 
     pipeline = Component(_A, name="hi", space={"a": (1, 10)})
-    space = pipeline.search_space(parser=OptunaOptimizer.preferred_parser())
-    return OptunaOptimizer.create(space=space), "cost"
+    return OptunaOptimizer.create(
+        space=pipeline,
+        metrics=metric,
+        seed=42,
+        bucket=tmp_path,
+    )
 
 
 @case
-def opt_neps() -> tuple[NEPSOptimizer, str]:
+@parametrize("metric", [*metrics])  # Single obj
+def opt_neps(metric: Metric, tmp_path: Path) -> NEPSOptimizer:
     try:
         from amltk.optimization.optimizers.neps import NEPSOptimizer
     except ImportError:
         pytest.skip("NEPS is not installed")
 
     pipeline = Component(_A, name="hi", space={"a": (1, 10)})
-    space = pipeline.search_space(parser=NEPSOptimizer.preferred_parser())
-    return NEPSOptimizer.create(space=space, overwrite=True), "loss"
+    return NEPSOptimizer.create(
+        space=pipeline,
+        metrics=metric,
+        overwrite=True,
+        bucket=tmp_path,
+    )
 
 
-@parametrize_with_cases("optimizer, key_to_report_in", cases=".", prefix="opt_")
-@parametrize("time_kind", [Timer.Kind.WALL, Timer.Kind.CPU, Timer.Kind.PROCESS])
-@parametrize(
-    "memory_unit",
-    [
-        Memory.Unit.BYTES,
-        Memory.Unit.KILOBYTES,
-        Memory.Unit.MEGABYTES,
-        Memory.Unit.GIGABYTES,
-    ],
-)
-def test_report_success(
-    optimizer: Optimizer,
-    time_kind: Timer.Kind,
-    memory_unit: Memory.Unit,
-    key_to_report_in: str,
-) -> None:
+@parametrize_with_cases("optimizer", cases=".", prefix="opt_")
+def test_report_success(optimizer: Optimizer) -> None:
     """Test that the optimizer can report a success."""
     trial = optimizer.ask()
-    report = target_function(
-        trial,
-        time_kind=time_kind,
-        mem_unit=memory_unit,
-        err=None,
-        key_to_report_in=key_to_report_in,
-    )
+    report = target_function(trial, err=None)
     optimizer.tell(report)
 
     assert report.status == Trial.Status.SUCCESS
     assert valid_time_interval(report.time)
     assert report.trial.info is trial.info
-    assert report.results == {key_to_report_in: 1}
+    assert report.metric_values == tuple(metric.optimal for metric in optimizer.metrics)
 
 
-@parametrize_with_cases("optimizer, key_to_report_in", cases=".", prefix="opt_")
-@parametrize("time_kind", [Timer.Kind.WALL, Timer.Kind.CPU, Timer.Kind.PROCESS])
-@parametrize(
-    "memory_unit",
-    [
-        Memory.Unit.BYTES,
-        Memory.Unit.KILOBYTES,
-        Memory.Unit.MEGABYTES,
-        Memory.Unit.GIGABYTES,
-    ],
-)
-def test_report_failure(
-    optimizer: Optimizer,
-    time_kind: Timer.Kind,
-    memory_unit: Memory.Unit,
-    key_to_report_in: str,
-):
+@parametrize_with_cases("optimizer", cases=".", prefix="opt_")
+def test_report_failure(optimizer: Optimizer):
     trial = optimizer.ask()
-    report = target_function(
-        trial,
-        time_kind=time_kind,
-        mem_unit=memory_unit,
-        err=ValueError("Error inside Target Function"),
-        key_to_report_in=key_to_report_in,
-    )
+    report = target_function(trial, err=ValueError("Error inside Target Function"))
     optimizer.tell(report)
     assert report.status is Trial.Status.FAIL
 
     assert valid_time_interval(report.time)
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
-    assert report.results == {key_to_report_in: 2000}
+    assert report.metric_values == tuple(metric.worst for metric in optimizer.metrics)

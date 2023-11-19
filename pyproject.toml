@@ -210,10 +210,11 @@ exclude = [
   "PLR2004",
   "PD901",   #  X is a bad variable name. (pandas)
   "TCH",
+  "N803",
 ]
 "src/amltk/__version__.py" = ["D100"]
 "__init__.py" = ["I002"]
-"examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20", "D415"]
+"examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20", "D415", "ERA001"]
 "docs/*" = ["INP001"]
 
 
@@ -302,3 +303,4 @@ reportUnknownLambdaType = false
 reportPrivateUsage = false
 reportUnnecessaryCast = false
 reportUnusedFunction = false
+reportMissingTypeStubs = false

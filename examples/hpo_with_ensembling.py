@@ -62,7 +62,7 @@ from sklearn.svm import SVC
 
 from amltk.data.conversions import probabilities_to_classes
 from amltk.ensembling.weighted_ensemble_caruana import weighted_ensemble_caruana
-from amltk.optimization import History, Trial
+from amltk.optimization import History, Metric, Trial
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.pipeline import Choice, Component, Sequential, Split
 from amltk.scheduling import Scheduler
@@ -200,7 +200,6 @@ guide for more details.
 
 def target_function(
     trial: Trial,
-    /,
     bucket: PathBucket,
     pipeline: Sequential,
 ) -> Trial.Report:
@@ -219,15 +218,15 @@ def target_function(
         sklearn_pipeline.fit(X_train, y_train)
 
     if trial.exception:
-        items = {
-            "exception.txt": str(trial.exception),
-            "config.json": dict(trial.config),
-            "traceback.txt": str(trial.traceback),
-        }
+        trial.store(
+            {
+                "exception.txt": str(trial.exception),
+                "config.json": dict(trial.config),
+                "traceback.txt": str(trial.traceback),
+            },
+        )
 
-        trial.store(items, where=bucket)
-
-        return trial.fail(cost=np.inf)  # <!> (4)!
+        return trial.fail()  # <!> (4)!
 
     # Make our predictions with the model
     train_predictions = sklearn_pipeline.predict(X_train)
@@ -235,16 +234,12 @@ def target_function(
     test_predictions = sklearn_pipeline.predict(X_test)
 
     val_probabilites = sklearn_pipeline.predict_proba(X_val)
-    val_accuracy = accuracy_score(val_predictions, y_val)
+    val_accuracy = float(accuracy_score(val_predictions, y_val))
 
     # Save the scores to the summary of the trial
-    trial.summary.update(
-        {
-            "train_accuracy": accuracy_score(train_predictions, y_train),
-            "validation_accuracy": val_accuracy,
-            "test_accuracy": accuracy_score(test_predictions, y_test),
-        },
-    )
+    trial.summary["train_accuracy"] = float(accuracy_score(train_predictions, y_train))
+    trial.summary["validation_accuracy"] = val_accuracy
+    trial.summary["test_accuracy"] = float(accuracy_score(test_predictions, y_test))
 
     # Save all of this to the file system
     trial.store(  # (5)!
@@ -256,10 +251,9 @@ def target_function(
             "val_probabilities.npy": val_probabilites,
             "test_predictions.npy": test_predictions,
         },
-        where=bucket,
     )
 
-    return trial.success(cost=1 - val_accuracy)  # <!> (6)!
+    return trial.success(accuracy=val_accuracy)  # <!> (6)!
 
 
 # 1. We can easily load data from a [`PathBucket`][amltk.store.PathBucket]
@@ -360,7 +354,9 @@ bucket.store(  # (2)!
 
 scheduler = Scheduler.with_processes()  # (3)!
 optimizer = SMACOptimizer.create(
-    space=pipeline.search_space("configspace"),
+    space=pipeline,
+    metrics=Metric("accuracy", minimize=False, bounds=(0, 1)),
+    bucket=path,
     seed=seed,
 )  # (4)!
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
 from functools import partial, reduce
-from inspect import isclass
+from inspect import isclass, signature
 from itertools import count
 from typing import (
     Any,
@@ -374,6 +374,26 @@ def transformations(
     t = next(itr, None)
     if t is not None:
         yield from transformations(t(x), itr)
+
+
+def select_by_signature(
+    f: Callable,
+    kwargs: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Select the kwargs that are in the signature of `f`.
+
+    Args:
+        f: The function to select kwargs for.
+        kwargs: The kwargs to select from.
+
+    Returns:
+        The selected kwargs.
+    """
+    if not any(kwargs):
+        return {}
+
+    sig = signature(f)
+    return {k: v for k, v in kwargs.items() if k in sig.parameters}
 
 
 class Flag(Generic[T]):

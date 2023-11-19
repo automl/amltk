@@ -464,19 +464,19 @@ class Handler(Generic[P]):
 
         If the predicate is not satisfied, then `None` is returned.
         """
-        limit = self.limit if self.limit is not None else math.inf
         self.n_calls_to_handler += 1
-        if self.n_calls_to_handler > limit:
-            return
-
         if self.every > 1 and self.n_calls_to_handler % self.every != 0:
             return
 
         if self.when is not None and not self.when():
             return
 
-        logger.debug(f"Calling: {callstring(self.callback)}")
+        limit = self.limit if self.limit is not None else math.inf
         for _ in range(self.repeat):
+            if self.n_calls_to_callback >= limit:
+                return
+
+            logger.debug(f"Calling: {callstring(self.callback)}")
             self.callback(*args, **kwargs)
             self.n_calls_to_callback += 1
 
