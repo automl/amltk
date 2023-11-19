@@ -8,19 +8,64 @@ of `amltk` but also some design principles that are core to its
 development. Some of these principles may be new for first time
 contributors and examples will be given where necessary.
 
+## Quickstart
+Below is a quickstart guide for those familiar with open-source development. You
+do not need to use `just`, however we provide it as a convenient workflow tool.
+Please refer to the `justfile` for the commands ran if you wish to use your own
+workflow.
+
+```bash
+# Clone the repo (manually or with the below `hub` cli from github)
+hub repo fork automl/amltk
+
+# Install just, the Makefile-like tool for this repo
+# https://github.com/casey/just#installation
+sudo apt install just
+
+# Make virtual env (however you like)
+python -m venv .my-virtual-env
+source ./.my-virtual-env/bin/activate
+
+# Install the library with dev dependancies
+just install
+
+# ... make a new branch
+just pr-feat my-new-feature
+
+# ... make changes
+# ... commit changes
+
+# Run tests
+just test
+
+# Run the documentation, fix any warnings
+just docs
+
+# Run pre-commit checks
+just check
+
+# ... fix anything that needs fixing
+
+# Push to your fork
+git push
+
+# Create a PR (opening the browser too)
+hub pull-request --browse
+```
+
+Below we will go into more detail on each of these steps.
+
 ## Setting up
 The core workflows of `amltk` are accessed through the [`justfile`](https://github.com/casey/just)
-in the root of the working directory. It is recommended to have this
-installed with their [simple one-liners on their repo](https://github.com/casey/just#installation).
-All of these were developed with bash in mind and your usage with other platforms
-may vary,
+It is recommended to have this installed with their [simple one-liners on their repo](https://github.com/casey/just#installation).
+All of these were developed with bash in mind and your usage with other platforms may vary,
 please use the `justfile` as reference if this is the case.
 
 #### Forking
 If you are contributing from outside the `automl` org and under your own
 github profile, you'll have to create your own [fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo).
 
-If you use the [`hub`]() tool from github, you can do this locally with:
+If you use the [`hub`](https://hub.github.com/) tool from github, you can do this locally with:
 ```bash
 # Clones this repo
 hub clone automl/amltk
@@ -44,8 +89,6 @@ source ./.my-virtual-env/bin/activate
 # Install all required dependencies
 just install
 ```
-
-For future convenience, see [Easy Virtual Environments](#easy-virtual-environments)
 
 #### Setting up code quality tools
 When you ran `just install`, the tool [`pre-commit`](https://pre-commit.com/) was installed.
@@ -90,11 +133,9 @@ just pr-other branchname # Creates a branch other-branchname
 If you are unfamiliar with creating a PR on github, please check
 out this [guide](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
 
-Please provide a short summary of your changes to help give context
-to any reviewers who may be looking at your code. If submitting a
-more complex PR that changes behaviours,
-please consider more context when describing not only what you changed
-but why and how.
+Please provide a short summary of your changes to help give context to any reviewers who
+may be looking at your code. If submitting a more complex PR that changes behaviours,
+please consider more context when describing not only what you changed but why and how.
 
 We may ask you to break up your changes into smaller atomic units that
 are easier to verify and review, but we will describe this process to
@@ -131,6 +172,7 @@ changelogs and versioning. This is important enough that we even enforce
 this through `pre-commit` to fail the commit if the message does not follow
 the format. Please follow the link above to find out more but for reference,
 here are some short examples:
+
 ```git
 fix(scheduler): Use X instead of Y
 feat(pipeline): Allow for Z
@@ -170,17 +212,27 @@ reach out in the PR comments and we will be happy to assist!
 To ensure a consistent code quality and to reduce noise in the PR,
 there are a selection of code quality tools that run.
 
-### Pre-commit - Quality Enforcer
 These will be run automatically before a commit can be done with
 [`pre-commit`](https://pre-commit.com/). The configuration for this can be found in
 `.pre-commit-config.yaml`. All of these can be manually triggered using `just check`.
 
-### Ruff - Code Linting
-The primary linter we use is [`ruff`](https://github.com/charliermarsh/ruff), an amazingly fast
-python code linter which subsumes many previously used linters like,
-`pylint`, `flake8`, `pep8`, and even import sorters like `isort`.
-This also includes automatic fixes for many of the smaller problems that occur.
-The fixes can be done with `just fix`.
+```bash
+pre-commit run --all-files
+```
+
+This will automatically run the below tools.
+
+### Ruff - Code Linting and formatting
+The primary linter we use is [`ruff`](https://github.com/charliermarsh/ruff). The fixes and formatting
+can be done manually as so:
+
+```bash
+ruff --fix src
+ruff format src
+
+# Or this which does both
+just fix
+```
 
 ### Mypy - Static Type Checking
 This codebase also relies heavily on pythons `typing` and [`mypy`](https://mypy.readthedocs.io/en/stable/)
@@ -194,25 +246,22 @@ fails, please feel free to introduce a `# type: ignore` to tell `mypy` to shut u
 description to why it is there**. This will help future contributors and maintainers understand the
 reasons behind these ignores. You can find a cheatsheet for basic mypy type hinting [here](https://mypy.readthedocs.io/en/stable/cheat_sheet_py3.html#cheat-sheet-py3).
 
-### Black - Code Formatiing
-Lastly, we use [`black`](https://github.com/psf/black) which is a python code formatter. This
-will not change any logical meaning of your python code but simply format it in a consistent
-manner so that the code is consistent and follows the same standards. This can be run with
-`just fix`.
-
 ## Git workflow
 We follow a _PR into trunk_ development flow (whatever that's meant to be called),
 in which all development is done in feature branches and the merged into `main`.
 The reason for feature branches is to allow multiple maintainers to actively work on
-`amltk` without interfering.
+`amltk` without interfering. The `main` branch is locked down, meaning commits can not be made directly to main,
+and features actions to trigger releases.
 
 ## Documentation
 The documentation is handled by [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/)
 with some additional plugins. This is a markdown based documentation generator which allows
 custom documentation and renders API documentation written in the code itself.
 
-Where possible prefer to describe most of your documentation in code, with more custom
-documentation generally not required for PRs.
+Document features where the code lives. For example, if you introduce a new function, prefer
+to add documentation with an example in the docstring of the function itself. There is also
+some module level documentation which is used as a reference for the API. Most likely
+updating this is only required for larger changes.
 
 You can find a collection of features for custom documentation [here](https://squidfunk.github.io/mkdocs-material/reference/)
 as well as code reference documentation [here](https://mkdocstrings.github.io/usage/)
@@ -222,30 +271,13 @@ You can live view documentation changes by running `just docs`,
 which will open your webbrowser and run `mkdocs --serve` to watch all files
 and live update any changes that occur.
 
-### Examples
-The [`./examples`](examples/index.md) folder is where you can find our runnable
-examples for AutoML-ToolKit.
+Please do not ignore warnings. The CI will fail if there are any warnings
+and we will not merge any PR's that have warnings.
 
-When generating the documentation locally, the `just docs` command will
-not run any examples, only render their code. You can control the running
-of examples with
+### Example Syntax
+If creating an example, there is a custom format used to render `.py` files
+and convert them to markdown that we can host.
 
-```bash
- # Run no examples
-just docs
-just docs "None"
-
-# Run all examples
-just docs "all"
-
-# Run a single example called "Example Title"
-just docs "Example Title"
-
-# Run two examples called "Example1" and "Example2"
-just docs "Example1, Example2"
-```
-
-#### Example Syntax
 An example is just a python file, using the triple quote `"""`
 comments to switch between commentary and code blocks.
 
@@ -315,6 +347,12 @@ then inform the user they will be blocked.
 We use `squash-merge` from feature branches to keep the commit log
 to the `convential-commits` standard. This helps automate systems.
 
+Please familiarize yourself with conventional commits and ensure that
+the PR is up-to-date with the `main` branch before merging.
+
+There should be no manual versioning, as this will take place during
+releases automatically.
+
 In the case of staling PR's, these will likely need a forceful rebase
 from the `main` branch. This often has a negative impact on the commit
 history of a pull request but this will be removed by `squash-merge`.
@@ -330,18 +368,6 @@ whether that be benchmarking, experimenting, testing, versioning,
 issues, pull requests, documentation and anything else tangential to
 code features. Any and all automation to the repository is greatly
 appreciated but should be documented in the `Maintainers` section.
-
-#### Versioning
-Using [`convential-commits`](https://www.conventionalcommits.org/en/v1.0.0/) and `commitizen`, the versioning of
-`amltk` automatically keeps a `CHANGELOG.md` and bumps versions in
-any respective files.
-
-Whenever a version needs to be bumped, this workflow has been
-automated with `just bump`, which will bump all version strings
-and keeping to semvar versioning, using the commit history as a guide.
-Try to avoid using the `!` flag with a commit to indicate a major version
-bump unless consensus has been reached. Perhaps once we have released
-several major versions and a stabilized API, we may utilize this more freely.
 
 #### Dependencies
 One of the hardest parts of maintenance for a mature library,
@@ -383,10 +409,3 @@ the `.github/dependabot.yml`. This bot will periodically
 make pull requests to the repository that update dependencies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
-
-#### Long Term Decisions
-Whenever faced with a long impacting decision, e.g. do we always
-use `"cost"` as the values to return in a `Trial`, please make
-an issue with the header `[Decision] Title Description` and
-append the label `(decision)` on github. This lets us
-revisit decisions made as well as the reasoning behind them.

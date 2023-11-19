@@ -14,7 +14,7 @@ install:
 
 # Run formatters and linters to fix up code
 fix:
-  ruff format --exit-zero src
+  ruff format --exit-zero src tests
   ruff --silent --exit-zero --no-cache --fix src tests
 
 # Run pre-commit to check all files
@@ -33,8 +33,6 @@ docs exec_doc_code="true" example="None" offline="false":
     AMLTK_EXEC_DOCS={{exec_doc_code}} mkdocs serve --watch-theme --dirtyreload
   # https://github.com/pawamoy/markdown-exec/issues/19
 
-
-# Release a version on github
 action:
   gh workflow run
 
