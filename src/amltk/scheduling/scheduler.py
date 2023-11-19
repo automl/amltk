@@ -211,6 +211,13 @@ itself or your callbacks.
     You can schedule some function to be run later using the
     [`#!python scheduler.call_later()`][amltk.scheduling.Scheduler.call_later] method.
 
+    !!! note
+
+        This does not run the function in the background, it just schedules some
+        function to be called later, where you could perhaps then use submit to
+        scheduler a [`Task`][amltk.scheduling.Task] to run the function in the
+        background.
+
     ```python exec="true" source="material-block" result="python"
     from amltk.scheduling import Scheduler
 
@@ -1358,9 +1365,8 @@ class Scheduler:
             raise RuntimeError("Scheduler is not running!")
 
         _fn = partial(fn, *args, **kwargs)
-
         loop = asyncio.get_running_loop()
-        return loop.call_later(delay, self.submit, _fn)
+        return loop.call_later(delay, _fn)
 
     @staticmethod
     def _end_pending(
