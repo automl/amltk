@@ -15,7 +15,7 @@ description = "AutoML Toolkit: a toolkit for building automl system"
 classifiers = [
   'Intended Audience :: Science/Research',
   'Intended Audience :: Developers',
-  'License :: OSI Approved',
+  'License :: OSI Approved :: MIT License',
   'Programming Language :: Python',
   'Topic :: Software Development',
   'Topic :: Scientific/Engineering',
@@ -23,6 +23,8 @@ classifiers = [
   'Operating System :: Unix',
   'Operating System :: MacOS',
   'Programming Language :: Python :: 3',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
 ]
 license = { file = "LICENSE" }
 
