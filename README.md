@@ -1,3 +1,8 @@
+[![image](https://img.shields.io/pypi/v/amltk.svg)](https://pypi.python.org/pypi/amltk)
+[![image](https://img.shields.io/pypi/l/amltk.svg)](https://pypi.python.org/pypi/amltk)
+[![image](https://img.shields.io/pypi/pyversions/amltk.svg)](https://pypi.python.org/pypi/amltk)
+[![Actions status](https://github.com/automl/amltk/workflows/test/badge.svg)](https://github.com/automl/amltk/actions)
+
 # AutoML Toolkit
 A framework for defining, configuring, building and evaluating AutoML pipelines.
 Please check out our documentation:
