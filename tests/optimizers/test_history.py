@@ -56,32 +56,35 @@ def case_empty() -> list[Trial.Report]:
 
 @case(tags=["success"])
 def case_one_report_success() -> list[Trial.Report]:
-    trial: Trial = Trial("trial_1", config={"x": 1}, metrics=metrics)
+    trial: Trial = Trial(name="trial_1", config={"x": 1}, metrics=metrics)
     return eval_trial(trial)
 
 
 @case(tags=["fail"])
 def case_one_report_fail() -> list[Trial.Report]:
-    trial: Trial = Trial("trial_1", config={"x": 1}, metrics=metrics)
+    trial: Trial = Trial(name="trial_1", config={"x": 1}, metrics=metrics)
     return eval_trial(trial, fail=100)
 
 
 @case(tags=["crash"])
 def case_one_report_crash() -> list[Trial.Report]:
-    trial: Trial = Trial("trial_1", config={"x": 1}, metrics=metrics)
+    trial: Trial = Trial(name="trial_1", config={"x": 1}, metrics=metrics)
     return eval_trial(trial, crash=ValueError("Some Error"))
 
 
 @case(tags=["success", "fail", "crash"])
 def case_many_report() -> list[Trial.Report]:
     success_trials: list[Trial] = [
-        Trial(f"trial_{i+6}", config={"x": i}, metrics=metrics) for i in range(-5, 5)
+        Trial(name=f"trial_{i+6}", config={"x": i}, metrics=metrics)
+        for i in range(-5, 5)
     ]
     fail_trials: list[Trial] = [
-        Trial(f"trial_{i+16}", config={"x": i}, metrics=metrics) for i in range(-5, 5)
+        Trial(name=f"trial_{i+16}", config={"x": i}, metrics=metrics)
+        for i in range(-5, 5)
     ]
     crash_trials: list[Trial] = [
-        Trial(f"trial_{i+26}", config={"x": i}, metrics=metrics) for i in range(-5, 5)
+        Trial(name=f"trial_{i+26}", config={"x": i}, metrics=metrics)
+        for i in range(-5, 5)
     ]
 
     return [
@@ -192,7 +195,8 @@ def test_trace_df(reports: list[Trial.Report]) -> None:
 
 def test_history_sortby() -> None:
     trials: list[Trial] = [
-        Trial(f"trial_{i+6}", metrics=metrics, config={"x": i}) for i in range(-5, 5)
+        Trial(name=f"trial_{i+6}", metrics=metrics, config={"x": i})
+        for i in range(-5, 5)
     ]
 
     summary_items = ["trial_1", "trial_3"]
@@ -225,7 +229,7 @@ def test_history_incumbents() -> None:
     m1 = Metric("score", minimize=False)
     m2 = Metric("loss", minimize=True)
     trials: list[Trial] = [
-        Trial(f"trial_{i+6}", metrics=[m1, m2], config={"x": i})
+        Trial(name=f"trial_{i+6}", metrics=[m1, m2], config={"x": i})
         for i in [0, -1, 2, -3, 4, -5, 6, -7, 8, -9]
     ]
     history = History()
