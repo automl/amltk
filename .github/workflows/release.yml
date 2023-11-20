@@ -145,7 +145,6 @@ jobs:
           gh release create  \
             --generate-notes \
             --notes-file changelog-increment.md \
-            --prerelease \
             --verify-tag \
             "${current_version}" "dist/amltk-${current_version}.tar.gz"
   publish:
