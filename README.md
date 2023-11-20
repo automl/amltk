@@ -2,6 +2,7 @@
 [![image](https://img.shields.io/pypi/l/amltk.svg)](https://pypi.python.org/pypi/amltk)
 [![image](https://img.shields.io/pypi/pyversions/amltk.svg)](https://pypi.python.org/pypi/amltk)
 [![Actions](https://github.com/automl/amltk/actions/workflows/test.yml/badge.svg)](https://github.com/automl/amltk/actions)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 # AutoML Toolkit
 A framework for defining, configuring, building and evaluating AutoML pipelines.
