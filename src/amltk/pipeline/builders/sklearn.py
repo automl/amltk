@@ -86,7 +86,12 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
     You can use a `Fixed` with the special keyword `"passthrough"` as you might normally
     do with a `ColumnTransformer`.
 
-    ```python exec="true" source="material-block" html="true" hl_lines="18-19 23-24"
+    By default, we provide two special keywords you can provide to a `Split`,
+    namely `#!python "categorical"` and `#!python "numerical"`, which will
+    automatically configure a `ColumnTransorfmer` to pass the appropraite
+    columns of a data-frame to the given paths.
+
+    ```python exec="true" source="material-block" html="true" hl_lines="16"
     from amltk.pipeline import Split
 
     categorical_pipeline = [
@@ -102,6 +107,12 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
     ]
     numerical_pipeline = [SimpleImputer(strategy="median"), StandardScaler()]
 
+    split = Split({"categories": categorical_pipeline, "numbers": numerical_pipeline})
+    ```
+
+    You can manually specify the column selectors if you prefer.
+
+    ```python
     split = Split(
         {
             "categories": categorical_pipeline,
@@ -113,6 +124,7 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
         },
    )
     ```
+
 
 
 === "`Join`"
@@ -160,7 +172,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from sklearn.base import BaseEstimator, clone
-from sklearn.compose import ColumnTransformer
+from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.pipeline import (
     FeatureUnion,
     Pipeline as SklearnPipeline,
@@ -203,25 +215,29 @@ def _process_split(
     pipeline_type: type[SklearnPipelineT] = SklearnPipeline,
     **pipeline_kwargs: Any,
 ) -> tuple[str, ColumnTransformer]:
-    if node.config is None:
-        raise ValueError(
-            f"Can't handle split as it has no config attached: {node}.\n"
-            " Sklearn builder requires all splits to have a config to tell"
-            " the ColumnTransformer how to operate.",
-        )
-
     if any(child.name in COLUMN_TRANSFORMER_ARGS for child in node.nodes):
         raise ValueError(
             f"Can't handle step as it has a path with a name that matches"
             f" a known ColumnTransformer argument: {node}",
         )
 
-    if any(child.name not in node.config for child in node.nodes):
+    config = dict(node.config) if node.config is not None else {}
+
+    # Automatic categories/numerical config
+    for keyword, dtypes in (
+        ("categorical", [object, "category"]),
+        ("numerical", ["number"]),
+    ):
+        if any(child.name == keyword for child in node.nodes) and keyword not in config:
+            config[keyword] = make_column_selector(dtype_include=dtypes)
+
+    # Automatic numeric config
+    if any(child.name not in config for child in node.nodes):
         raise ValueError(
             f"Can't handle split {node.name=} as some path has no config associated"
             " with it."
-            "\nPlease ensure that all paths have a config associated with them.\n"
-            f"config={node.config}\n"
+            "\nPlease ensure that all paths have a config associated with them."
+            f"\n{config=}\n"
             f"children={[child.name for child in node.nodes]}\n",
         )
 
@@ -240,7 +256,6 @@ def _process_split(
     # https://scikit-learn.org/stable/modules/generated/sklearn.compose.ColumnTransformer.html
     # list of (name, estimator, columns)
     transformers: list[tuple[str, Any, Any]] = []
-    config = node.config
 
     for child in node.nodes:
         child_steps = list(_iter_steps(child))

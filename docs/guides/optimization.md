@@ -98,6 +98,7 @@ metric = Metric("score", minimize=False)
 space = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
 
 optimizer = SMACOptimizer.create(space=space, metrics=metric, seed=42)
+optimizer.bucket.rmdir()  # markdown-exec: hide
 ```
 
 ## Running an Optimizer
@@ -131,7 +132,7 @@ for _ in range(10):
     reports.append(report)
 
 last_report = reports[-1]
-print(last_report.df())
+print(last_report.config, last_report.metrics)
 optimizer.bucket.rmdir()  # markdown-exec: hide
 ```
 
