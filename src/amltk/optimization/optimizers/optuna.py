@@ -126,7 +126,6 @@ if TYPE_CHECKING:
     from typing import Protocol
 
     from amltk.pipeline.parsers.optuna import OptunaSearchSpace
-    from amltk.store import Bucket
     from amltk.types import Seed
 
     class OptunaParser(Protocol):
@@ -152,7 +151,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         *,
         study: Study,
         metrics: Metric | Sequence[Metric],
-        bucket: Bucket | None = None,
+        bucket: PathBucket | None = None,
         seed: Seed | None = None,
         space: OptunaSearchSpace,
     ) -> None:
@@ -198,7 +197,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         *,
         space: OptunaSearchSpace | Node,
         metrics: Metric | Sequence[Metric],
-        bucket: Bucket | str | Path | None = None,
+        bucket: PathBucket | str | Path | None = None,
         sampler: BaseSampler | None = None,
         seed: Seed | None = None,
         **kwargs: Any,
