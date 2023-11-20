@@ -92,7 +92,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 from typing_extensions import override
 
 import numpy as np
@@ -304,6 +304,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         logger.debug(f"Telling report for trial {report.trial.name}")
 
         # If we're successful, get the cost and times and report them
+        params: dict[str, Any]
         match report.status:
             case Trial.Status.SUCCESS:
                 params = {

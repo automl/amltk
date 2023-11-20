@@ -238,12 +238,12 @@ class Node(RichRenderable, Generic[Item, Space]):
     def __and__(self, other: Node | NodeLike) -> Join:
         from amltk.pipeline.components import as_node
 
-        return as_node((self, other))
+        return as_node((self, other))  # type: ignore
 
     def __rshift__(self, other: Node | NodeLike) -> Sequential:
         from amltk.pipeline.components import as_node
 
-        return as_node([self, other])
+        return as_node([self, other])  # type: ignore
 
     def configure(
         self,
