@@ -104,7 +104,7 @@ class History(RichRenderable):
 
     metric = Metric("cost", minimize=True)
     trials = [
-        Trial(f"trial_{i}", config={"x": i}, metrics=[metric])
+        Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric])
         for i in range(10)
     ]
     history = History()
@@ -201,7 +201,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -245,7 +245,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -278,7 +278,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -300,7 +300,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -343,7 +343,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -400,7 +400,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:

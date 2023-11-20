@@ -18,34 +18,18 @@ and the [optimization guide here](../guides/optimization.md) to learn more.
 You can skip the imports sections and go straight to the
 [pipeline definition](#pipeline-definition).
 
-## Imports
-"""
-from __future__ import annotations
-
-from asyncio import Future
-from typing import Any
-
-import numpy as np
-import openml
-from sklearn.compose import make_column_selector
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-
-from amltk.optimization import History, Trial, Metric
-from amltk.optimization.optimizers.smac import SMACOptimizer
-from amltk.pipeline import Component, Node, Sequential, Split
-from amltk.scheduling import Scheduler
-from amltk.sklearn.data import split_data
-from amltk.store import PathBucket
-
-"""
 ## Dataset
 
 Below is just a small function to help us get the dataset from OpenML and encode the
 labels.
 """
+
+from typing import Any
+
+import openml
+from sklearn.preprocessing import LabelEncoder
+
+from amltk.sklearn import split_data
 
 
 def get_dataset(
@@ -78,19 +62,18 @@ the `RandomForestClassifier`.
 For more on definitions of pipelines, see the [Pipeline](../guides/pipelines.md)
 guide.
 """
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder
+
+from amltk.pipeline import Component, Node, Sequential, Split
+
 pipeline = (
     Sequential(name="Pipeline")
     >> Split(
         {
-            "categories": [
-                SimpleImputer(strategy="constant", fill_value="missing"),
-                OneHotEncoder(drop="first"),
-            ],
-            "numbers": Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
-        },
-        config={
-            "categories": make_column_selector(dtype_include=object),
-            "numbers": make_column_selector(dtype_include=np.number),
+            "categorical": [SimpleImputer(strategy="constant", fill_value="missing"), OneHotEncoder(drop="first")],
+            "numerical": Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
         },
         name="feature_preprocessing",
     )
@@ -116,23 +99,23 @@ file system, where we have our dataset stored.
 We also pass in our pipeline, which we will use to build our sklearn pipeline with a
 specific `trial.config` suggested by the [`Optimizer`][amltk.optimization.Optimizer].
 """
+from sklearn.metrics import accuracy_score
+
+from amltk.optimization import Trial
 
 
-def target_function(
-    trial: Trial,
-    /,
-    bucket: PathBucket,
-    _pipeline: Node,
-) -> Trial.Report:
+def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
+    trial.store({"config.json": trial.config})
     # Load in data
-    X_train, X_val, X_test, y_train, y_val, y_test = (
-        bucket["X_train.csv"].load(),
-        bucket["X_val.csv"].load(),
-        bucket["X_test.csv"].load(),
-        bucket["y_train.npy"].load(),
-        bucket["y_val.npy"].load(),
-        bucket["y_test.npy"].load(),
-    )
+    with trial.profile("data-loading"):
+        X_train, X_val, X_test, y_train, y_val, y_test = (
+            trial.bucket["X_train.csv"].load(),
+            trial.bucket["X_val.csv"].load(),
+            trial.bucket["X_test.csv"].load(),
+            trial.bucket["y_train.npy"].load(),
+            trial.bucket["y_val.npy"].load(),
+            trial.bucket["y_test.npy"].load(),
+        )
 
     # Configure the pipeline with the trial config before building it.
     sklearn_pipeline = _pipeline.configure(trial.config).build("sklearn")
@@ -145,46 +128,40 @@ def target_function(
     # If an exception happened, we use `trial.fail` to indicate that the
     # trial failed
     if trial.exception:
-        trial.store(
-            {
-                "exception.txt": f"{trial.exception}\n traceback: {trial.traceback}",
-                "config.json": dict(trial.config),
-            },
-        )
+        trial.store({"exception.txt": f"{trial.exception}\n {trial.traceback}"})
         return trial.fail()
 
     # Make our predictions with the model
-    train_predictions = sklearn_pipeline.predict(X_train)
-    val_predictions = sklearn_pipeline.predict(X_val)
-    test_predictions = sklearn_pipeline.predict(X_test)
+    with trial.profile("predictions"):
+        train_predictions = sklearn_pipeline.predict(X_train)
+        val_predictions = sklearn_pipeline.predict(X_val)
+        test_predictions = sklearn_pipeline.predict(X_test)
 
-    val_probabilites = sklearn_pipeline.predict_proba(X_val)
+    with trial.profile("probabilities"):
+        val_probabilites = sklearn_pipeline.predict_proba(X_val)
 
     # Save the scores to the summary of the trial
-    val_accuracy = float(accuracy_score(val_predictions, y_val))
-    trial.summary.update(
-        {
-            "train/acc": accuracy_score(train_predictions, y_train),
-            "val/acc": val_accuracy,
-            "test/acc": accuracy_score(test_predictions, y_test),
-        },
-    )
+    with trial.profile("scoring"):
+        train_acc = float(accuracy_score(train_predictions, y_train))
+        val_acc = float(accuracy_score(val_predictions, y_val))
+        test_acc = float(accuracy_score(test_predictions, y_test))
+
+    trial.summary["train/acc"] = train_acc
+    trial.summary["val/acc"] = val_acc
+    trial.summary["test/acc"] = test_acc
 
     # Save all of this to the file system
     trial.store(
         {
-            "config.json": dict(trial.config),
-            "scores.json": trial.summary,
             "model.pkl": sklearn_pipeline,
             "val_probabilities.npy": val_probabilites,
             "val_predictions.npy": val_predictions,
             "test_predictions.npy": test_predictions,
         },
-        where=bucket,
     )
 
     # Finally report the success
-    return trial.success(accuracy=val_accuracy)
+    return trial.success(accuracy=val_acc)
 
 
 """
@@ -200,6 +177,7 @@ optimize the pipeline.
 We use a [`PathBucket`][amltk.store.PathBucket] to store the data. This is a dict-like
 view of the file system.
 """
+from amltk.store import PathBucket
 
 seed = 42
 data = get_dataset(31, seed=seed, splits={"train": 0.6, "val": 0.2, "test": 0.2})
@@ -208,7 +186,7 @@ X_train, y_train = data["train"]
 X_val, y_val = data["val"]
 X_test, y_test = data["test"]
 
-bucket = PathBucket("results/simple_hpo_example", clean=True, create=True)
+bucket = PathBucket("example-hpo", clean=True, create=True)
 bucket.store(
     {
         "X_train.csv": X_train,
@@ -222,10 +200,6 @@ bucket.store(
 
 print(bucket)
 print(dict(bucket))
-
-X_train = bucket["X_train.csv"].load()
-print(X_train.shape)
-
 """
 ### Setting up the Scheduler, Task and Optimizer
 We use the [`Scheduler.with_processes`][amltk.scheduling.Scheduler.with_processes]
@@ -238,11 +212,15 @@ We then create an [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptim
 which will optimize the pipeline. We pass in pipeline, and SMAC the optimizer will
 parser out the space of hyperparameters to optimize.
 """
+from amltk.optimization import Metric
+from amltk.scheduling import Scheduler
+
 scheduler = Scheduler.with_processes(2)
 
 from amltk.optimization.optimizers.smac import SMACOptimizer
+
 optimizer = SMACOptimizer.create(
-    space=pipeline, # <!> (1)!
+    space=pipeline,  # <!> (1)!
     metrics=Metric("accuracy", minimize=False, bounds=(0.0, 1.0)),
     bucket=bucket,
     seed=seed,
@@ -277,7 +255,7 @@ launches the task we created earlier with this trial.
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
-    task.submit(trial, bucket=bucket, _pipeline=pipeline)
+    task.submit(trial, _pipeline=pipeline)
 
 
 """
@@ -292,7 +270,7 @@ Here we use it to update the optimizer with the report we got.
 
 
 @task.on_result
-def tell_optimizer(future: Future, report: Trial.Report) -> None:
+def tell_optimizer(_, report: Trial.Report) -> None:
     """When we get a report, tell the optimizer."""
     optimizer.tell(report)
 
@@ -302,11 +280,13 @@ We can use the [`History`][amltk.optimization.History] class to store the report
 from the [`Task`][amltk.Task]. We can then use this to analyze the results of the
 optimization afterwords.
 """
+from amltk.optimization import History
+
 trial_history = History()
 
 
 @task.on_result
-def add_to_history(future: Future, report: Trial.Report) -> None:
+def add_to_history(_, report: Trial.Report) -> None:
     """When we get a report, print it."""
     trial_history.add(report)
 
@@ -320,13 +300,12 @@ If you want to run the optimization in parallel, you can use the
 a report. This will launch a new task as soon as one finishes.
 """
 
-
 @task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     if scheduler.running():
         trial = optimizer.ask()
-        task.submit(trial, bucket=bucket, _pipeline=pipeline)
+        task.submit(trial, _pipeline=pipeline)
 
 
 """
@@ -356,7 +335,3 @@ if __name__ == "__main__":
     print("Trial history:")
     history_df = trial_history.df()
     print(history_df)
-    # TEMP
-    history_df.to_csv("history.csv")
-    x = History.from_csv("history.csv")
-    print(x.df())
