@@ -66,6 +66,12 @@ pr-refactor name:
   git checkout -b refactor-{{name}} main
   git push --set-upstream origin refactor-{{name}}
 
+# Create a `ci` PR with <name>
+pr-ci name:
+  git pull origin main
+  git checkout -b ci-{{name}} main
+  git push --set-upstream origin ci-{{name}}
+
 # Create an `other` PR with <name>
 pr-other name:
   git pull origin main
