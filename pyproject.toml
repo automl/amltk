@@ -218,7 +218,7 @@ exclude = [
 ]
 "src/amltk/__version__.py" = ["D100"]
 "__init__.py" = ["I002"]
-"examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20", "D415", "ERA001"]
+"examples/*" = ["INP001", "I002", "E741", "D101", "D103", "T20", "D415", "ERA001", "E402", "E501"]
 "docs/*" = ["INP001"]
 
 

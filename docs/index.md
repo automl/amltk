@@ -62,11 +62,3 @@ allowing you to define, search and build machine learning systems.
     AutoML-Toolkit is task agnostic, meaning you can use it for any machine learning task.
     We provide a base [Task](./guides/scheduling.md) which you can extend with
     events and functionality specific to the tasks you care about.
-
----
-
--   :octicons-people-16: __Community Driven__
-
-    AutoML-Toolkit is a community driven project, and we want to hear from you. We
-    are always looking for new contributors, so if you have an idea or want to
-    contribute, please get in touch!

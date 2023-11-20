@@ -22,7 +22,7 @@ def quadratic(x):
 
 history = History()
 trials = [
-    Trial(f"trial_{count}", config={"x": i}, metrics=[loss])
+    Trial(name=f"trial_{count}", config={"x": i}, metrics=[loss])
     for count, i in enumerate(range(-5, 5))
 ]
 
@@ -59,7 +59,7 @@ see the [optimization guide](../../guides/optimization.md) for more details.
             cost = quadratic(x)
             return trial.success(cost=cost)
 
-    optimizer = SMACOptimizer(space=searchable, cost=Metric("cost", minimize=True), seed=42)
+    optimizer = SMACOptimizer(space=searchable, metrics=Metric("cost", minimize=True), seed=42)
 
     scheduler = Scheduler.with_processes(2)
     task = scheduler.task(quadratic)
@@ -86,8 +86,9 @@ The [`History`][amltk.optimization.History] can be queried by either
 an index or by the trial name.
 
 ```python exec="true" source="material-block" result="python" title="History Querying [str]" session="ref-history"
-print(history["trial_0"])
-print(history[5])
+last_report = history[-1]
+print(last_report)
+print(history[last_report.name])
 ```
 
 ```python exec="true" source="material-block" result="python" session="ref-history"

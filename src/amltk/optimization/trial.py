@@ -880,12 +880,16 @@ class Trial(Generic[I]):
         metric_values: tuple[Metric.Value, ...] = field(default_factory=tuple)
         """The metrics of the trial, linked to the metrics."""
 
+        metric_defs: dict[str, Metric] = field(init=False)
+        """A lookup to the metric definitions"""
+
         metric_names: tuple[str, ...] = field(init=False)
         """The names of the metrics."""
 
         def __post_init__(self) -> None:
             self.metrics = {value.name: value.value for value in self.metric_values}
             self.metric_names = tuple(metric.name for metric in self.metric_values)
+            self.metric_defs = {v.metric.name: v.metric for v in self.metric_values}
 
         @property
         def exception(self) -> BaseException | None:

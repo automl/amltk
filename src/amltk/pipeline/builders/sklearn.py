@@ -92,7 +92,10 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
     columns of a data-frame to the given paths.
 
     ```python exec="true" source="material-block" html="true" hl_lines="16"
-    from amltk.pipeline import Split
+    from amltk.pipeline import Split, Component
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
     categorical_pipeline = [
         SimpleImputer(strategy="constant", fill_value="missing"),
@@ -107,7 +110,13 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
     ]
     numerical_pipeline = [SimpleImputer(strategy="median"), StandardScaler()]
 
-    split = Split({"categories": categorical_pipeline, "numbers": numerical_pipeline})
+    split = Split(
+        {
+            "categories": categorical_pipeline,
+            "numbers": numerical_pipeline
+        }
+    )
+    from amltk._doc import doc_print; doc_print(print, split)  # markdown-exec: hide
     ```
 
     You can manually specify the column selectors if you prefer.
