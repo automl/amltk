@@ -1,3 +1,14 @@
+## 1.2.0 (2023-11-20)
+
+### Feat
+
+- **sklearn**: Special keywords for splits
+
+### Fix
+
+- **trials**: Always use a `PathBucket` with optimizers
+- **Trial**: Trial should now always have a bucket
+
 ## 1.1.1 (2023-11-19)
 
 ### Fix
