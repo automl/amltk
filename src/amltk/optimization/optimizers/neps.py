@@ -145,7 +145,6 @@ if TYPE_CHECKING:
     from neps.api import BaseOptimizer
 
     from amltk.optimization.metric import Metric
-    from amltk.store import Bucket
     from amltk.types import Seed
 
     class NEPSPreferredParser(Protocol):
@@ -252,7 +251,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         optimizer: BaseOptimizer,
         working_dir: Path,
         seed: Seed | None = None,
-        bucket: Bucket | None = None,
+        bucket: PathBucket | None = None,
     ) -> None:
         """Initialize the optimizer.
 
@@ -307,7 +306,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         ),
         metrics: Metric,
         cost_metric: Metric | None = None,
-        bucket: Bucket | str | Path | None = None,
+        bucket: PathBucket | str | Path | None = None,
         searcher: str | BaseOptimizer = "default",
         working_dir: str | Path = "neps",
         overwrite: bool = True,

@@ -116,7 +116,6 @@ if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
     from smac.facade import AbstractFacade
 
-    from amltk.store import Bucket
     from amltk.types import FidT, Seed
 
 
@@ -136,7 +135,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         self,
         *,
         facade: AbstractFacade,
-        bucket: Bucket | None = None,
+        bucket: PathBucket | None = None,
         metrics: Metric | Sequence[Metric],
         fidelities: Mapping[str, FidT] | None = None,
     ) -> None:
@@ -164,7 +163,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         *,
         space: ConfigurationSpace | Node,
         metrics: Metric | Sequence[Metric],
-        bucket: Bucket | str | Path | None = None,
+        bucket: PathBucket | str | Path | None = None,
         deterministic: bool = True,
         seed: Seed | None = None,
         fidelities: Mapping[str, FidT] | None = None,
