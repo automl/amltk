@@ -192,11 +192,10 @@ from amltk._doc import doc_print; doc_print(print, manually_configured_component
 To build the individual item of a `Component` we can use [`build_item()`][amltk.pipeline.Component.build_item]
 and it simply calls the `.item` with the config we have set.
 
-```python exec="true" source="material-block" result="python" session="Pipeline-Component"
-the_built_model = configured_component.build_item()
-
+```python exec="true" source="material-block" html="true" session="Pipeline-Component"
 # Same as if we did `configured_component.item(**configured_component.config)`
-print(the_built_model)
+the_built_model = configured_component.build_item()
+print(the_built_model._repr_html_())  # markdown-exec: hide
 ```
 
 However, as we'll see later, we often have multiple steps of a pipeline joined together and so
@@ -379,12 +378,6 @@ from amltk._doc import doc_print; doc_print(print, space)  # markdown-exec: hide
 doc_print(print, config)  # markdown-exec: hide
 doc_print(print, configured_pipeline)  # markdown-exec: hide
 ```
-
-!!! inline end "Other notions of Sequential"
-
-    We'll see this later but wherever we expect a `Node`, for example as an argument to
-    `Sequential` or any other type of pipeline component, a list, i.e. `[node_1, node_2]`,
-    will automatically be joined together and interpreted as a `Sequential`.
 
 To build a pipeline of nodes, we simply call [`build(builder=)`][amltk.pipeline.Node.build]. We
 explicitly pass the builder we want to use, which informs `build()` how to go from the abstract
