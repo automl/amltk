@@ -22,7 +22,7 @@ space representation.
 To generalize over this, AMLTK itself will not care what is in a `.space`
 of each part of the pipeline, i.e.
 
-```python exec="true" source="material-block" result="python"
+```python exec="true" source="material-block" html="true"
 from amltk.pipeline import Component
 
 c = Component(object, space="hmmm, a str space?")
