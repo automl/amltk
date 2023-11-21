@@ -419,14 +419,6 @@ model_choice = Choice(model_a, model_b, name="estimator")
 from amltk._doc import doc_print; doc_print(print, model_choice, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
-Just as we did with a `Component`, we can also get a [`search_space()`][amltk.pipeline.Node.search_space]
-from the choice.
-
-```python exec="true" source="material-block" html="true" session="Pipeline-Choice"
-space = model_choice.search_space("configspace")
-from amltk._doc import doc_print; doc_print(print, space, output="html")  # markdown-exec: hide
-```
-
 ??? warning inline end "Conditionals and Search Spaces"
 
     Not all search space implementations support conditionals and so some
@@ -435,6 +427,14 @@ from amltk._doc import doc_print; doc_print(print, space, output="html")  # mark
 
     Check out the [parser reference](../reference/pipelines/spaces.md)
     for more information.
+
+Just as we did with a `Component`, we can also get a [`search_space()`][amltk.pipeline.Node.search_space]
+from the choice.
+
+```python exec="true" source="material-block" html="true" session="Pipeline-Choice"
+space = model_choice.search_space("configspace")
+from amltk._doc import doc_print; doc_print(print, space, output="html")  # markdown-exec: hide
+```
 
 When we `configure()` a choice, we will collapse it down to a single component. This is
 done according to what is set in the config.
