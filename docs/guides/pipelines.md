@@ -492,7 +492,7 @@ we use [`build()`][amltk.pipeline.Node.build].
 
 ```python exec="true" source="material-block" html="True" session="Pipeline-Split3"
 built_pipeline = preprocessor.build("sklearn")
-from amltk._doc import doc_print; doc_print(print, built_pipeline)  # markdown-exec: hide
+print(built_pipeline._repr_html())  # markdown-exec: hide
 ```
 
 ### Join
