@@ -334,20 +334,15 @@ from amltk._doc import doc_print; doc_print(print, imputer)  # markdown-exec: hi
 doc_print(print, rf)  # markdown-exec: hide
 ```
 
-!!! info inline end "Modifying Display Output"
+!!! info inline end "Infix `>>`"
 
-    By default, `amltk` will show full function signatures, including a link to their documentation
-    if available.
-
-    You can control these by setting some global `amltk` options.
+    To join these two components together, we can either use the infix notation using `>>`,
+    or passing them directly to a [`Sequential`][amltk.pipeline.Sequential]. However
+    a **random name** will be given.
 
     ```python
-    from amltk import options
-
-    options["rich_signatures"] = False
+    joined_components = imputer >> rf
     ```
-
-    You can find the [available options here][amltk.options.AMLTKOptions].
 
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Connecting-Nodes"
@@ -356,15 +351,6 @@ pipeline = Sequential(imputer, rf, name="My Pipeline")
 from amltk._doc import doc_print; doc_print(print, pipeline)  # markdown-exec: hide
 ```
 
-!!! info inline end "Infix `>>`"
-
-    To join these two components together, we can either use the infix notation using `>>`,
-    or passing them directly to a [`Sequential`][amltk.pipeline.Sequential]. However
-    a random name will be given.
-
-    ```python
-    joined_components = imputer >> rf
-    ```
 
 ### Operations
 You can perform much of the same operations as we did for the individual node but now taking into account
