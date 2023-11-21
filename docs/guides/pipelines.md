@@ -222,6 +222,7 @@ from amltk.pipeline import Fixed
 from sklearn.ensemble import RandomForestClassifier
 
 frozen_rf = Fixed(RandomForestClassifier(n_estimators=5))
+from amltk._doc import doc_print; doc_print(print, frozen_rf)  # markdown-exec: hide
 ```
 
 ### Parameter Requests
