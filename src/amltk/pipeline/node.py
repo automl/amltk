@@ -727,8 +727,8 @@ class Node(RichRenderable, Generic[Item, Space]):
 
         for k, request in config.items():
             match request:
-                case ParamRequest(key=k) if k in _params:
-                    new_config[k] = _params[request.key]
+                case ParamRequest(key=request_key) if request_key in _params:
+                    new_config[k] = _params[request_key]
                 case ParamRequest(default=default) if request.has_default:
                     new_config[k] = default
                 case ParamRequest():
