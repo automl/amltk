@@ -234,7 +234,7 @@ do not require any namespace prefixing.
 For this reason, we introduce the concept of a [`request()`][amltk.pipeline.request], allowing
 you to specify that a certain parameter should be added to the config during `configure()`.
 
-```python exec="true" hl_lines="14 17 18" source="material-block" html="true" session="Pipeline-Parameter-Request"
+```python exec="true" source="material-block" html="true" session="Pipeline-Parameter-Request"
 from dataclasses import dataclass
 
 from amltk import Component, request
