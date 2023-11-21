@@ -732,7 +732,9 @@ class Node(RichRenderable, Generic[Item, Space]):
                 case ParamRequest(default=default) if request.has_default:
                     new_config[k] = default
                 case ParamRequest():
-                    raise RequestNotMetError(f"{params=} missing {request=} for {self}")
+                    raise RequestNotMetError(
+                        f"Missing {request=} for {self}.\nparams={params}",
+                    )
                 case _:
                     continue
 
