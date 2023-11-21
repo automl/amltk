@@ -199,7 +199,7 @@ class Join(Node[Item, Space]):
         Join(name="my_feature_union") & pca & kbest
     )
     item = join.build("sklearn")
-    from amltk._doc import doc_print; doc_print(print, item)  # markdown-exec: hide
+    print(item._repr_html_())  # markdown-exec: hide
     ```
 
     Whenever some other node sees a tuple, i.e. `(comp1, comp2, comp3)`, this
@@ -220,7 +220,7 @@ class Join(Node[Item, Space]):
         RandomForestClassifier(n_estimators=5),
         name="my_feature_union",
     )
-    from amltk._doc import doc_print; doc_print(print, join)  # markdown-exec: hide
+    print(join._repr_html_())  # markdown-exec: hide
     ```
 
     Like all [`Node`][amltk.pipeline.node.Node]s, a `Join` accepts an explicit
@@ -491,7 +491,7 @@ class Sequential(Node[Item, Space]):
     from amltk._doc import doc_print; doc_print(print, configured_pipeline)  # markdown-exec: hide
 
     sklearn_pipeline = pipeline.build("sklearn")
-    from amltk._doc import doc_print; doc_print(print, sklearn_pipeline)  # markdown-exec: hide
+    print(sklearn_pipeline._repr_html_())  # markdown-exec: hide
     ```
 
     You may also just chain together nodes using an infix operator `>>` if you prefer:
@@ -671,7 +671,7 @@ class Split(Node[Item, Space]):
     from amltk._doc import doc_print; doc_print(print, configured_preprocessor)  # markdown-exec: hide
 
     built_preprocessor = configured_preprocessor.build("sklearn")
-    from amltk._doc import doc_print; doc_print(print, built_preprocessor)  # markdown-exec: hide
+    print(built_preprocessor.__repr_html_())  # markdown-exec: hide
     ```
 
     The split is a slight oddity when compared to the other kinds of components in that
