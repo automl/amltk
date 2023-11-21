@@ -185,7 +185,7 @@ In the below example, we will use the
 [`@on_future_result`][amltk.scheduling.Scheduler.on_future_result]
 event to submit more compute once the previous computation has returned a result.
 
-```python exec="true" source="material-block" html="True" hl_lines="10 13 18"
+```python exec="true" source="material-block" html="True" hl_lines="10 13 17"
 from amltk.scheduling import Scheduler
 
 scheduler = Scheduler.with_processes(2)
@@ -220,49 +220,51 @@ Here are some of the possible `@events` a `Scheduler` can emit, but
 please visit the [scheduler reference](../reference/scheduling/scheduler.md)
 for a complete list.
 
-=== "`@on_start`"
+!!! example "`@events`"
 
-    ::: amltk.scheduling.Scheduler.on_start
+    === "`@on_start`"
 
-=== "`@on_future_result`"
+        ::: amltk.scheduling.Scheduler.on_start
 
-    ::: amltk.scheduling.Scheduler.on_future_result
+    === "`@on_future_result`"
 
-=== "`@on_future_exception`"
+        ::: amltk.scheduling.Scheduler.on_future_result
 
-    ::: amltk.scheduling.Scheduler.on_future_exception
+    === "`@on_future_exception`"
 
-=== "`@on_future_submitted`"
+        ::: amltk.scheduling.Scheduler.on_future_exception
 
-    ::: amltk.scheduling.Scheduler.on_future_submitted
+    === "`@on_future_submitted`"
 
-=== "`@on_future_done`"
+        ::: amltk.scheduling.Scheduler.on_future_submitted
 
-    ::: amltk.scheduling.Scheduler.on_future_done
+    === "`@on_future_done`"
 
-=== "`@on_future_cancelled`"
+        ::: amltk.scheduling.Scheduler.on_future_done
 
-    ::: amltk.scheduling.Scheduler.on_future_cancelled
+    === "`@on_future_cancelled`"
 
-=== "`@on_timeout`"
+        ::: amltk.scheduling.Scheduler.on_future_cancelled
 
-    ::: amltk.scheduling.Scheduler.on_timeout
+    === "`@on_timeout`"
 
-=== "`@on_stop`"
+        ::: amltk.scheduling.Scheduler.on_timeout
 
-    ::: amltk.scheduling.Scheduler.on_stop
+    === "`@on_stop`"
 
-=== "`@on_finishing`"
+        ::: amltk.scheduling.Scheduler.on_stop
 
-    ::: amltk.scheduling.Scheduler.on_finishing
+    === "`@on_finishing`"
 
-=== "`@on_finished`"
+        ::: amltk.scheduling.Scheduler.on_finishing
 
-    ::: amltk.scheduling.Scheduler.on_finished
+    === "`@on_finished`"
 
-=== "`@on_empty`"
+        ::: amltk.scheduling.Scheduler.on_finished
 
-    ::: amltk.scheduling.Scheduler.on_empty
+    === "`@on_empty`"
+
+        ::: amltk.scheduling.Scheduler.on_empty
 
 We can access all the counts of all events through the
 [`scheduler.event_counts`][amltk.scheduling.events.Emitter.event_counts] property.
@@ -421,7 +423,7 @@ However there are more explicit methods.
 
     This will also trigger the `@on_timeout` event as seen in the `Scheduler` output.
 
-    ```python exec="true" source="material-block" html="True" hl_lines="19"
+    ```python exec="true" source="material-block" html="True" hl_lines="20"
     import time
     from amltk.scheduling import Scheduler
 
@@ -464,7 +466,7 @@ the default, but it also takes two other possibilities:
 
 One example is to just `stop()` the scheduler when some exception occurs.
 
-```python exec="true" source="material-block" html="True" hl_lines="12-14"
+```python exec="true" source="material-block" html="True" hl_lines="12-15"
 from amltk.scheduling import Scheduler
 
 scheduler = Scheduler.with_processes(1)
@@ -765,15 +767,15 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 ### Under Construction
 
-    Please see the following reference pages in the meantime:
+Please see the following reference pages in the meantime:
 
-    * [scheduler reference](../reference/scheduling/scheduler.md) - A slighltly
-        more condensed version of how to use the `Scheduler`.
-    * [task reference](../reference/scheduling/task.md) - A more comprehensive
-        explanation of `Task`s and their `@events`.
-    * [plugin reference](../reference/scheduling/plugins.md) - An intro to plugins
-        and how to create your own.
-    * [executors reference](../reference/scheduling/executors.md) - A list of
-        executors and how to use them.
-    * [events reference](../reference/scheduling/events.md) - A more comprehensive
-        look at the event system in AutoML-Toolkit and how to work with them or extend them.
+* [scheduler reference](../reference/scheduling/scheduler.md) - A slighltly
+    more condensed version of how to use the `Scheduler`.
+* [task reference](../reference/scheduling/task.md) - A more comprehensive
+    explanation of `Task`s and their `@events`.
+* [plugin reference](../reference/scheduling/plugins.md) - An intro to plugins
+    and how to create your own.
+* [executors reference](../reference/scheduling/executors.md) - A list of
+    executors and how to use them.
+* [events reference](../reference/scheduling/events.md) - A more comprehensive
+    look at the event system in AutoML-Toolkit and how to work with them or extend them.
