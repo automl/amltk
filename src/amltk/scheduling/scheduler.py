@@ -9,10 +9,10 @@ emit `@events`, which can trigger user callbacks.
 Typically you should not use the `Scheduler` directly for dispatching and
 responding to computed functions, but rather use a [`Task`][amltk.scheduling.Task]
 
-!!! note "Jupyter Notebook"
+??? note "Running in a Jupyter Notebook/Colab"
 
     If you are using a Jupyter Notebook, you likley need to use the following
-    at the top of you notebook:
+    at the top of your notebook:
 
     ```python
     import nest_asyncio  # Only necessary in Notebooks
