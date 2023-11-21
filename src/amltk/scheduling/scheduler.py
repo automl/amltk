@@ -69,10 +69,6 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
     At this point, there is no more compute happening and no more events to respond to
     so the scheduler will halt.
 
-There are many `@events` emitted by the `Scheduler`, with the most important being
-[`@on_start`][amltk.scheduling.Scheduler.on_start]. There are however many more events
-you can respond to.
-
 ??? example "`@events`"
 
     === "Scheduler Status Events"
@@ -131,16 +127,22 @@ you can respond to.
 
             ::: amltk.scheduling.Scheduler.on_future_cancelled
 
-There are various ways to [`run()`][amltk.scheduling.Scheduler.run] the
-scheduler, notably how long it should run with `timeout=` and also how
-it should react to any exception that may have occurred within the `Scheduler`
-itself or your callbacks.
 
-??? tip "Usage of `run()`"
+??? tip "Common usages of `run()`"
+
+    There are various ways to [`run()`][amltk.scheduling.Scheduler.run] the
+    scheduler, notably how long it should run with `timeout=` and also how
+    it should react to any exception that may have occurred within the `Scheduler`
+    itself or your callbacks.
 
     Please see the [`run()`][amltk.scheduling.Scheduler.run] API doc for more
     details and features, however we show two common use cases of using the `timeout=`
     parameter.
+
+    You can render a live display using [`run(display=...)`][amltk.scheduling.Scheduler.run].
+    This require [`rich`](https://github.com/Textualize/rich) to be installed. You
+    can install this with `#!bash pip install rich` or `#!bash pip install amltk[rich]`.
+
 
     === "`run(timeout=...)`"
 
@@ -244,11 +246,6 @@ itself or your callbacks.
 
     scheduler.run(end_on_empty=False)
     ```
-
-Lastly, the `Scheduler` can render a live display using
-[`run(display=...)`][amltk.scheduling.Scheduler.run]. This
-require [`rich`](https://github.com/Textualize/rich) to be installed. You
-can install this with `#!bash pip install rich` or `#!bash pip install amltk[rich]`.
 
 """  # noqa: E501
 from __future__ import annotations
