@@ -11,11 +11,22 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
 
 !!! note "Jupyter Notebook"
 
-    If you are using a Jupyter Notebook, you _might_ need to replace usages
-    of [`#!python scheduler.run()`][amltk.scheduling.Scheduler.run].
+    If you are using a Jupyter Notebook, you likley need to use the following
+    at the top of you notebook:
 
-    You should instead use [`#!python scheduler.run_in_notebook()`][amltk.scheduling.Scheduler.run_in_notebook].
-    This is most likely is only necessary for using the [`run(display=...)`][amltk.scheduling.Scheduler.run] feature.
+    ```python
+    import nest_asyncio  # Only necessary in Notebooks
+    nest_asyncio.apply()
+
+    scheduler.run(...)
+    ```
+
+    This is due to the fact a notebook runs in an async context. If you do not
+    wish to use the above snippet, you can instead use:
+
+    ```python
+    await scheduler.async_run(...)
+    ```
 
 ??? tip "Basic Usage"
 
@@ -266,6 +277,7 @@ from uuid import uuid4
 
 from amltk._asyncm import ContextEvent
 from amltk._functional import Flag
+from amltk._richutil.renderable import RichRenderable
 from amltk.exceptions import SchedulerNotRunningError
 from amltk.scheduling.events import Emitter, Event, Subscriber
 from amltk.scheduling.executors import SequentialExecutor
@@ -289,7 +301,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Scheduler:
+class Scheduler(RichRenderable):
     """A scheduler for submitting tasks to an Executor."""
 
     executor: Executor
@@ -1301,13 +1313,6 @@ class Scheduler:
             return ExitState(code=ExitState.Code.EXCEPTION, exception=result)
 
         return ExitState(code=result)
-
-    run_in_notebook = async_run
-    """Alias for [`async_run()`][amltk.Scheduler.async_run].
-
-    This allows the `Scheduler` to be run in a Jupyter notebook, which
-    happens to be inside an async context.
-    """
 
     def stop(
         self,
