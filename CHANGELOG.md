@@ -1,3 +1,10 @@
+## 1.2.1 (2023-11-22)
+
+### Fix
+
+- **pipeline**: `request()` correctly sets config key
+- **Scheduler**: Make sure it's displayable in notebook
+
 ## 1.2.0 (2023-11-20)
 
 ### Feat
