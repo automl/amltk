@@ -99,7 +99,6 @@ class HEBOOptimizer(Optimizer[HEBOTrial]):
         # than HEBO should be fine with these reported.
         # Either way, we don't actually have to look at the status of the trial to give
         # the info to hebo.
-
         # Make sure we have a value for each
         _lookup: dict[str, Metric.Value] = {
             v.metric.name: v for v in report.metric_values
@@ -107,7 +106,9 @@ class HEBOOptimizer(Optimizer[HEBOTrial]):
         metric_values = [
             _lookup.get(metric.name, metric.worst) for metric in self.metrics
         ]
-        raw_y = np.array([[v.value for v in metric_values]])
+
+        costs = [self.cost(v) for v in metric_values]
+        raw_y = np.array([costs])  # Yep, it needs 2d, for single report tells
         self.optimizer.observe(raw_x, raw_y)
 
     @override
@@ -221,13 +222,12 @@ class HEBOOptimizer(Optimizer[HEBOTrial]):
                 )
             case Sequence():
                 assert len(metrics) > 1
-                # TODO: Not really sure if I should give a ref point or not, especially
-                # if there are unbounded metrics.
-                ref_point = np.array([metric.worst.value for metric in metrics])
                 optimizer = GeneralBO(
                     space=space,
                     num_obj=len(metrics),
-                    ref_point=ref_point,
+                    # TODO: Not really sure if I should give a ref point or not,
+                    # especially if there are unbounded metrics.
+                    ref_point=np.array(cls.worst_possible_cost(metrics)),
                     **optimizer_kwargs,
                 )
 
@@ -237,3 +237,36 @@ class HEBOOptimizer(Optimizer[HEBOTrial]):
     @classmethod
     def preferred_parser(cls) -> HEBOParser:
         return parser
+
+    @overload
+    @classmethod
+    def worst_possible_cost(cls, metric: Metric) -> float:
+        ...
+
+    @overload
+    @classmethod
+    def worst_possible_cost(cls, metric: Sequence[Metric]) -> list[float]:
+        ...
+
+    @classmethod
+    def worst_possible_cost(
+        cls,
+        metric: Metric | Sequence[Metric],
+    ) -> float | list[float]:
+        """Get the crash cost for a metric for SMAC."""
+        match metric:
+            case Metric(bounds=(lower, upper)):  # Bounded metrics
+                return abs(upper - lower)
+            case Metric():  # Unbounded metric
+                return np.inf
+            case metrics:
+                return [cls.worst_possible_cost(m) for m in metrics]
+
+    @classmethod
+    def cost(cls, value: Metric.Value) -> float:
+        """Get the cost for a metric value for HEBO."""
+        match value.distance_to_optimal:
+            case None:  # If we can't compute the distance, use the loss
+                return value.loss
+            case distance:  # If we can compute the distance, use that
+                return distance
