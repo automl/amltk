@@ -982,14 +982,14 @@ class Scheduler(RichRenderable):
         self._queue_has_items_event.set()
 
         self.on_future_submitted.emit(future)
-        future.add_done_callback(self._register_complete)
-
         # Display if requested
         if self._live_output:
             self._live_output.refresh()
             future.add_done_callback(
                 lambda _, live=self._live_output: live.refresh(),  # type: ignore
             )
+
+        future.add_done_callback(self._register_complete)
 
     def _register_complete(self, future: Future) -> None:
         try:
