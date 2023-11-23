@@ -597,6 +597,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -608,6 +609,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -619,6 +625,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "slurm",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -629,6 +636,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -640,6 +648,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -651,6 +664,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "pbs",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -661,6 +675,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -672,6 +687,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -683,6 +703,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "sge",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -693,6 +714,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -704,6 +726,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -715,6 +742,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "oar",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -725,6 +753,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -736,6 +765,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -747,6 +781,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "moab",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -757,6 +792,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -768,6 +804,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -779,6 +820,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "lsf",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -789,6 +831,7 @@ class Scheduler(RichRenderable):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -800,6 +843,11 @@ class Scheduler(RichRenderable):
 
         Args:
             n_workers: The number of workers to start.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
             kwargs: Any additional keyword arguments to pass to the
@@ -811,6 +859,7 @@ class Scheduler(RichRenderable):
         return cls.with_dask_jobqueue(
             "htcondor",
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
@@ -821,9 +870,10 @@ class Scheduler(RichRenderable):
         cls,
         name: DJQ_NAMES,
         *,
+        n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
-        n_workers: int,
         **kwargs: Any,
     ) -> Self:
         """Create a Scheduler with using `dask-jobqueue`.
@@ -836,6 +886,11 @@ class Scheduler(RichRenderable):
             name: The name of the jobqueue to use. This is the name of the
                 class in `dask_jobqueue` to use. For example, to use
                 `dask_jobqueue.SLURMCluster`, you would use `slurm`.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed
+                allocate all workers. This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers
+                specified.
             n_workers: The number of workers to start.
             submit_command: Overwrite the command to submit a worker if necessary.
             cancel_command: Overwrite the command to cancel a worker if necessary.
@@ -860,6 +915,7 @@ class Scheduler(RichRenderable):
         executor = DaskJobqueueExecutor.from_str(
             name,
             n_workers=n_workers,
+            adaptive=adaptive,
             submit_command=submit_command,
             cancel_command=cancel_command,
             **kwargs,
