@@ -120,6 +120,7 @@ import shutil
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -355,8 +356,16 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         """
         if isinstance(space, Node):
             space = space.search_space(parser=NEPSOptimizer.preferred_parser())
-        if isinstance(bucket, str | Path):
-            bucket = PathBucket(bucket)
+
+        match bucket:
+            case None:
+                bucket = PathBucket(
+                    f"{cls.__class__.__name__}-{datetime.now().isoformat()}",
+                )
+            case str() | Path():
+                bucket = PathBucket(bucket)
+            case bucket:
+                bucket = bucket  # noqa: PLW0127
 
         space = _to_neps_space(space)
         searcher = _to_neps_searcher(

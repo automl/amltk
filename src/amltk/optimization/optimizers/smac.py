@@ -91,6 +91,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, overload
 from typing_extensions import override
@@ -187,8 +188,15 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 SMAC's handling of logging.
         """
         seed = as_int(seed)
-        if isinstance(bucket, str | Path):
-            bucket = PathBucket(bucket)
+        match bucket:
+            case None:
+                bucket = PathBucket(
+                    f"{cls.__class__.__name__}-{datetime.now().isoformat()}",
+                )
+            case str() | Path():
+                bucket = PathBucket(bucket)
+            case bucket:
+                bucket = bucket  # noqa: PLW0127
 
         # NOTE SMAC always minimizes! Hence we make it a minimization problem
         metric_names: str | list[str]
@@ -211,6 +219,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             scenario = Scenario(
                 objectives=metric_names,
                 configspace=space,
+                output_directory=bucket.path / "smac3_output",
                 seed=seed,
                 min_budget=min_budget,
                 max_budget=max_budget,
@@ -221,6 +230,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             scenario = Scenario(
                 configspace=space,
                 seed=seed,
+                output_directory=bucket.path / "smac3_output",
                 deterministic=deterministic,
                 objectives=metric_names,
                 crash_cost=cls.crash_cost(metrics),

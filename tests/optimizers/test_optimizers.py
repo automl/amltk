@@ -100,6 +100,7 @@ def opt_neps(metric: Metric, tmp_path: Path) -> NEPSOptimizer:
         metrics=metric,
         overwrite=True,
         bucket=tmp_path,
+        working_dir=tmp_path,
     )
 
 
