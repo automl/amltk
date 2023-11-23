@@ -755,29 +755,42 @@ class Trial(Generic[I]):
         """The renderables for rich for this report."""
         from rich.panel import Panel
         from rich.pretty import Pretty
+        from rich.table import Table
 
-        if self.exception:
-            yield Panel(Pretty(self.exception), title="Exception", title_align="left")
+        items = []
+        table = Table.grid(padding=(0, 1), expand=False)
 
-        yield Panel(Pretty(self.config), title="Config", title_align="left")
-
-        if self.summary:
-            yield Panel(Pretty(self.summary), title="Summary", title_align="left")
-
-        if self.metrics:
-            yield Panel(Pretty(self.metrics), title="Metrics", title_align="left")
+        # Predfined things
+        table.add_row("config", Pretty(self.config))
 
         if self.fidelities:
-            yield Panel(Pretty(self.fidelities), title="Fidelities", title_align="left")
-
-        if any(self.profiler.profiles):
-            yield self.profiler.__rich__()
-
-        if any(self.storage):
-            yield Panel(Pretty(self.storage), title="Storage", title_align="left")
+            table.add_row("fidelities", Pretty(self.fidelities))
 
         if any(self.extras):
-            yield Panel(Pretty(self.extras), title="Plugins", title_align="left")
+            table.add_row("extras", Pretty(self.extras))
+
+        if self.metrics:
+            items.append(
+                Panel(Pretty(self.metrics), title="Metrics", title_align="left"),
+            )
+
+        # Dynamic things
+        if self.summary:
+            table.add_row("summary", Pretty(self.summary))
+
+        if any(self.storage):
+            table.add_row("storage", Pretty(self.storage))
+
+        if self.exception:
+            table.add_row("exception", Text(str(self.exception), style="bold red"))
+
+        if self.traceback:
+            table.add_row("traceback", Text(self.traceback, style="bold red"))
+
+        for name, profile in self.profiles.items():
+            table.add_row("profile:" + name, Pretty(profile))
+
+        yield from items
 
     def __rich__(self) -> RenderableType:
         from rich.console import Group as RichGroup
