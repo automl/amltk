@@ -751,7 +751,7 @@ class Trial(Generic[I]):
         """
         self.extras[name] = plugin_item
 
-    def rich_renderables(self) -> Iterable[RenderableType]:
+    def rich_renderables(self) -> Iterable[RenderableType]:  # noqa: C901
         """The renderables for rich for this report."""
         from rich.panel import Panel
         from rich.pretty import Pretty
@@ -768,6 +768,12 @@ class Trial(Generic[I]):
 
         if any(self.extras):
             table.add_row("extras", Pretty(self.extras))
+
+        if self.seed:
+            table.add_row("seed", Pretty(self.seed))
+
+        if self.bucket:
+            table.add_row("bucket", Pretty(self.bucket))
 
         if self.metrics:
             items.append(
