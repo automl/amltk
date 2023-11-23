@@ -192,10 +192,10 @@ from amltk._doc import doc_print; doc_print(print, manually_configured_component
 To build the individual item of a `Component` we can use [`build_item()`][amltk.pipeline.Component.build_item]
 and it simply calls the `.item` with the config we have set.
 
-```python exec="true" source="material-block" html="true" session="Pipeline-Component"
+```python exec="true" source="material-block" result="python" session="Pipeline-Component"
 # Same as if we did `configured_component.item(**configured_component.config)`
 the_built_model = configured_component.build_item()
-print(the_built_model._repr_html_())  # markdown-exec: hide
+print(the_built_model)
 ```
 
 However, as we'll see later, we often have multiple steps of a pipeline joined together and so
@@ -492,7 +492,7 @@ we use [`build()`][amltk.pipeline.Node.build].
 
 ```python exec="true" source="material-block" html="True" session="Pipeline-Split3"
 built_pipeline = preprocessor.build("sklearn")
-print(built_pipeline._repr_html())  # markdown-exec: hide
+print(built_pipeline._repr_html_())  # markdown-exec: hide
 ```
 
 ### Join

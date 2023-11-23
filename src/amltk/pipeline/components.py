@@ -671,7 +671,7 @@ class Split(Node[Item, Space]):
     from amltk._doc import doc_print; doc_print(print, configured_preprocessor)  # markdown-exec: hide
 
     built_preprocessor = configured_preprocessor.build("sklearn")
-    print(built_preprocessor.__repr_html_())  # markdown-exec: hide
+    print(built_preprocessor._repr_html_())  # markdown-exec: hide
     ```
 
     The split is a slight oddity when compared to the other kinds of components in that
