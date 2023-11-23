@@ -40,7 +40,6 @@ from typing_extensions import ParamSpec, Self, override
 
 import numpy as np
 import pandas as pd
-from rich.text import Text
 
 from amltk._functional import dict_get_not_none, mapping_select, prefix_keys
 from amltk.optimization.metric import Metric
@@ -50,6 +49,7 @@ from amltk.store import Bucket, PathBucket
 if TYPE_CHECKING:
     from rich.console import RenderableType
     from rich.panel import Panel
+    from rich.text import Text
 
 # Inner trial info object
 I = TypeVar("I")  # noqa: E741
@@ -756,6 +756,7 @@ class Trial(Generic[I]):
         from rich.panel import Panel
         from rich.pretty import Pretty
         from rich.table import Table
+        from rich.text import Text
 
         items = []
         table = Table.grid(padding=(0, 1), expand=False)
@@ -801,6 +802,7 @@ class Trial(Generic[I]):
     def __rich__(self) -> RenderableType:
         from rich.console import Group as RichGroup
         from rich.panel import Panel
+        from rich.text import Text
 
         title = Text.assemble(
             ("Trial", "bold"),
@@ -1241,23 +1243,28 @@ class Trial(Generic[I]):
 
         def rich_renderables(self) -> Iterable[RenderableType]:
             """The renderables for rich for this report."""
+            from rich.pretty import Pretty
+            from rich.text import Text
+
             yield Text.assemble(
                 ("Status", "bold"),
                 ("(", "default"),
                 self.status.__rich__(),
                 (")", "default"),
             )
+            yield Pretty(self.metrics)
             yield from self.trial.rich_renderables()
 
         def __rich__(self) -> Panel:
             from rich.console import Group as RichGroup
             from rich.panel import Panel
+            from rich.text import Text
 
             title = Text.assemble(
-                ("Trial", "bold"),
+                ("Report", "bold"),
                 ("(", "default"),
                 (self.name, "italic"),
-                (")", "default"),
+                (") - ", "default"),
+                self.status.__rich__(),
             )
-
             return Panel(RichGroup(*self.rich_renderables()), title=title)
