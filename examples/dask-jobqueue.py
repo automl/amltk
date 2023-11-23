@@ -1,4 +1,4 @@
-"""HPO
+"""Using the Scheduler with SLURM (dask-jobqueue)
 
 The point of this example is to show
 how to set up `dask-jobqueue` with a realistic workload.
