@@ -1,3 +1,9 @@
+## 1.2.2 (2023-11-23)
+
+### Fix
+
+- **test**: remove stray output from test/docs
+
 ## 1.2.1 (2023-11-22)
 
 ### Fix
