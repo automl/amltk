@@ -1,4 +1,4 @@
-"""HPO
+"""Using the Scheduler with SLURM (dask-jobqueue)
 # Flags: doc-Runnable
 
 !!! note "Dependencies"
