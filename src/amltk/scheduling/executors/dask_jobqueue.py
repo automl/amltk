@@ -54,14 +54,12 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cluster: _JQC,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
     ):
         """Initialize a DaskJobqueueExecutor.
 
-        This will specifically use the
-        [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
-        method to dynamically scale the cluster to the number of workers specified.
 
         !!! note "Implementations"
 
@@ -79,32 +77,45 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             cluster: The implementation of a
                 [dask_jobqueue.JobQueueCluster](https://jobqueue.dask.org/en/latest/api.html).
             n_workers: The number of workers to maximally adapt to on the cluster.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed allocate all workers.
+                This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers specified.
             submit_command: To overwrite the submission command if necessary.
             cancel_command: To overwrite the cancel command if necessary.
         """
         super().__init__()
         self.cluster = cluster
+        self.adaptive = adaptive
         if submit_command:
             self.cluster.job_cls.submit_command = submit_command  # type: ignore
 
         if cancel_command:
             self.cluster.job_cls.cancel_command = cancel_command  # type: ignore
 
-        self.cluster.adapt(minimum=0, maximum=n_workers)
+        if adaptive:
+            self.cluster.adapt(minimum=0, maximum=n_workers)
+        else:
+            self.cluster.scale(n_workers)
+
         self.n_workers = n_workers
         self.executor: ClientExecutor = self.cluster.get_client().get_executor()
 
     @override
     def __enter__(self) -> Self:
-        with super().__enter__():
-            configuration = {
-                "header": self.cluster.job_header,
-                "script": self.cluster.job_script(),
-                "job_name": self.cluster.job_name,
-            }
-            config_str = pprint.pformat(configuration)
-            logger.debug(f"Launching script with configuration:\n {config_str}")
-            return self
+        configuration = {
+            "header": self.cluster.job_header,
+            "script": self.cluster.job_script(),
+            "job_name": self.cluster.job_name,
+        }
+        config_str = pprint.pformat(configuration)
+        logger.debug(f"Launching script with configuration:\n {config_str}")
+        self.executor.__enter__()
+        return self
+
+    @override
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        self.executor.__exit__(*args, **kwargs)
 
     @override
     def submit(
@@ -149,6 +160,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -163,6 +175,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             submit_command=submit_command,
             cancel_command=cancel_command,
             n_workers=n_workers,
+            adaptive=adaptive,
         )
 
     @classmethod
@@ -170,6 +183,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -183,6 +197,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             HTCondorCluster(**kwargs),
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             n_workers=n_workers,
         )
 
@@ -191,6 +206,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -204,6 +220,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             LSFCluster(**kwargs),
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             n_workers=n_workers,
         )
 
@@ -212,6 +229,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -225,6 +243,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             OARCluster(**kwargs),
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             n_workers=n_workers,
         )
 
@@ -233,6 +252,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -246,6 +266,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             PBSCluster(**kwargs),
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             n_workers=n_workers,
         )
 
@@ -254,6 +275,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -267,6 +289,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             SGECluster(**kwargs),
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             n_workers=n_workers,
         )
 
@@ -275,6 +298,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         cls,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -288,6 +312,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             MoabCluster(**kwargs),
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             n_workers=n_workers,
         )
 
@@ -297,6 +322,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
         name: DJQ_NAMES,
         *,
         n_workers: int,
+        adaptive: bool = False,
         submit_command: str | None = None,
         cancel_command: str | None = None,
         **kwargs: Any,
@@ -307,6 +333,10 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             name: The name of cluster to create, must be one of
                 ["slurm", "htcondor", "lsf", "oar", "pbs", "sge", "moab"].
             n_workers: The number of workers to maximally adapt to on the cluster.
+            adaptive: Whether to use the adaptive scaling of the cluster or fixed allocate all workers.
+                This will specifically use the
+                [dask_jobqueue.SLURMCluster.adapt](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+                method to dynamically scale the cluster to the number of workers specified.
             submit_command: Overwrite the submit command of workers if necessary.
             cancel_command: Overwrite the cancel command of workers if necessary.
             kwargs: The keyword arguments to pass to the cluster constructor.
@@ -336,5 +366,6 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             n_workers=n_workers,
             submit_command=submit_command,
             cancel_command=cancel_command,
+            adaptive=adaptive,
             **kwargs,
         )

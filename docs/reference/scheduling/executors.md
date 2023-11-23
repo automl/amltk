@@ -92,8 +92,9 @@ for scheduling jobs across common clusters setups such as
 PBS, Slurm, MOAB, SGE, LSF, and HTCondor.
 
 Please see the `dask-jobqueue` [documentation](https://jobqueue.dask.org/en/latest/)
-In particular, we only control the parameter `#!python n_workers=` to
-use the [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+In particular, we only control the parameter `#!python n_workers=` and use `#!python adaptive=`
+to control where to use [`adapt()`](https://jobqueue.dask.org/en/latest/index.html?highlight=adapt#adaptivity)
+or [`scale()`](https://jobqueue.dask.org/en/latest/howitworks.html?highlight=scale()#scheduler-and-jobs)
 method, every other keyword is forwarded to the relative
 [cluster implementation](https://jobqueue.dask.org/en/latest/api.html).
 
@@ -113,6 +114,7 @@ to leave a PR or simply an issue!
 
         scheduler = Scheduler.with_slurm(
             n_workers=10,  # (1)!
+            adaptive=True,
             queue=...,
             cores=4,
             memory="6 GB",
