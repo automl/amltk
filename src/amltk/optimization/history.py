@@ -529,11 +529,7 @@ class History(RichRenderable):
     def __rich__(self) -> RenderableType:
         from amltk._richutil import df_to_table
 
-        return df_to_table(
-            self.df(configs=False, profiles=False, summary=False),
-            title="History",
-            expand=True,
-        )
+        return df_to_table(self.df(profiles=False), title="History", expand=True)
 
     @override
     def _repr_html_(self) -> str:
