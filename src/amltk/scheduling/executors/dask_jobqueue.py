@@ -96,7 +96,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
 
     @override
     def __enter__(self) -> Self:
-        with super().__enter__():
+        with self.executor:
             configuration = {
                 "header": self.cluster.job_header,
                 "script": self.cluster.job_script(),
