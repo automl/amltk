@@ -96,15 +96,19 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
 
     @override
     def __enter__(self) -> Self:
-        with self.executor:
-            configuration = {
-                "header": self.cluster.job_header,
-                "script": self.cluster.job_script(),
-                "job_name": self.cluster.job_name,
-            }
-            config_str = pprint.pformat(configuration)
-            logger.debug(f"Launching script with configuration:\n {config_str}")
-            return self
+        configuration = {
+            "header": self.cluster.job_header,
+            "script": self.cluster.job_script(),
+            "job_name": self.cluster.job_name,
+        }
+        config_str = pprint.pformat(configuration)
+        logger.debug(f"Launching script with configuration:\n {config_str}")
+        self.executor.__enter__()
+        return self
+
+    @override
+    def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        self.executor.__exit__(*args, **kwargs)
 
     @override
     def submit(
