@@ -102,6 +102,7 @@ optimizer.bucket.rmdir()  # markdown-exec: hide
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from typing_extensions import Self, override
@@ -230,8 +231,16 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
 
         if isinstance(space, Node):
             space = space.search_space(parser=cls.preferred_parser())
-        if isinstance(bucket, str | Path):
-            bucket = PathBucket(bucket)
+
+        match bucket:
+            case None:
+                bucket = PathBucket(
+                    f"{cls.__class__.__name__}-{datetime.now().isoformat()}",
+                )
+            case str() | Path():
+                bucket = PathBucket(bucket)
+            case bucket:
+                bucket = bucket  # noqa: PLW0127
 
         match metrics:
             case Metric(minimize=minimize):

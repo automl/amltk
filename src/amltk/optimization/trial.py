@@ -701,6 +701,7 @@ class Trial(RichRenderable, Generic[I]):
 
         config = trial.retrieve("config.json", where=path)
         print(config)
+        import shutil; shutil.rmtree(path)  # markdown-exec: hide
         ```
 
         Args:

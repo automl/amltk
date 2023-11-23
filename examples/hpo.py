@@ -1,4 +1,4 @@
-"""Simple HPO loop
+"""HPO
 # Flags: doc-Runnable
 
 !!! note "Dependencies"
@@ -335,3 +335,6 @@ if __name__ == "__main__":
     print("Trial history:")
     history_df = trial_history.df()
     print(history_df)
+
+    # You can remove this line
+
