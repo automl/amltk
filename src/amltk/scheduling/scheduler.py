@@ -269,7 +269,7 @@ from typing import (
     TypeVar,
     overload,
 )
-from typing_extensions import Self
+from typing_extensions import Self, override
 from uuid import uuid4
 
 from amltk._asyncm import ContextEvent
@@ -1412,9 +1412,11 @@ class Scheduler(RichRenderable):
         """
         self._renderables.append(renderable)
 
+    @override
     def __rich__(self) -> RenderableType:
         from rich.console import Group
         from rich.panel import Panel
+        from rich.pretty import Pretty
         from rich.table import Column, Table
         from rich.text import Text
         from rich.tree import Tree
@@ -1459,7 +1461,7 @@ class Scheduler(RichRenderable):
             expand=True,
             padding=(0, 1),
         )
-        layout_table.add_row(richify(self.executor), future_table)
+        layout_table.add_row(richify(self.executor, otherwise=Pretty), future_table)
 
         panel = Panel(
             layout_table,
