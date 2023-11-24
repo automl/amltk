@@ -1,3 +1,10 @@
+## 1.2.3 (2023-11-24)
+
+### Fix
+
+- **Trial**: Add table to rich renderables (#170)
+- **dask-jobqueue**: Default to `scale()` for predictable behaviour (#168)
+
 ## 1.2.2 (2023-11-23)
 
 ### Fix
