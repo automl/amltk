@@ -799,6 +799,8 @@ class Trial(RichRenderable, Generic[I]):
         for name, profile in self.profiles.items():
             table.add_row("profile:" + name, Pretty(profile))
 
+        items.append(table)
+
         yield from items
 
     @override
