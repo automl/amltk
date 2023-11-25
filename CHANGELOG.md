@@ -1,3 +1,9 @@
+## 1.2.4 (2023-11-25)
+
+### Fix
+
+- **docs**: Optimizer inline examples (#172)
+
 ## 1.2.3 (2023-11-24)
 
 ### Fix
