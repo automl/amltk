@@ -60,10 +60,10 @@ def target_function(trial: Trial, pipeline: Pipeline) -> Trial.Report:
     return trial.fail()
 from amltk._doc import make_picklable; make_picklable(target_function)  # markdown-exec: hide
 
+pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
 
 accuracy_metric = Metric("accuracy", minimize=False, bounds=(0, 1))
-pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
-optimizer = OptunaOptimizer.create(space=pipeline, metrics=accuracy_metric)
+optimizer = OptunaOptimizer.create(space=pipeline, metrics=accuracy_metric, bucket="optuna-doc-example")
 
 N_WORKERS = 2
 scheduler = Scheduler.with_processes(N_WORKERS)

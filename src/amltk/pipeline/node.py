@@ -541,7 +541,24 @@ class Node(RichRenderable, Generic[Item, Space]):
         *parser_args: P.args,
         **parser_kwargs: P.kwargs,
     ) -> ParserOutput | ConfigurationSpace | OptunaSearchSpace:
-        """Get the search space for this node."""
+        """Get the search space for this node.
+
+        Args:
+            parser: The parser to use. This can be a function that takes in
+                the node and returns the search space or a string that is one of:
+
+                * `#!python "configspace"`: Build a
+                    [`ConfigSpace.ConfigurationSpace`](https://automl.github.io/ConfigSpace/master/)
+                    out of this node.
+                * `#!python "optuna"`: Build a dict of hyperparameters that Optuna can
+                    use in its [ask and tell methods](https://optuna.readthedocs.io/en/stable/tutorial/20_recipes/009_ask_and_tell.html#define-and-run)
+
+            parser_args: The positional arguments to pass to the parser
+            parser_kwargs: The keyword arguments to pass to the parser
+
+        Returns:
+            The search space
+        """
         match parser:
             case "configspace":
                 from amltk.pipeline.parsers.configspace import parser as cs_parser

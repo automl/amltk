@@ -40,7 +40,7 @@ Visit their documentation for what you can pass to
 
 The below example shows how you can use neps to optimize an sklearn pipeline.
 
-```python exec="False" source="material-block" result="python"
+```python
 from __future__ import annotations
 
 import logging
@@ -52,7 +52,7 @@ from sklearn.model_selection import train_test_split
 
 from amltk.optimization.optimizers.neps import NEPSOptimizer
 from amltk.scheduling import Scheduler
-from amltk.optimization import History, Trial
+from amltk.optimization import History, Trial, Metric
 from amltk.pipeline import Component
 
 logging.basicConfig(level=logging.INFO)
@@ -73,10 +73,10 @@ def target_function(trial: Trial, pipeline: Pipeline) -> Trial.Report:
     return trial.fail()
 from amltk._doc import make_picklable; make_picklable(target_function)  # markdown-exec: hide
 
-
 pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
-space = pipeline.search_space(parser=NEPSOptimizer.preferred_parser())
-optimizer = NEPSOptimizer.create(space=space)
+
+metric = Metric("accuracy", minimize=False, bounds=(0, 1))
+optimizer = NEPSOptimizer.create(space=pipeline, metrics=metric, bucket="neps-doc-example")
 
 N_WORKERS = 2
 scheduler = Scheduler.with_processes(N_WORKERS)
@@ -103,6 +103,7 @@ def add_to_history(_, report: Trial.Report):
 scheduler.run(timeout=3, wait=False)
 
 print(history.df())
+optimizer.bucket.rmdir()  # markdown-exec: hide
 ```
 
 !!! todo "Deep Learning"
@@ -112,6 +113,7 @@ print(history.df())
 !!! todo "Graph Search Spaces"
 
     Write an example demonstrating NEPS with its graph search spaces
+
 """  # noqa: E501
 from __future__ import annotations
 
