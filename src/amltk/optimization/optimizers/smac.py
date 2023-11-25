@@ -35,7 +35,7 @@ from sklearn.model_selection import train_test_split
 
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.scheduling import Scheduler
-from amltk.optimization import History, Trial
+from amltk.optimization import History, Trial, Metric
 from amltk.pipeline import Component, Node
 
 logging.basicConfig(level=logging.INFO)
@@ -50,16 +50,15 @@ def target_function(trial: Trial, pipeline: Node) -> Trial.Report:
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
-        loss = 1 - accuracy
-        return trial.success(loss=loss, accuracy=accuracy)
+        return trial.success(accuracy=accuracy)
 
     return trial.fail()
 from amltk._doc import make_picklable; make_picklable(target_function)  # markdown-exec: hide
 
+pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100), "max_samples": (0.1, 0.9)})
 
-pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
-space = pipeline.search_space(parser=SMACOptimizer.preferred_parser())
-optimizer = SMACOptimizer.create(space=space)
+metric = Metric("accuracy", minimize=False, bounds=(0, 1))
+optimizer = SMACOptimizer.create(space=pipeline, metrics=metric, bucket="smac-doc-example")
 
 N_WORKERS = 2
 scheduler = Scheduler.with_processes(N_WORKERS)
@@ -86,6 +85,8 @@ def add_to_history(_, report: Trial.Report):
 scheduler.run(timeout=3, wait=False)
 
 print(history.df())
+optimizer.bucket.rmdir()  # markdown-exec: hide
+```
 """  # noqa: E501
 from __future__ import annotations
 
