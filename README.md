@@ -172,3 +172,6 @@ pip install amltk
 > * `pip install amltk[optuna]` - For using Optuna as an optimizer
 > * `pip install amltk[pynisher,  threadpoolctl, wandb]` - Various plugins for running compute tasks
 > * `pip install amltk[cluster, dask, loky]` - Different compute backends to run from
+
+### Extra Material
+* [AutoML Fall School 2023 Colab](https://colab.research.google.com/drive/1aMfNhHDTXs-x8sxWtvX13vML9cytxeF1#scrollTo=bEdO7AiFs3wO)
