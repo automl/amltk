@@ -174,4 +174,4 @@ pip install amltk
 > * `pip install amltk[cluster, dask, loky]` - Different compute backends to run from
 
 ### Extra Material
-* [AutoML Fall School 2023 Colab](https://colab.research.google.com/drive/1aMfNhHDTXs-x8sxWtvX13vML9cytxeF1#scrollTo=bEdO7AiFs3wO)
+* [AutoML Fall School 2023 Colab](https://colab.research.google.com/drive/1aMfNhHDTXs-x8sxWtvX13vML9cytxeF1#forceEdit=true&sandboxMode=true)
