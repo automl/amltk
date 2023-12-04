@@ -450,10 +450,6 @@ make pull requests to the repository that update dependencies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
 
-## Windows installation
-
-If you are not using Windows you can skip this section.
-
 ## Windows Installation
 
 If you are not using Windows, feel free to skip this section.
