@@ -17,44 +17,14 @@ Clone the repo manually or with the below `hub` cli from GitHub.
 hub repo fork automl/amltk
 ```
 
-## Running on Windows
-
-If you are not using Windows you can skip this section.
-
-#### Installing WSL (Windows Subsystem for Linux)
-
-1. Install WSL and Ubuntu by following the steps outlined in
-   the [official Ubuntu installation guide](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-10#1-overview).
-
-#### Setting up PyCharm with WSL
-
-1. Open the cloned repo in PyCharm and navigate to "Add new Interpreter" -> "On WSL ..."
-2. Choose WSL and specify the directory of the virtual env.
-3. Open a PyCharm terminal and click "New predefined session" and select Ubuntu.
-
-#### Installing Dependencies
-
-In the terminal, run the following commands to set up the project dependencies:
-
-```bash
-sudo apt update && sudo apt upgrade
-sudo apt install python3.10
-sudo apt install python3-pip
-pip install --upgrade pip setuptools
-sudo apt install python3.10-venv
-python3 -m venv .venv
-source .venv/bin/activate
-just install
-```
-
-Then continue with the [Quickstart](#Quickstart) instructions.
-
 ## Quickstart
 
 Below is a quickstart guide for those familiar with open-source development. You
 do not need to use `just`, however we provide it as a convenient workflow tool.
 Please refer to the `justfile` for the commands ran if you wish to use your own
 workflow.
+
+> **_NOTE:_** If you are using Windows, please go to the [Windows installation](#windows-installation) section.
 
 ```bash
 # Install just, the Makefile-like tool for this repo
@@ -461,6 +431,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ConfigSpace import ConfigurationSpace
 
+
 def draw_configspace(self, space: ConfigurationSpace) -> None:
     ...
 ```
@@ -478,3 +449,44 @@ the `.github/dependabot.yml`. This bot will periodically
 make pull requests to the repository that update dependencies. Do
 not accept these blindly but rather wait for any CI to finish and
 ensure all tests still pass.
+
+## Windows installation
+
+If you are not using Windows you can skip this section.
+
+## Windows Installation
+
+If you are not using Windows, feel free to skip this section.
+
+### Installing WSL (Windows Subsystem for Linux)
+
+1. Install WSL and Ubuntu by following the steps outlined in
+   the [official Ubuntu installation guide](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-10#1-overview).
+
+### Setting up PyCharm with WSL
+
+1. Open the cloned repo in PyCharm and navigate to "Add new Interpreter" -> "On WSL..."
+2. Choose WSL and specify the directory of the virtual env.
+3. Open a PyCharm terminal and click "New predefined session" and select Ubuntu.
+
+### Installing Dependencies
+
+Since WSL is a Linux environment, you need to install Python separately, even if you have it on your Windows machine.
+
+In the terminal, run the following commands to set up the project dependencies:
+
+```bash
+sudo apt update && sudo apt upgrade
+sudo apt install python3.10
+sudo apt install python3-pip
+pip install --upgrade pip setuptools
+sudo apt install python3.10-venv
+python3 -m venv .venv
+```
+
+Then create a virtual environment and activate it:
+
+```bash
+source .venv/bin/activate
+just install
+```
