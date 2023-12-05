@@ -760,7 +760,7 @@ class Trial(RichRenderable, Generic[I]):
         from rich.table import Table
         from rich.text import Text
 
-        items = []
+        items: list[RenderableType] = []
         table = Table.grid(padding=(0, 1), expand=False)
 
         # Predfined things
