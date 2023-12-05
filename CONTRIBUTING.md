@@ -377,7 +377,8 @@ In the event of any individual who makes personal attacks or derogative
 comments, please maintain decorum, respond nicely, and if issues persist,
 then inform the user they will be blocked.
 
-Please check the `CODE_OF_CONDUCT.md` for mor details.
+Please check the `CODE_OF_CONDUCT.md` for more details.
+
 
 #### Merging
 
