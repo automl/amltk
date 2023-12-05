@@ -88,7 +88,7 @@ class RequestNotMetError(ValueError):
     """Raised when a request is not met."""
 
 
-class ComponentBuildError(ValueError):
+class ComponentBuildError(TypeError):
     """Raised when failing to build a component."""
 
 

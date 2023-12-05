@@ -877,7 +877,7 @@ class Component(Node[Item, Space]):
         config = self.config or {}
         try:
             return self.item(**{**config, **kwargs})
-        except ValueError as e:
+        except TypeError as e:
             new_msg = f"Failed to build {self.item} with {self.config}."
             if any(kwargs):
                 new_msg += f"Extra {kwargs=} were also provided."
