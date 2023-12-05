@@ -235,7 +235,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         match bucket:
             case None:
                 bucket = PathBucket(
-                    f"{cls.__class__.__name__}-{datetime.now().isoformat()}",
+                    f"{cls.__name__}-{datetime.now().isoformat()}",
                 )
             case str() | Path():
                 bucket = PathBucket(bucket)
