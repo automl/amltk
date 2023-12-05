@@ -186,6 +186,7 @@ class History(RichRenderable):
         configs: bool = True,
         summary: bool = True,
         metrics: bool = True,
+        normalize_time: bool | float = True,
     ) -> pd.DataFrame:
         """Returns a pandas DataFrame of the history.
 
@@ -218,6 +219,13 @@ class History(RichRenderable):
             configs: Whether to include the configs.
             summary: Whether to include the summary.
             metrics: Whether to include the metrics.
+            normalize_time: Whether to normalize the time to the first
+                report. If given a `#!python float`, it will normalize
+                to that value.
+
+                Will normalize all columns with `#!python "time:end"`.
+                and `#!python "time:start"` in their name. It will use
+                the time of the earliest report as the offset.
 
         Returns:
             A pandas DataFrame of the history.
@@ -236,7 +244,21 @@ class History(RichRenderable):
                 for report in self.reports
             ],
         )
-        return _df.convert_dtypes()
+        _df = _df.convert_dtypes()
+
+        match normalize_time:
+            case True if "time:start" in _df.columns:
+                time_columns = ("time:start", "time:end")
+                cols = [c for c in _df.columns if c.endswith(time_columns)]
+                _df[cols] -= _df["time:start"].min()
+            case float():
+                time_columns = ("time:start", "time:end")
+                cols = [c for c in _df.columns if c.endswith(time_columns)]
+                _df[cols] -= normalize_time
+            case _:
+                pass
+
+        return _df
 
     def filter(self, key: Callable[[Trial.Report], bool]) -> History:
         """Filters the history by a predicate.
