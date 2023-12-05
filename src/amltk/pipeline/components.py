@@ -878,17 +878,17 @@ class Component(Node[Item, Space]):
         try:
             return self.item(**{**config, **kwargs})
         except TypeError as e:
-            new_msg = f"Failed to build {self.item} with {self.config}."
+            new_msg = f"Failed to build `{self.item=}` with `{self.config=}`.\n"
             if any(kwargs):
-                new_msg += f"Extra {kwargs=} were also provided."
+                new_msg += f"Extra {kwargs=} were also provided.\n"
             new_msg += (
                 "If the item failed to initialize, a common reason can be forgetting"
                 " to call `configure()` on the `Component` or the pipeline it is in or"
                 " not calling `build()`/`build_item()` on the **returned** value of"
-                " `configure()`."
-                "\nReasons may also include not having fully specified the `config`"
+                " `configure()`.\n"
+                "Reasons may also include not having fully specified the `config`"
                 " initially, it having not being configured fully from `configure()`"
-                " or from misspecfying parameters."
+                " or from misspecfying parameters in the `space`."
             )
             raise ComponentBuildError(new_msg) from e
 
