@@ -121,10 +121,7 @@ def doc_print(
             from sklearn.base import BaseEstimator, TransformerMixin
             from sklearn.pipeline import Pipeline
 
-            if isinstance(
-                renderable[0],
-                Pipeline | BaseEstimator() | TransformerMixin(),
-            ):
+            if isinstance(renderable[0], Pipeline | BaseEstimator | TransformerMixin):
                 _print(renderable[0]._repr_html_())  # type: ignore
                 return
         except Exception:  # noqa: BLE001
