@@ -121,32 +121,10 @@ optimizer = SMACOptimizer.create(space=space, metrics=metric, seed=42)
 
 history = History()
 for _ in range(10):
-<<<<<<< HEAD
-<<<<<<< HEAD
     # Get a trial from an Optimizer
     trial: Trial = optimizer.ask()
     print(f"Evaluating trial {trial.name} with config {trial.config}")
 
-<<<<<<< HEAD
-=======
-    print(f"Evaluating trial {trial.name} with config {trial.config}")
-
-=======
->>>>>>> a9fdb24 (doc: Fix ordering in example)
-    # Get a trial from an Optimizer
-    trial: Trial = optimizer.ask()
-    print(f"Evaluating trial {trial.name} with config {trial.config}")
-
->>>>>>> f0ed407 (doc: Finish up optimization guide)
-=======
->>>>>>> f18c1dc (doc: Fix bad merge leftovers)
-=======
-    print(f"Evaluating trial {trial.name} with config {trial.config}")
-
-    # Get a trial from an Optimizer
-    trial: Trial = optimizer.ask()
-
->>>>>>> 1b5511b (doc: Finish up optimization guide)
     # Access the the trial's config
     x = trial.config["my-searchable:x"]
 
