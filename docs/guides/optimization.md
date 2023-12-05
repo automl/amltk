@@ -106,7 +106,7 @@ At this point, we can begin optimizing our function, using the [`ask`][amltk.opt
 to get [`Trial`][amltk.optimization.Trial]s and [`tell`][amltk.optimization.Optimizer.tell] methods with
 [`Trial.Report`][amltk.optimization.Trial.Report]s.
 
-```python exec="true" result="python" source="material-block"
+```python exec="true" result="python" source="material-block" session="running-an-optimizer"
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.optimization import Metric, History, Trial
 from amltk.pipeline import Searchable
@@ -119,21 +119,46 @@ space = Searchable(space={"x": (-10.0, 10.0)}, name="my-searchable")
 
 optimizer = SMACOptimizer.create(space=space, metrics=metric, seed=42)
 
-reports = []
+history = History()
 for _ in range(10):
-    trial: Trial = optimizer.ask()
     print(f"Evaluating trial {trial.name} with config {trial.config}")
+
+    # Get a trial from an Optimizer
+    trial: Trial = optimizer.ask()
+
+    # Access the the trial's config
     x = trial.config["my-searchable:x"]
 
+    # Begin the trial
     with trial.begin():
         score = poly(x)
 
-    report: Trial.Report = trial.success(score=score)
-    reports.append(report)
+    if trial.exception is None:
+        # Generate a success report
+        report: Trial.Report = trial.success(score=score)
+    else:
+        # Generate a failed report (i.e. poly(x) raised divide by zero exception with x=0)
+        report: Trial.Report = trial.fail()
 
-last_report = reports[-1]
-print(last_report.config, last_report.metrics)
+    # Store artifacts with the trial, using file extensions to infer how to store it
+    trial.store({ "config.json": trial.config, "array.npy": [1, 2, 3] })
+
+    # Tell the Optimizer about the report
+    optimizer.tell(report)
+
+    # Add the report to the history
+    history.add(report)
 optimizer.bucket.rmdir()  # markdown-exec: hide
+```
+
+And we can use the [`History`][amltk.optimization.History] to see the history of the optimization
+process
+
+```python exec="true" html="true" source="material-block" session="running-an-optimizer"
+last_report = history[-1]
+df = history.df()
+from amltk._doc import doc_print; doc_print(print, last_report)  # markdown-exec: hide
+print(df._repr_html_())  # markdown-exec: hide
 ```
 
 Okay so there are a few things introduced all at once here, let's go over them bit by bit.
@@ -141,207 +166,192 @@ Okay so there are a few things introduced all at once here, let's go over them b
 ### The `Trial` object
 The [`Trial`](../reference/optimization/trials.md) object is the main object that
 you'll be interacting with when optimizing. It contains a load of useful properties and
-functionality to help you during optimization. What we introduced here is the `.config`,
-which contains a key, value mapping of the parameters to optimize, in this case, `x`. We
-also wrap the actual evaluation of the function in a
-[`with trial.begin():`][amltk.optimization.Trial.begin] which will time and profile the
-evaluation of the function and handle any exceptions that occur within the block, attaching
-the exception to [`.exception`][amltk.optimization.Trial.exception] and the traceback to
-[`.traceback`][amltk.optimization.Trial.traceback]. Lastly, we use
-[`trial.success()`][amltk.optimization.Trial.success] which generates a [`Trial.Report`][amltk.optimization.Trial.Report]
-for us.
+functionality to help you during optimization.
 
-We'll cover more of this later in the guide but feel free to check out the full [API][amltk.optimization.Trial].
+The `.config` will contained name spaced parameters, in this case, `my-searchable:x`, based on the
+pipeline/search space you specified.
 
+We also wrap the actual evaluation of the function in a [`with trial.begin():`][amltk.optimization.Trial.begin] which
+will time and profile the evaluation of the function and handle any exceptions that occur within the block.
 
----
+If an exception occured in the `#!python with trial.begin():` block, any exception/traceback that occured will be
+attached to [`.exception`][amltk.optimization.Trial.exception] and [`.traceback`][amltk.optimization.Trial.traceback].
 
-!!! todo "TODO"
+It's also quite typical to store artifacts with the trial, a common feature of things like TensorBoard, MLFlow, etc.
+We provide a primitive way to store artifacts with the trial using [`.store()`][amltk.optimization.Trial.store] which
+takes a dictionary of file names to file contents. The file extension is used to infer how to store the file, for example,
+`.json` files will be stored as JSON, `.npy` files will be stored as numpy arrays. You are of course still free to use
+your other favourite logging tools in conjunction with AMLTK!
 
-    Everything past here is likely out-dated, sorry. Matrial
-    in the [pipelines guide](./pipelines.md) guide and the
-    [scheduling guide](./scheduling.md) is more up-to-date.
+Lastly, we use [`trial.success()`][amltk.optimization.Trial.success] or [`trial.fail()`][amltk.optimization.Trial.fail]
+which generates a [`Trial.Report`][amltk.optimization.Trial.Report] for us, that we can give back to the optimizer.
 
-## Running an Optimizer
-Now that we have an optimizer that knows the `space` to search, we can begin to
-actually [`ask()`][amltk.optimization.Optimizer.ask] the optimizer for a next
-[`Trial`][amltk.optimization.Trial], run our function and return
-a [`Trial.Report`][amltk.optimization.Trial.Report].
+Feel free to explore the full [API][amltk.optimization.Trial].
 
-First we need to modify our function we wish to optimize to actually accept
-the `Trial` and return the `Report`.
+### The `History` object
+You may have noticed that we also created a [`History`][amltk.optimization.History] object to store our reports in. This
+is a simple container to store the reports together and get a dataframe out of. We may extend this with future utility
+such as plotting or other export formats but for now, we can use it primarily for getting our results together in one
+place.
 
-```python hl_lines="4 5 6 7 8 9 10 19 20 21 22 24 25" title="Runnig the Optimizer"
-from amltk.optimization import RandomSearch, Trial
-from amltk.pipeline import searchable
+We'll create a simple example where we create _our own trials_ and record some results on them, getting out a dataframe
+at the end.
 
-def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:  # (4)!
-    x = trial.config["x"]
-    with trial.begin():  # (1)!
-        y = (x**2 + 4*x + 3) / x
-        return trial.success(cost=y)  # (2)!
+```python exec="true" result="python" source="material-block"
+from amltk.optimization import History, Trial, Metric
+from amltk.store import PathBucket
 
-    trial.fail()  # (3)!
+bucket = PathBucket("my-bucket")
+metric = Metric("score", minimize=False, bounds=(0, 5))
+history = History()
 
-s = searchable("parameters", space={"x": (-10.0, 10.0)})
+trials = [
+    Trial(name="trial-1", config={"x": 1.0}, bucket=bucket, metrics=[metric]),
+    Trial(name="trial-2", config={"x": 2.0}, bucket=bucket, metrics=[metric]),
+    Trial(name="trial-3", config={"x": 3.0}, bucket=bucket, metrics=[metric]),
+]
 
-space = s.space()
-random_search = RandomSearch(space=space, seed=42)
-
-results: list[float] = []
-
-for _ in range(20):
-    trial = random_search.ask()
-    report = qaudratic(trial)
-    random_search.tell(trial)
-
-    cost = report.results["cost"]
-    results.append(cost)
-```
-
-1. Using the [`with trial.begin():`][amltk.optimization.Trial.begin],
-you let us know where exactly your trial begins and we can handle
-all things related to exception handling and timing.
-2. If you can return a success, then do so with
-[`trial.success()`][amltk.optimization.Trial.success].
-3. If you can't return a success, then do so with [`trial.fail()`][amltk.optimization.Trial.fail].
-4. Here the inner type parameter `RSTrial` is the type of `trial.info` which
-contains the object returned by the ask of the wrapped `optimizer`. We'll
-see this in [integrating your own Optimizer](#integrating-your-own-optimizer).
-
-### Running the Optimizer in a parallel fashion
-
-Now that we've seen the basic optimization loop, it's time to parallelize it with
-a [`Scheduler`][amltk.scheduling.Scheduler] and the [`Task`][amltk.Task].
-We cover the [`Scheduler`][amltk.scheduling.Scheduler] and [`Tasks`][amltk.scheduling.Task]
-in the [Scheduling guide](./scheduling.md) if you'd like to know more about how this works.
-
-We first create a [`Scheduler`][amltk.scheduling.Scheduler] to run with `#!python 1`
-process and run it for `#!python 5` seconds.
-Using the event system of AutoML-Toolkit,
-we define what happens through _callbacks_, registering to certain events, such
-as launch a single trial on `@scheduler.on_start`, _tell_ the optimizer whenever we get
-something returned with [`@task.on_result`][amltk.Task.on_result].
-
-
-```python hl_lines="19 23 24 25 26 28 29 30 32 33 34 35 37 38 39 40 42" title="Creating a Task for a Trial"
-from amltk.optimization import RandomSearch, Trial, RSTrialInfo
-from amltk.pipeline import searchable
-from amltk.scheduling import Scheduler
-
-def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
-    x = trial.config["x"]
+for trial in trials:
     with trial.begin():
-        y = (x**2 + 4*x + 3) / x
-        return trial.success(cost=y)
+        if x >= 2:
+            report = trial.fail()
+        else:
+            report = trial.success(score=x)
 
-    trial.fail()
+    history.add(report)
 
-s = searchable("parameters", space={"x": (-10.0, 10.0)})
-space = s.space()
-
-random_search = RandomSearch(space=space, seed=42)
-scheduler = Scheduler.with_processes(1)
-
-task = scheduler.task(poly)  # (5)!
-
-results: list[float] = []
-
-@scheduler.on_start  # (1)!
-def launch_trial() -> None:
-    trial = random_search.ask()
-    task(trial)
-
-@task.on_result  # (2)!
-def tell_optimizer(report: Trial.Report) -> None:
-    random_search.tell(report)
-
-@task.on_result
-def launch_another_trial(_: Trial.Report) -> None:
-    trial = random_search.ask()
-    task(trial)
-
-@task.on_result  # (3)!
-def save_result(report: Trial.Report) -> None:
-    cost = report["cost"]
-    results.append(cost)  # (4)!
-
-scheduler.run(timeout=5)
+df = history.df()
+print(df._repr_html_())  # markdown-exec: hide
 ```
 
-1. The function `launch_trial()` gets called when the `scheduler` starts,
-asking the optimizer for a trial and launching the `task` with the `trial`.
-`launch_trial()` gets called in the main process but `task(trial)` will get
-called in a seperate process.
-2. The function `tell_optimizer` gets called whenever the `task` returns a
-report. We should tell the optimizer about this report.
-3. This function `save_result` gets called whenever we have a successful
-trial.
-4. We don't store anything more than the optmimizer needs. Saving results
-that you wish to access later is up to you.
-5. Here we wrap the function we want to run in another process in a
-[`Task`][amltk.optimization.Trial]. There are other backends than
-processes, e.g. Clusters for which you should check out the
-[Scheduling guide](./scheduling.md).
+You can use the [`History.df()`][amltk.optimization.History.df] method to get a dataframe of the history and
+use your favourite dataframe tools to analyze the results.
 
-Now, to scale up, we trivially increase the number of initial trails launched with `@scheduler.on_start`
-and the number of processes in our `Scheduler`. That's it.
+## Optimizing an Sklearn-Pipeline
+To give a more concrete example, we will optimize a simple sklearn pipeline. You'll likely want to refer to the
+[pipeline guide](../guides/pipelines.md) for more information on pipelines, but the example should be clear
+enough without it.
 
-```python hl_lines="18 19 25"
-from amltk.optimization import RandomSearch, Trial, RSTrialInfo
-from amltk.pipeline import searchable
-from amltk.scheduling import Scheduler
+We start with defining our pipeline.
 
-def poly(trial: Trial[RSTrialInfo]) -> Trial.Report[RSTrialInfo]:
-    x = trial.config["x"]
+```python exec="true" html="true" source="material-block" session="optimizing-an-sklearn-pipeline"
+from typing import Any
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+from sklearn.neural_network import MLPClassifier
+
+from amltk.pipeline import Sequential, Choice, Component
+
+def dims_to_hidden_layer(config: dict[str, Any], _):
+    config = dict(config)
+    config["hidden_layer_sizes"] = (config.pop("dim1"), config.pop("dim2"))
+    return config
+
+# A pipeline with a choice of scalers and a parametrized MLP
+my_pipeline = (
+    Sequential(name="my-pipeline")
+    >> Choice(
+        StandardScaler,
+        MinMaxScaler,
+        Component(RobustScaler, space={"with_scaling": [True, False], "unit_variance": [True, False]}),
+        name="scaler",
+    )
+    >> Component(
+        MLPClassifier,
+        space={
+            "dim1": (1, 10),
+            "dim2": (1, 10),
+            "activation": ["relu", "tanh", "logistic"],
+        },
+        config_transform=dims_to_hidden_layer,
+    )
+)
+from amltk._doc import doc_print; doc_print(print, my_pipeline)  # markdown-exec: hide
+```
+
+Next up, we need to define a simple target function we want to evaluate on. With that, we'll also
+store our data, so that on each evaluate call, we load it in. This doesn't make much sense for a single in-process
+call but when scaling up to using multiple processes or remote compute, this is a good practice to follow. For this
+we use a [`PathBucket`][amltk.store.PathBucket] and get a [`StoredValue`][amltk.store.StoredValue] from it, basically
+a reference to some object we can load back in later.
+
+```python exec="true" result="python" source="material-block" session="optimizing-an-sklearn-pipeline"
+from sklearn.datasets import load_iris
+from sklearn.model_selection import cross_validate
+from amltk.optimization import Trial
+from amltk.store import PathBucket, StoredValue
+import numpy as np
+
+# Load in our data
+_X, _y = load_iris(return_X_y=True)
+
+# Store our data in a bucket
+bucket = PathBucket("my-bucket")
+bucket.update({"X.npy": _X, "y.npy": _y})
+
+def evaluate(
+    trial: Trial,
+    pipeline: Sequential,
+    X: StoredValue[str, np.ndarray],
+    y: StoredValue[str, np.ndarray],
+) -> Trial.Report:
+    # Configure our pipeline and build it
+    sklearn_pipeline = (
+        pipeline
+        .configure(trial.config)
+        .build("sklearn")
+    )
+
+    # Load in our data
+    X = X.value()
+    y = y.value()
+
+    # Use sklearns.cross_validate as our evaluator
     with trial.begin():
-        y = (x**2 + 4*x + 3) / x
-        return trial.success(cost=y)
+        results = cross_validate(sklearn_pipeline, X, y, scoring="accuracy", cv=3, return_estimator=True)
 
-    trial.fail()
+    test_scores = results["test_score"]
+    estimators = results["estimator"]  # You can store these if you like (you'll likely want to use the `.pkl` suffix for the filename)
 
-s = searchable("parameters", space={"x": (-10.0, 10.0)})
-space = s.space()
-
-random_search = RandomSearch(space=space, seed=42)
-
-n_workers = 4
-scheduler = Scheduler.with_processes(n_workers)
-
-task = Trial.Task(poly)
-
-results: list[float] = []
-
-@scheduler.on_start(repeat=n_workers)
-def launch_trial() -> None:
-    trial = random_search.ask()
-    task(trial)
-
-@task.on_result
-def tell_optimizer(report: Trial.Report) -> None:
-    random_search.tell(report)
-
-@task.on_result
-def launch_another_trial(_: Trial.Report) -> None:
-    trial = random_search.ask()
-    task(trial)
-
-@task.on_result
-def save_result(report: Trial.Report) -> None:
-    cost = report["cost"]
-    results.append(cost)
-
-scheduler.run(timeout=5)
+    # Report the mean test score
+    mean_test_score = np.mean(test_scores)
+    return trial.success(acc=mean_test_score)
 ```
 
-That concludes the main portion of our `Optimization` guide. AutoML-Toolkit provides
-a host of more useful options, such as:
+Lastly, we'll create our optimizer and run it.
+In this example, we'll use the [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] but
+you can refer to the [optimizer reference](../reference/optimization/optimizers.md) for other optimizers. For basic
+use cases, you should be able to swap in and out the optimizer and it should work without any changes.
 
-* Setting constraints on your evaluation function, such as memory, wall time and cpu time, concurrency limits
-and call limits. Please refer to the [Scheduling guide](./scheduling.md) for more information.
-* Stop the scheduler with whatever stopping criterion you wish. Please refer to the [Scheduling guide](./scheduling.md) for more information.
-* Optimize over complex pipelines. Please refer to the [Pipeline guide](./pipelines.md) for more information.
-* Using different parallelization strategies, such as [Dask](https://dask.org/), [Ray](https://ray.io/),
-[Slurm](https://slurm.schedmd.com/), and [Apache Airflow](https://airflow.apache.org/).
-* Use a whole host of more callbacks to control you system, check out the [Scheduling guide](./scheduling.md) for more information.
-* Run the scheduler using `asyncio` to allow interactivity, run as a server or other more advanced use cases.
+```python exec="true" result="python" source="material-block" session="optimizing-an-sklearn-pipeline"
+from amltk.optimization.optimizers.smac import SMACOptimizer
+from amltk.optimization import Metric, History
+
+metric = Metric("acc", minimize=False, bounds=(0, 1))
+bucket = PathBucket("my-bucket")
+optimizer = SMACOptimizer.create(
+    space=my_pipeline,  # Let it know what to optimize
+    metrics=metric,  # And let it know what to expect
+    bucket=bucket,  # And where to store artifacts for trials and optimizer output
+)
+
+history = History()
+stored_X = bucket["X.npy"].as_stored_value()
+stored_y = bucket["y.npy"].as_stored_value()
+
+for _ in range(10):
+    # Get a trial from the optimizer
+    trial = optimizer.ask()
+
+    # Evaluate the trial
+    report = evaluate(trial=trial, pipeline=my_pipeline, X=stored_X, y=stored_y)
+
+    # Tell the optimizer about the report
+    optimizer.tell(report)
+
+    # Add the report to the history
+    history.add(report)
+
+df = history.df()
+optimizer.bucket.rmdir()  # markdown-exec: hide
+print(df)  # markdown-exec: hide
+```
