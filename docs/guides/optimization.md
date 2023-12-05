@@ -234,6 +234,7 @@ trials = [
 
 for trial in trials:
     with trial.begin():
+        x = trial.config["x"]
         if x >= 2:
             report = trial.fail()
         else:
