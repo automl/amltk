@@ -899,7 +899,7 @@ class Searchable(Node[None, Space]):  # type: ignore
     node of the pipeline which just represents a search space, no item attached.
 
     While not usually applicable to pipelines you want to build, this component
-    is useful for creating a search space, especially if the the real pipeline you
+    is useful for creating a search space, especially if the real pipeline you
     want to optimize can not be built directly. For example, if you are optimize
     a script, you may wish to use a `Searchable` to represent the search space
     of that script.
