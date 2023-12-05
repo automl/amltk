@@ -20,10 +20,11 @@ is merged. See https://github.com/blog/1506-closing-issues-via-pull-requests
 
 #### What does this implement/fix? Explain your changes.
 
-#### How should this PR be tested?
+#### Minimal Example / How should this PR be tested?
 
 <!--
 This only needs to be filled if there is anything to test.
+In case of a new feature, please add a minimal example of how to use it.
 -->
 
 #### Any other comments?
@@ -39,3 +40,6 @@ case, we ask for your understanding during the review process.
 
 Thanks for contributing!
 -->
+
+---
+By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of your choice.
