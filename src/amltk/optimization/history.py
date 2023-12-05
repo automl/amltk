@@ -65,8 +65,7 @@ import operator
 from collections import defaultdict
 from collections.abc import Callable, Hashable, Iterable, Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import IO, TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar
 from typing_extensions import override
 
 import pandas as pd
@@ -356,8 +355,11 @@ class History(RichRenderable):
         self,
         key: Callable[[Trial.Report, Trial.Report], bool] | str,
         *,
+        sortby: Callable[[Trial.Report], Comparable]
+        | str = lambda report: report.time.end,
+        reverse: bool | None = None,
         ffill: bool = False,
-    ) -> History:
+    ) -> list[Trial.Report]:
         """Returns a trace of the incumbents, where only the report that is better than the previous
         best report is kept.
 
@@ -376,8 +378,7 @@ class History(RichRenderable):
 
         incumbents = (
             history
-            .sortby(lambda r: r.time.end)
-            .incumbents("cost")
+            .incumbents("cost", sortby=lambda r: r.time.end)
         )
         for report in incumbents:
             print(f"{report.metrics=}, {report.config=}")
@@ -389,6 +390,17 @@ class History(RichRenderable):
                 than another. If given a `#!python Callable`, it should
                 return a `bool`, indicating if the first argument report
                 is better than the second argument report.
+            sortby: The key to sort by. If given a str, it will sort by
+                the value of that key in the `.metrics` and also filter
+                out anything that does not contain this key.
+                By default, it will sort by the end time of the report.
+            reverse: Whether to sort in some given order. By
+                default (`None`), if given a metric key, the reports with
+                the best metric values will be sorted first. If
+                given a `#!python Callable`, the reports with the
+                smallest values will be sorted first. Using
+                `reverse=True` will always reverse this order, while
+                `reverse=False` will always preserve it.
             ffill: Whether to forward fill the incumbents. This means that
                 if a report is not an incumbent, it will be replaced with
                 the current best. This is useful if you want to
@@ -406,16 +418,15 @@ class History(RichRenderable):
             case _:
                 op = key
 
-        incumbents = list(compare_accumulate(self.reports, op=op, ffill=ffill))
-        _lookup = {report.name: i for i, report in enumerate(incumbents)}
-        return History(reports=incumbents, metrics=self.metrics, _lookup=_lookup)
+        sorted_reports = self.sortby(sortby, reverse=reverse)
+        return list(compare_accumulate(sorted_reports, op=op, ffill=ffill))
 
     def sortby(
         self,
         key: Callable[[Trial.Report], Comparable] | str,
         *,
         reverse: bool | None = None,
-    ) -> History:
+    ) -> list[Trial.Report]:
         """Sorts the history by a key and returns a sorted History.
 
         ```python exec="true" source="material-block" result="python" title="sortby" hl_lines="15"
@@ -454,7 +465,7 @@ class History(RichRenderable):
                 `reverse=False` will always preserve it.
 
         Returns:
-            A sorted History
+            A sorted list of reports
         """  # noqa: E501
         # If given a str, filter out anything that doesn't have that key
         if isinstance(key, str):
@@ -468,10 +479,7 @@ class History(RichRenderable):
             sort_key = key
             reverse = False if reverse is None else reverse
 
-        sorted_reports = sorted(history.reports, key=sort_key, reverse=reverse)
-        metrics = history.metrics
-        _lookup = {report.name: i for i, report in enumerate(sorted_reports)}
-        return History(reports=sorted_reports, metrics=metrics, _lookup=_lookup)
+        return sorted(history.reports, key=sort_key, reverse=reverse)
 
     @override
     def __getitem__(  # type: ignore
@@ -500,38 +508,6 @@ class History(RichRenderable):
             and self.metrics == other.metrics
             and self._lookup == other._lookup
         )
-
-    def to_csv(self, path: str | Path | IO[str]) -> None:
-        """Saves the history to a csv.
-
-        Args:
-            path: The path to save the history to.
-        """
-        if isinstance(path, IO):
-            path.write(self.df().to_csv(na_rep=""))
-        else:
-            self.df().to_csv(path)
-
-    @classmethod
-    def from_csv(cls, path: str | Path | IO[str] | pd.DataFrame) -> History:
-        """Loads a history from a csv.
-
-        Args:
-            path: The path to load the history from.
-
-        Returns:
-            A History.
-        """
-        _df = (
-            pd.read_csv(
-                path,  # type: ignore
-                float_precision="round_trip",  # type: ignore
-            )
-            if isinstance(path, IO | str | Path)
-            else path
-        )
-
-        return cls.from_df(_df.convert_dtypes())
 
     @classmethod
     def from_df(cls, df: pd.DataFrame) -> History:

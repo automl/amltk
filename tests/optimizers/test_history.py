@@ -147,9 +147,10 @@ def test_trace_filter(reports: list[Trial.Report]) -> None:
     history = History()
     history.add(reports)
 
-    trace_by_x = history.sortby(lambda report: report.config["x"])
-    trace_filtered = trace_by_x.filter(lambda report: report.config["x"] > 0)
-    assert all(report.config["x"] > 0 for report in trace_filtered)
+    trace_by_x = history.filter(lambda report: report.config["x"] > 0).sortby(
+        lambda report: report.config["x"],
+    )
+    assert all(report.config["x"] > 0 for report in trace_by_x)
 
 
 @parametrize_with_cases("reports", cases=".")
@@ -157,40 +158,11 @@ def test_trace_sortby(reports: list[Trial.Report]) -> None:
     history = History()
     history.add(reports)
 
-    trace_by_x = history.sortby(lambda report: report.config["x"])
-
-    # Make sure that that it's sorted by the absolute value of x
-    trace_sorted = trace_by_x.sortby(lambda report: abs(report.config["x"]))
+    trace_sorted = history.sortby(lambda report: abs(report.config["x"]))
 
     assert all(
         abs(a.config["x"]) <= abs(b.config["x"]) for a, b in pairwise(trace_sorted)
     )
-
-
-@parametrize_with_cases("reports", cases=".")
-def test_trace_df(reports: list[Trial.Report]) -> None:
-    history = History()
-    history.add(reports)
-
-    trace_by_x = history.sortby(lambda report: report.config["x"])
-    trace_df = trace_by_x.df()
-
-    assert len(trace_df) == len(trace_by_x) == len(history)
-
-    filtered_success = trace_by_x.filter(lambda report: report.status == "success")
-    assert all(report.status == "success" for report in filtered_success)
-
-    filtered_fail = trace_by_x.filter(lambda report: report.status == "fail")
-    assert all(report.status == "fail" for report in filtered_fail)
-
-    filtered_crashed = trace_by_x.filter(lambda report: report.status == "crashed")
-    assert all(report.status == "crashed" for report in filtered_crashed)
-
-    if len(trace_df) > 0:
-        counts = dict(trace_df["status"].value_counts())
-        assert counts.get("success", 0) == len(filtered_success)
-        assert counts.get("fail", 0) == len(filtered_fail)
-        assert counts.get("crashed", 0) == len(filtered_crashed)
 
 
 def test_history_sortby() -> None:
@@ -242,19 +214,19 @@ def test_history_incumbents() -> None:
 
     hist_1 = history.incumbents("loss", ffill=True)
     expected_1 = [0, -1, -1, -3, -3, -5, -5, -7, -7, -9]
-    assert [r.metrics["loss"] for r in hist_1.reports] == expected_1
+    assert [r.metrics["loss"] for r in hist_1] == expected_1
 
     hist_2 = history.incumbents("loss", ffill=False)
     expected_2 = [0, -1, -3, -5, -7, -9]
-    assert [r.metrics["loss"] for r in hist_2.reports] == expected_2
+    assert [r.metrics["loss"] for r in hist_2] == expected_2
 
     hist_3 = history.incumbents("score", ffill=True)
     expected_3 = [0, 0, 2, 2, 4, 4, 6, 6, 8, 8]
-    assert [r.metrics["score"] for r in hist_3.reports] == expected_3
+    assert [r.metrics["score"] for r in hist_3] == expected_3
 
     hist_4 = history.incumbents("score", ffill=False)
     expected_4 = [0, 2, 4, 6, 8]
-    assert [r.metrics["score"] for r in hist_4.reports] == expected_4
+    assert [r.metrics["score"] for r in hist_4] == expected_4
 
 
 @parametrize_with_cases("reports", cases=".")
@@ -267,18 +239,20 @@ def test_history_serialization(reports: list[Trial.Report], tmp_path: Path) -> N
         restored_report_df = Trial.Report.from_df(report_df).df()
         pd.testing.assert_frame_equal(report_df, restored_report_df)
 
-    df = history.df()
+    df = history.df(normalize_time=False)
     assert len(df) == len(reports)
 
     restored_history = History.from_df(df)
-    restored_df = restored_history.df()
+    restored_df = restored_history.df(normalize_time=False)
 
     pd.testing.assert_frame_equal(df, restored_df)
     pd.set_option("display.precision", 8)
 
     tmpfile = tmp_path / "history.csv"
-    history.to_csv(tmpfile)
+    history.df(normalize_time=False).to_csv(tmpfile)
 
-    restored_history = History.from_csv(tmpfile)
-    restored_df = restored_history.df()
+    restored_history = History.from_df(
+        pd.read_csv(tmpfile, float_precision="round_trip"),  # type: ignore
+    )
+    restored_df = restored_history.df(normalize_time=False)
     pd.testing.assert_frame_equal(df, restored_df, atol=1e-9)
