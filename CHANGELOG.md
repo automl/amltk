@@ -1,3 +1,9 @@
+## 1.3.1 (2023-12-05)
+
+### Fix
+
+- **pyproject**: Change to recognized classifier for PyPI (#189)
+
 ## 1.3.0 (2023-12-05)
 
 ### Feat
