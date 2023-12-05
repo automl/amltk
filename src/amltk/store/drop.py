@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 from more_itertools.more import first
 
 from amltk._functional import funcname
-from amltk.types import StoredValue
+from amltk.store.stored_value import StoredValue
 
 if TYPE_CHECKING:
     from amltk.store.loader import Loader
@@ -72,14 +72,14 @@ class Drop(Generic[KeyT]):
         self,
         read: Callable[[KeyT], T] | None = None,
     ) -> StoredValue[KeyT, T]:
-        """Convert the drop to a [`StoredValue`][amltk.types.StoredValue].
+        """Convert the drop to a [`StoredValue`][amltk.store.StoredValue].
 
         Args:
             read: The method to use to load the resource. If `None` then
                 the first loader that can load the resource will be used.
 
         Returns:
-            The drop as a [`StoredValue`][amltk.types.StoredValue].
+            The drop as a [`StoredValue`][amltk.store.StoredValue].
         """
         if read is None:
             loader = first(
