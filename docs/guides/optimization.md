@@ -153,11 +153,9 @@ optimizer.bucket.rmdir()  # markdown-exec: hide
 And we can use the [`History`][amltk.optimization.History] to see the history of the optimization
 process
 
-```python exec="true" html="true" source="material-block" session="running-an-optimizer"
-last_report = history[-1]
+```python exec="true" result="python" source="material-block" session="running-an-optimizer"
 df = history.df()
-from amltk._doc import doc_print; doc_print(print, last_report)  # markdown-exec: hide
-print(df._repr_html_())  # markdown-exec: hide
+print(df)
 ```
 
 Okay so there are a few things introduced all at once here, let's go over them bit by bit.
@@ -221,7 +219,7 @@ for trial in trials:
     history.add(report)
 
 df = history.df()
-print(df._repr_html_())  # markdown-exec: hide
+print(df)
 ```
 
 You can use the [`History.df()`][amltk.optimization.History.df] method to get a dataframe of the history and
