@@ -74,7 +74,12 @@ from typing_extensions import override
 from more_itertools import all_unique, first_true
 
 from amltk._functional import entity_name
-from amltk.exceptions import DuplicateNamesError, NoChoiceMadeError, NodeNotFoundError
+from amltk.exceptions import (
+    ComponentBuildError,
+    DuplicateNamesError,
+    NoChoiceMadeError,
+    NodeNotFoundError,
+)
 from amltk.pipeline.node import Node, RichOptions
 from amltk.randomness import randuid
 from amltk.types import Config, Item, Space
@@ -870,7 +875,22 @@ class Component(Node[Item, Space]):
                 The built item
         """
         config = self.config or {}
-        return self.item(**{**config, **kwargs})
+        try:
+            return self.item(**{**config, **kwargs})
+        except ValueError as e:
+            new_msg = f"Failed to build {self.item} with {self.config}."
+            if any(kwargs):
+                new_msg += f"Extra {kwargs=} were also provided."
+            new_msg += (
+                "If the item failed to initialize, a common reason can be forgetting"
+                " to call `configure()` on the `Component` or the pipeline it is in or"
+                " not calling `build()`/`build_item()` on the **returned** value of"
+                " `configure()`."
+                "\nReasons may also include not having fully specified the `config`"
+                " initially, it having not being configured fully from `configure()`"
+                " or from misspecfying parameters."
+            )
+            raise ComponentBuildError(new_msg) from e
 
 
 @dataclass(init=False, frozen=True, eq=True)

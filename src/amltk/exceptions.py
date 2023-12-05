@@ -88,6 +88,10 @@ class RequestNotMetError(ValueError):
     """Raised when a request is not met."""
 
 
+class ComponentBuildError(ValueError):
+    """Raised when failing to build a component."""
+
+
 class DuplicateNamesError(ValueError):
     """Raised when duplicate names are found."""
 
