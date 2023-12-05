@@ -1,3 +1,20 @@
+## 1.3.0 (2023-12-05)
+
+### Feat
+
+- **History**: Default to normalizing time of history output
+
+### Fix
+
+- Provide more information if `built_item` fails (#187)
+- **_doc**: Use `isinstance` on types
+- **Optimizers**: Default to optimizer name #174
+
+### Refactor
+
+- **History**: History provides mutator methods
+- Move `StoredValue` to own file in `.store`
+
 ## 1.2.4 (2023-11-25)
 
 ### Fix
