@@ -57,7 +57,6 @@ from typing import (
 from typing_extensions import override
 
 from more_itertools import first_true
-from rich.text import Text
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from amltk._functional import classname, mapping_select, prefix_keys
@@ -714,6 +713,7 @@ class Node(RichRenderable, Generic[Item, Space]):
     def __rich__(self) -> Panel:
         from rich.console import Group as RichGroup
         from rich.panel import Panel
+        from rich.text import Text
 
         clr = self.RICH_OPTIONS.panel_color
         title = Text.assemble(
