@@ -1,3 +1,9 @@
+## 1.3.2 (2023-12-06)
+
+### Fix
+
+- **_doc**: Catch missing else statement for `doc_print` (#190)
+
 ## 1.3.1 (2023-12-05)
 
 ### Fix
