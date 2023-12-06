@@ -2,6 +2,9 @@ on:
   push:
     branches:
       - joss-paper
+  pull_request:
+    branches:
+      - joss-paper
 
 jobs:
   paper:
