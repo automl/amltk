@@ -84,7 +84,7 @@ Existing AutoML systems are typically highly engineered monolithic software deve
 With the growing amount of data and design decisions for ML, there is also a growing need to improve our understanding of the design decisions of AutoML systems.
 Current state-of-the-art systems vary in implemented paradigms (stacking [@erickson-arxiv20a] vs CASH [@thornton-kdd13a], optimizing a pre-defined pipeline structure [@thornton-kdd13a] vs evolving open-ended pipelines [@olson-gecco16a]) and also use different methods
 within one paradigm (i.e. Bayesian optimization [@thornton-kdd13a; @feurer-nips15a] or Genetic Programming [@olson-gecco16a; @gijsbers-joss19a] as the optimization algorithm,
-different search spaces for the same machine learning algorithm cf.[@olson-gecco16a; @gijsbers-joss19a; @thornton-kdd13a; @feurer-nips15a], different post-hoc ensemble methods or even no post-hoc ensembling at all cf. [@feurer-nips15a; @autoprognosis; @wang2021flaml]),
+different search spaces for the same machine learning algorithm cf. [@olson-gecco16a; @gijsbers-joss19a; @thornton-kdd13a; @feurer-nips15a], different post-hoc ensemble methods or even no post-hoc ensembling at all cf. [@feurer-nips15a; @autoprognosis; @wang2021flaml]),
 raising many research questions and opportunities to study improved algorithms and novel applications.
 
 AMLTK (Automated Machine Learning ToolKit) is a collection of components that enable researchers and developers to easily implement AutoML systems without the need for common boilerplate code.
@@ -119,7 +119,7 @@ The tight integration of components allows for highly efficient systems but pose
 
 Issue (2) is also a huge problem.
 A recent benchmark study [@gijsbers-arxiv23a] extensively compared multiple AutoML systems on a common set of ML tasks.
-While such benchmarking efforts are necessary to assess the current state-of-the-art, we note that each system uses its own implementation of the search space, optimization, evaluation and ensembling, making a principled comparison and ablation study virtually impossible and leaving potential performance gains by combining solutions unnoticed.
+While such benchmarking efforts are necessary to assess the current state of the art, we note that each system uses its own implementation of the search space, optimization, evaluation and ensembling, making a principled comparison and ablation study virtually impossible and leaving potential performance gains by combining solutions unnoticed.
 Instead of comparing different methods, the researchers are actually comparing the implementations.
 By providing a unified toolkit for AutoML, researchers can focus on comparing the changes they have made while leaving all other parts of the AutoML system as they were.
 
