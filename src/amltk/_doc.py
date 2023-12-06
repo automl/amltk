@@ -115,6 +115,7 @@ def doc_print(
     fontsize: str = "medium",
 ) -> None:
     if output == "svg":
+        # NOTE: This might fail if the things are not RichRenderable
         _print(as_rich_svg(*renderable, title=title, width=width))
     elif len(renderable) == 1:
         try:
@@ -123,7 +124,8 @@ def doc_print(
 
             if isinstance(renderable[0], Pipeline | BaseEstimator | TransformerMixin):
                 _print(renderable[0]._repr_html_())  # type: ignore
-                return
+            else:
+                _print(as_rich_html(renderable[0], width=width, fontsize=fontsize))  # type: ignore
         except Exception:  # noqa: BLE001
             _print(as_rich_html(*renderable, width=width, fontsize=fontsize))
     else:

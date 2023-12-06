@@ -225,7 +225,7 @@ class Join(Node[Item, Space]):
         RandomForestClassifier(n_estimators=5),
         name="my_feature_union",
     )
-    print(join._repr_html_())  # markdown-exec: hide
+    from amltk._doc import doc_print; doc_print(print, join)  # markdown-exec: hide
     ```
 
     Like all [`Node`][amltk.pipeline.node.Node]s, a `Join` accepts an explicit
