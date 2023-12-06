@@ -1,3 +1,9 @@
+## 1.3.3 (2023-12-06)
+
+### Fix
+
+- **rich**: Move import into scoped block (#193)
+
 ## 1.3.2 (2023-12-06)
 
 ### Fix
