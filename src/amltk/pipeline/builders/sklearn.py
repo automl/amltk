@@ -13,14 +13,6 @@ a pipeline made of [`Node`][amltk.pipeline.Node]s into a sklearn
     pip install scikit-learn
     ```
 
-
-??? tip "Basic Usage"
-
-    ```python
-    # TODO
-    ```
-
-
 Each _kind_ of node corresponds to a different part of the end pipeline:
 
 === "`Fixed`"
@@ -91,7 +83,7 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
     automatically configure a `ColumnTransorfmer` to pass the appropraite
     columns of a data-frame to the given paths.
 
-    ```python exec="true" source="material-block" html="true" hl_lines="16"
+    ```python exec="true" source="material-block" html="true"
     from amltk.pipeline import Split, Component
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.impute import SimpleImputer
@@ -131,10 +123,8 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
             "categories": make_column_selector(dtype_include=object),
             "numbers": make_column_selector(dtype_include=np.number),
         },
-   )
+    )
     ```
-
-
 
 === "`Join`"
 
