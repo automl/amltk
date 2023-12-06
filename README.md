@@ -35,14 +35,16 @@ To install AutoML Toolkit (`amltk`), you can simply use `pip`:
 pip install amltk
 ```
 
-We also provide a list of optional dependancies which you can install if you intend to use them.
-This allows the toolkit to be as lightweight as possible and play nicely with the tools you use.
+> [!TIP]
+> We also provide a list of optional dependancies which you can install if you intend to use them.
+> This allows the toolkit to be as lightweight as possible and play nicely with the tools you use.
+> * `pip install amltk[notebook]` - For usage in a notebook
+> * `pip install amltk[sklearn]` - For usage with scikit-learn
+> * `pip install amltk[smac]` - For using SMAC as an optimizer
+> * `pip install amltk[optuna]` - For using Optuna as an optimizer
+> * `pip install amltk[pynisher,  threadpoolctl, wandb]` - Various plugins for running compute tasks
+> * `pip install amltk[cluster, dask, loky]` - Different compute backends to run from
 
-```bash
-pip install amltk[notebook]  # For usage in a notebook
-pip install amltk[sklearn, smac, cluster]  # For usage with scikit-learn pipelines, smac optimizer and dask-jobqueue for cluster computing
-pip install amltk[optuna, pynisher] # For usage with optuna parametrized pipelines and pynisher for limiting compute tasks
-```
 
 ### Install from source
 To install from source, you can clone this repo and install with `pip`:
@@ -210,23 +212,6 @@ scheduler.run(timeout=10)
 > [!TIP]
 > Check out our [integrated compute backends](https://automl.github.io/amltk/latest/reference/scheduling/executors) or use your own!
 
-
-### Installation
-To install from source, you can clone this repo and install with `pip`:
-
-```bash
-git clone git@github.com:automl/amltk.git
-pip install amltk
-```
-
-> [!TIP]
-> We have some optional dependancies you can install too:
-> * `pip install amltk[notebook]` - For usage in a notebook
-> * `pip install amltk[sklearn]` - For usage with scikit-learn
-> * `pip install amltk[smac]` - For using SMAC as an optimizer
-> * `pip install amltk[optuna]` - For using Optuna as an optimizer
-> * `pip install amltk[pynisher,  threadpoolctl, wandb]` - Various plugins for running compute tasks
-> * `pip install amltk[cluster, dask, loky]` - Different compute backends to run from
 
 ### Extra Material
 * [AutoML Fall School 2023 Colab](https://colab.research.google.com/drive/1aMfNhHDTXs-x8sxWtvX13vML9cytxeF1#forceEdit=true&sandboxMode=true)
