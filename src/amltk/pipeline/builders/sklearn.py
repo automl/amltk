@@ -104,8 +104,8 @@ Each _kind_ of node corresponds to a different part of the end pipeline:
 
     split = Split(
         {
-            "categories": categorical_pipeline,
-            "numbers": numerical_pipeline
+            "categorical": categorical_pipeline,
+            "numerical": numerical_pipeline
         }
     )
     from amltk._doc import doc_print; doc_print(print, split)  # markdown-exec: hide
