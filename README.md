@@ -5,11 +5,63 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 # AutoML Toolkit
-A framework for defining, configuring, building and evaluating AutoML pipelines.
-Please check out our documentation:
-* [Documentation](https://automl.github.io/amltk/)
+A framework for building an AutoML System. The toolkit is designed to be modular and extensible, allowing you to
+easily swap out components and integrate your own. The toolkit is designed to be used in a variety of different
+ways, whether for research purposes, building your own AutoML Tool or educational purposes.
+
+We focus on building complex parametrized pipelines easily, providng tools to optimize these pipeline parameters and
+lastly, providing tools to schedule compute tasks on a variety of different compute backends, without the need to
+refactor everything, once you swap out any one of these.
+
+The goal of this toolkit is to drive innovation for AutoML Systems by:
+1. Allowing concise research artifacts that can study different design decisions in AutoML.
+2. Enabling simple prototypes to scale to the compute you have available.
+3. Providing a framework for building real and robust AutoML Systems that are extensible by design.
+
+Please check out our documentation for more:
+* [Documentation](https://automl.github.io/amltk/) - The homepage
+* [Guides](https://automl.github.io/amltk/latest/guides) - How to use the `Pipelines`, `Optimizers` and `Schedulers` in
+  a walkthrough fashion.
+* [Reference](https://automl.github.io/amltk/latest/reference) - A short-overview reference for the various components
+  of the toolkit.
+* [Examples](https://automl.github.io/amltk/latest/examples) - A collection of examples for using the toolkit in
+  different ways.
+* [API](https://automl.github.io/amltk/latest/api) - The full API reference for the toolkit.
+
+## Installation
+To install AutoML Toolkit (`amltk`), you can simply use `pip`:
+
+```bash
+pip install amltk
+```
+
+We also provide a list of optional dependancies which you can install if you intend to use them.
+This allows the toolkit to be as lightweight as possible and play nicely with the tools you use.
+
+```bash
+pip install amltk[notebook]  # For usage in a notebook
+pip install amltk[sklearn, smac, cluster]  # For usage with scikit-learn pipelines, smac optimizer and dask-jobqueue for cluster computing
+pip install amltk[optuna, pynisher] # For usage with optuna parametrized pipelines and pynisher for limiting compute tasks
+```
+
+### Install from source
+To install from source, you can clone this repo and install with `pip`:
+
+```bash
+git clone git@github.com:automl/amltk.git
+pip install -e amltk  # -e for editable mode
+```
+
+If planning to contribute, you can install the development dependancies but we
+highly recommend checking out our [contributing guide](https://automl.github.io/amltk/latest/contributing) for more.
+
+```bash
+pip install -e "amltk[dev]"
+```
+
 
 ## Features
+Here's a brief overview of 3 of the core components from the toolkit:
 
 ### Pipelines
 Define **parametrized** machine learning pipelines using a fluid API:
@@ -114,6 +166,9 @@ from amltk.scheduling import Scheduler
 
 # Create a Scheduler with a backend, here 4 processes
 scheduler = Scheduler.with_processes(4)
+# scheduler = Scheduler.with_SLURM(...)
+# scheduler = Scheduler.with_OAR(...)
+# scheduler = Scheduler(executor=my_own_compute_backend)
 
 # Define some compute and wrap it as a task to offload to the scheduler
 def expensive_function(x: int) -> float:
