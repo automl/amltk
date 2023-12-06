@@ -45,7 +45,6 @@ pip install amltk
 > * `pip install amltk[pynisher,  threadpoolctl, wandb]` - Various plugins for running compute tasks
 > * `pip install amltk[cluster, dask, loky]` - Different compute backends to run from
 
-
 ### Install from source
 To install from source, you can clone this repo and install with `pip`:
 
