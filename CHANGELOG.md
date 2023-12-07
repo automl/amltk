@@ -1,3 +1,9 @@
+## 1.3.4 (2023-12-07)
+
+### Fix
+
+- **pipeline**: configure only operates on chosen choice (#195)
+
 ## 1.3.3 (2023-12-06)
 
 ### Fix
