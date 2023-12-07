@@ -69,7 +69,7 @@ import inspect
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, overload
-from typing_extensions import override
+from typing_extensions import Self, override
 
 from more_itertools import all_unique, first_true
 
