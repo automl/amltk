@@ -120,7 +120,7 @@ The tight integration of components allows for highly efficient systems but pose
 Issue (2) is also a huge problem.
 A recent benchmark study [@gijsbers-arxiv23a] extensively compared multiple AutoML systems on a common set of ML tasks.
 While such benchmarking efforts are necessary to assess the current state of the art, we note that each system uses its own implementation of the search space, optimization, evaluation and ensembling, making a principled comparison and ablation study virtually impossible and leaving potential performance gains by combining solutions unnoticed.
-Instead of comparing different methods, the researchers are actually comparing the implementations.
+Instead of comparing different methods, researchers are actually comparing the implementations.
 By providing a unified toolkit for AutoML, researchers can focus on comparing the changes they have made while leaving all other parts of the AutoML system as they were.
 
 # Acknowledgements
