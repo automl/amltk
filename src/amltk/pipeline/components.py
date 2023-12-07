@@ -541,7 +541,7 @@ class Choice(Node[Item, Space]):
                     if node.name != choice_made
                     else matching_child.configure(
                         config,
-                        prefixed_name=prefixed_name,
+                        prefixed_name=True,
                         transform_context=transform_context,
                         params=params,
                     )
