@@ -69,11 +69,11 @@ import inspect
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, overload
-from typing_extensions import override
+from typing_extensions import Self, override
 
 from more_itertools import all_unique, first_true
 
-from amltk._functional import entity_name
+from amltk._functional import entity_name, mapping_select
 from amltk.exceptions import (
     ComponentBuildError,
     DuplicateNamesError,
@@ -464,6 +464,122 @@ class Choice(Node[Item, Space]):
                 return chosen
             case _:
                 raise NoChoiceMadeError(self.name)
+
+    @override
+    def configure(
+        self,
+        config: Config,
+        *,
+        prefixed_name: bool | None = None,
+        transform_context: Any | None = None,
+        params: Mapping[str, Any] | None = None,
+    ) -> Self:
+        """Configure this node and anything following it with the given config.
+
+        !!! note "Configuring a choice"
+
+            For a Choice, if the config has a `__choice__` key, then only the node
+            chosen will be configured. The others will not be configured at all and
+            their config will be discarded.
+
+        Args:
+            config: The configuration to apply
+            prefixed_name: Whether items in the config are prefixed by the names
+                of the nodes.
+                * If `None`, the default, then `prefixed_name` will be assumed to
+                    be `True` if this node has a next node or if the config has
+                    keys that begin with this nodes name.
+                * If `True`, then the config will be searched for items prefixed
+                    by the name of the node (and subsequent chained nodes).
+                * If `False`, then the config will be searched for items without
+                    the prefix, i.e. the config keys are exactly those matching
+                    this nodes search space.
+            transform_context: Any context to give to `config_transform=` of individual
+                nodes.
+            params: The params to match any requests when configuring this node.
+                These will match against any ParamRequests in the config and will
+                be used to fill in any missing values.
+
+        Returns:
+            The configured node
+        """
+        # Get the config for this node
+        match prefixed_name:
+            case True:
+                config = mapping_select(config, f"{self.name}:")
+            case False:
+                pass
+            case None if any(k.startswith(f"{self.name}:") for k in config):
+                config = mapping_select(config, f"{self.name}:")
+            case None:
+                pass
+
+        _kwargs: dict[str, Any] = {}
+
+        # Configure all the branches if exists
+        # This part is what differs for a Choice
+        if len(self.nodes) > 0:
+            choice_made = config.get("__choice__", None)
+            if choice_made is not None:
+                matching_child = first_true(
+                    self.nodes,
+                    pred=lambda node: node.name == choice_made,
+                    default=None,
+                )
+                if matching_child is None:
+                    raise ValueError(
+                        f"Can not find matching child for choice {self.name} with child"
+                        f" {choice_made}."
+                        "\nPlease check the config and ensure that the choice is one of"
+                        f" {[n.name for n in self.nodes]}."
+                        f"\nThe config recieved at this choice node was {config=}.",
+                    )
+
+                # We still iterate over all of them just to ensure correct ordering
+                nodes = tuple(
+                    node.copy()
+                    if node.name != choice_made
+                    else matching_child.configure(
+                        config,
+                        prefixed_name=True,
+                        transform_context=transform_context,
+                        params=params,
+                    )
+                    for node in self.nodes
+                )
+                _kwargs["nodes"] = nodes
+            else:
+                nodes = tuple(
+                    node.configure(
+                        config,
+                        prefixed_name=True,
+                        transform_context=transform_context,
+                        params=params,
+                    )
+                    for node in self.nodes
+                )
+                _kwargs["nodes"] = nodes
+
+        this_config = {
+            hp: v
+            for hp, v in config.items()
+            if (
+                ":" not in hp
+                and not any(hp.startswith(f"{node.name}") for node in self.nodes)
+            )
+        }
+        if self.config is not None:
+            this_config = {**self.config, **this_config}
+
+        this_config = dict(self._fufill_param_requests(this_config, params=params))
+
+        if self.config_transform is not None:
+            this_config = dict(self.config_transform(this_config, transform_context))
+
+        if len(this_config) > 0:
+            _kwargs["config"] = dict(this_config)
+
+        return self.mutate(**_kwargs)
 
 
 @dataclass(init=False, frozen=True, eq=True)
