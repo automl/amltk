@@ -124,10 +124,10 @@ Instead of comparing different methods, the researchers are actually comparing t
 By providing a unified toolkit for AutoML, researchers can focus on comparing the changes they have made while leaving all other parts of the AutoML system as they were.
 
 # Acknowledgements
+Edward Bergman was partially supported by TAILOR, a project funded by EU Horizon 2020 research and innovation programme under GA No 95221.
 Katharina Eggensperger and Amir Balef acknowledge funding by the German Research Foundation under Germany's Excellence Strategy - ECX number 2064/1 - Project number 390727645.
 Marius Lindauer acknowledges support by the Federal Ministry of Education and Research (BMBF) under the project AI service center KISSKI (grantno. 01IS22093C).
-Frank Hutter and Lennart Purucker acknowledge funding by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) -- SFB 1597 -- 499552394.
-Edward Bergman was partially supported by TAILOR, a project funded by EU Horizon 2020 research and innovation programme under GA No 95221.
+Lennart Purucker acknowledges funding by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) -- SFB 1597 -- 499552394.
 Sarah Segel acknowledges funding by the European Union (ERC, "ixAutoML", grant no. 101041029).
 Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or the European Research Council Executive Agency.
 Neither the European Union nor the granting authority can be held responsible for them.
