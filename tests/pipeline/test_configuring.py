@@ -139,3 +139,55 @@ def test_config_transform() -> None:
         )
     )
     assert expected == pipeline.configure(config)
+
+
+def test_choice_with_config_transform_does_not_get_activated_if_not_chosen() -> None:
+    def transform_a(config: Mapping, __: Any) -> Mapping:
+        new_config = dict(config)
+        # This will cause an error if b is chosen as "a" is not in the config
+        new_config["c"] = new_config.pop("a")
+        return new_config
+
+    pipeline = Choice(
+        Component(
+            object,
+            name="a",
+            config={"z": 5},
+            space={"a": [1, 2, 3]},
+            config_transform=transform_a,
+        ),
+        Component(object, name="b", space={"b": [1, 2, 3]}),
+        name="choice",
+    )
+    config_a = {"choice:__choice__": "a", "choice:a:a": 1}
+    configured_a = pipeline.configure(config_a)
+
+    expected_a = Choice(
+        Component(
+            object,
+            name="a",
+            space={"a": [1, 2, 3]},
+            config={"c": 1, "z": 5},
+            config_transform=transform_a,
+        ),
+        Component(object, name="b", space={"b": [1, 2, 3]}),
+        name="choice",
+        config={"__choice__": "a"},
+    )
+    assert configured_a == expected_a
+
+    config_b = {"choice:__choice__": "b", "choice:b:b": 1}
+    configured_b = pipeline.configure(config_b)
+    expected_b = Choice(
+        Component(
+            object,
+            name="a",
+            config={"z": 5},
+            space={"a": [1, 2, 3]},
+            config_transform=transform_a,
+        ),
+        Component(object, name="b", config={"b": 1}, space={"b": [1, 2, 3]}),
+        name="choice",
+        config={"__choice__": "b"},
+    )
+    assert configured_b == expected_b
