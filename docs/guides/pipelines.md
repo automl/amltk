@@ -15,9 +15,9 @@ forms. For example, one might be an [sklearn.pipeline.Pipeline][], other's
 might be some deep-learning pipeline while some might even stand for some
 real life machinery process and the settings of these machines.
 
-To accomodate this, what AutoML-Toolkit provides is an **abstract** representation
+To accommodate this, what AutoML-Toolkit provides is an **abstract** representation
 of a pipeline, to help you define its search space and also to build concrete
-objects in code if possible (see [builders](../reference/pipelines/builders.md).
+objects in code if possible (see [builders](../reference/pipelines/builders.md)).
 
 We categorize this into 4 steps:
 
@@ -31,12 +31,12 @@ We categorize this into 4 steps:
 
 3. [`pipeline.configure(config=...)`][amltk.pipeline.Node.configure],
     Configure your pipeline, either manually or using a configuration suggested by
-    an optimizers.
+    an optimizer.
 
-4. [`pipeline.build(builder=)`][amltk.pipeline.Node.build],
-    Build your configured pipeline definition into something useable, i.e.
+4. [`pipeline.build(builder=...)`][amltk.pipeline.Node.build],
+    Build your configured pipeline definition into something usable, i.e.
     an [`sklearn.pipeline.Pipeline`][sklearn.pipeline.Pipeline] or a
-    `torch.nn.Module` (_todo_).
+    [`torch.nn.Module`](https://pytorch.org/docs/stable/generated/torch.nn.Module.html).
 
 At the core of these definitions is the many [`Nodes`][amltk.pipeline.node.Node]
 it consists of. By combining these together, you can define a _directed acyclic graph_ (DAG),
@@ -95,8 +95,8 @@ A pipeline consists of building blocks which we can combine together
 to create a DAG. We will start by introducing the `Component`, the common operations,
 and then show how to combine them together.
 
-A [`Component`][amltk.pipeline.Component] is the most common kind of node a pipeline.
-Like all parts of the pipeline, they subclass [`Node`][amltk.pipeline.Node] but a
+A [`Component`][amltk.pipeline.Component] is the most common kind of node in a pipeline.
+Like all parts of the pipeline, they subclass [`Node`][amltk.pipeline.Node], but a
 `Component` signifies this is some concrete object, with a possible
 [`.space`][amltk.pipeline.Node.space] and [`.config`][amltk.pipeline.Node.config].
 
@@ -487,7 +487,7 @@ paths. This let's the `Split` know which data should be sent where. Each `builde
 will have it's own way of how to set up a `Split` and you should refer to
 the [builders reference](../reference/pipelines/builders.md) for more information.
 
-Our last step is just to convert this into a useable object and so once again
+Our last step is just to convert this into a usable object and so once again
 we use [`build()`][amltk.pipeline.Node.build].
 
 ```python exec="true" source="material-block" html="True" session="Pipeline-Split3"

@@ -9,7 +9,7 @@ A framework for building an AutoML System. The toolkit is designed to be modular
 easily swap out components and integrate your own. The toolkit is designed to be used in a variety of different
 ways, whether for research purposes, building your own AutoML Tool or educational purposes.
 
-We focus on building complex parametrized pipelines easily, providng tools to optimize these pipeline parameters and
+We focus on building complex parametrized pipelines easily, providing tools to optimize these pipeline parameters and
 lastly, providing tools to schedule compute tasks on a variety of different compute backends, without the need to
 refactor everything, once you swap out any one of these.
 
@@ -36,7 +36,7 @@ pip install amltk
 ```
 
 > [!TIP]
-> We also provide a list of optional dependancies which you can install if you intend to use them.
+> We also provide a list of optional dependencies which you can install if you intend to use them.
 > This allows the toolkit to be as lightweight as possible and play nicely with the tools you use.
 > * `pip install amltk[notebook]` - For usage in a notebook
 > * `pip install amltk[sklearn]` - For usage with scikit-learn
@@ -53,7 +53,7 @@ git clone git@github.com:automl/amltk.git
 pip install -e amltk  # -e for editable mode
 ```
 
-If planning to contribute, you can install the development dependancies but we
+If planning to contribute, you can install the development dependencies but we
 highly recommend checking out our [contributing guide](https://automl.github.io/amltk/latest/contributing) for more.
 
 ```bash

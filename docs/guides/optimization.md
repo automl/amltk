@@ -5,7 +5,7 @@ of AMLTK, this means defining some [`Metric(s)`](../reference/optimization/metri
 and creating an [`Optimizer`](../reference/optimization/optimizers.md) to optimize
 them.
 
-You can check out the integrated optimizers in our [optimizer reference](../reference/optimization/optimizers.md)
+You can check out the integrated optimizers in our [optimizer reference](../reference/optimization/optimizers.md).
 
 
 This guide relies lightly on topics covered in the [Pipeline Guide](../guides/pipelines.md) for
@@ -34,7 +34,7 @@ from io import StringIO; fig.tight_layout(); buffer = StringIO(); plt.savefig(bu
 
 Our next step is to define the search range over which we want to optimize, in
 this case, the range of values `x` can take. Here we use a simple [`Searchable`][amltk.pipeline.Searchable], however
-we can reprsent entire machine learning pipelines, with conditonality and much more complex ranges. ([Pipeline guide](../guides/pipelines.md))
+we can represent entire machine learning pipelines, with conditionality and much more complex ranges. ([Pipeline guide](../guides/pipelines.md))
 
 !!! info inline end "Vocab..."
 
@@ -72,7 +72,7 @@ but you can find other available optimizers [here](../reference/optimization/opt
     pip install smac
     ```
 
-The first thing we'll need to do is create a [`Metric`](../reference/optimization/metrics.md)
+The first thing we'll need to do is create a [`Metric`](../reference/optimization/metrics.md):
 a definition of some value we want to optimize.
 
 ```python exec="true" result="python" source="material-block"
@@ -165,7 +165,7 @@ The [`Trial`](../reference/optimization/trials.md) object is the main object tha
 you'll be interacting with when optimizing. It contains a load of useful properties and
 functionality to help you during optimization.
 
-The `.config` will contained name spaced parameters, in this case, `my-searchable:x`, based on the
+The `.config` will contain name spaced parameters, in this case, `my-searchable:x`, based on the
 pipeline/search space you specified.
 
 We also wrap the actual evaluation of the function in a [`with trial.begin():`][amltk.optimization.Trial.begin] which
