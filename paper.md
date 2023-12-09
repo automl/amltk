@@ -17,7 +17,7 @@ authors:
     orcid: 0000-0001-9611-8588
     corresponding: true
     equal-contrib: false
-    affiliation: “2, 3”
+    affiliation: "2, 3"
   - name: Aron Bahram
     orcid: 0009-0002-8896-2863
     corresponding: false
@@ -42,7 +42,7 @@ authors:
     orcid: 0000-0002-9675-3175
     corresponding: true
     equal-contrib: false
-    affiliation: “5,6”
+    affiliation: "5,6"
   - name: Frank Hutter
     orcid: 0000-0002-2037-3694
     corresponding: true
