@@ -26,7 +26,7 @@ def test_reduce_dtypes_mixed_df() -> None:
     mixed_df = pd.DataFrame({"a": np.arange(100), "b": np.linspace(0, 1, 100)})
     reduced_df = reduce_dtypes(mixed_df)
 
-    assert reduced_df["a"].dtype == np.uint8
+    assert reduced_df["a"].dtype == pd.UInt8Dtype()
     assert reduced_df["b"].dtype == pd.Float32Dtype()
 
 
@@ -34,14 +34,14 @@ def test_reduce_dtypes_mixed_df() -> None:
     "dtype, expected",
     [
         # For int's we squeeze to smallest possible that holds, max/min
-        (np.uint8, np.uint8),
-        (np.uint16, np.uint8),
-        (np.uint32, np.uint8),
-        (np.uint64, np.uint8),
-        (np.int8, np.uint8),
-        (np.int16, np.uint8),
-        (np.int32, np.uint8),
-        (np.int64, np.uint8),
+        (np.uint8, pd.UInt8Dtype()),
+        (np.uint16, pd.UInt8Dtype()),
+        (np.uint32, pd.UInt8Dtype()),
+        (np.uint64, pd.UInt8Dtype()),
+        (np.int8, pd.UInt8Dtype()),
+        (np.int16, pd.UInt8Dtype()),
+        (np.int32, pd.UInt8Dtype()),
+        (np.int64, pd.UInt8Dtype()),
         # For floats, we only do single step in precision reduction and
         # we default to pandas nullable float
         (np.float16, pd.Float32Dtype()),
