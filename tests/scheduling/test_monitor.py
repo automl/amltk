@@ -13,7 +13,6 @@ def fast_f(x: int) -> int:
 def test_queue_monitor() -> None:
     N_WORKERS = 2
     TIMEOUT = 1
-    TIMEOUT * 1e9
     scheduler = Scheduler.with_processes(max_workers=N_WORKERS)
     monitor = QueueMonitor(scheduler)
     task = scheduler.task(fast_f)
