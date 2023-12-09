@@ -7,6 +7,20 @@ from pytest_cases import parametrize
 from amltk.data.dtype_reduction import reduce_dtypes
 
 
+@parametrize(
+    "series, expected",
+    (
+        (pd.Series([1, 2, None], dtype=pd.Int64Dtype()), "UInt8"),
+        (pd.Series([1, 2342, None], dtype=pd.Int64Dtype()), "UInt16"),
+        (pd.Series([-1, 1, None], dtype=pd.Int64Dtype()), "Int8"),
+        (pd.Series([-1, 2342, None], dtype=pd.Int64Dtype()), "Int16"),
+    ),
+)
+def test_reduce_dtypes_with_pandas_nan_dtypes(series: pd.Series, expected: str) -> None:
+    reduced = reduce_dtypes(series)
+    assert reduced.dtype.name == expected
+
+
 def test_reduce_dtypes_mixed_df() -> None:
     # Default 8 bytes per number
     mixed_df = pd.DataFrame({"a": np.arange(100), "b": np.linspace(0, 1, 100)})
