@@ -13,7 +13,7 @@ def fast_f(x: int) -> int:
 def test_queue_monitor() -> None:
     N_WORKERS = 2
     TIMEOUT = 1
-    TIMEOUT_NS = TIMEOUT * 1e9
+    TIMEOUT * 1e9
     scheduler = Scheduler.with_processes(max_workers=N_WORKERS)
     monitor = QueueMonitor(scheduler)
     task = scheduler.task(fast_f)
@@ -41,6 +41,6 @@ def test_queue_monitor() -> None:
     )
     assert df.index.is_monotonic_increasing
 
-    # If we specify that is has more workers, it should be reflected in the queue size + idle.
+    # If we specify that more workers, should be reflected in more idles.
     df = monitor.df(n_workers=N_WORKERS + 1)
     assert (df["queue_size"] + df["idle"] == N_WORKERS + 1).all()
