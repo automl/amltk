@@ -90,16 +90,7 @@ class QueueMonitorRecord(NamedTuple):
 
 
 class QueueMonitor:
-    """A monitor for the scheduler queue.
-
-    !!! note "Performance impact"
-
-        This class attempts to be fairly lightweight, but it does add a bit of overhead
-        as the monitor needs to be updated at every event emitted by the scheduler.
-        While this likely won't impact
-
-    May want to just integrate directly into the scheduler.
-    """
+    """A monitor for the scheduler queue."""
 
     def __init__(self, scheduler: Scheduler) -> None:
         """Initializes the monitor."""
