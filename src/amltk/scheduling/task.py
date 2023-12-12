@@ -230,7 +230,7 @@ class Task(RichRenderable, Generic[P, R]):
         callback: None = None,
         *,
         when: Callable[[], bool] | None = ...,
-        limit: int | None = ...,
+        max_calls: int | None = ...,
         repeat: int = ...,
         every: int = ...,
     ) -> Subscriber[P2]:
@@ -243,7 +243,7 @@ class Task(RichRenderable, Generic[P, R]):
         callback: None = None,
         *,
         when: Callable[[], bool] | None = ...,
-        limit: int | None = ...,
+        max_calls: int | None = ...,
         repeat: int = ...,
         every: int = ...,
     ) -> Subscriber[...]:
@@ -256,7 +256,7 @@ class Task(RichRenderable, Generic[P, R]):
         callback: Callable,
         *,
         when: Callable[[], bool] | None = ...,
-        limit: int | None = ...,
+        max_calls: int | None = ...,
         repeat: int = ...,
         every: int = ...,
     ) -> None:
@@ -268,7 +268,7 @@ class Task(RichRenderable, Generic[P, R]):
         callback: Callable[P2, Any] | None = None,
         *,
         when: Callable[[], bool] | None = None,
-        limit: int | None = None,
+        max_calls: int | None = None,
         repeat: int = 1,
         every: int = 1,
         hidden: bool = False,
@@ -280,7 +280,7 @@ class Task(RichRenderable, Generic[P, R]):
             callback: The callback to call when the event is emitted.
                 If not specified, what is returned can be used as a decorator.
             when: A predicate to determine whether to call the callback.
-            limit: The number of times to call the callback.
+            max_calls: The maximum number of times to call the callback.
             repeat: The number of times to repeat the subscription.
             every: The number of times to wait between repeats.
             hidden: Whether to hide the callback in visual output.
@@ -304,7 +304,7 @@ class Task(RichRenderable, Generic[P, R]):
         subscriber = self.emitter.subscriber(
             _e,  # type: ignore
             when=when,
-            limit=limit,
+            max_calls=max_calls,
             repeat=repeat,
             every=every,
         )
@@ -331,7 +331,8 @@ class Task(RichRenderable, Generic[P, R]):
             **kwargs: The keyword arguments to call the task with.
 
         Returns:
-            The future of the task, or `None` if the limit was reached.
+            The future of the task, or `None` if it was rejected for either reaching
+            some max call limit or a plugin prevented if from being submitted.
 
         Raises:
             SchedulerNotRunningError: If the scheduler is not running.
