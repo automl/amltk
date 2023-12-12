@@ -76,7 +76,15 @@ def reduce_int_span(x: D) -> D:
     min_dtype = np.min_scalar_type(x.min())  # type: ignore
     max_dtype = np.min_scalar_type(x.max())  # type: ignore
     dtype = np.result_type(min_dtype, max_dtype)
-    return x.astype(dtype)  # type: ignore
+
+    # The above dtype is a numpy dtype and may not allow for nullable values,
+    # which are permissible in pandas. `to_numeric` will convert to appropriate
+    # pandas nullable dtypes.
+    if isinstance(x, pd.Series):
+        dc = "unsigned" if "uint" in dtype.name else "integer"
+        return pd.to_numeric(x, downcast=dc)
+
+    return x.astype(dtype)
 
 
 def reduce_dtypes(x: D, *, reduce_int: bool = True, reduce_float: bool = True) -> D:
