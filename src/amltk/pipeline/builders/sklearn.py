@@ -223,12 +223,12 @@ def _process_split(
     config = dict(node.config) if node.config is not None else {}
 
     # Automatic categories/numerical config
-    for keyword, dtypes in (
-        ("categorical", [object, "category"]),
-        ("numerical", ["number"]),
+    for keyword, column_selector_kwargs in (
+        ("categorical", {"dtype_exclude": "number"}),
+        ("numerical", {"dtype_include": "number"}),
     ):
         if any(child.name == keyword for child in node.nodes) and keyword not in config:
-            config[keyword] = make_column_selector(dtype_include=dtypes)
+            config[keyword] = make_column_selector(**column_selector_kwargs)
 
     # Automatic numeric config
     if any(child.name not in config for child in node.nodes):
