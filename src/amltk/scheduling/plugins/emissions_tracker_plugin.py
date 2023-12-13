@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
-from typing import Callable, List, Optional
+from typing import Callable, Generic, TypeVar
+from typing_extensions import ParamSpec, override
 
 from codecarbon import EmissionsTracker
 from amltk.scheduling.plugins.plugin import Plugin
@@ -9,6 +10,38 @@ from amltk.scheduling.events import Event
 
 if TYPE_CHECKING:
     from amltk.scheduling.task import Task
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+class _EmissionsTrackerWrapper(Generic[P, R]):
+    """A wrapper around codecarbon package to measure emissions."""
+
+    def __init__(
+            self,
+            fn: Callable[P, R],
+            task: Task,
+            *codecarbon_args: Any,
+            **codecarbon__kwargs: Any,
+    ):
+        """Initialize the wrapper.
+
+        Args:
+            fn: The function to wrap.
+        """
+        super().__init__()
+        self.fn = fn
+        self.task = task
+        self.codecarbon_args = codecarbon_args
+        self.codecarbon__kwargs = codecarbon__kwargs
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        with EmissionsTracker(*self.codecarbon_args, **self.codecarbon__kwargs) as tracker:
+            result = self.fn(*args, **kwargs)
+            emissions_data = tracker.get_emissions()
+            self.task.emitter.emit(EmissionsTrackerPlugin.EMISSIONS_TRACKED, emissions_data)
+            return result
 
 
 class EmissionsTrackerPlugin(Plugin):
@@ -42,33 +75,40 @@ class EmissionsTrackerPlugin(Plugin):
     ```
     """
 
-    def __init__(self, tracker: Optional[EmissionsTracker] = None):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__()
         self.task: Task | None = None
-        self.tracker = tracker or EmissionsTracker()
+        self.codecarbon_args = args
+        self.codecarbon_kwargs = kwargs
 
+    @override
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
-        self.tracker.start()
-
         task.emitter.add_event(self.EMISSIONS_TRACKED)
 
+    @override
     def pre_submit(
             self,
-            fn: Callable[..., any],
+            fn: Callable[P, R],
             *args: any,
             **kwargs: any,
-    ) -> tuple[Callable[..., any], List[any], dict[str, any]]:
+    ) -> tuple[Callable[P, R], tuple, dict]:
         """Pre-submit hook."""
-        return fn, args, kwargs
+        wrapped_f = _EmissionsTrackerWrapper(fn, self.task, *self.codecarbon_args, **self.codecarbon_kwargs)
+        return wrapped_f, args, kwargs
 
+    @override
     def copy(self) -> EmissionsTrackerPlugin:
         """Return a copy of the plugin."""
-        return self.__class__(tracker=self.tracker)
+        return self.__class__(*self.codecarbon_args, **self.codecarbon_kwargs)
 
-    def __del__(self) -> None:
-        """Stop emissions tracking and perform cleanup when the plugin is deleted."""
-        if self.tracker:
-            data = self.tracker.stop()
-            # self.task.emitter.emit(self.EMISSIONS_TRACKED, self.task, data)
+    @override
+    def __rich__(self):
+        """Return a rich panel."""
+        from rich.panel import Panel
+
+        return Panel(
+            f"codecarbon_args: {self.codecarbon_args} codecarbon_kwargs: {self.codecarbon_kwargs}",
+            title=f"Plugin {self.name}"
+        )
