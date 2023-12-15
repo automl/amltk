@@ -1,6 +1,6 @@
 AutoML-toolkit was designed to make offloading computation
 away from the main process __easy__, to foster increased ability for
-interact-ability deployment and control. At the same time,
+interact-ability, deployment and control. At the same time,
 we wanted to have an event based system to manage the complexity
 that comes with AutoML systems, all while making the API intuitive
 and extensible.
@@ -58,11 +58,11 @@ perform with the `Scheduler` and start the system's gears turning.
     or in a Notebook, simply leave it as the last object of a cell.
 
     You'll have to install with `amltk[jupyter]` or
-    `pip install rich[jupyter]` manually.k
+    `pip install rich[jupyter]` manually.
 
 ## Scheduler
 The core engine of the AutoML-Toolkit is the [`Scheduler`][amltk.scheduling.Scheduler].
-It purpose it to allow you to create workflows in an event driven manner. It does
+Its purpose is to allow you to create workflows in an event driven manner. It does
 this by allowing you to [`submit()`][amltk.scheduling.Scheduler.submit] functions
 with arguments to be computed in the background, while the main process can continue
 to do other work. Once this computation has completed, you can react with various
@@ -72,13 +72,13 @@ callbacks, most likely to submit more computations.
 
     If you're familiar with pythons `await/async` syntax, then this description
     might sound similar. The `Scheduler` is powered by an asynchronous event loop
-    but hides this complexity in it's API. We do have an asynchronous API which
+    but hides this complexity in its API. We do have an asynchronous API which
     we will discuss later.
 
 ### Backend
 
 The first thing to do is define where this computation should happen.
-A [`Scheduler`][amltk.scheduling.Scheduler] builds upon, an
+A [`Scheduler`][amltk.scheduling.Scheduler] builds upon an
 [`Executor`][concurrent.futures.Executor],
 an interface provided by python's [`concurrent.futures`][concurrent.futures]
 module. This interface is used to abstract away the details of how the
@@ -91,11 +91,10 @@ or even custom backends.
     You can find a list of these in our
     [executor reference](../reference/scheduling/executors.md).
 
-The simplest one is a [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor]
+The simplest one is a [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor],
 which will create a pool of processes to run the compute in parallel. We provide
 a convenience function for this as
-[`Scheduler.with_processes()`][amltk.scheduling.Scheduler.with_processes]
-well as some other builder
+[`Scheduler.with_processes()`][amltk.scheduling.Scheduler.with_processes].
 
 ```python exec="true" source="material-block" html="True"
 from concurrent.futures import ProcessPoolExecutor
@@ -107,10 +106,10 @@ from amltk._doc import doc_print; doc_print(print, scheduler)  # markdown-exec: 
 
 ### Running the Scheduler
 
-You may have noticed from the above example that there are many events the shceduler will emit,
+You may have noticed from the above example that there are many events the scheduler will emit,
 such as `@on_start` or `@on_future_done`. One particularly important one is
 [`@on_start`][amltk.scheduling.Scheduler.on_start], an event to signal
-the scheduler has started and ready to accept tasks.
+the scheduler has started and is ready to accept tasks.
 
 ```python exec="true" source="material-block" html="True"
 from amltk.scheduling import Scheduler
@@ -124,7 +123,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 ```
 
 From the output, we can see that the `print_hello()` function was registered
-to the event `@on_start`, but it was never called and no `#!python "hello"` printed.
+to the event `@on_start`, but it was never called and no `#!python "hello"` was printed.
 
 For this to happen, we actually have to [`run()`][amltk.scheduling.Scheduler.run] the scheduler.
 
@@ -178,7 +177,7 @@ The `Scheduler` exposes a simple [`submit()`][amltk.scheduling.Scheduler.submit]
 method which allows you to submit compute to be performed **while the scheduler is running**.
 
 While we will later visit the [`Task`][amltk.scheduling.Task] class for
-defining these units of compute, is benficial to see how the `Scheduler`
+defining these units of compute, it is beneficial to see how the `Scheduler`
 operates directly with `submit()`, without abstractions.
 
 In the below example, we will use the
@@ -299,7 +298,7 @@ These are covered more extensively in our [events reference](../reference/schedu
 
 === "`limit=`"
 
-    Limit the number of times a callback can be called, after which, the callback
+    Limit the number of times a callback can be called, after which the callback
     will be ignored.
 
     ```python exec="true" source="material-block" html="True" hl_lines="13"
@@ -382,7 +381,7 @@ been using this whole time is when the `Scheduler` has run out of events
 to process with no compute left to perform. This is the default behavior
 but can be controlled with [`run(end_on_empty=False)`][amltk.scheduling.Scheduler.run].
 
-However there are more explicit methods.
+However, there are more explicit methods.
 
 === "`scheduler.stop()`"
 
@@ -450,14 +449,14 @@ However there are more explicit methods.
 
 ### Exceptions
 Dealing with exceptions is an important part of any AutoML system. It is important
-to clarify that there's two kinds of exceptions that can occur within the Scheduler.
+to clarify that there are two kinds of exceptions that can occur within the Scheduler.
 
 The 1st kind that can happen is within some function submitted with
 [`submit()`][amltk.scheduling.Scheduler.submit]. When this happens,
 the `@on_future_exception` will be emitted, passing the exception to the callback.
 
-By default, the `Scheduler` will then raise the exception that occured up to your program
-and end it's computations. This is done by setting
+By default, the `Scheduler` will then raise the exception that occurred up to your program
+and end its computations. This is done by setting
 [`#!python run(on_exception="raise")`][amltk.scheduling.Scheduler],
 the default, but it also takes two other possibilities:
 
@@ -489,12 +488,12 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 ```
 
 The second kind of exception that can happen is one that happens in the main process.
-For example this could happen in one of your callbacks or in the `Scheduler` itself (please raise an issue if this occurs!).
+For example, this could happen in one of your callbacks or in the `Scheduler` itself (please raise an issue if this occurs!).
 By default when you call [`run()`][amltk.scheduling.Scheduler.run] it will set
 `#!python run(on_exception="raise")` and raise the exception that occurred, with its traceback.
 This is to help you debug your program.
 
-You may also use `#!python run(on_exception="end")` which will just end the `Scheduler` and raise no exception,
+You may also use `#!python run(on_exception="end")`, which will just end the `Scheduler` and raise no exception,
 or use `#!python run(on_exception="ignore")`, in which case the `Scheduler` will continue on with whatever events
 are next to process.
 
@@ -529,7 +528,7 @@ except Exception as e:
 ```
 
 As you can see, we **can not** submit tasks before the scheduler is running. This
-is because the backend that it's running on usually has to setup and teardown when
+is because the backend that it's running on usually has to be setup and teardown when
 `scheduler.run()` is called.
 
 The proper approach would be to do the following:
@@ -560,8 +559,8 @@ As you may have noticed, we can see the `Task` itself in the `Scheduler` as well
 events it defines. This allows us to react to certain tasks themselves, and not generally
 everything that may pass through the `Scheduler`.
 
-In the below example, we'll do two things. First is we'll create a `Task` and react to
-it's events, but also use the `Scheduler` directly and use `submit()`. Then we'll see
+In the below example, we'll do two things. First, we'll create a `Task` and react to
+its events, but also use the `Scheduler` directly and use `submit()`. Then we'll see
 how the callbacks reacted to different events.
 
 
@@ -581,7 +580,7 @@ def launch_initial_task() -> None:
     echo_task.submit("hello")
     scheduler.submit(echo, "hi")
 
-# Callback for anything result from the scheduler
+# Callback for anything resulting from the scheduler
 @scheduler.on_future_result
 def from_scheduler(_, msg: str) -> None:
     print(f"result_from_scheduler {msg}")
@@ -589,7 +588,7 @@ def from_scheduler(_, msg: str) -> None:
 # Callback for specifically results from the `echo_task`
 @echo_task.on_result
 def from_task(_, msg: str) -> None:
-    print(f"result_from_scheduler {msg}")
+    print(f"result_from_task {msg}")
 
 scheduler.run()
 from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
@@ -597,7 +596,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 We can see in the output of the above code that the `@scheduler.on_future_result` was called twice,
 meaning our callback `#!python def from_scheduler()` was called twice,
-one for the result of `#!python echo_task.submit("hello")` and the other
+once for the result of `#!python echo_task.submit("hello")` and the other time
 from `#!python scheduler.submit(echo, "hi")`. On the other hand, the event `@task.on_result`
 was only called once, meaning our callback `#!python def from_task()` was only called once.
 
@@ -623,7 +622,7 @@ from amltk._doc import make_picklable; make_picklable(expensive_thing_2)  # mark
 # Create a scheduler and 2 tasks
 scheduler = Scheduler.with_processes(1)
 task_1 = scheduler.task(expensive_thing_1)
-task_2 = scheduler.task(expensive_thing_1)
+task_2 = scheduler.task(expensive_thing_2)
 
 # A list of things we want to compute
 items = iter([1, 2, 3])
@@ -667,13 +666,13 @@ modifying the function and its arguments or even attaching plugin specific event
 For a complete reference, please see the [plugin reference page](../reference/scheduling/plugins.md).
 
 ### Call Limiter
-Perhaps one of the more useful plugins, at least when designing an AutoML System is the
+Perhaps one of the more useful plugins, at least when designing an AutoML System, is the
 [`Limiter`][amltk.scheduling.plugins.Limiter] plugin. This can help you control
-both it's concurrency or the absolute limit of how many times a certain task can be
+both its concurrency or the absolute limit of how many times a certain task can be
 successfully submitted.
 
 In the following contrived example, we will setup a `Scheduler` with 2 workers and attempt
-to submit a `Task` 4 times in rapid succession. However we have the constraint that we
+to submit a `Task` 4 times in rapid succession. However, we have the constraint that we
 only ever want 2 of these tasks running at a given time. Let's see how we could achieve that.
 
 ```python exec="true" source="material-block" html="True" hl_lines="9"
@@ -714,10 +713,10 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 You can notice that this limiting worked, given the numbers `#!python 2` and `#!python 3`
 were skipped and not printed. As expected, we successfully launched the task with both 
-`#!python 0` and `#!python 1` but as these tasks were not done processing, the `Limiter`
+`#!python 0` and `#!python 1`, but as these tasks were not done processing, the `Limiter`
 kicks in and prevents the other two.
 
-A natural extension to ask is then, "how do we requeue these?". Well lets take a look at the above
+A natural extension to ask is then, "how do we requeue these?". Well, let's take a look at the above
 output. The plugin has added three new events to `Task`, namely
 `@call-limit-reached`, `@concurrent-limit-reached` and `@disabled-due-to-running-task`.
 
@@ -769,7 +768,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 
 Please see the following reference pages in the meantime:
 
-* [scheduler reference](../reference/scheduling/scheduler.md) - A slighltly
+* [scheduler reference](../reference/scheduling/scheduler.md) - A slightly
     more condensed version of how to use the `Scheduler`.
 * [task reference](../reference/scheduling/task.md) - A more comprehensive
     explanation of `Task`s and their `@events`.
