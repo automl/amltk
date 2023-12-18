@@ -75,7 +75,7 @@ to control how often they get called and when they get called.
         from amltk._doc import doc_print; doc_print(print, scheduler, fontsize="small")  # markdown-exec: hide
         ```
 
-    === "`on('event', limit=...)`"
+    === "`on('event', max_calls=...)`"
 
         Limit the number of times a callback can be called, after which, the callback
         will be ignored.
@@ -94,7 +94,7 @@ to control how often they get called and when they get called.
         def submit_calculations() -> None:
             scheduler.submit(expensive_function, 2)
 
-        @scheduler.on_future_result(limit=3)
+        @scheduler.on_future_result(max_calls=3)
         def print_result(future, result) -> None:
             scheduler.submit(expensive_function, 2)
 
@@ -355,7 +355,7 @@ class Subscriber(Generic[P]):
     emitter: Emitter
     event: Event[P]
     when: Callable[[], bool] | None = None
-    limit: int | None = None
+    max_calls: int | None = None
     repeat: int = 1
     every: int = 1
 
@@ -370,7 +370,7 @@ class Subscriber(Generic[P]):
         callback: None = None,
         *,
         when: Callable[[], bool] | None = ...,
-        limit: int | None = ...,
+        max_calls: int | None = ...,
         repeat: int = ...,
         every: int = ...,
     ) -> partial[Callable[P, Any]]:
@@ -382,7 +382,7 @@ class Subscriber(Generic[P]):
         callback: Callable[P, Any],
         *,
         when: Callable[[], bool] | None = ...,
-        limit: int | None = ...,
+        max_calls: int | None = ...,
         repeat: int = ...,
         every: int = ...,
         hidden: bool = ...,
@@ -394,7 +394,7 @@ class Subscriber(Generic[P]):
         callback: Callable[P, Any] | None = None,
         *,
         when: Callable[[], bool] | None = None,
-        limit: int | None = None,
+        max_calls: int | None = None,
         repeat: int = 1,
         every: int = 1,
         hidden: bool = False,
@@ -406,7 +406,7 @@ class Subscriber(Generic[P]):
             when: A predicate that must be satisfied for the callback to be called.
             every: The callback will be called every `every` times the event is emitted.
             repeat: The callback will be called `repeat` times successively.
-            limit: The maximum number of times the callback can be called.
+            max_calls: The maximum number of times the callback can be called.
             hidden: Whether to hide the callback in visual output.
                 This is mainly used to facilitate Plugins who
                 act upon events but don't want to be seen, primarily
@@ -420,7 +420,7 @@ class Subscriber(Generic[P]):
             return partial(
                 self.__call__,
                 when=when,
-                limit=limit,
+                max_calls=max_calls,
                 repeat=repeat,
                 every=every,
             )  # type: ignore
@@ -429,7 +429,7 @@ class Subscriber(Generic[P]):
             self.event,
             callback,
             when=when,
-            limit=limit,
+            max_calls=max_calls,
             repeat=repeat,
             every=every,
             hidden=hidden,
@@ -454,7 +454,7 @@ class Handler(Generic[P]):
     every: int = 1
     n_calls_to_handler: int = 0
     n_calls_to_callback: int = 0
-    limit: int | None = None
+    max_calls: int | None = None
     repeat: int = 1
     registered_at: int = field(default_factory=time.time_ns)
     hidden: bool = False
@@ -471,9 +471,9 @@ class Handler(Generic[P]):
         if self.when is not None and not self.when():
             return
 
-        limit = self.limit if self.limit is not None else math.inf
+        max_calls = self.max_calls if self.max_calls is not None else math.inf
         for _ in range(self.repeat):
-            if self.n_calls_to_callback >= limit:
+            if self.n_calls_to_callback >= max_calls:
                 return
 
             logger.debug(f"Calling: {callstring(self.callback)}")
@@ -602,7 +602,7 @@ class Emitter(Mapping[Event, list[Handler]]):
         when: Callable[[], bool] | None = None,
         every: int = 1,
         repeat: int = 1,
-        limit: int | None = None,
+        max_calls: int | None = None,
     ) -> Subscriber[P]:
         """Create a subscriber for an event.
 
@@ -611,18 +611,18 @@ class Emitter(Mapping[Event, list[Handler]]):
             when: A predicate that must be satisfied for the callback to be called.
             every: The callback will be called every `every` times the event is emitted.
             repeat: The callback will be called `repeat` times successively.
-            limit: The maximum number of times the callback can be called.
+            max_calls: The maximum number of times the callback can be called.
         """
         if event not in self.handlers:
             self.handlers[event] = []
 
         return Subscriber(
             self,
-            event,
+            event,  # type: ignore
             when=when,
             every=every,
             repeat=repeat,
-            limit=limit,
+            max_calls=max_calls,
         )
 
     def on(
@@ -633,7 +633,7 @@ class Emitter(Mapping[Event, list[Handler]]):
         when: Callable[[], bool] | None = None,
         every: int = 1,
         repeat: int = 1,
-        limit: int | None = None,
+        max_calls: int | None = None,
         hidden: bool = False,
     ) -> None:
         """Register a callback for an event.
@@ -644,7 +644,7 @@ class Emitter(Mapping[Event, list[Handler]]):
             when: A predicate that must be satisfied for the callback to be called.
             every: The callback will be called every `every` times the event is emitted.
             repeat: The callback will be called `repeat` times successively.
-            limit: The maximum number of times the callback can be called.
+            max_calls: The maximum number of times the callback can be called.
             hidden: Whether to hide the callback in visual output.
                 This is mainly used to facilitate Plugins who
                 act upon events but don't want to be seen, primarily
@@ -668,7 +668,7 @@ class Emitter(Mapping[Event, list[Handler]]):
                 when=when,
                 every=every,
                 repeat=repeat,
-                limit=limit,
+                max_calls=max_calls,
                 hidden=hidden,
             ),
         )

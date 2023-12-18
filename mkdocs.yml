@@ -163,6 +163,7 @@ nav:
       - "reference/scheduling/executors.md"
       - "reference/scheduling/task.md"
       - "reference/scheduling/plugins.md"
+      - "reference/scheduling/queue_monitor.md"
       - "reference/scheduling/events.md"
     - Pipelines:
       - "reference/pipelines/pipeline.md"

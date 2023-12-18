@@ -1,3 +1,17 @@
+## 1.4.0 (2023-12-12)
+
+### Feat
+
+- **Scheduler**: Monitor to view efficiency (#197)
+
+### Fix
+
+- **data**: `reduce_int_span` with nullable dtypes (#200)
+
+### Refactor
+
+- **Scheduling**: `limit` -> `max_calls` (#201)
+
 ## 1.3.4 (2023-12-07)
 
 ### Fix

@@ -296,7 +296,7 @@ These are covered more extensively in our [events reference](../reference/schedu
     from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
     ```
 
-=== "`limit=`"
+=== "`max_calls=`"
 
     Limit the number of times a callback can be called, after which the callback
     will be ignored.
@@ -315,7 +315,7 @@ These are covered more extensively in our [events reference](../reference/schedu
     def submit_calculations() -> None:
         scheduler.submit(expensive_function, 2)
 
-    @scheduler.on_future_result(limit=3)
+    @scheduler.on_future_result(max_calls=3)
     def print_result(future, result) -> None:
         scheduler.submit(expensive_function, 2)
 
