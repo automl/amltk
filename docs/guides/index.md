@@ -5,7 +5,7 @@ enable these concepts.
 
 These take the form of a **scheduling**, a **pipeline construction**
 and **optimization**. By combining these concepts, we provide an extensive
-framework from which to do AutoML research, utilize AutoML for you
+framework from which to do AutoML research, utilize AutoML for your
 task or build brand new AutoML systems.
 
 ---
@@ -66,10 +66,10 @@ task or build brand new AutoML systems.
 
     !!! tip "Notable Features"
 
-        * An easy, declaritive pipeline structure, allowing for rapid addition, deletion and
+        * An easy, declarative pipeline structure, allowing for rapid addition, deletion and
           modification during experimentation.
         * A flexible pipeline capable of handling complex structures and subpipelines.
-        * Mutliple component types to help you define your pipeline.
+        * Multiple component types to help you define your pipeline.
         * Exporting of pipelines into concrete implementations like an [sklearn.pipeline.Pipeline][]
           for use in your downstream tasks.
         * Extensible to add your own component types and `builder=`s to use.
@@ -80,7 +80,7 @@ task or build brand new AutoML systems.
 -   **Optimization**
 
     An optimizer is the backbone behind many AutoML systems and the quickest way
-    to improve the performance of your current pipelines. However optimizer's vary
+    to improve the performance of your current pipelines. However, optimizers vary
     in terms of how they expect you to write code, they vary in how much control they
     take of your code and can be quite difficult to interact with other than
     their `run()` function.
@@ -105,6 +105,6 @@ task or build brand new AutoML systems.
         through a unified interface.
         * A suite of utilities to help you record that data you want from your HPO experiments.
         * Full control of how you interact with it, allowing for easy warm-starting, complex
-        swapping mechanisms or custom stopping criterion.
+        swapping mechanisms or custom stopping criteria.
         * A simple interface to integrate in your own optimizer.
 
