@@ -23,6 +23,11 @@ class _EmissionsTrackerWrapper:
 
         Args:
             fn: The function to wrap.
+            task: The task the function is being wrapped for.
+            *codecarbon_args: arguments to pass to
+                [`codecarbon.EmissionsTracker`][codecarbon.EmissionsTracker].
+            **codecarbon_kwargs: keyword arguments to pass to
+                [`codecarbon.EmissionsTracker`][codecarbon.EmissionsTracker].
         """
         super().__init__()
         self.fn = fn
@@ -31,7 +36,6 @@ class _EmissionsTrackerWrapper:
         self.codecarbon_kwargs = codecarbon_kwargs
 
     def __call__(self, *args: any, **kwargs: any) -> R:
-        # Instantiate EmissionsTracker directly without multiprocessing
         with EmissionsTracker(*self.codecarbon_args, **self.codecarbon_kwargs) as tracker:
             result = self.fn(*args, **kwargs)
             return result
