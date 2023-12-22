@@ -40,10 +40,10 @@ class _EmissionsTrackerWrapper:
 class EmissionsTrackerPlugin(Plugin):
     """A plugin that tracks carbon emissions using codecarbon library."""
 
-    name: ClassVar = "emissions-tracked"
-    """
-    EmissionsTrackerPlugin - A plugin that tracks carbon emissions using the codecarbon library.
+    name: ClassVar = "emissions-tracker"
+    """The name of the plugin."""
 
+    """
     Usage Example:
 
     ```python
@@ -76,8 +76,7 @@ class EmissionsTrackerPlugin(Plugin):
     def on_done(future):
         print("Task done: ", future.result()) # result is the return value of the function
 
-    scheduler.run()
-    
+    scheduler.run()    
     ```  
     """
 
