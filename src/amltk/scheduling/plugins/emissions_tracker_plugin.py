@@ -1,9 +1,23 @@
+"""Emissions Tracker Plugin Module.
+
+This module defines a plugin for tracking carbon emissions using the codecarbon library.
+
+For usage examples, refer to the docstring of the EmissionsTrackerPlugin class.
+"""
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
+from typing_extensions import ParamSpec, Self
+
 from codecarbon import EmissionsTracker
-from typing import Callable, Any, ClassVar, Generic, TypeVar
-from typing_extensions import Self, ParamSpec
 
 from amltk.scheduling.plugins.plugin import Plugin
-from amltk.scheduling.task import Task
+
+if TYPE_CHECKING:
+    from rich.panel import Panel
+
+    from amltk.scheduling.task import Task
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -14,7 +28,7 @@ class _EmissionsTrackerWrapper(Generic[P, R]):
 
     def __init__(
         self,
-        fn: Callable[[P], R],
+        fn: Callable[P, R],
         *codecarbon_args: Any,
         **codecarbon_kwargs: Any,
     ):
@@ -22,10 +36,8 @@ class _EmissionsTrackerWrapper(Generic[P, R]):
 
         Args:
             fn: The function to wrap.
-            *codecarbon_args: arguments to pass to
-                [`codecarbon.EmissionsTracker`][codecarbon.EmissionsTracker].
-            **codecarbon_kwargs: keyword arguments to pass to
-                [`codecarbon.EmissionsTracker`][codecarbon.EmissionsTracker].
+            *codecarbon_args: Arguments to pass to codecarbon EmissionsTracker.
+            **codecarbon_kwargs: Keyword args to pass to codecarbon EmissionsTracker.
         """
         super().__init__()
         self.fn = fn
@@ -33,14 +45,12 @@ class _EmissionsTrackerWrapper(Generic[P, R]):
         self.codecarbon_kwargs = codecarbon_kwargs
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        with EmissionsTracker(*self.codecarbon_args, **self.codecarbon_kwargs) as tracker:
-            result = self.fn(*args, **kwargs)
-            return result
+        with EmissionsTracker(*self.codecarbon_args, **self.codecarbon_kwargs):
+            return self.fn(*args, **kwargs)
 
 
 class EmissionsTrackerPlugin(Plugin):
-    """
-    A plugin that tracks carbon emissions using codecarbon library.
+    """A plugin that tracks carbon emissions using codecarbon library.
 
     Usage Example:
 
@@ -59,15 +69,13 @@ class EmissionsTrackerPlugin(Plugin):
 
     # Create a task with the emissions tracker plugin
     task = scheduler.task(some_function, plugins=[
-        # Please,  check out the official documentation for more details on the codecarbon arguments:
-        # https://mlco2.github.io/codecarbon/parameters.html
         # Pass any codecarbon parameters as args here
         EmissionsTrackerPlugin(log_level="info", save_to_file=False)
     ])
 
     @scheduler.on_start
     def on_start():
-        task.submit(5) # submit any args here
+        task.submit(5)  # Submit any args here
 
     @task.on_submitted
     def on_submitted(future, *args, **kwargs):
@@ -75,7 +83,8 @@ class EmissionsTrackerPlugin(Plugin):
 
     @task.on_done
     def on_done(future):
-        print("Task done: ", future.result()) # result is the return value of the function
+        # Result is the return value of the function
+        print("Task done: ", future.result())
 
     scheduler.run()
     ```
@@ -85,6 +94,16 @@ class EmissionsTrackerPlugin(Plugin):
     """The name of the plugin."""
 
     def __init__(self, *args: Any, **kwargs: Any):
+        """Initialize the EmissionsTrackerPlugin.
+
+        Args:
+            *args: Additional arguments to pass to codecarbon library.
+            **kwargs: Additional keyword arguments to pass to codecarbon library.
+
+        You can pass any codecarbon parameters as args to EmissionsTrackerPlugin.
+        Please refer to the official codecarbon documentation for more details:
+        https://mlco2.github.io/codecarbon/parameters.html
+        """
         super().__init__()
         self.task: Task | None = None
         self.codecarbon_args = args
@@ -101,18 +120,24 @@ class EmissionsTrackerPlugin(Plugin):
         **kwargs: P.kwargs,
     ) -> tuple[Callable[P, R], tuple, dict]:
         """Pre-submit hook."""
-        wrapped_f = _EmissionsTrackerWrapper(fn, self.task, *self.codecarbon_args, **self.codecarbon_kwargs)
+        wrapped_f = _EmissionsTrackerWrapper(
+            fn,
+            self.task,
+            *self.codecarbon_args,
+            **self.codecarbon_kwargs,
+        )
         return wrapped_f, args, kwargs
 
     def copy(self) -> Self:
         """Return a copy of the plugin."""
         return self.__class__(*self.codecarbon_args, **self.codecarbon_kwargs)
 
-    def __rich__(self):
+    def __rich__(self) -> Panel:
         """Return a rich panel."""
         from rich.panel import Panel
 
         return Panel(
-            f"codecarbon_args: {self.codecarbon_args} codecarbon_kwargs: {self.codecarbon_kwargs}",
-            title=f"Plugin {self.name}"
+            f"codecarbon_args: {self.codecarbon_args} "
+            f"codecarbon_kwargs: {self.codecarbon_kwargs}",
+            title=f"Plugin {self.name}",
         )
