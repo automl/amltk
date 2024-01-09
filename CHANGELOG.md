@@ -1,3 +1,9 @@
+## 1.5.0 (2024-01-09)
+
+### Feat
+
+- add EmissionsTrackerPlugin for codecarbon (#196)
+
 ## 1.4.0 (2023-12-12)
 
 ### Feat
