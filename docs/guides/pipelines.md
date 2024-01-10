@@ -11,19 +11,19 @@ if you just want to quickly look something up.
 
 ## Introduction
 The kinds of pipelines that exist in an AutoML system come in many different
-forms. For example, one might be an [sklearn.pipeline.Pipeline][], other's
-might be some deep-learning pipeline while some might even stand for some
+forms. For example, one might be an [sklearn.pipeline.Pipeline][], others
+might be some deep-learning pipeline, while some might even stand for some
 real life machinery process and the settings of these machines.
 
-To accomodate this, what AutoML-Toolkit provides is an **abstract** representation
+To accommodate this, what AutoML-Toolkit provides is an **abstract** representation
 of a pipeline, to help you define its search space and also to build concrete
-objects in code if possible (see [builders](../reference/pipelines/builders.md).
+objects in code if possible (see [builders](../reference/pipelines/builders.md)).
 
 We categorize this into 4 steps:
 
 1. Parametrize your pipeline using the various [components](../reference/pipelines/pipeline.md),
     including the kinds of items in the pipeline, the search spaces and any additional configuration.
-    Each of the various types of components give a syntactic meaning when performing the next steps.
+    Each of the various types of components gives a syntactic meaning when performing the next steps.
 
 2. [`pipeline.search_space(parser=...)`][amltk.pipeline.Node.search_space],
     Get a useable search space out of the pipeline. This can then be passed to an
@@ -31,12 +31,12 @@ We categorize this into 4 steps:
 
 3. [`pipeline.configure(config=...)`][amltk.pipeline.Node.configure],
     Configure your pipeline, either manually or using a configuration suggested by
-    an optimizers.
+    an optimizer.
 
-4. [`pipeline.build(builder=)`][amltk.pipeline.Node.build],
+4. [`pipeline.build(builder=...)`][amltk.pipeline.Node.build],
     Build your configured pipeline definition into something useable, i.e.
     an [`sklearn.pipeline.Pipeline`][sklearn.pipeline.Pipeline] or a
-    `torch.nn.Module` (_todo_).
+    [`torch.nn.Module`](https://pytorch.org/docs/stable/generated/torch.nn.Module.html).
 
 At the core of these definitions is the many [`Nodes`][amltk.pipeline.node.Node]
 it consists of. By combining these together, you can define a _directed acyclic graph_ (DAG),
@@ -95,8 +95,8 @@ A pipeline consists of building blocks which we can combine together
 to create a DAG. We will start by introducing the `Component`, the common operations,
 and then show how to combine them together.
 
-A [`Component`][amltk.pipeline.Component] is the most common kind of node a pipeline.
-Like all parts of the pipeline, they subclass [`Node`][amltk.pipeline.Node] but a
+A [`Component`][amltk.pipeline.Component] is the most common kind of node in a pipeline.
+Like all parts of the pipeline, they subclass [`Node`][amltk.pipeline.Node], but a
 `Component` signifies this is some concrete object, with a possible
 [`.space`][amltk.pipeline.Node.space] and [`.config`][amltk.pipeline.Node.config].
 
@@ -145,7 +145,8 @@ from amltk._doc import doc_print; doc_print(print, component_with_function, outp
 ### Search Space
 If interacting with an [`Optimizer`](../reference/optimization/optimizers.md), you'll often require some
 search space object to pass to it.
-To extract a search space from a `Component`, we can call [`search_space(parser=)`][amltk.pipeline.Node.search_space],
+To extract a search space from a `Component`, we can call 
+[`search_space(parser=...)`][amltk.pipeline.Node.search_space],
 passing in the kind of search space you'd like to get out of it.
 
 ```python exec="true" source="material-block" result="python" session="Pipeline-Component"
@@ -165,7 +166,7 @@ You may also define your own `parser=` and use that if desired.
 
 
 ### Configure
-Pretty straight forward but what do we do with this `config`? Well we can
+Pretty straight forward, but what do we do with this `config`? Well we can
 [`configure(config=...)`][amltk.pipeline.Node.configure] the component with it.
 
 ```python exec="true" source="material-block" html="true" session="Pipeline-Component"
@@ -309,8 +310,8 @@ from amltk._doc import doc_print; doc_print(print, configured_component, fontsiz
 
 !!! tip inline end "Transform Context"
 
-    There may be times where you may have some additional context which you may only
-    know at configuration time, you may pass this to `configure(..., transform_context=...)`
+    There may be times where you have some additional context, which you may only know at configuration time. 
+    In this case, it is possible to pass this additional context to `configure(..., transform_context=...)`, 
     which will be forwarded as the second argument to your `.config_transform`.
 
 ## Sequential
@@ -337,8 +338,8 @@ doc_print(print, rf)  # markdown-exec: hide
 !!! info inline end "Infix `>>`"
 
     To join these two components together, we can either use the infix notation using `>>`,
-    or passing them directly to a [`Sequential`][amltk.pipeline.Sequential]. However
-    a **random name** will be given.
+    or passing them directly to a [`Sequential`][amltk.pipeline.Sequential]. However,
+    a **random name** will be given when using the infix notation.
 
     ```python
     joined_components = imputer >> rf
@@ -365,7 +366,7 @@ doc_print(print, config)  # markdown-exec: hide
 doc_print(print, configured_pipeline)  # markdown-exec: hide
 ```
 
-To build a pipeline of nodes, we simply call [`build(builder=)`][amltk.pipeline.Node.build]. We
+To build a pipeline of nodes, we simply call [`build(builder=...)`][amltk.pipeline.Node.build]. We
 explicitly pass the builder we want to use, which informs `build()` how to go from the abstract
 pipeline definition you've defined to something concrete you can use.
 You can find the [available builders here](../reference/pipelines/builders.md).
@@ -380,7 +381,7 @@ print(built_pipeline._repr_html_())  # markdown-exec: hide
 
 
 ## Other Building blocks
-We saw the basic building block of a `Component` but AutoML-Toolkit also provides support
+We saw the basic building block of a `Component`, but AutoML-Toolkit also provides support
 for some other kinds of building blocks. These building blocks can be attached and joined
 together just like a `Component` can and allow for much more complex pipeline structures.
 
@@ -450,7 +451,7 @@ You'll notice that it set the `.config` of the `Choice` to `#!python {"__choice_
 ### Split
 A [`Split`][amltk.pipeline.Split] is a way to signify a split in the dataflow of a pipeline.
 This `Split` by itself will not do anything but it informs the builder about what to do.
-Each builder will have if it's own specific strategy for dealing with one.
+Each builder will have its own specific strategy for dealing with one.
 
 Let's go ahead with a scikit-learn example, where we'll split the data into categorical
 and numerical features and then perform some preprocessing on each of them.
@@ -484,7 +485,7 @@ each of the paths in a [`Sequential`][amltk.pipeline.Sequential].
 
 The second thing is that the parameters set for the `.config` matches those of the
 paths. This let's the `Split` know which data should be sent where. Each `builder=`
-will have it's own way of how to set up a `Split` and you should refer to
+will have its own way of how to set up a `Split` and you should refer to
 the [builders reference](../reference/pipelines/builders.md) for more information.
 
 Our last step is just to convert this into a useable object and so once again
