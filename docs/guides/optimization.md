@@ -220,6 +220,9 @@ for trial in trials:
 
 df = history.df()
 print(df)
+
+best = history.best()
+print(best)
 ```
 
 You can use the [`History.df()`][amltk.optimization.History.df] method to get a dataframe of the history and
