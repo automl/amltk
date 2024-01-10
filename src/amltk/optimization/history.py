@@ -119,6 +119,8 @@ class History(RichRenderable):
 
     print(history.metrics)
     print(history.df())
+
+    print(history.best())
     ```
 
     Attributes:
@@ -142,6 +144,38 @@ class History(RichRenderable):
         history = cls()
         history.add(reports)
         return history
+
+    def best(self, metric: str | None = None) -> Trial.Report:
+        """Returns the best report in the history.
+
+        Args:
+            metric: The metric to sort by. If `None`, it will use the
+                first metric in the history. If there are multiple metrics
+                and non are specified, it will raise an error.
+
+        Returns:
+            The best report.
+        """
+        if metric is None:
+            if len(self.metrics) > 1:
+                raise ValueError(
+                    "There are multiple metrics in the history, "
+                    "please specify which metric to sort by.",
+                )
+
+            _metric_def = next(iter(self.metrics.values()))
+            _metric_name = _metric_def.name
+        else:
+            if metric not in self.metrics:
+                raise ValueError(
+                    f"Metric {metric} not found in history. "
+                    f"Available metrics: {list(self.metrics.keys())}",
+                )
+            _metric_def = self.metrics[metric]
+            _metric_name = metric
+
+        _by = min if _metric_def.minimize else max
+        return _by(self.reports, key=lambda r: r.metrics[_metric_name])
 
     def add(self, report: Trial.Report | Iterable[Trial.Report]) -> None:
         """Adds a report or reports to the history.
