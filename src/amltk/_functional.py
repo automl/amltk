@@ -428,6 +428,18 @@ def subclass_map(
 ) -> tuple[type[K], V] | U | None:
     """Find the first item in the mapping of which key is a subclass.
 
+    ```python exec="true" source="material-block" result="python" title="subclass_map"
+    from amltk._functional import subclass_map
+
+    mapping = {int: "a", float: "b", str: "c"}
+
+    key = 4.2
+    assert subclass_map(key, mapping) == (float, "b")
+
+    key = "hello"
+    assert subclass_map(key, mapping) == (str, "c")
+    ```
+
     Args:
         key: The instance key to use.
         mapping: The mapping to search in where keys are possible super class of `key`.
