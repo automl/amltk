@@ -426,6 +426,16 @@ def subclass_map(
     *,
     default: U | None = None,
 ) -> tuple[type[K], V] | U | None:
+    """Find the first item in the mapping of which key is a subclass.
+
+    Args:
+        key: The instance key to use.
+        mapping: The mapping to search in where keys are possible super class of `key`.
+        default: The default value to return if no item is found.
+
+    Returns:
+        The first item in the mapping of which key is a subclass, or the `default`
+    """
     return first(
         ((k, v) for k, v in mapping.items() if isinstance(key, k)),
         default=default,
