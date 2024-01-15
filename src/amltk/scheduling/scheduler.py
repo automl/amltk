@@ -1434,7 +1434,12 @@ class Scheduler(RichRenderable):
 
         loop = asyncio.get_running_loop()
 
-        # Set the exception handler for asyncio
+        # If it's been specified that we might need to abruptly end
+        # the asyncio handler due to an error (as indicated by "raise" or "end")
+        # then we need to setup a custom exception handler that tells the scheduler
+        # to stop.
+        # By default, the asyncio handler will silently eat exceptions which
+        # is the desired behaviour if everything is just "ignore"
         previous_exception_handler = None
         if on_exception in ("raise", "end") or (
             isinstance(on_exception, Mapping)
