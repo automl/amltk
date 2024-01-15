@@ -23,7 +23,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CustomError(Exception):
+class BaseCustomError(Exception):
+    """A base custom error for testing."""
+
+
+class CustomError(BaseCustomError):
     """A custom error for testing."""
 
 
@@ -292,7 +296,7 @@ def test_end_on_exception_in_task(scheduler: Scheduler) -> None:
     assert isinstance(end_status.exception, CustomError)
 
 
-def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
+def test_ignore_on_exception_in_task(scheduler: Scheduler) -> None:
     task = scheduler.task(raise_exception)
 
     @scheduler.on_start
@@ -301,6 +305,94 @@ def test_dont_end_on_exception_in_task(scheduler: Scheduler) -> None:
 
     end_status = scheduler.run(on_exception="ignore")
     assert end_status.code == ExitState.Code.EXHAUSTED
+
+
+def test_mapping_on_exception_explicit_raise(scheduler: Scheduler) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    with pytest.raises(CustomError):
+        scheduler.run(on_exception={CustomError: "raise"})
+
+
+def test_mapping_on_exception_explicit_ignore(scheduler: Scheduler) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    end_status = scheduler.run(on_exception={CustomError: "ignore"})
+    assert end_status.code == ExitState.Code.EXHAUSTED
+
+
+def test_mapping_on_exception_explicit_end(scheduler: Scheduler) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    end_status = scheduler.run(on_exception={CustomError: "end"})
+    assert end_status.code == ExitState.Code.EXCEPTION
+    assert isinstance(end_status.exception, CustomError)
+
+
+def test_mapping_on_exception_explicit_end_subclass(scheduler: Scheduler) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    # Should still work using the base class of the exception
+    end_status = scheduler.run(on_exception={BaseCustomError: "end"})
+    assert end_status.code == ExitState.Code.EXCEPTION
+    assert isinstance(end_status.exception, CustomError)
+
+
+def test_mapping_on_exception_does_not_catch_wrong_exceptions(
+    scheduler: Scheduler,
+) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    # Should not raise as CustomError is not a ValueError
+    end_status = scheduler.run(on_exception={ValueError: "raise", CustomError: "end"})
+    assert end_status.code == ExitState.Code.EXCEPTION
+    assert isinstance(end_status.exception, CustomError)
+
+
+def test_mapping_on_exception_defaults_to_raise_if_not_contained(
+    scheduler: Scheduler,
+) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    # If we don't specify a mapping for an exception, it should default to raise.
+    with pytest.raises(CustomError):
+        scheduler.run(on_exception={ValueError: "ignore"})
+
+
+def test_mapping_does_not_allow_base_exception(scheduler: Scheduler) -> None:
+    with pytest.raises(ValueError, match=r"Invalid key"):
+        scheduler.run(on_exception={BaseException: "raise"})  # type: ignore
+
+
+def test_mapping_does_not_allow_keyboard_interupt(scheduler: Scheduler) -> None:
+    # Implicitly handled with BaseException but good to make sure
+    # this passes as we need to make sure the ctrl+c works.
+    with pytest.raises(ValueError, match=r"Invalid key"):
+        scheduler.run(on_exception={KeyboardInterrupt: "raise"})  # type: ignore
 
 
 def test_cant_subscribe_to_nonexistent_event(scheduler: Scheduler) -> None:
