@@ -1470,6 +1470,16 @@ class Scheduler(RichRenderable):
                     case _:
                         pass
 
+                # If we got here, either it's something we should ignore or a
+                # BaseException which we shouldn't catch silently
+                # For example, a KeyboardInterrupt is not a subclass of Exception
+                # but is a subclass of BaseException
+                if not isinstance(exception, Exception) and isinstance(
+                    exception,
+                    BaseException,
+                ):
+                    self.stop(msg=message, exception=exception)
+
             loop.set_exception_handler(custom_exception_handler)
 
         # Run the actual scheduling loop
