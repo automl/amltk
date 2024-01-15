@@ -1461,29 +1461,43 @@ class Scheduler(RichRenderable):
                 else:
                     loop.default_exception_handler(context)
 
-                # If we are meant to end on an exception, then send a stop
-                # signal to the scheduler
-                match on_exception:
-                    case "raise" | "end":
+                match exception:
+                    # The exception could be None as specified by:
+                    # https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.call_exception_handler
+                    # Not sure when exactly this happens but since there's no exception
+                    # we should just ignore it.
+                    case None:
+                        return
+                    case Exception() if on_exception == "ignore":
+                        return
+                    case Exception() if on_exception in ("end", "ignore"):
                         self.stop(stop_msg=message, exception=exception)
-                    case Mapping():
+                    case Exception() if isinstance(on_exception, Mapping):
                         match subclass_map(exception, on_exception):  # type: ignore
                             case None | (_, "raise") | (_, "end"):
                                 self.stop(msg=message, exception=exception)
-                            case _:
-                                pass
+                            case (_, "ignore"):
+                                return
+                    case BaseException():
+                        # If we got anything other than an exception, then it
+                        # is most likely to be a `BaseException` which we should
+                        # NOT catch silently.
+                        # e.g. a KeyboardInterrupt is not a subclass of Exception
+                        # but is a subclass of BaseException and we should inform
+                        # the asnycio handler and tell scheduler to stop
+                        self.stop(msg=message, exception=exception)
                     case _:
-                        pass
-
-                # If we got here, either it's something we should ignore or a
-                # BaseException which we shouldn't catch silently
-                # For example, a KeyboardInterrupt is not a subclass of Exception
-                # but is a subclass of BaseException
-                if not isinstance(exception, Exception) and isinstance(
-                    exception,
-                    BaseException,
-                ):
-                    self.stop(msg=message, exception=exception)
+                        msg = (
+                            "Recieved something odd."
+                            " Please raise an issue with this info!"
+                            f"{type(exception)} {exception=}"
+                            f"\n{context=}"
+                            f"\n{loop=}"
+                            "\n===\n"
+                            f"{message}"
+                            f"{message}"
+                        )
+                        self.stop(msg=msg, exception=exception)
 
             loop.set_exception_handler(custom_exception_handler)
 
