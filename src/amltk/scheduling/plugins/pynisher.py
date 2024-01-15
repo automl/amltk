@@ -237,6 +237,9 @@ class PynisherPlugin(Plugin):
     ```
     """
 
+    PynisherException: TypeAlias = pynisher.exceptions.PynisherException
+    """The base exception for all pynisher exceptions."""
+
     TimeoutException: TypeAlias = pynisher.exceptions.TimeoutException
     """The exception that is raised when a task times out."""
 
