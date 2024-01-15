@@ -272,10 +272,8 @@ from typing import (
 from typing_extensions import Self, override
 from uuid import uuid4
 
-from more_itertools import first
-
 from amltk._asyncm import ContextEvent
-from amltk._functional import Flag
+from amltk._functional import Flag, subclass_map
 from amltk._richutil.renderable import RichRenderable
 from amltk.exceptions import SchedulerNotRunningError
 from amltk.scheduling.events import Emitter, Event, Subscriber
@@ -1069,45 +1067,47 @@ class Scheduler(RichRenderable):
         self.on_future_done.emit(future)
 
         exception = future.exception()
-        if exception:
-            self.on_future_exception.emit(future, exception)
-            flag_value = self._end_on_exception_flag.value
-            match flag_value:
-                case False:
-                    pass
-                case True:
-                    self.stop(stop_msg="Ending on first exception", exception=exception)
-                case Mapping():
-                    method: Literal["raise", "end", "ignore"]
-                    match first(
-                        (
-                            (err_type, method)
-                            for err_type, method in flag_value.items()
-                            if isinstance(exception, err_type)
-                        ),
-                        default=None,
-                    ):
-                        # Not explicitly handled
-                        case None:
-                            self.stop(
-                                msg=f"Ending on exception type {type(exception)} as"
-                                f"it's not contained in {flag_value}",
-                                exception=exception,
-                            )
-                        # Handled and should end
-                        case (err_type, method) if method in ("end", "raise"):
-                            self.stop(
-                                msg=f"{method}ing on exception type {type(exception)}"
-                                f" as {err_type} is {method} from"
-                                f" `on_exception={flag_value}`",
-                                exception=exception,
-                            )
-                        # Handled and should ignore
-                        case _:
-                            pass
-        else:
-            result = future.result()
-            self.on_future_result.emit(future, result)
+        match exception:
+            case Exception():
+                self.on_future_exception.emit(future, exception)
+                flag_value = self._end_on_exception_flag.value
+                match flag_value:
+                    case False:
+                        pass
+                    case True:
+                        self.stop(
+                            stop_msg="Ending on first exception",
+                            exception=exception,
+                        )
+                    case Mapping():
+                        method: Literal["raise", "end", "ignore"]
+                        match subclass_map(exception, flag_value):
+                            # Not explicitly handled
+                            case None:
+                                self.stop(
+                                    msg=f"Ending on exception type {type(exception)} as"
+                                    f"it's not contained in {flag_value}",
+                                    exception=exception,
+                                )
+                            # Handled and should end
+                            case (err_type, method) if method in ("end", "raise"):  # type: ignore
+                                self.stop(
+                                    msg=f"{method}ing on exception '{type(exception)}'"
+                                    f" as {err_type} is {method} as specified from"
+                                    f" `on_exception={flag_value}`",
+                                    exception=exception,
+                                )
+                            # Handled and should ignore
+                            case _:
+                                pass
+            case BaseException():
+                self.stop(
+                    msg=f"Ending as BaseException {type(exception)} occured.",
+                    exception=exception,
+                )
+            case _:
+                result = future.result()
+                self.on_future_result.emit(future, result)
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
@@ -1446,8 +1446,8 @@ class Scheduler(RichRenderable):
                 loop: asyncio.AbstractEventLoop,
                 context: dict[str, Any],
             ) -> None:
-                exception = context.get("exception")
-                message = context.get("message")
+                exception: BaseException | None = context.get("exception")
+                message: str | None = context.get("message")
 
                 # handle with previous handler before possibly
                 # stopping
@@ -1462,15 +1462,8 @@ class Scheduler(RichRenderable):
                     case "raise" | "end":
                         self.stop(stop_msg=message, exception=exception)
                     case Mapping():
-                        match first(
-                            (
-                                method
-                                for err_type, method in on_exception.items()
-                                if isinstance(exception, err_type)
-                            ),
-                            default=None,
-                        ):
-                            case None | "raise" | "end":
+                        match subclass_map(exception, on_exception):  # type: ignore
+                            case None | (_, "raise") | (_, "end"):
                                 self.stop(msg=message, exception=exception)
                             case _:
                                 pass
@@ -1496,33 +1489,30 @@ class Scheduler(RichRenderable):
 
         # If we were meant to end on an exception and the result
         # we got back from the scheduler was an exception, raise it
-        if isinstance(result, BaseException):
-            match on_exception:
-                case "raise":
-                    raise result
-                case "end" | "ignore":
-                    return ExitState(code=ExitState.Code.EXCEPTION, exception=result)
-                case Mapping():
-                    # Get the first exception class the matches
-                    match first(
-                        (
-                            method
-                            for err_type, method in on_exception.items()
-                            if isinstance(result, err_type)
-                        ),
-                        default=None,
-                    ):
-                        case None:
-                            raise result
-                        case "raise":
-                            raise result
-                        case _:
-                            return ExitState(
-                                code=ExitState.Code.EXCEPTION,
-                                exception=result,
-                            )
-
-        return ExitState(code=result)
+        match result:
+            case Exception():
+                match on_exception:
+                    case "end" | "ignore":
+                        return ExitState(
+                            code=ExitState.Code.EXCEPTION,
+                            exception=result,
+                        )
+                    case "raise":
+                        raise result
+                    case Mapping():
+                        # Get the first exception class the matches
+                        match subclass_map(result, on_exception):
+                            case None | (_, "raise"):
+                                raise result
+                            case _:
+                                return ExitState(
+                                    code=ExitState.Code.EXCEPTION,
+                                    exception=result,
+                                )
+            case BaseException():
+                raise result
+            case _:
+                return ExitState(code=result)
 
     def stop(
         self,

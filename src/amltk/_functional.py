@@ -14,11 +14,15 @@ from typing import (
     TypeAlias,
     TypeVar,
     Union,
+    overload,
 )
+
+from more_itertools import first
 
 T = TypeVar("T")
 V = TypeVar("V")
 V2 = TypeVar("V2")
+U = TypeVar("U")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
 RecMapping: TypeAlias = Mapping[K, Union["RecMapping[K, V]", V]]
@@ -394,6 +398,38 @@ def select_by_signature(
 
     sig = signature(f)
     return {k: v for k, v in kwargs.items() if k in sig.parameters}
+
+
+@overload
+def subclass_map(
+    key: K,
+    mapping: Mapping[type[K], V],
+    *,
+    default: U,
+) -> tuple[type[K], V] | U:
+    ...
+
+
+@overload
+def subclass_map(
+    key: K,
+    mapping: Mapping[type[K], V],
+    *,
+    default: None = None,
+) -> tuple[type[K], V] | None:
+    ...
+
+
+def subclass_map(
+    key: K,
+    mapping: Mapping[type[K], V],
+    *,
+    default: U | None = None,
+) -> tuple[type[K], V] | U | None:
+    return first(
+        ((k, v) for k, v in mapping.items() if isinstance(key, k)),
+        default=default,
+    )
 
 
 class Flag(Generic[T]):
