@@ -1529,25 +1529,19 @@ class Scheduler(RichRenderable):
         # If we were meant to end on an exception and the result
         # we got back from the scheduler was an exception, raise it
         match result:
-            case Exception():
-                match on_exception:
-                    case "end" | "ignore":
+            case Exception() if on_exception == "raise":
+                raise result
+            case Exception() if on_exception in ("end", "ignore"):
+                return ExitState(code=ExitState.Code.EXCEPTION, exception=result)
+            case Exception() if isinstance(on_exception, Mapping):
+                match subclass_map(result, on_exception):
+                    case None | (_, "raise"):
+                        raise result
+                    case _:
                         return ExitState(
                             code=ExitState.Code.EXCEPTION,
                             exception=result,
                         )
-                    case "raise":
-                        raise result
-                    case Mapping():
-                        # Get the first exception class the matches
-                        match subclass_map(result, on_exception):
-                            case None | (_, "raise"):
-                                raise result
-                            case _:
-                                return ExitState(
-                                    code=ExitState.Code.EXCEPTION,
-                                    exception=result,
-                                )
             case BaseException():
                 raise result
             case _:
