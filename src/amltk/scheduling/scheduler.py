@@ -1067,47 +1067,57 @@ class Scheduler(RichRenderable):
         self.on_future_done.emit(future)
 
         exception = future.exception()
+        if exception is None:
+            result = future.result()
+            self.on_future_result.emit(future, result)
+            return
+
+        self.on_future_exception.emit(future, exception)
+        if self._end_on_exception_flag.value is False:
+            return
+
+        if self._end_on_exception_flag.value is True:
+            self.stop(stop_msg="Ending on first exception", exception=exception)
+            return
+
+        exception_handle_mapping = self._end_on_exception_flag.value
         match exception:
-            case Exception():
-                self.on_future_exception.emit(future, exception)
-                flag_value = self._end_on_exception_flag.value
-                match flag_value:
-                    case False:
-                        pass
-                    case True:
-                        self.stop(
-                            stop_msg="Ending on first exception",
-                            exception=exception,
-                        )
-                    case Mapping():
-                        method: Literal["raise", "end", "ignore"]
-                        match subclass_map(exception, flag_value):
-                            # Not explicitly handled
-                            case None:
-                                self.stop(
-                                    msg=f"Ending on exception type {type(exception)} as"
-                                    f"it's not contained in {flag_value}",
-                                    exception=exception,
-                                )
-                            # Handled and should end
-                            case (err_type, method) if method in ("end", "raise"):  # type: ignore
-                                self.stop(
-                                    msg=f"{method}ing on exception '{type(exception)}'"
-                                    f" as {err_type} is {method} as specified from"
-                                    f" `on_exception={flag_value}`",
-                                    exception=exception,
-                                )
-                            # Handled and should ignore
-                            case _:
-                                pass
-            case BaseException():
+            case BaseException() if not isinstance(exception, Exception):
                 self.stop(
                     msg=f"Ending as BaseException {type(exception)} occured.",
                     exception=exception,
                 )
             case _:
-                result = future.result()
-                self.on_future_result.emit(future, result)
+                assert isinstance(exception, Exception)
+                method: Literal["raise", "end", "ignore"]
+                match subclass_map(exception, exception_handle_mapping):
+                    # Not explicitly handled
+                    case None:
+                        self.stop(
+                            msg=(
+                                f"Ending on exception type {type(exception)} as"
+                                "it's not contained in"
+                                f"`on_exception={exception_handle_mapping}"
+                            ),
+                            exception=exception,
+                        )
+                    # Handled and should end
+                    case (err_type, method) if method in ("end", "raise"):  # type: ignore
+                        self.stop(
+                            msg=(
+                                f"{method}ing on exception '{type(exception)}'"
+                                f" as {err_type} is {method} as specified from"
+                                f" `on_exception={exception_handle_mapping}`"
+                            ),
+                            exception=exception,
+                        )
+                    case (err_type, "ignore"):
+                        pass
+                    case thing:
+                        raise RuntimeError(
+                            f"Unexpected case {thing=} for {exception=}."
+                            "\nPlease report this as a bug!",
+                        ) from exception
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
