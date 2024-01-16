@@ -458,10 +458,12 @@ the `@on_future_exception` will be emitted, passing the exception to the callbac
 By default, the `Scheduler` will then raise the exception that occurred up to your program
 and end its computations. This is done by setting
 [`#!python run(on_exception="raise")`][amltk.scheduling.Scheduler],
-the default, but it also takes two other possibilities:
+the default, but it also takes three other possibilities:
 
-* `#!python "ignore"` - Just ignore the exception and keep running.
-* `#!python "end"` - Stop the scheduler but don't raise it.
+* `#!python "continue"` - Just emit the exception and keep running.
+* `#!python "end"` - Emit the exception and then stop the scheduler but don't raise it.
+* `#!python {MyException: "continue", OtherException: "raise"}` - Decide what to do
+    for each exception type. Note that this checked in order using `#!python isinstance(...)`
 
 One example is to just `stop()` the scheduler when some exception occurs.
 
@@ -483,7 +485,7 @@ def stop_the_scheduler(future: Future, exception: Exception) -> None:
     print(f"Got exception {exception}")
     scheduler.stop()  # You can optionally pass `exception=` for logging purposes.
 
-scheduler.run(on_exception="ignore")  # Scheduler will not stop because of the error
+scheduler.run(on_exception="continue")  # Scheduler will not stop because of the error
 from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
@@ -494,7 +496,7 @@ By default when you call [`run()`][amltk.scheduling.Scheduler.run] it will set
 This is to help you debug your program.
 
 You may also use `#!python run(on_exception="end")`, which will just end the `Scheduler` and raise no exception,
-or use `#!python run(on_exception="ignore")`, in which case the `Scheduler` will continue on with whatever events
+or use `#!python run(on_exception="continue")`, in which case the `Scheduler` will continue on with whatever events
 are next to process.
 
 ## Tasks

@@ -296,14 +296,14 @@ def test_end_on_exception_in_task(scheduler: Scheduler) -> None:
     assert isinstance(end_status.exception, CustomError)
 
 
-def test_ignore_on_exception_in_task(scheduler: Scheduler) -> None:
+def test_continue_on_exception_in_task(scheduler: Scheduler) -> None:
     task = scheduler.task(raise_exception)
 
     @scheduler.on_start
     def run_task() -> None:
         task.submit()
 
-    end_status = scheduler.run(on_exception="ignore")
+    end_status = scheduler.run(on_exception="continue")
     assert end_status.code == ExitState.Code.EXHAUSTED
 
 
@@ -318,14 +318,14 @@ def test_mapping_on_exception_explicit_raise(scheduler: Scheduler) -> None:
         scheduler.run(on_exception={CustomError: "raise"})
 
 
-def test_mapping_on_exception_explicit_ignore(scheduler: Scheduler) -> None:
+def test_mapping_on_exception_explicit_continue(scheduler: Scheduler) -> None:
     task = scheduler.task(raise_exception)
 
     @scheduler.on_start
     def run_task() -> None:
         task.submit()
 
-    end_status = scheduler.run(on_exception={CustomError: "ignore"})
+    end_status = scheduler.run(on_exception={CustomError: "continue"})
     assert end_status.code == ExitState.Code.EXHAUSTED
 
 
@@ -380,7 +380,7 @@ def test_mapping_on_exception_defaults_to_raise_if_not_contained(
 
     # If we don't specify a mapping for an exception, it should default to raise.
     with pytest.raises(CustomError):
-        scheduler.run(on_exception={ValueError: "ignore"})
+        scheduler.run(on_exception={ValueError: "continue"})
 
 
 def test_mapping_on_exception_uses_ordering_raises(
@@ -394,10 +394,10 @@ def test_mapping_on_exception_uses_ordering_raises(
 
     # First one it matches should be CustomError
     with pytest.raises(CustomError):
-        scheduler.run(on_exception={CustomError: "raise", BaseCustomError: "ignore"})
+        scheduler.run(on_exception={CustomError: "raise", BaseCustomError: "continue"})
 
 
-def test_mapping_on_exception_uses_ordering_ignores(
+def test_mapping_on_exception_uses_ordering_continue(
     scheduler: Scheduler,
 ) -> None:
     task = scheduler.task(raise_exception)
