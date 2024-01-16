@@ -14,11 +14,15 @@ from typing import (
     TypeAlias,
     TypeVar,
     Union,
+    overload,
 )
+
+from more_itertools import first
 
 T = TypeVar("T")
 V = TypeVar("V")
 V2 = TypeVar("V2")
+U = TypeVar("U")
 K = TypeVar("K", bound=Hashable)
 VK = TypeVar("VK", bound=Hashable)
 RecMapping: TypeAlias = Mapping[K, Union["RecMapping[K, V]", V]]
@@ -394,6 +398,60 @@ def select_by_signature(
 
     sig = signature(f)
     return {k: v for k, v in kwargs.items() if k in sig.parameters}
+
+
+@overload
+def subclass_map(
+    key: K,
+    mapping: Mapping[type[K], V],
+    *,
+    default: U,
+) -> tuple[type[K], V] | U:
+    ...
+
+
+@overload
+def subclass_map(
+    key: K,
+    mapping: Mapping[type[K], V],
+    *,
+    default: None = None,
+) -> tuple[type[K], V] | None:
+    ...
+
+
+def subclass_map(
+    key: K,
+    mapping: Mapping[type[K], V],
+    *,
+    default: U | None = None,
+) -> tuple[type[K], V] | U | None:
+    """Find the first item in the mapping of which key is a subclass.
+
+    ```python exec="true" source="material-block" result="python" title="subclass_map"
+    from amltk._functional import subclass_map
+
+    mapping = {int: "a", float: "b", str: "c"}
+
+    key = 4.2
+    assert subclass_map(key, mapping) == (float, "b")
+
+    key = "hello"
+    assert subclass_map(key, mapping) == (str, "c")
+    ```
+
+    Args:
+        key: The instance key to use.
+        mapping: The mapping to search in where keys are possible super class of `key`.
+        default: The default value to return if no item is found.
+
+    Returns:
+        The first item in the mapping of which key is a subclass, or the `default`
+    """
+    return first(
+        ((k, v) for k, v in mapping.items() if isinstance(key, k)),
+        default=default,
+    )
 
 
 class Flag(Generic[T]):

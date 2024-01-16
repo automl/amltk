@@ -12,7 +12,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
-from amltk.scheduling import Scheduler
+from amltk.scheduling import ExitState, Scheduler
 from amltk.scheduling.plugins.pynisher import PynisherPlugin
 
 
@@ -188,3 +188,68 @@ def test_cpu_time_limited_task(scheduler: Scheduler) -> None:
             scheduler.FUTURE_EXCEPTION: 1,
         },
     )
+
+
+def test_cpu_exception_can_be_ignored_by_scheduler(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("cpu_time"):
+        pytest.skip("Pynisher does not support cpu time limits on this system")
+
+    task = scheduler.task(
+        cpu_time_wasting_function,
+        plugins=PynisherPlugin(cputime_limit=1),
+    )
+
+    @scheduler.on_start
+    def start_task() -> None:
+        task.submit(iterations=int(1e16))
+
+    # Should not raise and instead just end and return the exception
+    end_status = scheduler.run(
+        on_exception={PynisherPlugin.PynisherException: "end"},
+    )
+    assert end_status.code == ExitState.Code.EXCEPTION
+    assert isinstance(end_status.exception, PynisherPlugin.CpuTimeoutException)
+
+
+def test_memory_limited_task_can_be_ignored_by_scheduler(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("memory"):
+        pytest.skip("Pynisher does not support memory limits on this system")
+
+    one_half_gb = int(1e9 * 1.5)
+    two_gb = int(1e9) * 2
+    task = scheduler.task(
+        big_memory_function,
+        plugins=PynisherPlugin(memory_limit=one_half_gb),
+    )
+
+    @scheduler.on_start
+    def start_task() -> None:
+        task.submit(mem_in_bytes=two_gb)
+
+    # Should not raise and instead just end and return the exception
+    end_status = scheduler.run(
+        on_exception={PynisherPlugin.PynisherException: "end"},
+    )
+    assert end_status.code == ExitState.Code.EXCEPTION
+    assert isinstance(end_status.exception, PynisherPlugin.MemoryLimitException)
+
+
+def test_time_limited_task_can_be_ignored_by_scheduler(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("wall_time"):
+        pytest.skip("Pynisher does not support wall time limits on this system")
+
+    task = scheduler.task(
+        time_wasting_function,
+        plugins=PynisherPlugin(walltime_limit=1),
+    )
+
+    @scheduler.on_start
+    def start_task() -> None:
+        task.submit(duration=3)
+
+    # Should ignore the exception and move on
+    end_status = scheduler.run(
+        on_exception={PynisherPlugin.PynisherException: "end"},
+    )
+    assert end_status.code == ExitState.Code.EXCEPTION
+    assert isinstance(end_status.exception, PynisherPlugin.WallTimeoutException)
