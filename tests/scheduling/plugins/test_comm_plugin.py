@@ -86,7 +86,7 @@ def case_dask_executor() -> ClientExecutor:
     return executor
 
 
-@fixture()
+@fixture(scope="function")
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Iterator[Scheduler]:
     yield Scheduler(executor)

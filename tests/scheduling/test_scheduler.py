@@ -80,7 +80,7 @@ def case_sequential_executor() -> SequentialExecutor:
     return SequentialExecutor()
 
 
-@fixture()
+@fixture(scope="function")
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Scheduler:
     return Scheduler(executor)
