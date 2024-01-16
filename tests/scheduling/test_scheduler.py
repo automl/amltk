@@ -383,6 +383,35 @@ def test_mapping_on_exception_defaults_to_raise_if_not_contained(
         scheduler.run(on_exception={ValueError: "ignore"})
 
 
+def test_mapping_on_exception_uses_ordering_raises(
+    scheduler: Scheduler,
+) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    # First one it matches should be CustomError
+    with pytest.raises(CustomError):
+        scheduler.run(on_exception={CustomError: "raise", BaseCustomError: "ignore"})
+
+
+def test_mapping_on_exception_uses_ordering_ignores(
+    scheduler: Scheduler,
+) -> None:
+    task = scheduler.task(raise_exception)
+
+    @scheduler.on_start
+    def run_task() -> None:
+        task.submit()
+
+    # First one it matches should be BaseCustomError
+    status = scheduler.run(on_exception={BaseCustomError: "end", CustomError: "raise"})
+    assert status.code == ExitState.Code.EXCEPTION
+    assert isinstance(status.exception, CustomError)
+
+
 def test_mapping_does_not_allow_base_exception(scheduler: Scheduler) -> None:
     with pytest.raises(ValueError, match=r"Invalid key"):
         scheduler.run(on_exception={BaseException: "raise"})  # type: ignore
