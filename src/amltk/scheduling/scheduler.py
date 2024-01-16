@@ -255,7 +255,7 @@ import logging
 import warnings
 from asyncio import Future
 from collections.abc import Callable, Iterable, Mapping
-from concurrent.futures import Executor, ProcessPoolExecutor
+from concurrent.futures import CancelledError, Executor, ProcessPoolExecutor
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import partial
@@ -502,9 +502,15 @@ class Scheduler(RichRenderable):
         # This is set once `run` is called.
         # Either contains the mapping from exception to what to do,
         # otherwise a boolean whether to end or not.
-        self._end_on_exception_flag: Flag[
-            bool | dict[type[Exception], Literal["raise", "end", "ignore"]]
-        ] = Flag(initial=False)
+        self._on_exc_method_map: Flag[
+            dict[type[Exception], Literal["raise", "end", "ignore"]],
+        ] = Flag(initial={Exception: "raise"})
+
+        # This is set once `run` is called.
+        # Indicates what to do when a cancellation occurs
+        self._on_cancel_method: Flag[Literal["raise", "end", "ignore"]] = Flag(
+            initial="raise",
+        )
 
         # This is used to manage suequential queues, where we need a Thread
         # timer to ensure that we don't get caught in an endless loop waiting
@@ -1062,62 +1068,67 @@ class Scheduler(RichRenderable):
 
         if future.cancelled():
             self.on_future_cancelled.emit(future)
+            match self._on_cancel_method.value:
+                case "raise" | "end":
+                    self.stop(
+                        msg="Ending on cancellation of a future",
+                        exception=CancelledError(f"Future {future} was cancelled"),
+                    )
+                case "ignore":
+                    pass
             return
 
         self.on_future_done.emit(future)
 
         exception = future.exception()
-        if exception is None:
-            result = future.result()
-            self.on_future_result.emit(future, result)
-            return
-
-        self.on_future_exception.emit(future, exception)
-        if self._end_on_exception_flag.value is False:
-            return
-
-        if self._end_on_exception_flag.value is True:
-            self.stop(stop_msg="Ending on first exception", exception=exception)
-            return
-
-        exception_handle_mapping = self._end_on_exception_flag.value
         match exception:
+            case None:
+                result = future.result()
+                self.on_future_result.emit(future, result)
+                return
+            # We do not allow users to handle `BaseException`s as they are
+            # not meant to be caught.
             case BaseException() if not isinstance(exception, Exception):
+                self.on_future_exception.emit(future, exception)
                 self.stop(
-                    msg=f"Ending as BaseException {type(exception)} occured.",
+                    stop_msg=(
+                        f"BaseException occured - {type(exception)}:{exception}."
+                        "\nEnding as this is not meant to be caught."
+                    ),
                     exception=exception,
                 )
-            case _:
-                assert isinstance(exception, Exception)
-                method: Literal["raise", "end", "ignore"]
-                match subclass_map(exception, exception_handle_mapping):
-                    # Not explicitly handled
+            case Exception():
+                match subclass_map(exception, self._on_exc_method_map.value):
+                    case (err_type, "ignore"):
+                        return
+                    case (err_type, method) if method in ("raise", "end"):
+                        self.stop(
+                            msg=(
+                                f"{method}ing on exception '{type(exception)}'"
+                                f" as {err_type} is {method} as specified from"
+                                f"`on_exception={self._on_exc_method_map.value}"
+                            ),
+                            exception=exception,
+                        )
+                        return
                     case None:
                         self.stop(
                             msg=(
                                 f"Ending on exception type {type(exception)} as"
                                 "it's not contained in"
-                                f"`on_exception={exception_handle_mapping}"
+                                f"`on_exception={self._on_exc_method_map.value}"
                             ),
                             exception=exception,
                         )
-                    # Handled and should end
-                    case (err_type, method) if method in ("end", "raise"):  # type: ignore
-                        self.stop(
-                            msg=(
-                                f"{method}ing on exception '{type(exception)}'"
-                                f" as {err_type} is {method} as specified from"
-                                f" `on_exception={exception_handle_mapping}`"
-                            ),
-                            exception=exception,
-                        )
-                    case (err_type, "ignore"):
+                        return
+                    case _:
                         pass
-                    case thing:
-                        raise RuntimeError(
-                            f"Unexpected case {thing=} for {exception=}."
-                            "\nPlease report this as a bug!",
-                        ) from exception
+            case _:
+                pass
+
+        raise RuntimeError(
+            f"Unexpected thing from future: {exception=}\nPlease report this as a bug!",
+        ) from exception
 
     async def _monitor_queue_empty(self) -> None:
         """Monitor for the queue being empty and trigger an event when it is."""
@@ -1210,7 +1221,7 @@ class Scheduler(RichRenderable):
             _log(f"Stop Message: {msg}", exc_info=exception)
 
             self.on_stop.emit(str(msg), exception)
-            if self._end_on_exception_flag and exception:
+            if self._on_exc_method_map and exception:
                 stop_reason = exception
             else:
                 stop_reason = ExitState.Code.STOPPED
@@ -1278,8 +1289,9 @@ class Scheduler(RichRenderable):
             Literal["raise", "end", "ignore"]
             | Mapping[type[Exception], Literal["raise", "end", "ignore"]]
         ) = "raise",
+        on_cancelled: Literal["raise", "end", "ignore"] = "raise",
         asyncio_debug_mode: bool = False,
-        display: bool | list[RenderableType] = False,
+        display: bool | Iterable[RenderableType] = False,
     ) -> ExitState:
         """Run the scheduler.
 
@@ -1339,6 +1351,18 @@ class Scheduler(RichRenderable):
                         caught and will always be raised, regardless of the
                         `on_exception` setting.
 
+            on_cancelled:
+                What to do when a task is cancelled.
+
+                * If `#!python "raise"`, the scheduler will stop and raise the
+                    exception at the point where you called `run()`.
+                * If `#!python "ignore"`, the scheduler will continue running,
+                    ignoring the cancellation. This may be useful when requiring more
+                    robust execution.
+                * If `#!python "end"`, similar to `#!python "raise"`, the scheduler
+                    will stop but no exception will occur and the control flow
+                    will return gracefully to the point where you called `run()`.
+
             asyncio_debug_mode: Whether to run the async loop in debug mode.
                 Defaults to `False`. Please see [asyncio.run][] for more.
             display: Whether to display the scheduler live in the console.
@@ -1360,11 +1384,12 @@ class Scheduler(RichRenderable):
                 wait=wait,
                 on_exception=on_exception,
                 display=display,
+                on_cancelled=on_cancelled,
             ),
             debug=asyncio_debug_mode,
         )
 
-    async def async_run(  # noqa: C901, PLR0912, PLR0915
+    async def async_run(  # noqa: C901, PLR0915
         self,
         *,
         timeout: float | None = None,
@@ -1374,7 +1399,8 @@ class Scheduler(RichRenderable):
             Literal["raise", "end", "ignore"]
             | Mapping[type[Exception], Literal["raise", "end", "ignore"]]
         ) = "raise",
-        display: bool | list[RenderableType] = False,
+        on_cancelled: Literal["raise", "end", "ignore"] = "raise",
+        display: bool | Iterable[RenderableType] = False,
     ) -> ExitState:
         """Async version of `run`.
 
@@ -1386,10 +1412,20 @@ class Scheduler(RichRenderable):
         if self.running():
             raise RuntimeError("Scheduler already seems to be running")
 
+        match on_cancelled:
+            case "raise" | "end" | "ignore":
+                self._on_cancel_method.set(value=on_cancelled)
+            case _:
+                raise ValueError(
+                    f"Invalid value for `on_cancelled`: {on_cancelled}."
+                    " Please provide one of `raise`, `end`, or `ignore`",
+                )
+
         match on_exception:
             case "raise" | "end" | "ignore":
-                pass
+                self._on_exc_method_map.set(value={Exception: on_exception})
             case Mapping():
+                self._on_exc_method_map.set(value=dict(on_exception))
                 for k, v in on_exception.items():
                     if k in (BaseException, KeyboardInterrupt):
                         raise ValueError(
@@ -1411,36 +1447,38 @@ class Scheduler(RichRenderable):
             case _:
                 raise ValueError(
                     f"Invalid value for `on_exception`: {on_exception}."
-                    " Please provide a `Mapping` or one of `raise`, `end`, or `ignore`",
+                    " Please provide one of `raise`, `end`, or `ignore`"
+                    " or a `Mapping` from exception types to one of those values.",
                 )
-
-        logger.debug("Starting scheduler")
-
-        # Make sure flags are set
-        # If the user provided a catch all, use the async flag,
-        # otherwise use the mapping.
-        match on_exception:
-            case "raise" | "end":
-                self._end_on_exception_flag.set(value=True)
-            case "ignore":
-                self._end_on_exception_flag.set(value=False)
-            case Mapping():
-                self._end_on_exception_flag.set(value=dict(on_exception))
-            case _:
-                raise ValueError(f"Invalid value for `on_exception`: {on_exception}")
 
         # If the user has requested to have a live display,
         # we will need to setup a `Live` instance to render to
-        if display:
-            from rich.live import Live
+        match display:
+            case False:
+                self._extra_renderables = None
+                self._live_output = None
+            case True:
+                from rich.live import Live
 
-            if isinstance(display, list):
-                self._extra_renderables = display
+                self._extra_renderables = None
+                self._live_output = Live(
+                    auto_refresh=False,
+                    get_renderable=self.__rich__,
+                )
+            case Iterable():
+                from rich.live import Live
 
-            self._live_output = Live(
-                auto_refresh=False,
-                get_renderable=self.__rich__,
-            )
+                self._extra_renderables = list(display)
+                self._live_output = Live(
+                    auto_refresh=False,
+                    get_renderable=self.__rich__,
+                )
+            case _:
+                raise ValueError(
+                    f"Invalid value for `display`: {display}."
+                    " Please provide one of `True`, `False`, or an iterable of"
+                    " `RenderableType`.",
+                )
 
         loop = asyncio.get_running_loop()
 
@@ -1461,6 +1499,10 @@ class Scheduler(RichRenderable):
                 loop: asyncio.AbstractEventLoop,
                 context: dict[str, Any],
             ) -> None:
+                # The exception could be None as specified by:
+                # https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.call_exception_handler
+                # Not sure when exactly this happens but since there's no exception
+                # we should just ignore it.
                 exception: BaseException | None = context.get("exception")
                 message: str | None = context.get("message")
 
@@ -1472,30 +1514,21 @@ class Scheduler(RichRenderable):
                     loop.default_exception_handler(context)
 
                 match exception:
-                    # The exception could be None as specified by:
-                    # https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.call_exception_handler
-                    # Not sure when exactly this happens but since there's no exception
-                    # we should just ignore it.
                     case None:
                         return
-                    case Exception() if on_exception == "ignore":
-                        return
-                    case Exception() if on_exception in ("end", "ignore"):
-                        self.stop(stop_msg=message, exception=exception)
-                    case Exception() if isinstance(on_exception, Mapping):
-                        match subclass_map(exception, on_exception):  # type: ignore
-                            case None | (_, "raise") | (_, "end"):
-                                self.stop(msg=message, exception=exception)
-                            case (_, "ignore"):
-                                return
-                    case BaseException():
-                        # If we got anything other than an exception, then it
-                        # is most likely to be a `BaseException` which we should
-                        # NOT catch silently.
-                        # e.g. a KeyboardInterrupt is not a subclass of Exception
-                        # but is a subclass of BaseException and we should inform
-                        # the asnycio handler and tell scheduler to stop
+                    # We do not allow special handling of BaseException by users
+                    case BaseException() if not isinstance(exception, Exception):
                         self.stop(msg=message, exception=exception)
+                        return
+                    case Exception():
+                        match subclass_map(exception, self._on_exc_method_map.value):
+                            case None | (_, "ignore"):
+                                return
+                            case (_, "raise") | (_, "end"):
+                                self.stop(msg=message, exception=exception)
+                                return
+                            case _:
+                                raise RuntimeError("Unexpected, please raise issue!")
                     case _:
                         msg = (
                             "Recieved something odd."
@@ -1505,47 +1538,66 @@ class Scheduler(RichRenderable):
                             f"\n{loop=}"
                             "\n===\n"
                             f"{message}"
-                            f"{message}"
                         )
                         self.stop(msg=msg, exception=exception)
+                        return
 
             loop.set_exception_handler(custom_exception_handler)
 
+        logger.debug("Starting scheduler")
         # Run the actual scheduling loop
-        result = await self._run_scheduler(
+        stop_reason = await self._run_scheduler(
             timeout=timeout,
             end_on_empty=end_on_empty,
             wait=wait,
         )
+        if previous_exception_handler is not None:
+            loop.set_exception_handler(previous_exception_handler)
+
+        # Need a reference to later this before resetting...
+        exc_method_map = dict(self._on_exc_method_map.value)
 
         # Reset variables back to its default
         self._live_output = None
         self._extra_renderables = None
-        self._end_on_exception_flag.reset()
+        self._on_exc_method_map.reset()
+        self._on_cancel_method.reset()
 
-        if previous_exception_handler is not None:
-            loop.set_exception_handler(previous_exception_handler)
-
-        # If we were meant to end on an exception and the result
-        # we got back from the scheduler was an exception, raise it
-        match result:
-            case Exception() if on_exception == "raise":
-                raise result
-            case Exception() if on_exception in ("end", "ignore"):
-                return ExitState(code=ExitState.Code.EXCEPTION, exception=result)
-            case Exception() if isinstance(on_exception, Mapping):
-                match subclass_map(result, on_exception):
+        # Decide what to do with the result from the scheduler
+        match stop_reason:
+            case ExitState.Code():
+                return ExitState(code=stop_reason)
+            # Special case for handling the cancellation error as it does
+            # not occur as an exception as far as futures are concerened
+            case CancelledError() if on_cancelled == "raise":
+                raise stop_reason
+            case CancelledError() if on_cancelled in ("end", "ignore"):
+                return ExitState(code=ExitState.Code.CANCELLED, exception=stop_reason)
+            # General exception handling
+            case Exception():
+                match subclass_map(stop_reason, exc_method_map):
                     case None | (_, "raise"):
-                        raise result
-                    case _:
+                        raise stop_reason
+                    case (_, "end"):
                         return ExitState(
-                            code=ExitState.Code.EXCEPTION,
-                            exception=result,
+                            ExitState.Code.EXCEPTION,
+                            exception=stop_reason,
                         )
+                    case (_, "ignore"):
+                        logger.warning(
+                            f"Was told to ignore `{type(stop_reason)}` yet it"
+                            " was returned by the Scheduler. Please raise an issue!"
+                            "\nReturning ExitState.Code.UNKNOWN but this behaviour",
+                            " may crash in the future.",
+                        )
+                        return ExitState(
+                            ExitState.Code.UNKNOWN,
+                            exception=stop_reason,
+                        )
+                    case _:
+                        raise RuntimeError("Unexpected, please raise issue!")
             case BaseException():
-                raise result
-            case _:
-                return ExitState(code=result)
+                raise stop_reason
 
     def stop(
         self,
