@@ -36,7 +36,7 @@ def unjson_serialisable(x: Any) -> Any:
     return x
 
 
-@fixture
+@fixture(scope="function")
 @parametrize_with_cases("bucket", cases=".", prefix="bucket_")
 def bucket(bucket: Bucket) -> Bucket:
     return bucket

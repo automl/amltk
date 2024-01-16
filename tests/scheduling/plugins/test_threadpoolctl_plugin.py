@@ -59,7 +59,7 @@ def case_loky_executor() -> ProcessPoolExecutor:
     return get_reusable_executor(max_workers=2)  # type: ignore
 
 
-@fixture()
+@fixture(scope="function")
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Scheduler:
     return Scheduler(executor)
