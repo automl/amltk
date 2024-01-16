@@ -1,3 +1,14 @@
+## 1.7.0 (2024-01-16)
+
+### Feat
+
+- **Scheduler**: Respond to cancelled futures (#214)
+- **scheduler**: Handled errors with specific method (#213)
+
+### Fix
+
+- **History**: Explicitly check type in add() (#210)
+
 ## 1.6.0 (2024-01-10)
 
 ### Feat
