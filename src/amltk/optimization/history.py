@@ -197,9 +197,21 @@ class History(RichRenderable):
 
                 self.reports.append(report)
                 self._lookup[report.name] = len(self.reports) - 1
-            case reports:
-                for _report in reports:
+            case Iterable():
+                for _report in report:
+                    # Could endless loop
+                    if not isinstance(_report, Trial.Report):
+                        raise TypeError(
+                            f"Expected an iterable of Trial.Report"
+                            f" but got {type(_report)} ({_report})"
+                            f" in add({report=})",
+                        )
                     self.add(_report)
+            case _:
+                raise TypeError(
+                    f"Expected a Trial.Report or an iterable of Trial.Report"
+                    f" but got {type(report)} ({report})",
+                )
 
     def find(self, name: str) -> Trial.Report:
         """Finds a report by trial name.
