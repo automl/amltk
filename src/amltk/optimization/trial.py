@@ -137,45 +137,40 @@ class Trial(RichRenderable, Generic[I]):
     and an [`.info`][amltk.optimization.Trial.info] object, which is the optimizer
     specific information, if required by you.
 
-    !!! tip
-    When using the `success` method, make sure to provide values for all metrics
-    specified in the `metrics` attribute. Each metric has a unique name, and it's
-    crucial to use the correct names when reporting success. Failure to provide
-    a value for any metric will result in a `ValueError`. To ensure correctness,
-    refer to the `self.metrics` attribute for the list of metrics and use their
-    exact names in the `trial.success` method. For example:
+    !!! tip "Reporting success (or failure)"
 
-    ```python
-    trial = Trial(
-        name="example_trial",
-        config={"param": 42},
-        metrics=[Metric(name="accuracy", minimize=False)]
-    )
+        When using the [`success()`][amltk.optimization.trial.Trial.success]
+        or [`fail()`][amltk.optimization.trial.Trial.success] method, make sure to
+        provide values for all metrics specified in the
+        [`.metrics`][amltk.optimization.Trial.metrics] attribute. Usually these are
+        set by the optimizer generating the `Trial`.
 
-    # Incorrect usage (will raise a ValueError)
-    report = trial.success(invalid_metric=0.95)
+        Each metric has a unique name, and it's crucial to use the correct names when
+        reporting success, otherwise an error will occur.
 
-    # Correct usage
-    report = trial.success(accuracy=0.95)
-    ```
+        ??? example "Reporting success for metrics"
 
-    Additionally, if you encounter a metric name mismatch,
-    consider renaming the metric using the provided key:
+            For example:
 
-    ```python
-    trial = Trial(
-        name="example_trial",
-        config={"param": 42},
-        metrics=[Metric(name="poly_metric", minimize=False)]
-    )
+            ```python exec="true" result="python" source="material-block"
+            from amltk.optimization import Trial, Metric
 
-    # Incorrect usage (will raise a ValueError)
-    report = trial.success(poly_metric=0.95)
+            # Gotten from some optimizer usually, i.e. via `optimizer.ask()`
+            trial = Trial(
+                name="example_trial",
+                config={"param": 42},
+                metrics=[Metric(name="accuracy", minimize=False)]
+            )
 
-    # Correct usage
-    report = trial.success(provided_key=0.95)
-    trial.metrics = [Metric(name="provided_key", minimize=False, bounds=None)]
-    ```
+            # Incorrect usage (will raise an error)
+            try:
+                report = trial.success(invalid_metric=0.95)
+            except ValueError as error:
+                print(error)
+
+            # Correct usage
+            report = trial.success(accuracy=0.95)
+            ```
 
     If using [`Plugins`][amltk.scheduling.plugins.Plugin], they may insert
     some extra objects in the [`.extra`][amltk.optimization.Trial.extras] dict.
