@@ -20,6 +20,8 @@ from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Concatenate, Generic, ParamSpec, TypeVar
 
+from more_itertools import all_unique
+
 from amltk.store.paths.path_bucket import PathBucket
 
 if TYPE_CHECKING:
@@ -58,6 +60,12 @@ class Optimizer(Generic[I]):
                 optimizer.
         """
         super().__init__()
+        if not all_unique(metric.name for metric in metrics):
+            raise ValueError(
+                "All metrics must have unique names."
+                f"Got {metrics} with names {[metric.name for metric in metrics]}",
+            )
+
         self.metrics = metrics
         self.bucket = (
             bucket

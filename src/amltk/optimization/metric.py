@@ -52,6 +52,19 @@ class Metric:
 
             object.__setattr__(self, "bounds", (float(lower), float(upper)))
 
+        if self.name[0].isdigit():
+            raise ValueError(
+                f"Metric name {self.name} cannot start with a digit."
+                " Must be a valid Python identifier.",
+            )
+
+        for c in "[](){}<>|&^%$#@!~`":
+            if c in self.name:
+                raise ValueError(
+                    f"Metric name {self.name} cannot contain '{c}'."
+                    " Must be a valid Python identifier.",
+                )
+
     @override
     def __str__(self) -> str:
         parts = [self.name]
