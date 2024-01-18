@@ -4,7 +4,6 @@ the contribution guidelines: https://github.com/automl/AMLTK/blob/main/CONTRIBUT
 
 Please make sure that:
 
-* you updated all docs, this includes the changelog (CHANGELOG.md)
 * for any new functionality, consider adding a relevant example
 * add unit tests for new functionalities
 -->
