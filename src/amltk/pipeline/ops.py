@@ -78,7 +78,10 @@ def factorize(
         case Node(nodes=children) if factor_by(node):
             for child in children:
                 for possible_child in _factorize(child):
-                    split_node_with_child_assigned = assign_child(node, possible_child)  # type: ignore
+                    split_node_with_child_assigned = assign_child(
+                        node.copy(),  # type: ignore
+                        possible_child,
+                    )
                     yield split_node_with_child_assigned  # type: ignore
 
         case Node(nodes=children):
