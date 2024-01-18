@@ -160,7 +160,6 @@ class Node(RichRenderable, Generic[Item, Space]):
 
     fidelities: Mapping[str, Any] | None = field(hash=False)
     """The fidelities for this node"""
-
     config_transform: Callable[[Config, Any], Config] | None = field(hash=False)
     """A function that transforms the configuration of this node"""
 
@@ -633,6 +632,17 @@ class Node(RichRenderable, Generic[Item, Space]):
                 return _build(self, *builder_args, **builder_kwargs)  # type: ignore
             case _:
                 return builder(self, *builder_args, **builder_kwargs)
+
+    def factorize(
+        self,
+        *,
+        factor_by: Callable[[Node], bool] | None = None,
+        assign_child: Callable[[Node, Node], Node] | None = None,
+    ) -> Iterator[Self]:
+        """Please see [`factorize()`][amltk.pipeline.ops.factorize]."""  # noqa: D402
+        from amltk.pipeline.ops import factorize
+
+        yield from factorize(self, factor_by=factor_by, assign_child=assign_child)
 
     def _rich_iter(self) -> Iterator[RenderableType]:
         """Iterate the panels for rich printing."""
