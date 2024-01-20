@@ -61,7 +61,16 @@ def factorize(
             can also be used externally to factorize a sub-pipeline.
         factor_by: A function that takes a node and returns True if it
             should be factorized into its children, False otherwise. By
-            default, it will split only Choice nodes.
+            default, it will split only Choice nodes. One useful example
+            is to only factor on a particular name of a node.
+
+            ```python
+            pipeline_per_estimator = list(factorize(
+                pipeline,
+                factor_by=lambda _node: _node.name == "estimator"
+            ))
+            ```
+
         assign_child: A function that takes a node and a child and
             returns a new node with that child assigned to it. By default,
             it will mutate the node so that it has that child as its
