@@ -636,13 +636,23 @@ class Node(RichRenderable, Generic[Item, Space]):
     def factorize(
         self,
         *,
+        min_depth: int = 0,
+        max_depth: int | None = None,
+        current_depth: int = 0,
         factor_by: Callable[[Node], bool] | None = None,
         assign_child: Callable[[Node, Node], Node] | None = None,
     ) -> Iterator[Self]:
         """Please see [`factorize()`][amltk.pipeline.ops.factorize]."""  # noqa: D402
         from amltk.pipeline.ops import factorize
 
-        yield from factorize(self, factor_by=factor_by, assign_child=assign_child)
+        yield from factorize(
+            self,
+            min_depth=min_depth,
+            max_depth=max_depth,
+            current_depth=current_depth,
+            factor_by=factor_by,
+            assign_child=assign_child,
+        )
 
     def _rich_iter(self) -> Iterator[RenderableType]:
         """Iterate the panels for rich printing."""

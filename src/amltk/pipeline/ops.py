@@ -19,7 +19,7 @@ def factorize(
     node: NodeT1,
     *,
     min_depth: int = 0,
-    max_depth: int = MAX_INT,
+    max_depth: int | None = None,
     current_depth: int = 0,
     factor_by: Callable[[Node], bool] | None = None,
     assign_child: Callable[[NodeT2, Node], NodeT2] | None = None,
@@ -56,7 +56,7 @@ def factorize(
         max_depth: The maximum depth at which to factorize. If the node is at a
             depth greater than this, it will not be factorized.
             Depth is calculated as the node distance from node which is passed in
-            plus the `current_depth`.
+            plus the `current_depth`. If `None`, there is no maximum depth.
         current_depth: The current depth of the node. This is used internally but
             can also be used externally to factorize a sub-pipeline.
         factor_by: A function that takes a node and returns True if it
@@ -83,6 +83,9 @@ def factorize(
     Returns:
         An iterator over all possible pipelines.
     """  # noqa: E501
+    if max_depth is None:
+        max_depth = MAX_INT
+
     if current_depth < 0:
         raise ValueError("current_depth cannot be less than 0")
 
