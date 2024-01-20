@@ -79,7 +79,8 @@ def factorize(
 
     # We can exit early as there's no chance we factorize past this point
     if current_depth > max_depth:
-        return node.copy()
+        yield node.copy()
+        return
 
     # NOTE: These two functions below are defined here instead to allow custom
     # Node types in the future. The default behaviour is defined to just split
@@ -104,7 +105,7 @@ def factorize(
         case Node(nodes=()):
             # Base case, there's no further possibility to factorize
             yield node.copy()
-        case Node(nodes=children) if factor_by(node) and current_depth >= min_depth:
+        case Node(nodes=children) if factor_by(node) and min_depth <= current_depth:
             for child in children:
                 for possible_child in _factorize(child):
                     split_node_with_child_assigned = assign_child(
