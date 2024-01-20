@@ -1,6 +1,7 @@
 """Operations on pipelines."""
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Iterator
 from functools import partial
 from itertools import product
@@ -9,6 +10,7 @@ from typing import TypeVar
 from amltk.pipeline.components import Choice
 from amltk.pipeline.node import Node
 
+MAX_INT = sys.maxsize
 NodeT1 = TypeVar("NodeT1", bound=Node)
 NodeT2 = TypeVar("NodeT2", bound=Node)
 
@@ -16,6 +18,9 @@ NodeT2 = TypeVar("NodeT2", bound=Node)
 def factorize(
     node: NodeT1,
     *,
+    min_depth: int = 0,
+    max_depth: int = MAX_INT,
+    current_depth: int = 0,
     factor_by: Callable[[Node], bool] | None = None,
     assign_child: Callable[[NodeT2, Node], NodeT2] | None = None,
 ) -> Iterator[NodeT1]:
@@ -44,6 +49,16 @@ def factorize(
 
     Args:
         node: The node to factorize.
+        min_depth: The minimum depth at which to factorize. If the node is at a
+            depth less than this, it will not be factorized.
+            Depth is calculated as the node distance from node which is passed in
+            plus the `current_depth`.
+        max_depth: The maximum depth at which to factorize. If the node is at a
+            depth greater than this, it will not be factorized.
+            Depth is calculated as the node distance from node which is passed in
+            plus the `current_depth`.
+        current_depth: The current depth of the node. This is used internally but
+            can also be used externally to factorize a sub-pipeline.
         factor_by: A function that takes a node and returns True if it
             should be factorized into its children, False otherwise. By
             default, it will split only Choice nodes.
@@ -59,6 +74,13 @@ def factorize(
     Returns:
         An iterator over all possible pipelines.
     """  # noqa: E501
+    if current_depth < 0:
+        raise ValueError("current_depth cannot be less than 0")
+
+    # We can exit early as there's no chance we factorize past this point
+    if current_depth > max_depth:
+        return node.copy()
+
     # NOTE: These two functions below are defined here instead to allow custom
     # Node types in the future. The default behaviour is defined to just split
     # Choice nodes and assign a child to one is to just mutate the node so
@@ -69,13 +91,20 @@ def factorize(
     if assign_child is None:
         assign_child = lambda _node, _child: _node.mutate(nodes=(_child,))
 
-    _factorize = partial(factorize, factor_by=factor_by, assign_child=assign_child)
+    _factorize = partial(
+        factorize,
+        factor_by=factor_by,
+        assign_child=assign_child,
+        current_depth=current_depth + 1,
+        min_depth=min_depth,
+        max_depth=max_depth,
+    )
 
     match node:
         case Node(nodes=()):
             # Base case, there's no further possibility to factorize
             yield node.copy()
-        case Node(nodes=children) if factor_by(node):
+        case Node(nodes=children) if factor_by(node) and current_depth >= min_depth:
             for child in children:
                 for possible_child in _factorize(child):
                     split_node_with_child_assigned = assign_child(
