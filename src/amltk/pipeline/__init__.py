@@ -11,6 +11,7 @@ from amltk.pipeline.components import (
     as_node,
 )
 from amltk.pipeline.node import Node, request
+from amltk.pipeline.ops import factorize
 
 __all__ = [
     "Node",
@@ -23,4 +24,5 @@ __all__ = [
     "Join",
     "request",
     "as_node",
+    "factorize",
 ]

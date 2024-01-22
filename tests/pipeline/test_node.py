@@ -146,10 +146,12 @@ def test_find() -> None:
 
 
 def test_walk() -> None:
+    n1 = Node(name="1")
+
     sub3 = Node(name="sub3")
     sub2 = Node(sub3, name="sub2")
-    n1 = Node(name="1")
     n2 = Node(sub2, name="2")
+
     n3 = Node(name="3")
 
     seq = n1 >> n2 >> n3
