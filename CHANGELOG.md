@@ -1,3 +1,10 @@
+## 1.8.0 (2024-01-22)
+
+### Feat
+
+- **Pynisher**: Detect tasks with `Trial` to report `FAIL` (#220)
+- **Pipeline**: `factorize()` a pipeline into its possibilities (#217)
+
 ## 1.7.0 (2024-01-16)
 
 ### Feat
