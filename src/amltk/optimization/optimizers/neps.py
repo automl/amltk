@@ -119,13 +119,13 @@ from __future__ import annotations
 
 import logging
 import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, overload
 from typing_extensions import override
 
 import metahyper.api
@@ -391,13 +391,28 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             working_dir=working_dir,
         )
 
+    @overload
+    def ask(self, n: int) -> Iterable[Trial[NEPSTrialInfo]]:
+        ...
+
+    @overload
+    def ask(self, n: None = None) -> Trial[NEPSTrialInfo]:
+        ...
+
     @override
-    def ask(self) -> Trial[NEPSTrialInfo]:
+    def ask(
+        self,
+        n: int | None = None,
+    ) -> Trial[NEPSTrialInfo] | Iterable[Trial[NEPSTrialInfo]]:
         """Ask the optimizer for a new config.
 
         Returns:
             The trial info for the new config.
         """
+        # TODO: Ask neps people if there's a good way to batch sample rather than 1 by 1
+        if n is not None:
+            return (self.ask(n=None) for _ in range(n))
+
         with self.optimizer.using_state(self.optimizer_state_file, self.serializer):
             (
                 config_id,

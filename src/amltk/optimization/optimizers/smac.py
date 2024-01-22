@@ -91,7 +91,7 @@ optimizer.bucket.rmdir()  # markdown-exec: hide
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, overload
@@ -249,13 +249,31 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         )
         return cls(facade=facade, fidelities=fidelities, bucket=bucket, metrics=metrics)
 
+    @overload
+    def ask(self, n: int) -> Iterable[Trial[SMACTrialInfo]]:
+        ...
+
+    @overload
+    def ask(self, n: None = None) -> Trial[SMACTrialInfo]:
+        ...
+
     @override
-    def ask(self) -> Trial[SMACTrialInfo]:
+    def ask(
+        self,
+        n: int | None = None,
+    ) -> Trial[SMACTrialInfo] | Iterable[Trial[SMACTrialInfo]]:
         """Ask the optimizer for a new config.
+
+        Args:
+            n: The number of configs to ask for. If `None`, ask for a single config.
+
 
         Returns:
             The trial info for the new config.
         """
+        if n is not None:
+            return (self.ask(n=None) for _ in range(n))
+
         smac_trial_info = self.facade.ask()
         config = smac_trial_info.config
         budget = smac_trial_info.budget
