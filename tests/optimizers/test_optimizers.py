@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from more_itertools import all_unique
 from pytest_cases import case, parametrize, parametrize_with_cases
 
 from amltk.optimization import Metric, Optimizer, Trial
@@ -60,7 +61,7 @@ def opt_smac_hpo(metric: Metric, tmp_path: Path) -> SMACOptimizer:
     except ImportError:
         pytest.skip("SMAC is not installed")
 
-    pipeline = Component(_A, name="hi", space={"a": (1, 10)})
+    pipeline = Component(_A, name="hi", space={"a": (1.0, 10.0)})
     return SMACOptimizer.create(
         space=pipeline,
         bucket=tmp_path,
@@ -128,3 +129,13 @@ def test_report_failure(optimizer: Optimizer):
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
     assert report.metric_values == tuple(metric.worst for metric in optimizer.metrics)
+
+
+@parametrize_with_cases("optimizer", cases=".", prefix="opt_")
+def test_batched_ask_generates_unique_configs(optimizer: Optimizer):
+    """Test that batched ask generates unique configs."""
+    # NOTE: This was tested with up to 100, at least from SMAC and Optuna.
+    # It was quite slow for smac so I've reduced it to 10.
+    # This is not a hard requirement of optimizers (maybe it should be?)
+    batch = optimizer.ask(10)
+    assert all_unique(batch)
