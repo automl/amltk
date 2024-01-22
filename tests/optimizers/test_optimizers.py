@@ -137,5 +137,6 @@ def test_batched_ask_generates_unique_configs(optimizer: Optimizer):
     # NOTE: This was tested with up to 100, at least from SMAC and Optuna.
     # It was quite slow for smac so I've reduced it to 10.
     # This is not a hard requirement of optimizers (maybe it should be?)
-    batch = optimizer.ask(10)
+    batch = list(optimizer.ask(10))
+    assert len(batch) == 10
     assert all_unique(batch)
