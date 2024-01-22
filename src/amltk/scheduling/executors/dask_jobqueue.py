@@ -149,7 +149,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
     @override
     def shutdown(
         self,
-        wait: bool = True,  # noqa: FBT001, FBT002
+        wait: bool = True,
         **kwargs: Any,
     ) -> None:
         """See [concurrent.futures.Executor.shutdown][]."""
