@@ -82,14 +82,17 @@ performed in processes.
 """  # noqa: E501
 from __future__ import annotations
 
+import traceback
 from collections.abc import Callable
+from dataclasses import dataclass
 from multiprocessing.context import BaseContext
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Generic, Literal, TypeAlias, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
 import pynisher
 import pynisher.exceptions
 
+from amltk.optimization import Trial
 from amltk.scheduling.events import Event
 from amltk.scheduling.plugins.plugin import Plugin
 
@@ -102,6 +105,56 @@ if TYPE_CHECKING:
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+
+@dataclass
+class _PynisherWrap(Generic[P, R]):
+    fn: Callable[P, R]
+    memory_limit: int | tuple[int, str] | None = None
+    cputime_limit: int | tuple[float, str] | None = None
+    walltime_limit: int | tuple[float, str] | None = None
+    terminate_child_processes: bool = True
+    context: BaseContext | None = None
+    disable_trial_handling: bool = False
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        if any(
+            limit is not None
+            for limit in (self.memory_limit, self.cputime_limit, self.walltime_limit)
+        ):
+            fn = pynisher.Pynisher(
+                self.fn,
+                memory=self.memory_limit,
+                cpu_time=self.cputime_limit,
+                wall_time=self.walltime_limit,
+                terminate_child_processes=True,
+                context=self.context,
+            )
+        else:
+            fn = self.fn
+
+        trial: Trial | None = None
+        if not self.disable_trial_handling:
+            if len(args) > 0 and isinstance(args[0], Trial):
+                trial = args[0]
+            elif (_trial := kwargs.get("trial")) is not None:
+                if not isinstance(_trial, Trial):
+                    raise ValueError(
+                        f"Expected 'trial' to be a Trial instance, got {type(trial)}"
+                        f"\n{trial=}",
+                    )
+                trial = _trial
+
+        if trial is not None:
+            try:
+                return fn(*args, **kwargs)
+            except pynisher.PynisherException as e:
+                tb = traceback.format_exc()
+                trial.exception = e
+                trial.traceback = tb
+                return trial.fail()  # type: ignore
+        else:
+            return fn(*args, **kwargs)
 
 
 class PynisherPlugin(Plugin):
@@ -259,6 +312,7 @@ class PynisherPlugin(Plugin):
         cputime_limit: int | tuple[float, str] | None = None,
         walltime_limit: int | tuple[float, str] | None = None,
         context: BaseContext | None = None,
+        disable_trial_handling: bool = False,
     ):
         """Initialize a `PynisherPlugin` instance.
 
@@ -274,12 +328,61 @@ class PynisherPlugin(Plugin):
                 `("s", "m", "h")`. Defaults to `None`.
             context: The context to use for multiprocessing. Defaults to `None`.
                 See [`multiprocessing.get_context()`][multiprocessing.get_context]
+            disable_trial_handling: By default, the `PynisherPlugin` will auto-detect
+                if the task is one for a `Trial`. If so, it will catch any pynisher
+                specific exceptions and return a `Trial.Report` with `trial.fail()`,
+                instead of raising the expcetion. This has the effect that the report
+                can be caught with `task.on_result` where it can be handled. This will
+                also prevent the specific events `@pynisher-timeout`,
+                `@pynisher-memory-limit`, `@pynisher-cputime-limit`
+                and `@pynisher-walltime-limit` from being emitted.
+
+                If this
+                is `True`, then the pynisher exceptions will be raised as normal and
+                should be handled with `task.on_exception` where there is no direct
+                access to the `Trial` submitted.
+
+                ??? note "Auto-Detection"
+
+                    This will be triggered if the first positional argument is a
+                    `Trial` or if any of the keyword arguments are `"trial"`.
+
+                    ```python
+                    from amltk.optimization import Trial
+                    from amltk.scheduling import Scheduler
+
+                    def trial_evaluator_one(trial: Trial, ...) -> int:
+                        ...
+
+                    def trial_evaluator_two(..., trial: Trial) -> int:
+                        ...
+
+                    scheduler = Scheduler.with_processes(1)
+
+                    task_one = scheduler.task(
+                        trial_evaluator_one,
+                        plugins=PynisherPlugin(memory_limit=(1, "gb")
+                    )
+                    task_two = scheduler.task(
+                        trial_evaluator_two,
+                        plugins=PynisherPlugin(memory_limit=(1, "gb")
+                    )
+
+                    # Will auto-detect
+                    trial = Trial(...)
+                    task_one.submit(trial, ...)
+                    task_two.submit(..., trial=trial)
+
+                    # Will not auto-detect
+                    task_one.submit(42, trial)
+                    ```
         """
         super().__init__()
         self.memory_limit = memory_limit
         self.cputime_limit = cputime_limit
         self.walltime_limit = walltime_limit
         self.context = context
+        self.disable_trial_handling = disable_trial_handling
 
         self.task: Task
 
@@ -291,22 +394,16 @@ class PynisherPlugin(Plugin):
         **kwargs: P.kwargs,
     ) -> tuple[Callable[P, R], tuple, dict]:
         """Wrap a task function in a `Pynisher` instance."""
-        # If any of our limits is set, we need to wrap it in Pynisher
-        # to enfore these limits.
-        if any(
-            limit is not None
-            for limit in (self.memory_limit, self.cputime_limit, self.walltime_limit)
-        ):
-            fn = pynisher.Pynisher(
-                fn,
-                memory=self.memory_limit,
-                cpu_time=self.cputime_limit,
-                wall_time=self.walltime_limit,
-                terminate_child_processes=True,
-                context=self.context,
-            )
-
-        return fn, args, kwargs
+        _fn = _PynisherWrap(
+            fn,
+            disable_trial_handling=self.disable_trial_handling,
+            memory_limit=self.memory_limit,
+            cputime_limit=self.cputime_limit,
+            walltime_limit=self.walltime_limit,
+            context=self.context,
+            terminate_child_processes=True,
+        )
+        return _fn, args, kwargs
 
     @override
     def attach_task(self, task: Task) -> None:

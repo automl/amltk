@@ -12,6 +12,7 @@ from dask.distributed import Client, LocalCluster, Worker
 from distributed.cfexecutor import ClientExecutor
 from pytest_cases import case, fixture, parametrize_with_cases
 
+from amltk.optimization import Trial
 from amltk.scheduling import ExitState, Scheduler
 from amltk.scheduling.plugins.pynisher import PynisherPlugin
 
@@ -56,6 +57,25 @@ def scheduler(executor: Executor) -> Iterator[Scheduler]:
 def big_memory_function(mem_in_bytes: int) -> bytearray:
     z = bytearray(mem_in_bytes)
     return z  # noqa: RET504
+
+
+def trial_with_big_memory(trial: Trial, mem_in_bytes: int) -> Trial.Report:
+    with trial.begin():
+        pass
+
+    # We're particularly interested when the memory error happens during the
+    # task execution, not during the trial begin period
+    big_memory_function(mem_in_bytes)
+
+    return trial.success()
+
+
+def trial_with_time_wasting(trial: Trial, duration: int) -> Trial.Report:
+    with trial.begin():
+        time_wasting_function(duration)
+
+    time_wasting_function(duration)
+    return trial.success()
 
 
 def time_wasting_function(duration: int) -> int:
@@ -253,3 +273,97 @@ def test_time_limited_task_can_be_ignored_by_scheduler(scheduler: Scheduler) -> 
     )
     assert end_status.code == ExitState.Code.EXCEPTION
     assert isinstance(end_status.exception, PynisherPlugin.WallTimeoutException)
+
+
+def test_trial_gets_autodetect_memory(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("memory"):
+        pytest.skip("Pynisher does not support memory limits on this system")
+
+    one_half_gb = int(1e9 * 1.5)
+    two_gb = int(1e9) * 2
+    task = scheduler.task(
+        trial_with_big_memory,
+        plugins=PynisherPlugin(
+            memory_limit=one_half_gb,
+            disable_trial_handling=False,
+        ),
+    )
+    trial = Trial(name="test_trial", config={})
+
+    @scheduler.on_start
+    def start_task() -> None:
+        task.submit(trial, mem_in_bytes=two_gb)
+
+    reports: list[Trial.Report] = []
+
+    @task.on_result
+    def trial_report(_, report: Trial.Report) -> None:
+        reports.append(report)
+
+    status = scheduler.run(on_exception="raise")
+    assert status.code == ExitState.Code.EXHAUSTED
+
+    assert task.event_counts == Counter(
+        {task.SUBMITTED: 1, task.DONE: 1, task.RESULT: 1},
+    )
+
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.FUTURE_RESULT: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+        },
+    )
+    assert len(reports) == 1
+    assert reports[0].status == Trial.Status.FAIL
+    assert isinstance(reports[0].exception, PynisherPlugin.MemoryLimitException)
+
+
+def test_trial_gets_autodetect_time(scheduler: Scheduler) -> None:
+    if not PynisherPlugin.supports("wall_time"):
+        pytest.skip("Pynisher does not support wall_time limits on this system")
+
+    task = scheduler.task(
+        trial_with_time_wasting,
+        plugins=PynisherPlugin(
+            walltime_limit=1,
+            disable_trial_handling=False,
+        ),
+    )
+    trial = Trial(name="test_trial", config={})
+
+    @scheduler.on_start
+    def start_task() -> None:
+        task.submit(trial=trial, duration=3)
+
+    reports: list[Trial.Report] = []
+
+    @task.on_result
+    def trial_report(_, report: Trial.Report) -> None:
+        reports.append(report)
+
+    status = scheduler.run(on_exception="raise")
+    assert status.code == ExitState.Code.EXHAUSTED
+
+    assert task.event_counts == Counter(
+        {task.SUBMITTED: 1, task.DONE: 1, task.RESULT: 1},
+    )
+
+    assert scheduler.event_counts == Counter(
+        {
+            scheduler.STARTED: 1,
+            scheduler.FUTURE_RESULT: 1,
+            scheduler.FINISHING: 1,
+            scheduler.FINISHED: 1,
+            scheduler.EMPTY: 1,
+            scheduler.FUTURE_SUBMITTED: 1,
+            scheduler.FUTURE_DONE: 1,
+        },
+    )
+    assert len(reports) == 1
+    assert reports[0].status == Trial.Status.FAIL
+    assert isinstance(reports[0].exception, PynisherPlugin.WallTimeoutException)
