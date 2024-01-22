@@ -378,6 +378,19 @@ class PynisherPlugin(Plugin):
                     ```
         """
         super().__init__()
+
+        for limit, name in [
+            (memory_limit, "memory"),
+            (cputime_limit, "cpu_time"),
+            (walltime_limit, "wall_time"),
+        ]:
+            if limit is not None and not self.supports(name):  # type: ignore
+                raise RuntimeError(
+                    f"Your platform does not support {name} limits. "
+                    " Please see pynisher documentation for more:"
+                    "\nhttps://github.com/automl/pynisher#features",
+                )
+
         self.memory_limit = memory_limit
         self.cputime_limit = cputime_limit
         self.walltime_limit = walltime_limit
