@@ -144,12 +144,6 @@ class _PynisherWrap(Generic[P, R]):
                         f"\n{trial=}",
                     )
                 trial = _trial
-            else:
-                raise ValueError(
-                    "Could not find a Trial instance in the args for PynisherPlugin."
-                    "\nPlease pass it as the first argument or as a keyword argument"
-                    " or disable trial handling with `disable_trial_handling=True`.",
-                )
 
         if trial is not None:
             try:
