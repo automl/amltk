@@ -101,10 +101,10 @@ optimizer.bucket.rmdir()  # markdown-exec: hide
 """  # noqa: E501
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 from typing_extensions import Self, override
 
 import optuna
@@ -265,13 +265,27 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
 
         return cls(study=study, metrics=metrics, space=space, bucket=bucket, seed=seed)
 
+    @overload
+    def ask(self, n: int) -> Iterable[Trial[OptunaTrial]]:
+        ...
+
+    @overload
+    def ask(self, n: None = None) -> Trial[OptunaTrial]:
+        ...
+
     @override
-    def ask(self) -> Trial[OptunaTrial]:
+    def ask(
+        self,
+        n: int | None = None,
+    ) -> Trial[OptunaTrial] | Iterable[Trial[OptunaTrial]]:
         """Ask the optimizer for a new config.
 
         Returns:
             The trial info for the new config.
         """
+        if n is not None:
+            return (self.ask(n=None) for _ in range(n))
+
         optuna_trial: optuna.Trial = self.study.ask(self.space)
         config = optuna_trial.params
         trial_number = optuna_trial.number

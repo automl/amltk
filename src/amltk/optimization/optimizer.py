@@ -16,9 +16,17 @@ extract the search space for the optimizer.
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Concatenate, Generic, ParamSpec, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Concatenate,
+    Generic,
+    ParamSpec,
+    TypeVar,
+    overload,
+)
 
 from more_itertools import all_unique
 
@@ -81,9 +89,22 @@ class Optimizer(Generic[I]):
             report: The report for a trial
         """
 
+    @overload
     @abstractmethod
-    def ask(self) -> Trial[I]:
+    def ask(self, n: int) -> Iterable[Trial[I]]:
+        ...
+
+    @overload
+    @abstractmethod
+    def ask(self, n: None = None) -> Trial[I]:
+        ...
+
+    @abstractmethod
+    def ask(self, n: int | None = None) -> Trial[I] | Iterable[Trial[I]]:
         """Ask the optimizer for a trial to evaluate.
+
+        Args:
+            n: The number of trials to ask for. If `None`, ask for a single trial.
 
         Returns:
             A config to sample.
