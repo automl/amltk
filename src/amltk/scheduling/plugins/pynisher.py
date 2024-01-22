@@ -386,7 +386,7 @@ class PynisherPlugin(Plugin):
         ]:
             if limit is not None and not self.supports(name):  # type: ignore
                 raise RuntimeError(
-                    f"Your platform does not support {name} limits. "
+                    f"Your platform does not support {name} limits."
                     " Please see pynisher documentation for more:"
                     "\nhttps://github.com/automl/pynisher#features",
                 )
