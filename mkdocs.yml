@@ -12,10 +12,11 @@ theme:
     - content.code.annotate
     - content.code.copy
     - navigation.footer
+    - navigation.sections
+    - toc.follow
+    - toc.integrate
     - navigation.tabs
     - navigation.tabs.sticky
-    - navigation.expand
-    - toc.follow
     - header.autohide
     - search.suggest
     - search.highlight
@@ -132,6 +133,7 @@ plugins:
             docstring_options:
               ignore_init_summary: true
               trim_doctest_flags: true
+              returns_multiple_items: false
             show_docstring_attributes: true
             show_docstring_description: true
             show_root_heading: true
@@ -143,11 +145,12 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             docstring_style: google
+            inherited_members: true
             show_if_no_docstring: false
             show_bases: true
             show_source: true
-            members_order: "source"
-            group_by_category: false
+            members_order: "alphabetical"
+            group_by_category: true
             show_signature: true
             separate_signature: true
             show_signature_annotations: true
