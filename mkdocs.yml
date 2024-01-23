@@ -137,7 +137,7 @@ plugins:
             show_root_heading: true
             show_root_toc_entry: true
             show_object_full_path: false
-            show_root_members_full_path: true
+            show_root_members_full_path: false
             signature_crossrefs: true
             merge_init_into_class: true
             show_symbol_type_heading: true
@@ -149,8 +149,8 @@ plugins:
             members_order: "source"
             group_by_category: false
             show_signature: true
-            separate_signature: false
-            show_signature_annotations: false
+            separate_signature: true
+            show_signature_annotations: true
             filters:
               - "!^_[^_]"
               - "_sample"  # Kind of a hack to have this render a private method
