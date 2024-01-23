@@ -989,12 +989,12 @@ class Node(RichRenderable, Generic[Item, Space]):
                 then it will be used to evaluate the pipeline.
 
                 * If `target` is a function, then it must take in a
-                [`Trial`][amltk.pipeline.trial.Trial] as the first argument
+                [`Trial`][amltk.optimization.trial.Trial] as the first argument
                 and a [`Node`][amltk.pipeline.node.Node] second argument, returning a
-                [`Trial.Report`][amltk.pipeline.trial.Trial.Report]. Please refer to
+                [`Trial.Report`][amltk.optimization.trial.Trial.Report]. Please refer to
                 the [optimization guide](../../../guides/optimization.md) for more.
 
-                * If `target` is a [`Task`][amltk.pipeline.task.Task], then
+                * If `target` is a [`Task`][amltk.scheduling.task.Task], then
                 this is not implemeneted yet. Sorry
             metric:
                 The metric(s) that will be passed to `optimizer=`. These metrics
@@ -1004,7 +1004,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 of known optimizers and use the first one it can find which was installed.
 
                 Alternatively, this can be a class inheriting from
-                [`Optimizer`][amltk.optimizers.Optimizer] or else
+                [`Optimizer`][amltk.optimization.optimizer.Optimizer] or else
                 a signature match [`Optimizer.CreateSignature`][amltk.optimization.Optimizer.CreateSignature]
 
                 ??? tip "`Optimizer.CreateSignature`"
@@ -1047,7 +1047,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 Any items you store in trials will be located in this directory,
                 where the [`trial.name`][amltk.optimization.Trial.name] will be
                 used as a subfolder where any contents stored with
-                [`trial.store()`][amlkt.optimization.Trial.store] will be put there.
+                [`trial.store()`][amltk.optimization.trial.Trial.store] will be put there.
                 Please see the [optimization guide](../../../guides/optimization.md)
                 for more on trial storage.
             scheduler:
@@ -1055,7 +1055,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 If `None`, then one will be created for you with
                 [`Scheduler.with_processes(n_workers)`][amltk.scheduling.Scheduler.with_processes]
             history:
-                A [`History`][amltk.scheduling.History] to store the
+                A [`History`][amltk.optimization.history.History] to store the
                 [`Trial.Report`][amltk.optimization.Trial.Report]s in. You
                 may pass in your own if you wish for this method to store
                 it there instead of creating its own.
@@ -1089,31 +1089,34 @@ class Node(RichRenderable, Generic[Item, Space]):
                 optimization will continue for as long as the scheduler is
                 running. You'll likely want to configure this.
             process_memory_limit:
-                If specified, the [`Task`][amltk.pipeline.task.Task] will
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
                 use the
                 [`PynisherPlugin`][amltk.scheduling.plugins.pynisher.PynisherPlugin]
                 to limit the memory the process can use. Please
-                refer to the [`pynisher`][amltk.schedule.plugins.pynisher]
+                refer to the
+                [plugins `pynisher` reference](../../../reference/scheduling/plugins.md#pynisher)
                 for more as there are platform limitations and additional
                 dependancies required.
             process_walltime_limit:
-                If specified, the [`Task`][amltk.pipeline.task.Task] will
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
                 use the
                 [`PynisherPlugin`][amltk.scheduling.plugins.pynisher.PynisherPlugin]
                 to limit the wall time the process can use. Please
-                refer to the [`pynisher`][amltk.schedule.plugins.pynisher]
+                refer to the
+                [plugins `pynisher` reference](../../../reference/scheduling/plugins.md#pynisher)
                 for more as there are platform limitations and additional
                 dependancies required.
             process_cputime_limit:
-                If specified, the [`Task`][amltk.pipeline.task.Task] will
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
                 use the
                 [`PynisherPlugin`][amltk.scheduling.plugins.pynisher.PynisherPlugin]
                 to limit the cputime the process can use. Please
-                refer to the [`pynisher`][amltk.schedule.plugins.pynisher]
+                refer to the
+                [plugins `pynisher` reference](../../../reference/scheduling/plugins.md#pynisher)
                 for more as there are platform limitations and additional
                 dependancies required.
             threadpool_limit_ctl:
-                If specified, the [`Task`][amltk.pipeline.task.Task] will
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
                 use the
                 [`ThreadPoolCTLPlugin`][amltk.scheduling.plugins.threadpoolctl.ThreadPoolCTLPlugin]
                 to limit the number of threads used by compliant libraries.
@@ -1126,7 +1129,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 Please set this to `True`/`False` depending on your preference.
             plugins:
                 Additional plugins to attach to the eventual
-                [`Task`][amltk.pipeline.task.Task] that will be executed by
+                [`Task`][amltk.scheduling.task.Task] that will be executed by
                 the [`Scheduler`][amltk.scheduling.Scheduler]. Please
                 refer to the
                 [plugins reference](../../../reference/scheduling/plugins.md) for more.
