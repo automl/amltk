@@ -13,10 +13,9 @@ from typing_extensions import override
 import mkdocs_gen_files
 from more_itertools import first_true, peekable
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger("mkdocs")
 
-ENV_VAR = "AMLTK_DOC_RENDER_EXAMPLES"
+RUN_EXAMPLES_ENV_VAR = "AMLTK_DOC_RENDER_EXAMPLES"
 
 
 @dataclass
@@ -144,9 +143,10 @@ class Example:
         if not runnable:
             return False
 
-        env_var = os.environ.get(ENV_VAR, None)
+        env_var = os.environ.get(RUN_EXAMPLES_ENV_VAR, None)
         if env_var is None:
             return False
+
         if env_var == "all":
             return True
 
@@ -269,6 +269,12 @@ class Example:
             ],
         )
 
+
+if os.environ.get(RUN_EXAMPLES_ENV_VAR, None) is None:
+    logger.warning(
+        f"Env variable {RUN_EXAMPLES_ENV_VAR} not set - not running examples."
+        " Use `just docs-full` to run and render examples.",
+    )
 
 for path in sorted(Path("examples").rglob("*.py")):
     module_path = path.relative_to("examples").with_suffix("")
