@@ -57,20 +57,15 @@ def save_report_in_database(
     Returns:
         None
     """
-    # Check if the database connection is already open
-    if not db.is_closed():
-        db.close()
+    # Check if the database connection is not open
+    if db.is_closed():
+        db.connect()
 
-    # Connect to the database
-    db.connect()
-
-    # Connect to the database
-    db.connect()
-
-    # Create an ExperimentModel entry
-    if experiment_name is None:
+    if experiment_name:
+        experiment = ExperimentModel.get_or_create(name=experiment_name)[0]
+    else:
         experiment_name = f"{uuid4()}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    experiment = ExperimentModel.create(name=experiment_name)
+        experiment = ExperimentModel.create(name=experiment_name)
 
     if isinstance(report, Trial.Report):
         # Handle a single report

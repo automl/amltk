@@ -39,7 +39,7 @@ class TrialReportModel(Model):
     """Model representing a trial report.
 
     Attributes:
-        name (CharField): Name of the trial report (unique).
+        name (CharField): Name of the trial report.
         status (CharField): Status of the trial report.
         trial_seed (IntegerField): Seed used for the trial.
         exception (TextField): Exception information if any (nullable).
@@ -48,7 +48,7 @@ class TrialReportModel(Model):
         experiment (ForeignKeyField): Reference to the associated experiment.
     """
 
-    name = CharField(unique=True)
+    name = CharField()
     status = CharField()
     trial_seed = IntegerField()
     exception = TextField(null=True)
