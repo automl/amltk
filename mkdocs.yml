@@ -156,7 +156,6 @@ plugins:
             show_signature_annotations: true
             filters:
               - "!^_[^_]"
-              - "_sample"  # Kind of a hack to have this render a private method
 
 nav:
   - Home: "index.md"
