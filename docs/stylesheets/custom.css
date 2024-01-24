@@ -1,3 +1,11 @@
+/* Highlight None with color  inside code blocks */
+code.highlight.language-python span.kc {
+  color: var(--md-code-hl-keyword-color);
+}
+/* Make tool tip annotations wider */
+:root {
+    --md-tooltip-width: 500px;
+}
 /* api doc attribute cards */
 div.doc-class > div.doc-contents > div.doc-children > div.doc-object {
   padding-right: 20px;
@@ -10,145 +18,4 @@ div.doc-class > div.doc-contents > div.doc-children > div.doc-object {
   border-color: rgba(0, 0, 0, 0.2);
   border-width: 1px;
   border-style: solid;
-}
-}
-
-/* Mark external links as such. */
-/* This is taken from mkdocs-string python tips
-https://primer.style/octicons/arrow-up-right-24
-a.external::after,
-a.autorefs-external::after {
-  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.25 15.5a.75.75 0 00.75-.75v-9a.75.75 0 00-.75-.75h-9a.75.75 0 000 1.5h7.19L6.22 16.72a.75.75 0 101.06 1.06L17.5 7.56v7.19c0 .414.336.75.75.75z"></path></svg>');
-  -webkit-mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.25 15.5a.75.75 0 00.75-.75v-9a.75.75 0 00-.75-.75h-9a.75.75 0 000 1.5h7.19L6.22 16.72a.75.75 0 101.06 1.06L17.5 7.56v7.19c0 .414.336.75.75.75z"></path></svg>');
-  content: ' ';
-
-  display: inline-block;
-  vertical-align: middle;
-  position: relative;
-
-  height: 1em;
-  width: 1em;
-  background-color: var(--md-typeset-a-color);
-}
-
-a.external:hover::after,
-a.autorefs-external:hover::after {
-  background-color: var(--md-accent-fg-color);
-}
-*/
-
-[data-md-color-scheme="default"] {
-  --doc-label-instance-attribute-fg-color: #0079ff;
-  --doc-label-property-fg-color: #00dfa2;
-  --doc-label-class-attribute-fg-color: #d1b619;
-  --doc-label-dataclass-fg-color: #ff0060;
-
-  --doc-label-instance-attribute-bg-color: #0079ff1a;
-  --doc-label-property-bg-color: #00dfa21a;
-  --doc-label-class-attribute-bg-color: #d1b6191a;
-  --doc-label-dataclass-bg-color: #ff00601a;
-}
-
-[data-md-color-scheme="slate"] {
-  --doc-label-instance-attribute-fg-color: #963fb8;
-  --doc-label-property-fg-color: #6d67e4;
-  --doc-label-class-attribute-fg-color: #46c2cb;
-  --doc-label-dataclass-fg-color: #f2f7a1;
-
-  --doc-label-instance-attribute-bg-color: #963fb81a;
-  --doc-label-property-bg-color: #6d67e41a;
-  --doc-label-class-attribute-bg-color: #46c2cb1a;
-  --doc-label-dataclass-bg-color: #f2f7a11a;
-}
-:root {
-    --md-tooltip-width: 500px;
-}
-
-/*
-.doc.doc-label.doc-label-instance-attribute code {
-  background-color: var(--doc-label-instance-attribute-bg-color);
-  color: var(--doc-label-instance-attribute-fg-color);
-}
-.doc.doc-label.doc-label-class-attribute code {
-  background-color: var(--doc-label-class-attribute-bg-color);
-  color: var(--doc-label-class-attribute-fg-color);
-}
-.doc.doc-label.doc-label-classmethod code {
-  background-color: var(--doc-label-class-attribute-bg-color);
-  color: var(--doc-label-classattribute-fg-color);
-}
-.doc.doc-label.doc-label-property code {
-  background-color: var(--doc-label-property-bg-color);
-  color: var(--doc-label-property-fg-color);
-}
-.doc.doc-label.doc-label-dataclass code {
-  background-color: var(--doc-label-dataclass-bg-color);
-  color: var(--doc-label-dataclass-fg-color);
-}
-.doc.doc-label code {
-  font-weight: bold;
-}
-.doc.doc-labels {
-  margin-left: 10px;
-  border-radius: 10px;
-  padding-top: 1px;
-  padding-bottom: 1px;
-  padding-right: 10px;
-  padding-left: 10px;
-}
-*/
-
-
-body[data-md-color-primary="black"] .excalidraw  svg  {
-  filter: invert(100%) hue-rotate(180deg);
-}
-
-body[data-md-color-primary="black"] .excalidraw svg rect {
-  fill: transparent;
-}
-
-h2.doc.doc-heading {
-  /*border-top: 2px solid rgba(0, 0, 0);*/
-  padding-top: 48px;
-}
-
-
-/* Highlight None inside code blocks */
-code.highlight.language-python span.kc {
-  color: var(--md-code-hl-keyword-color);
-}
-
-
-/*
-h3.doc.doc-heading {
-  border-top: 1px solid rgba(0, 0, 0, 0.2);
-  padding-top: 48px;
-}
-*/
-
-/*
-a.md-nav__link--passed {
-  padding-left: 10px;
-}
-
-a.md-nav__link--active {
-  padding-left: 10px;
-  font-weight: bold;
-  border-left: .05rem solid var(--md-accent-fg-color);
-}
-
-h3 .doc-heading code {
-  font-size: 16px;
-}
-*/
-
-/*
-.doc.doc-object.doc-class h2.doc.doc-heading {
-  text-align: center;
-}
-*/
-
-.doc-heading code {
-  font-weight: normal;
-  font-family: "Roboto Mono", "SFMono-Regular", Consolas, "Courier New", Courier, monospace;
 }
