@@ -143,7 +143,7 @@ class Example:
         if not runnable:
             return False
 
-        env_var = os.environ.get(RUN_EXAMPLES_ENV_VAR, "false")
+        env_var = os.environ.get(RUN_EXAMPLES_ENV_VAR, "all")
         if env_var in ("false", "", "0", "no", "off"):
             return False
 
