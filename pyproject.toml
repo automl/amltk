@@ -47,6 +47,7 @@ doc = [
   "mike",
   "pillow",
   "cairosvg",
+  "black",  # This allows mkdocstrings to format signatures in the docs
 ]
 # --- Optional user dependancies
 sklearn = ["scikit-learn", "threadpoolctl"]
