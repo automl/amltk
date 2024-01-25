@@ -227,4 +227,5 @@ nav:
     # Auto generated with docs/api_generator.py
   - API: "api/"
   - Contributing: "contributing.md"
+  - What's New?: "changelog.md"
 
