@@ -1,3 +1,7 @@
+"""This module is a hook that when any code is being rendered, it will
+print the path to the file being rendered.
+
+This makes it easier to identify which file is being rendered when an error happens."""
 import logging
 from typing import Any
 
