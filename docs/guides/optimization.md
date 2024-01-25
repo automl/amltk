@@ -52,7 +52,7 @@ s = Searchable(
     {"x": (-10.0, 10.0)},
     name="my-searchable"
 )
-from amltk._doc import doc_print; doc_print(print, s)
+from amltk._doc import doc_print; doc_print(print, s)  # markdown-exec: hide
 ```
 
 
