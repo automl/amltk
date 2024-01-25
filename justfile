@@ -30,18 +30,23 @@ docs-full:
   python -m webbrowser -t "http://127.0.0.1:8000/"
   AMLTK_DOC_RENDER_EXAMPLES=all \
     AMLTK_DOCS_OFFLINE=true \
-    AMLTK_EXEC_DOCS=true mkdocs serve --watch-theme
+    AMLTK_EXEC_DOCS=true \
+    mkdocs serve --watch-theme
 
 # Launch the docs and execute code blocks
 docs-code:
   python -m webbrowser -t "http://127.0.0.1:8000/"
   AMLTK_DOCS_OFFLINE=true \
-    AMLTK_EXEC_DOCS=true mkdocs serve --watch-theme
+    AMLTK_EXEC_DOCS=true \
+    AMLTK_DOC_RENDER_EXAMPLES=false \
+    mkdocs serve --watch-theme
 
 # Launch the docs but dont run code examples
 docs:
   python -m webbrowser -t "http://127.0.0.1:8000/"
   AMLTK_DOCS_OFFLINE=true \
+    AMLTK_EXEC_DOCS=false \
+    AMLTK_DOC_RENDER_EXAMPLES=false \
     mkdocs serve --watch-theme
   # https://github.com/pawamoy/markdown-exec/issues/19
 

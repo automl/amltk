@@ -34,14 +34,13 @@ truthy_values = {"yes", "on", "true", "1"}
 
 @mkdocs.plugins.event_priority(100)
 def on_startup(**kwargs: Any):
-    disable = os.environ.get(RUN_CODE_BLOCKS_ENV_VAR, "no")
-    if disable.lower() in falsy_values:
+    run_code_blocks = os.environ.get(RUN_CODE_BLOCKS_ENV_VAR, "true")
+    if run_code_blocks.lower() not in truthy_values:
         logger.warning(
-            f"Disabling markdown-exec due to {RUN_CODE_BLOCKS_ENV_VAR}={disable}"
+            f"Disabling markdown-exec due to {RUN_CODE_BLOCKS_ENV_VAR}={run_code_blocks}"
             "\n.Use `just docs-full` to run and render examples.",
         )
         from markdown_exec.formatters import python
 
         setattr(python, "exec", _print_msg)
 
-falsy_values = {"", "no", "off", "false", "0"}
