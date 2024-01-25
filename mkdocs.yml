@@ -114,15 +114,15 @@ markdown_extensions:
 
 # These are files that are run when serving the docs.
 hooks:
-  # This prevents logging messages from poluting the doc build
-  - docs/prevent_info_messages.py
+  # This prevents logging messages from polluting the doc build
+  - docs/hooks/cleanup_log_output.py
   # This prevents markdown_exec (plugin) from executing code blocks
-  # dependant on environemnt variables. These env variables are
+  # dependant on environment variables. These env variables are
   # automatically set with the `justfile` commands to build docs
-  - docs/disable_markdown_exec.py
+  - docs/hooks/disable_markdown_exec.py
   # This hook simply prints the page being rendered for an easier time debugging
   # any issues with code in docs
-  - docs/debug_which_page_is_being_rendered.py
+  - docs/hooks/debug_which_page_is_being_rendered.py
 
 plugins:
   - search
