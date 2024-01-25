@@ -31,6 +31,9 @@ def on_pre_page(
     # NOTE: mkdocs says they're always normalized to be '/' seperated
     # which means this should work on windows as well.
     if page.file.src_uri == "guides/scheduling.md":
-        scheduling_logger = logging.getLogger("amltk.scheduling.scheduler")
+        scheduling_logger = logging.getLogger("amltk.scheduling.task")
         scheduling_logger.setLevel(logging.CRITICAL)
+
+    logging.getLogger("smac").setLevel(logging.ERROR)
+    logging.getLogger("openml").setLevel(logging.ERROR)
     return page
