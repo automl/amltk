@@ -270,7 +270,7 @@ class Example:
         )
 
 
-if os.environ.get(RUN_EXAMPLES_ENV_VAR, None) is None:
+if os.environ.get(RUN_EXAMPLES_ENV_VAR, "all") in ("false", "", "0", "no", "off"):
     logger.warning(
         f"Env variable {RUN_EXAMPLES_ENV_VAR} not set - not running examples."
         " Use `just docs-full` to run and render examples.",
