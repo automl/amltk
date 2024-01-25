@@ -120,6 +120,9 @@ hooks:
   # dependant on environemnt variables. These env variables are
   # automatically set with the `justfile` commands to build docs
   - docs/disable_markdown_exec.py
+  # This hook simply prints the page being rendered for an easier time debugging
+  # any issues with code in docs
+  - docs/debug_which_page_is_being_rendered.py
 
 plugins:
   - search

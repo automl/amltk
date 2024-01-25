@@ -5,7 +5,6 @@ from typing import Any
 import mkdocs
 import mkdocs.plugins
 import mkdocs.structure.pages
-import markdown_exec.formatters.python
 
 log = logging.getLogger("mkdocs")
 
