@@ -1,3 +1,7 @@
+/* If anything is breaking from this css, please feel free to
+* remove it.
+*/
+
 /* Highlight None with color  inside code blocks */
 code.highlight.language-python span.kc {
   color: var(--md-code-hl-keyword-color);
