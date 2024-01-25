@@ -2,7 +2,8 @@
 This speeds up the build of the docs for faster iteration.
 
 This is done by overwriting the module responsible for compiling and executing the code
-via overriding it `exec` global varialbe and hijacking it to print a message instead.
+by overriding the `exec(...)` global variable that is used to run the code.
+We hijack it and print a helpful message about how to run the code cell instead.
 
 https://github.com/pawamoy/markdown-exec/blob/adff40b2928dbb2d22f27684e085f02d39a07291/src/markdown_exec/formatters/python.py#L42-L70
 """
