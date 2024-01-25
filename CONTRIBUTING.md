@@ -49,6 +49,8 @@ just test
 
 # Run the documentation, fix any warnings
 just docs
+# just docs-code  # Run code and display output (slower)
+# just docs-full  # Run examples and code (slowest)
 
 # Run pre-commit checks
 just check
@@ -296,6 +298,9 @@ updating this is only required for larger changes.
 You can find a collection of features for custom
 documentation [here](https://squidfunk.github.io/mkdocs-material/reference/)
 as well as code reference documentation [here](https://mkdocstrings.github.io/usage/)
+
+You can find the entry point for the documentation infrastructure of `mkdocs`
+in `mkdocs.yml`.
 
 ### Viewing Documentation
 
