@@ -28,7 +28,11 @@ print(f"Score: {acc_value.score}")  # Something that can be maximized
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 from typing_extensions import Self, override
+
+if TYPE_CHECKING:
+    from sklearn.metrics._scorer import _BaseScorer
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,48 @@ class Metric:
                     f"Metric name {self.name} cannot contain '{c}'."
                     " Must be a valid Python identifier.",
                 )
+
+    @classmethod
+    def from_sklearn(
+        cls,
+        scorer: str | _BaseScorer,
+        *,
+        bounds: tuple[float, float] | None = None,
+        name: str | None = None,
+    ) -> Metric:
+        """Create a metric from a sklearn metric.
+
+        ```python exec="true" source="material-block" result="python"
+        from amltk.optimization import Metric
+
+        metric_acc = Metric.from_sklearn("accuracy")
+        metric_neg_log_loss = Metric.from_sklearn("neg_log_loss")
+
+        from sklearn.metrics import get_scorer
+
+        scorer = get_scorer("roc_auc")
+        metric_roc_auc = Metric.from_sklearn(scorer)
+        ```
+
+        Args:
+            scorer: The name of the sklearn scorer.
+            bounds: The bounds of the metric, if any.
+                By default, we will do a lookup of known scorers to get
+                their bounds. If not specified and no bounds are found,
+                a warning will be raised.
+            name: The name to give the metric specifically. By default,
+                it will use the `scorer`. If `scorer` is a string, it will
+                use that string, otherwise it will use the name of the
+                scorer function, appending `neg_` to make
+                `neg_{scorer.func.__name__}`. This is to make it match
+                the sklearn `get_scorer()`.
+
+        Returns:
+            The metric.
+        """
+        from amltk.sklearn.metrics import as_metric
+
+        return as_metric(scorer=scorer, bounds=bounds, name=name)
 
     @override
     def __str__(self) -> str:
