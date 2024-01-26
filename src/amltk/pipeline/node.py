@@ -1123,7 +1123,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         if threadpool_limit_ctl is not False:
             from amltk.scheduling.plugins.threadpoolctl import ThreadPoolCTLPlugin
 
-            plugins = (*_plugins, ThreadPoolCTLPlugin(threadpool_limit_ctl))
+            _plugins = (*_plugins, ThreadPoolCTLPlugin(threadpool_limit_ctl))
 
         match max_trials:
             case None:
