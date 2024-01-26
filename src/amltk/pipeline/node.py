@@ -44,6 +44,7 @@ import warnings
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -878,75 +879,7 @@ class Node(RichRenderable, Generic[Item, Space]):
 
         return new_config
 
-    @overload
-    def optimize(
-        self,
-        target: (
-            Callable[[Trial, Node], Trial.Report]
-            | Task[[Trial, Node], Trial.Report]
-            | EvaluationProtocol
-        ),
-        metric: Metric | Sequence[Metric],
-        *,
-        # With setup_only, we return a Scheduler and the `run()` arguments
-        # will be ignored
-        setup_only: Literal[True],
-        # `scheduler.run()`
-        # * display: bool = True,
-        # * wait: bool = True,
-        # * on_scheduler_exception: Literal["raise", "end", "continue"] = "raise",
-        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = ...,
-        seed: Seed | None = ...,
-        working_dir: str | Path | PathBucket | None = ...,
-        plugins: Plugin | Iterable[Plugin] | None = ...,
-        n_workers: int = ...,
-        scheduler: Scheduler | None = ...,
-        history: History | None = ...,
-        max_trials: int | None = ...,
-        on_trial_exception: Literal["raise", "end", "continue"] = "raise",
-        process_memory_limit: int | tuple[int, str] | None = ...,
-        process_walltime_limit: int | tuple[float, str] | None = ...,
-        process_cputime_limit: int | tuple[float, str] | None = ...,
-        threadpool_limit_ctl: bool | None = ...,
-        on_begin: OnBeginCallbackSignature | None = ...,
-    ) -> Scheduler:
-        ...
-
-    @overload
-    def optimize(
-        self,
-        target: (
-            Callable[[Trial, Node], Trial.Report]
-            | Task[[Trial, Node], Trial.Report]
-            | EvaluationProtocol
-        ),
-        metric: Metric | Sequence[Metric],
-        *,
-        # If setup only is false (default), we use `run()` arguments and will
-        # just return the history
-        setup_only: Literal[False] = False,
-        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = ...,
-        seed: Seed | None = ...,
-        timeout: float = ...,
-        working_dir: str | Path | PathBucket | None = ...,
-        plugins: Plugin | Iterable[Plugin] | None = ...,
-        n_workers: int = ...,
-        scheduler: Scheduler | None = ...,
-        history: History | None = ...,
-        max_trials: int | None = ...,
-        on_trial_exception: Literal["raise", "end", "continue"] = "raise",
-        process_memory_limit: int | tuple[int, str] | None = ...,
-        process_walltime_limit: int | tuple[float, str] | None = ...,
-        process_cputime_limit: int | tuple[float, str] | None = ...,
-        on_begin: OnBeginCallbackSignature | None = ...,
-        display: bool = ...,
-        wait: bool = ...,
-        threadpool_limit_ctl: bool | None = ...,
-        on_scheduler_exception: Literal["raise", "end", "continue"] = ...,
-    ) -> History:
-        ...
-
-    def optimize(  # noqa: C901, PLR0915, PLR0912
+    def register_optimization_loop(  # noqa: C901, PLR0915, PLR0912
         self,
         target: (
             EvaluationProtocol
@@ -959,7 +892,6 @@ class Node(RichRenderable, Generic[Item, Space]):
         seed: Seed | None = None,
         max_trials: int | None = 3,
         n_workers: int = 1,
-        timeout: float | None = None,
         working_dir: str | Path | PathBucket | None = None,
         scheduler: Scheduler | None = None,
         history: History | None = None,
@@ -971,14 +903,8 @@ class Node(RichRenderable, Generic[Item, Space]):
         process_walltime_limit: int | tuple[float, str] | None = None,
         process_cputime_limit: int | tuple[float, str] | None = None,
         threadpool_limit_ctl: bool | int | None = None,
-        # `scheduler.run()` arguments used if `setup_only` == False
-        setup_only: bool = False,
-        display: bool = True,
-        wait: bool = True,
-        on_scheduler_exception: Literal["raise", "end", "continue"] = "raise",
-        #
-    ) -> History | Scheduler:
-        """Optimize a pipeline on a given target function or evaluation protocol.
+    ) -> Scheduler:
+        """Setup a pipeline to be optimized in a loop.
 
         Args:
             target:
@@ -1020,28 +946,6 @@ class Node(RichRenderable, Generic[Item, Space]):
                 If you provide your own `scheduler=` then this will limit the maximum
                 amount of concurrent trials for this pipeline that will be evaluating
                 at once.
-            timeout:
-                How long to run the scheduler for. This parameter only takes
-                effect if `setup_only=False` which is the default. Otherwise,
-                it will be ignored.
-            display:
-                Whether to display the scheduler during running. This may
-                work poorly if including print statements or logging.
-            wait:
-                Whether to wait for the scheduler to finish all pending jobs
-                if was stopped for any reason, e.g. a `timeout=` or
-                [`scheduler.stop()`][amltk.scheduling.Scheduler.stop] was called.
-            on_scheduler_exception:
-                What to do if an exception occured, either in the submitted task,
-                the callback, or any other unknown source during the loop.
-
-                * If `#!python "raise"`, then the exception will be raised
-                immediatly and the optimization process will halt. The default
-                behavior and good for initial development.
-                * If `#!python "end"`, then the exception will be caught and
-                the optimization process will end gracefully.
-                * If `#!python "continue"`, the exception will be ignored and
-                the optimization procedure will continue.
             working_dir:
                 A working directory to use for the optimizer and the trials.
                 Any items you store in trials will be located in this directory,
@@ -1133,13 +1037,6 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the [`Scheduler`][amltk.scheduling.Scheduler]. Please
                 refer to the
                 [plugins reference](../../../reference/scheduling/plugins.md) for more.
-            setup_only:
-                Whether to only perform setup of the optimization but do
-                not call [`scheduler.run()`][amltk.scheduling.Scheduler.run].
-                This can be useful when you'd like to setup multiple pipelines to
-                optimize or building more complex optimization procedures.
-                When `True`, the `scheduler=` that was passed in or the one
-                created will be returned instead of the history.
         """  # noqa: E501
         match history:
             case None:
@@ -1328,10 +1225,8 @@ class Node(RichRenderable, Generic[Item, Space]):
         task = target.task(scheduler=scheduler, plugins=plugins)
 
         if on_begin is not None:
-
-            @scheduler.on_start
-            def call_on_begin_hook() -> None:
-                on_begin(task, scheduler, history)
+            hook = partial(on_begin, task, scheduler, history)
+            scheduler.on_start(hook)
 
         @scheduler.on_start
         def launch_initial_trials() -> None:
@@ -1372,9 +1267,220 @@ class Node(RichRenderable, Generic[Item, Space]):
                 trial = _optimizer.ask()
                 task.submit(trial, self)
 
-        if setup_only:
-            return scheduler
+        return scheduler
 
+    def optimize(
+        self,
+        target: (
+            EvaluationProtocol
+            | Callable[[Trial, Node], Trial.Report]
+            | Task[[Trial, Node], Trial.Report]
+        ),
+        metric: Metric | Sequence[Metric],
+        *,
+        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
+        seed: Seed | None = None,
+        max_trials: int | None = 3,
+        n_workers: int = 1,
+        timeout: float | None = None,
+        working_dir: str | Path | PathBucket | None = None,
+        scheduler: Scheduler | None = None,
+        history: History | None = None,
+        on_begin: OnBeginCallbackSignature | None = None,
+        on_trial_exception: Literal["raise", "end", "continue"] = "raise",
+        # Plugin creating arguments
+        plugins: Plugin | Iterable[Plugin] | None = None,
+        process_memory_limit: int | tuple[int, str] | None = None,
+        process_walltime_limit: int | tuple[float, str] | None = None,
+        process_cputime_limit: int | tuple[float, str] | None = None,
+        threadpool_limit_ctl: bool | int | None = None,
+        # `scheduler.run()` arguments
+        display: bool = True,
+        wait: bool = True,
+        on_scheduler_exception: Literal["raise", "end", "continue"] = "raise",
+    ) -> History:
+        """Optimize a pipeline on a given target function or evaluation protocol.
+
+        Args:
+            target:
+                The function against which to optimize.
+
+                * If `target` is an
+                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
+                then it will be used to evaluate the pipeline.
+
+                * If `target` is a function, then it must take in a
+                [`Trial`][amltk.optimization.trial.Trial] as the first argument
+                and a [`Node`][amltk.pipeline.node.Node] second argument, returning a
+                [`Trial.Report`][amltk.optimization.trial.Trial.Report]. Please refer to
+                the [optimization guide](../../../guides/optimization.md) for more.
+
+                * If `target` is a [`Task`][amltk.scheduling.task.Task], then
+                this is not implemeneted yet. Sorry
+            metric:
+                The metric(s) that will be passed to `optimizer=`. These metrics
+                should align with what is being computed in `target=`.
+            optimizer:
+                The optimizer to use. If `None`, then AMLTK will go through a list
+                of known optimizers and use the first one it can find which was installed.
+
+                Alternatively, this can be a class inheriting from
+                [`Optimizer`][amltk.optimization.optimizer.Optimizer] or else
+                a signature match [`Optimizer.CreateSignature`][amltk.optimization.Optimizer.CreateSignature]
+
+                ??? tip "`Optimizer.CreateSignature`"
+
+                    ::: amltk.optimization.Optimizer.CreateSignature
+
+            seed:
+                A [`seed`][amltk.types.Seed] for the optimizer to use.
+            n_workers:
+                The numer of workers to use to evaluate this pipeline.
+                If no `scheduler=` is provided, then one will be created for
+                you as [`Scheduler.with_processes(n_workers)`][amltk.scheduling.Scheduler.with_processes].
+                If you provide your own `scheduler=` then this will limit the maximum
+                amount of concurrent trials for this pipeline that will be evaluating
+                at once.
+            timeout:
+                How long to run the scheduler for. This parameter only takes
+                effect if `setup_only=False` which is the default. Otherwise,
+                it will be ignored.
+            display:
+                Whether to display the scheduler during running. This may
+                work poorly if including print statements or logging.
+            wait:
+                Whether to wait for the scheduler to finish all pending jobs
+                if was stopped for any reason, e.g. a `timeout=` or
+                [`scheduler.stop()`][amltk.scheduling.Scheduler.stop] was called.
+            on_scheduler_exception:
+                What to do if an exception occured, either in the submitted task,
+                the callback, or any other unknown source during the loop.
+
+                * If `#!python "raise"`, then the exception will be raised
+                immediatly and the optimization process will halt. The default
+                behavior and good for initial development.
+                * If `#!python "end"`, then the exception will be caught and
+                the optimization process will end gracefully.
+                * If `#!python "continue"`, the exception will be ignored and
+                the optimization procedure will continue.
+            working_dir:
+                A working directory to use for the optimizer and the trials.
+                Any items you store in trials will be located in this directory,
+                where the [`trial.name`][amltk.optimization.Trial.name] will be
+                used as a subfolder where any contents stored with
+                [`trial.store()`][amltk.optimization.trial.Trial.store] will be put there.
+                Please see the [optimization guide](../../../guides/optimization.md)
+                for more on trial storage.
+            scheduler:
+                The specific [`Scheduler`][amltk.scheduling.Scheduler] to use.
+                If `None`, then one will be created for you with
+                [`Scheduler.with_processes(n_workers)`][amltk.scheduling.Scheduler.with_processes]
+            history:
+                A [`History`][amltk.optimization.history.History] to store the
+                [`Trial.Report`][amltk.optimization.Trial.Report]s in. You
+                may pass in your own if you wish for this method to store
+                it there instead of creating its own.
+            on_begin:
+                A callback that will be called before the scheduler is run. This
+                can be used to hook into the life-cycle of the optimization and
+                perform custom routines. Please see the
+                [scheduling guide](../../../guides/scheduling.md) for more.
+
+                ??? tip "on_begin signature"
+
+                    ::: amltk.pipeline.node.OnBeginCallbackSignature
+
+            on_trial_exception:
+                What to do when a trial raises an exception within its
+                [`with trial.begin():`][amltk.optimization.Trial.begin] block.
+                Please see the [optimization guide](../../../guides/optimization.md)
+                for more. In all cases, the exception will be attached to the
+                [`Trial.Report`][amltk.optimization.Trial.Report] object under
+                [`report.exception`][amltk.optimization.Trial.Report.exception].
+
+                * If `#!python "raise"`, then the exception will be raised
+                immediatly and the optimization process will halt. The default
+                and good for initial development.
+                * If `#!python "end"`, then the exception will be caught and
+                the optimization process will end gracefully.
+                * If `#!python "continue"`, the exception will be ignored and
+                the optimization procedure will continue.
+            max_trials:
+                The maximum number of trials to run. If `None`, then the
+                optimization will continue for as long as the scheduler is
+                running. You'll likely want to configure this.
+            process_memory_limit:
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
+                use the
+                [`PynisherPlugin`][amltk.scheduling.plugins.pynisher.PynisherPlugin]
+                to limit the memory the process can use. Please
+                refer to the
+                [plugins `pynisher` reference](../../../reference/scheduling/plugins.md#pynisher)
+                for more as there are platform limitations and additional
+                dependancies required.
+            process_walltime_limit:
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
+                use the
+                [`PynisherPlugin`][amltk.scheduling.plugins.pynisher.PynisherPlugin]
+                to limit the wall time the process can use. Please
+                refer to the
+                [plugins `pynisher` reference](../../../reference/scheduling/plugins.md#pynisher)
+                for more as there are platform limitations and additional
+                dependancies required.
+            process_cputime_limit:
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
+                use the
+                [`PynisherPlugin`][amltk.scheduling.plugins.pynisher.PynisherPlugin]
+                to limit the cputime the process can use. Please
+                refer to the
+                [plugins `pynisher` reference](../../../reference/scheduling/plugins.md#pynisher)
+                for more as there are platform limitations and additional
+                dependancies required.
+            threadpool_limit_ctl:
+                If specified, the [`Task`][amltk.scheduling.task.Task] will
+                use the
+                [`ThreadPoolCTLPlugin`][amltk.scheduling.plugins.threadpoolctl.ThreadPoolCTLPlugin]
+                to limit the number of threads used by compliant libraries.
+                **Notably**, this includes scikit-learn, for which running multiple
+                in parallel can be problematic if not adjusted accordingly.
+
+                The default behavior (when `None`) is to auto-detect whether this
+                is applicable. This is done by checking if `sklearn` is installed
+                and if the first node in the pipeline has a `BaseEstimator` item.
+                Please set this to `True`/`False` depending on your preference.
+            plugins:
+                Additional plugins to attach to the eventual
+                [`Task`][amltk.scheduling.task.Task] that will be executed by
+                the [`Scheduler`][amltk.scheduling.Scheduler]. Please
+                refer to the
+                [plugins reference](../../../reference/scheduling/plugins.md) for more.
+        """  # noqa: E501
+        match history:
+            case None:
+                history = History()
+            case History():
+                pass
+            case _:
+                raise ValueError(f"Invalid history {history}. Must be a History")
+
+        scheduler = self.register_optimization_loop(
+            target=target,
+            metric=metric,
+            optimizer=optimizer,
+            seed=seed,
+            max_trials=max_trials,
+            n_workers=n_workers,
+            working_dir=working_dir,
+            scheduler=scheduler,
+            history=history,
+            on_begin=on_begin,
+            on_trial_exception=on_trial_exception,
+            plugins=plugins,
+            process_memory_limit=process_memory_limit,
+            process_walltime_limit=process_walltime_limit,
+            process_cputime_limit=process_cputime_limit,
+            threadpool_limit_ctl=threadpool_limit_ctl,
+        )
         scheduler.run(
             wait=wait,
             timeout=timeout,
