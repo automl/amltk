@@ -1222,7 +1222,7 @@ class Node(RichRenderable, Generic[Item, Space]):
             seed=seed,
         )
 
-        task = target.task(scheduler=scheduler, plugins=plugins)
+        task = target.task(scheduler=scheduler, plugins=_plugins)
 
         if on_begin is not None:
             hook = partial(on_begin, task, scheduler, history)
@@ -1295,7 +1295,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         process_cputime_limit: int | tuple[float, str] | None = None,
         threadpool_limit_ctl: bool | int | None = None,
         # `scheduler.run()` arguments
-        display: bool = True,
+        display: bool | Literal["auto"] = "auto",
         wait: bool = True,
         on_scheduler_exception: Literal["raise", "end", "continue"] = "raise",
     ) -> History:
@@ -1346,8 +1346,12 @@ class Node(RichRenderable, Generic[Item, Space]):
                 effect if `setup_only=False` which is the default. Otherwise,
                 it will be ignored.
             display:
-                Whether to display the scheduler during running. This may
-                work poorly if including print statements or logging.
+                Whether to display the scheduler during running. By default
+                it is `"auto"` which means to enable the display if running
+                in a juptyer notebook or colab. Otherwise, it will be
+                `False`.
+
+                This may work poorly if including print statements or logging.
             wait:
                 Whether to wait for the scheduler to finish all pending jobs
                 if was stopped for any reason, e.g. a `timeout=` or
