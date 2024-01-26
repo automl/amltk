@@ -1,3 +1,9 @@
+## 1.10.0 (2024-01-26)
+
+### Feat
+
+- **Pipeline**: Optimize pipelines directly with `optimize()` (#230)
+
 ## 1.9.0 (2024-01-26)
 
 ### Feat
