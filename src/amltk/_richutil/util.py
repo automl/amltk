@@ -3,6 +3,7 @@
 # where rich not being installed.
 from __future__ import annotations
 
+import os
 from concurrent.futures import ProcessPoolExecutor
 from typing import TYPE_CHECKING, Any
 
@@ -70,3 +71,25 @@ def df_to_table(
         table.add_row(str(index), *[str(cell) for cell in row])
 
     return table
+
+
+def is_jupyter() -> bool:
+    """Return True if running in a Jupyter environment."""
+    # https://github.com/Textualize/rich/blob/fd981823644ccf50d685ac9c0cfe8e1e56c9dd35/rich/console.py#L518-L535
+    try:
+        get_ipython  # type: ignore[name-defined]  # noqa: B018
+    except NameError:
+        return False
+    ipython = get_ipython()  # type: ignore[name-defined]  # noqa: F821
+    shell = ipython.__class__.__name__
+    if (
+        "google.colab" in str(ipython.__class__)
+        or os.getenv("DATABRICKS_RUNTIME_VERSION")
+        or shell == "ZMQInteractiveShell"
+    ):
+        return True  # Jupyter notebook or qtconsole
+
+    if shell == "TerminalInteractiveShell":
+        return False  # Terminal running IPython
+
+    return False  # Other type (?)
