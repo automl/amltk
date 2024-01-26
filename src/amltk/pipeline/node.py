@@ -160,6 +160,7 @@ class Node(RichRenderable, Generic[Item, Space]):
 
     fidelities: Mapping[str, Any] | None = field(hash=False)
     """The fidelities for this node"""
+
     config_transform: Callable[[Config, Any], Config] | None = field(hash=False)
     """A function that transforms the configuration of this node"""
 
@@ -173,7 +174,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         panel_color="default",
         node_orientation="horizontal",
     )
-    """Options for rich printing"""
+    """How to display this node in rich."""
 
     def __init__(
         self,
@@ -186,7 +187,18 @@ class Node(RichRenderable, Generic[Item, Space]):
         config_transform: Callable[[Config, Any], Config] | None = None,
         meta: Mapping[str, Any] | None = None,
     ):
-        """Initialize a choice."""
+        """Initialize a choice.
+
+        Args:
+            nodes: The nodes that this node leads to
+            name: The name of the node
+            item: The item attached to this node
+            config: The configuration for this node
+            space: The search space for this node
+            fidelities: The fidelities for this node
+            config_transform: A function that transforms the configuration of this node
+            meta: Any meta information about this node
+        """
         super().__init__()
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "item", item)
@@ -198,7 +210,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         object.__setattr__(self, "nodes", nodes)
 
     def __getitem__(self, key: str) -> Node:
-        """Get the node with the given name."""
+        """Get the first from [`.nodes`][amltk.pipeline.node.Node.nodes] with `key`."""
         found = first_true(
             self.nodes,
             None,

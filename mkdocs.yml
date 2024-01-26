@@ -1,3 +1,17 @@
+# This project uses mkdocs to generate the documentation.
+# Specifically it uses the mkdocs-material theme, which provides a whole
+# host of nice features and customization
+#
+# mkdocs: https://www.mkdocs.org/getting-started/#getting-started-with-mkdocs
+# mkdocs-material: https://squidfunk.github.io/mkdocs-material/
+#
+# Please refer to these links for more information on how to use mkdocs
+#
+# For serving the docs locally, you can take a look at the `justfile` at
+# the root of this repository, it contains a few commands for generating the docs
+# with different levels of execution.
+#
+# Please refer to individual sections for any additional notes
 site_name: "AutoML-Toolkit"
 repo_url: https://github.com/automl/amltk/
 repo_name: automl/amltk
@@ -12,10 +26,11 @@ theme:
     - content.code.annotate
     - content.code.copy
     - navigation.footer
+    - navigation.sections
+    - toc.follow
+    - toc.integrate
     - navigation.tabs
     - navigation.tabs.sticky
-    - navigation.expand
-    - toc.follow
     - header.autohide
     - search.suggest
     - search.highlight
@@ -42,6 +57,10 @@ theme:
         name: Switch to dark mode
 
 
+# The `mike` versioning provider
+# https://github.com/jimporter/mike
+#
+# This is what allows us to create versioned docs in the github cli
 extra:
   version:
     provider: mike
@@ -51,6 +70,9 @@ extra:
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/automl_org
 
+# We do have some extra custom css
+# If for whatever reason you think this is breaking something,
+# please feel free to remove it.
 extra_css:
   - stylesheets/custom.css
 
@@ -90,6 +112,18 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
+# These are files that are run when serving the docs.
+hooks:
+  # This prevents logging messages from polluting the doc build
+  - docs/hooks/cleanup_log_output.py
+  # This prevents markdown_exec (plugin) from executing code blocks
+  # dependant on environment variables. These env variables are
+  # automatically set with the `justfile` commands to build docs
+  - docs/hooks/disable_markdown_exec.py
+  # This hook simply prints the page being rendered for an easier time debugging
+  # any issues with code in docs
+  - docs/hooks/debug_which_page_is_being_rendered.py
+
 plugins:
   - search
   - autorefs
@@ -111,10 +145,10 @@ plugins:
   - mkdocstrings:
       default_handler: python
       enable_inventory: true
-      custom_templates: docs/_templates
       handlers:
         python:
           paths: [src]
+          # Extra objects which allow for linking to external docs
           import:
             - 'https://docs.python.org/3/objects.inv'
             - 'https://numpy.org/doc/stable/objects.inv'
@@ -123,31 +157,37 @@ plugins:
             - 'https://scikit-learn.org/stable/objects.inv'
             - 'https://pytorch.org/docs/stable/objects.inv'
             - 'https://jobqueue.dask.org/en/latest/objects.inv'
+          # Please do not try to change these without having
+          # looked at all of the documentation and seeing if it
+          # causes the API docs to look weird anywhere.
           options:  # https://mkdocstrings.github.io/python/usage/
             docstring_section_style: spacy
             docstring_options:
               ignore_init_summary: true
               trim_doctest_flags: true
+              returns_multiple_items: false
             show_docstring_attributes: true
             show_docstring_description: true
-            show_root_heading: false
-            show_root_toc_entry: false
+            show_root_heading: true
+            show_root_toc_entry: true
             show_object_full_path: false
+            show_root_members_full_path: false
+            signature_crossrefs: true
             merge_init_into_class: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
             docstring_style: google
+            inherited_members: true
             show_if_no_docstring: false
             show_bases: true
             show_source: true
-            members_order: "source"
-            # Would like to set `group_by_category` to false
-            # https://github.com/mkdocstrings/mkdocstrings/issues/579
+            members_order: "alphabetical"
             group_by_category: true
             show_signature: true
-            separate_signature: false
-            show_signature_annotations: false
+            separate_signature: true
+            show_signature_annotations: true
             filters:
               - "!^_[^_]"
-              - "_sample"  # Kind of a hack to have this render a private method
 
 nav:
   - Home: "index.md"
@@ -187,4 +227,5 @@ nav:
     # Auto generated with docs/api_generator.py
   - API: "api/"
   - Contributing: "contributing.md"
+  - What's New?: "changelog.md"
 
