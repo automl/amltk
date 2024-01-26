@@ -1,3 +1,13 @@
+## 1.9.0 (2024-01-26)
+
+### Feat
+
+- **Optimizer**: Allow for batch ask requests (#224)
+
+### Fix
+
+- **Pynisher**: Ensure system supports limit (#223)
+
 ## 1.8.0 (2024-01-22)
 
 ### Feat
