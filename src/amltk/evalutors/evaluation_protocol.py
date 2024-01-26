@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class EvaluationProtocol:
-    """A protocol for how a trial and a pipeline should be evaluated."""
+    """A protocol for how a trial should be evaluated on a pipeline."""
 
     fn: Callable[[Trial, Node], Trial.Report]
 
