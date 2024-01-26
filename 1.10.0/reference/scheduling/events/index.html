@@ -1,0 +1,4017 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../queue_monitor/">
+      
+      
+        <link rel="next" href="../../pipelines/pipeline/">
+      
+      
+      <link rel="icon" href="../../../assets/automl_org.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.5">
+    
+    
+      
+        <title>Events - AutoML-Toolkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.50c56a3b.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_markdown_exec_pyodide.css">
+    
+      <link rel="stylesheet" href="../../../assets/_markdown_exec_ansi.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/custom.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+   <link href="../../../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: white; }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../../../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="deep-purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#events" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="AutoML-Toolkit" class="md-header__button md-logo" aria-label="AutoML-Toolkit" data-md-component="logo">
+      
+  <img src="../../../assets/automl_org.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AutoML-Toolkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Events
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="deep-purple"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 9a3 3 0 0 1 3 3 3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1 3-3m0-4.5c5 0 9.27 3.11 11 7.5-1.73 4.39-6 7.5-11 7.5S2.73 16.39 1 12c1.73-4.39 6-7.5 11-7.5M3.18 12a9.821 9.821 0 0 0 17.64 0 9.821 9.821 0 0 0-17.64 0Z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7 0-.24-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91 1.61 0 2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08Z"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/automl/amltk/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    automl/amltk
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../guides/" class="md-tabs__link">
+          
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../examples/" class="md-tabs__link">
+          
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../api/" class="md-tabs__link">
+          
+  
+  API
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../contributing/" class="md-tabs__link">
+        
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../changelog/" class="md-tabs__link">
+        
+  
+    
+  
+  What's New?
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="AutoML-Toolkit" class="md-nav__button md-logo" aria-label="AutoML-Toolkit" data-md-component="logo">
+      
+  <img src="../../../assets/automl_org.png" alt="logo">
+
+    </a>
+    AutoML-Toolkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/automl/amltk/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    automl/amltk
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Guides
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Guides
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Index
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/optimization/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Optimization Guide
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/pipelines/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pipelines Guide
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../guides/scheduling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scheduling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Scheduling
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Scheduling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduler/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scheduler
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../executors/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Executors
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../task/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Task
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugins/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Plugins
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../queue_monitor/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queue monitor
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Events
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Events
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      Events
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#amltk.scheduling.events" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;events
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amltk.scheduling.events--emitter-subscribers-and-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      Emitter, Subscribers and Events
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Pipelines
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Pipelines
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pipelines/pipeline/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pipeline
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pipelines/spaces/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Spaces
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../pipelines/builders/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Builders
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Optimization
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            Optimization
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/metrics/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metrics
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/optimizers/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Optimizers
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/trials/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trials
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/history/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    History
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimization/profiling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Profiling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Data
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            Data
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Data
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data/buckets/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Buckets
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Meta-Learning
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            Meta-Learning
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../metalearning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metalearning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Examples
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Index
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/dask-jobqueue/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Using the Scheduler with SLURM (dask-jobqueue)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/hpo/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    HPO
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/hpo_with_ensembling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performing HPO with Post-Hoc Ensembling.
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    API
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            API
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Index
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+      
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Amltk
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            Amltk
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/distances/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Distances
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/exceptions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Exceptions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/options/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Options
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/randomness/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Randomness
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/types/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Types
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_6" id="__nav_5_2_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Data
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            Data
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/data/conversions/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Conversions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/data/dtype_reduction/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dtype reduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/data/measure/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Measure
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_7" id="__nav_5_2_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Ensembling
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            Ensembling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/ensembling/weighted_ensemble_caruana/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Weighted ensemble caruana
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_8" id="__nav_5_2_8_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Evalutors
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_8">
+            <span class="md-nav__icon md-icon"></span>
+            Evalutors
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/evalutors/evaluation_protocol/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evaluation protocol
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_9" id="__nav_5_2_9_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Metalearning
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_9">
+            <span class="md-nav__icon md-icon"></span>
+            Metalearning
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/metalearning/dataset_distances/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataset distances
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/metalearning/metafeatures/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metafeatures
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/metalearning/portfolio/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Portfolio
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_10" id="__nav_5_2_10_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Optimization
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_10">
+            <span class="md-nav__icon md-icon"></span>
+            Optimization
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/history/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    History
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/metric/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Metric
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/optimizer/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Optimizer
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/trial/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Trial
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_10_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_10_5" id="__nav_5_2_10_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Optimizers
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_2_10_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_10_5">
+            <span class="md-nav__icon md-icon"></span>
+            Optimizers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/optimizers/neps/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Neps
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/optimizers/optuna/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Optuna
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/optimization/optimizers/smac/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Smac
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_11" id="__nav_5_2_11_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Pipeline
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_11">
+            <span class="md-nav__icon md-icon"></span>
+            Pipeline
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/components/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Components
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/node/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Node
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/ops/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Ops
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/xgboost/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Xgboost
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_11_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_11_5" id="__nav_5_2_11_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Builders
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_2_11_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_11_5">
+            <span class="md-nav__icon md-icon"></span>
+            Builders
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/builders/sklearn/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sklearn
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_11_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_11_6" id="__nav_5_2_11_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Parsers
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_2_11_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_11_6">
+            <span class="md-nav__icon md-icon"></span>
+            Parsers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/parsers/configspace/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Configspace
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/pipeline/parsers/optuna/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Optuna
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_12" id="__nav_5_2_12_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Profiling
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_12">
+            <span class="md-nav__icon md-icon"></span>
+            Profiling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/profiling/memory/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Memory
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/profiling/profiler/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Profiler
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/profiling/timing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Timing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_13" id="__nav_5_2_13_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Scheduling
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_13">
+            <span class="md-nav__icon md-icon"></span>
+            Scheduling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/events/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Events
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/queue_monitor/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queue monitor
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/scheduler/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scheduler
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/task/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Task
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/termination_strategies/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Termination strategies
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_13_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_13_6" id="__nav_5_2_13_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Executors
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_2_13_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_13_6">
+            <span class="md-nav__icon md-icon"></span>
+            Executors
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/executors/dask_jobqueue/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dask jobqueue
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/executors/sequential_executor/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Sequential executor
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_13_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_13_7" id="__nav_5_2_13_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Plugins
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_2_13_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_13_7">
+            <span class="md-nav__icon md-icon"></span>
+            Plugins
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/comm/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Comm
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/emissions_tracker_plugin/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Emissions tracker plugin
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/limiter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Limiter
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/plugin/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Plugin
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/pynisher/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pynisher
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/threadpoolctl/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Threadpoolctl
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/wandb/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Wandb
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/scheduling/plugins/warning_filter/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Warning filter
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_14" id="__nav_5_2_14_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Sklearn
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_14">
+            <span class="md-nav__icon md-icon"></span>
+            Sklearn
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/sklearn/data/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Data
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/sklearn/estimators/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Estimators
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/sklearn/voting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Voting
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_15" id="__nav_5_2_15_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Store
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_15">
+            <span class="md-nav__icon md-icon"></span>
+            Store
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/store/bucket/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Bucket
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/store/drop/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drop
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/store/loader/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Loader
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/store/stored_value/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Stored value
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_15_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_15_5" id="__nav_5_2_15_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Paths
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_2_15_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_15_5">
+            <span class="md-nav__icon md-icon"></span>
+            Paths
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/store/paths/path_bucket/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Path bucket
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/amltk/store/paths/path_loaders/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Path loaders
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../contributing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Contributing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    What's New?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+  <h1>Events</h1>
+
+<h2 id="events">Events<a class="headerlink" href="#events" title="Permanent link">#</a></h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="amltk.scheduling.events" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>          <span class="doc doc-object-name doc-module-name">amltk.scheduling.events</span>
+
+
+<a href="#amltk.scheduling.events" class="headerlink" title="Permanent link">#</a></h2>
+
+  <div class="doc doc-contents first">
+  
+      <p>One of the primary ways to respond to <code>@events</code> emitted
+with by a <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/task/#amltk.scheduling.task.Task"><code>Task</code></a>
+the <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/scheduler/#amltk.scheduling.scheduler.Scheduler"><code>Scheduler</code></a>
+is through use of a <strong>callback</strong>.</p>
+<p>The reason for this is to enable an easier time for API's to utilize
+multiprocessing and remote compute from the <code>Scheduler</code>, without having
+to burden users with knowing the details of how to use multiprocessing.</p>
+<p>A callback subscribes to some event using a decorator but can also be done in
+a functional style if preferred. The below example is based on the
+event <a class="autorefs autorefs-internal" href="../scheduler/#amltk.scheduling.Scheduler.on_start"><code>@scheduler.on_start</code></a> but
+the same applies to all events.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="amltk.scheduling.events--__tabbed_1_1" name="amltk.scheduling.events--__tabbed_1" type="radio" /><input id="amltk.scheduling.events--__tabbed_1_2" name="amltk.scheduling.events--__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="amltk.scheduling.events--__tabbed_1_1">Decorators</label><label for="amltk.scheduling.events--__tabbed_1_2">Functional</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Scheduler</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">with_processes</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_start</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">def</span> <span class="nf">print_hello</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<div class="result">
+<p>hello
+
+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;font-size:0.7rem">
+<code style="font-family:inherit"><span style="color: #800080; text-decoration-color: #800080">╭─</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold"> Scheduler </span><span style="color: #800080; text-decoration-color: #800080">──────────────────────────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span> <span style="font-weight: bold"> Executor                  Queue: (</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">0</span><span style="font-weight: bold">)                                       </span> <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╭─ ProcessPoolExecutor─╮                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  │ <span style="font-weight: bold">{</span><span style="color: #008000; text-decoration-color: #008000">&#x27;max_workers&#x27;</span>: <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">1</span><span style="font-weight: bold">}</span>   │                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╰──────────────────────╯                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">╰──────────────────────────────────────────────────────────────────────────────╯</span>
+<span style="color: #800080; text-decoration-color: #800080">┗━━ </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_empty</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_start</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">print_hello</span><span style="font-weight: bold">()</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">1</span><span style="font-style: italic">)</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finishing</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finished</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_stop</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_timeout</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_submitted</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_done</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_cancelled</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_exception</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_result</span>
+</code>
+</pre>
+
+</p>
+</div><div class="markdown-exec"></div>
+</p>
+</div>
+<div class="tabbed-block">
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Scheduler</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">with_processes</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">def</span> <span class="nf">print_hello</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">on_start</span><span class="p">(</span><span class="n">print_hello</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<div class="result">
+<p>hello
+
+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;font-size:0.7rem">
+<code style="font-family:inherit"><span style="color: #800080; text-decoration-color: #800080">╭─</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold"> Scheduler </span><span style="color: #800080; text-decoration-color: #800080">──────────────────────────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span> <span style="font-weight: bold"> Executor                  Queue: (</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">0</span><span style="font-weight: bold">)                                       </span> <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╭─ ProcessPoolExecutor─╮                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  │ <span style="font-weight: bold">{</span><span style="color: #008000; text-decoration-color: #008000">&#x27;max_workers&#x27;</span>: <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">1</span><span style="font-weight: bold">}</span>   │                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╰──────────────────────╯                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">╰──────────────────────────────────────────────────────────────────────────────╯</span>
+<span style="color: #800080; text-decoration-color: #800080">┗━━ </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_empty</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_start</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">print_hello</span><span style="font-weight: bold">()</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">1</span><span style="font-style: italic">)</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finishing</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finished</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_stop</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_timeout</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_submitted</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_done</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_cancelled</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_exception</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_result</span>
+</code>
+</pre>
+
+</p>
+</div><div class="markdown-exec"></div>
+</p>
+</div>
+</div>
+</div>
+<p>There are a number of ways to customize the behaviour of these callbacks, notably
+to control how often they get called and when they get called.</p>
+<details class="tip">
+<summary>Callback customization</summary>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:4"><input checked="checked" id="amltk.scheduling.events--__tabbed_2_1" name="amltk.scheduling.events--__tabbed_2" type="radio" /><input id="amltk.scheduling.events--__tabbed_2_2" name="amltk.scheduling.events--__tabbed_2" type="radio" /><input id="amltk.scheduling.events--__tabbed_2_3" name="amltk.scheduling.events--__tabbed_2" type="radio" /><input id="amltk.scheduling.events--__tabbed_2_4" name="amltk.scheduling.events--__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="amltk.scheduling.events--__tabbed_2_1"><code>on('event', repeat=...)</code></label><label for="amltk.scheduling.events--__tabbed_2_2"><code>on('event', max_calls=...)</code></label><label for="amltk.scheduling.events--__tabbed_2_3"><code>on('event', when=...)</code></label><label for="amltk.scheduling.events--__tabbed_2_4"><code>on('event', every=...)</code></label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>This will cause the callback to be called <code>repeat</code> times successively.
+This is most useful in combination with
+<a class="autorefs autorefs-internal" href="../scheduler/#amltk.scheduling.Scheduler.on_start"><code>@scheduler.on_start</code></a> to launch
+a number of tasks at the start of the scheduler.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">amltk</span> <span class="kn">import</span> <span class="n">Scheduler</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">N_WORKERS</span> <span class="o">=</span> <span class="mi">2</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mi">2</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">with_processes</span><span class="p">(</span><span class="n">N_WORKERS</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">task</span> <span class="o">=</span> <span class="n">scheduler</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="hll"><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_start</span><span class="p">(</span><span class="n">repeat</span><span class="o">=</span><span class="n">N_WORKERS</span><span class="p">)</span>
+</span><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="k">def</span> <span class="nf">on_start</span><span class="p">():</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">task</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<div class="result">
+<p>
+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;font-size:0.7rem">
+<code style="font-family:inherit"><span style="color: #800080; text-decoration-color: #800080">╭─</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold"> Scheduler </span><span style="color: #800080; text-decoration-color: #800080">──────────────────────────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span> <span style="font-weight: bold"> Executor                  Queue: (</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">0</span><span style="font-weight: bold">)                                       </span> <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╭─ ProcessPoolExecutor─╮                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  │ <span style="font-weight: bold">{</span><span style="color: #008000; text-decoration-color: #008000">&#x27;max_workers&#x27;</span>: <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">2</span><span style="font-weight: bold">}</span>   │                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╰──────────────────────╯                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">╰──────────────────────────────────────────────────────────────────────────────╯</span>
+<span style="color: #800080; text-decoration-color: #800080">┣━━ </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_empty</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_start</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">on_start</span><span style="font-weight: bold">()</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">2</span><span style="font-style: italic">)</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finishing</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finished</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_stop</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_timeout</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_submitted</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 2</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_done</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 2</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_cancelled</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_exception</span>
+<span style="color: #800080; text-decoration-color: #800080">┃   </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_result</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 2</span>
+<span style="color: #800080; text-decoration-color: #800080">┗━━ </span><span style="color: #00afd7; text-decoration-color: #00afd7">╭─ </span><span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">Task </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">f</span><span style="color: #00afd7; text-decoration-color: #00afd7; font-weight: bold">(</span><span style="color: #00afd7; text-decoration-color: #00afd7">x: </span><span style="color: #008000; text-decoration-color: #008000">&#x27;int&#x27;</span><span style="color: #00afd7; text-decoration-color: #00afd7; font-weight: bold">)</span><span style="color: #00afd7; text-decoration-color: #00afd7"> -&gt; </span><span style="color: #008000; text-decoration-color: #008000">&#x27;int&#x27;</span><span style="color: #00afd7; text-decoration-color: #00afd7"> ──────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #00afd7; text-decoration-color: #00afd7">│</span> <span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_submitted</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 2</span>                                                          <span style="color: #00afd7; text-decoration-color: #00afd7">│</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #00afd7; text-decoration-color: #00afd7">│</span> <span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_done</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 2</span>                                                               <span style="color: #00afd7; text-decoration-color: #00afd7">│</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #00afd7; text-decoration-color: #00afd7">│</span> <span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_result</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 2</span>                                                             <span style="color: #00afd7; text-decoration-color: #00afd7">│</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #00afd7; text-decoration-color: #00afd7">│</span> <span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_exception</span>                                                            <span style="color: #00afd7; text-decoration-color: #00afd7">│</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #00afd7; text-decoration-color: #00afd7">│</span> <span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_cancelled</span>                                                            <span style="color: #00afd7; text-decoration-color: #00afd7">│</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #00afd7; text-decoration-color: #00afd7">╰───────────────────────────── Ref: </span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">LmEdzfDN</span><span style="color: #00afd7; text-decoration-color: #00afd7"> ──────────────────────────────╯</span>
+</code>
+</pre>
+
+</p>
+</div><div class="markdown-exec"></div>
+</p>
+</div>
+<div class="tabbed-block">
+<p>Limit the number of times a callback can be called, after which, the callback
+will be ignored.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">asyncio</span> <span class="kn">import</span> <span class="n">Future</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Scheduler</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">with_processes</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">def</span> <span class="nf">expensive_function</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="k">return</span> <span class="n">x</span> <span class="o">**</span> <span class="mi">2</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_start</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">def</span> <span class="nf">submit_calculations</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">scheduler</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">expensive_function</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="hll"><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_future_result</span><span class="p">(</span><span class="n">max_calls</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+</span><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="k">def</span> <span class="nf">print_result</span><span class="p">(</span><span class="n">future</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">scheduler</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">expensive_function</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<div class="result">
+<p>
+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;font-size:0.7rem">
+<code style="font-family:inherit"><span style="color: #800080; text-decoration-color: #800080">╭─</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold"> Scheduler </span><span style="color: #800080; text-decoration-color: #800080">──────────────────────────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span> <span style="font-weight: bold"> Executor                  Queue: (</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">0</span><span style="font-weight: bold">)                                       </span> <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╭─ ProcessPoolExecutor─╮                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  │ <span style="font-weight: bold">{</span><span style="color: #008000; text-decoration-color: #008000">&#x27;max_workers&#x27;</span>: <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">2</span><span style="font-weight: bold">}</span>   │                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╰──────────────────────╯                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">╰──────────────────────────────────────────────────────────────────────────────╯</span>
+<span style="color: #800080; text-decoration-color: #800080">┗━━ </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_empty</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_start</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">submit_calculations</span><span style="font-weight: bold">()</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">1</span><span style="font-style: italic">)</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finishing</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finished</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_stop</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_timeout</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_submitted</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 4</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_done</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 4</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_cancelled</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_exception</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_result</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 4</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">print_result</span><span style="font-weight: bold">(</span>future, result<span style="font-weight: bold">)</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">3</span><span style="font-style: italic">)</span>
+</code>
+</pre>
+
+</p>
+</div><div class="markdown-exec"></div>
+</p>
+</div>
+<div class="tabbed-block">
+<p>A callable which takes no arguments and returns a <code>bool</code>. The callback
+will only be called when the <code>when</code> callable returns <code>True</code>.</p>
+<p>Below is a rather contrived example, but it shows how we can use the
+<code>when</code> parameter to control when the callback is called.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span> <span class="nn">random</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Scheduler</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">LOCALE</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;English&quot;</span><span class="p">,</span> <span class="s2">&quot;German&quot;</span><span class="p">])</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">with_processes</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="hll"><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_start</span><span class="p">(</span><span class="n">when</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">LOCALE</span> <span class="o">==</span> <span class="s2">&quot;English&quot;</span><span class="p">)</span>
+</span><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">def</span> <span class="nf">print_hello</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="hll"><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_start</span><span class="p">(</span><span class="n">when</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">LOCALE</span> <span class="o">==</span> <span class="s2">&quot;German&quot;</span><span class="p">)</span>
+</span><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">def</span> <span class="nf">print_guten_tag</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;guten tag&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<div class="result">
+<p>guten tag
+
+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;font-size:0.7rem">
+<code style="font-family:inherit"><span style="color: #800080; text-decoration-color: #800080">╭─</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold"> Scheduler </span><span style="color: #800080; text-decoration-color: #800080">──────────────────────────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span> <span style="font-weight: bold"> Executor                  Queue: (</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">0</span><span style="font-weight: bold">)                                       </span> <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╭─ ProcessPoolExecutor─╮                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  │ <span style="font-weight: bold">{</span><span style="color: #008000; text-decoration-color: #008000">&#x27;max_workers&#x27;</span>: <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">1</span><span style="font-weight: bold">}</span>   │                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╰──────────────────────╯                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">╰──────────────────────────────────────────────────────────────────────────────╯</span>
+<span style="color: #800080; text-decoration-color: #800080">┗━━ </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_empty</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_start</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>├── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">print_hello</span><span style="font-weight: bold">()</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">print_guten_tag</span><span style="font-weight: bold">()</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">1</span><span style="font-style: italic">)</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finishing</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finished</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 1</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_stop</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_timeout</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_submitted</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_done</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_cancelled</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_exception</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_result</span>
+</code>
+</pre>
+
+</p>
+</div><div class="markdown-exec"></div>
+</p>
+</div>
+<div class="tabbed-block">
+<p>Only call the callback every <code>every</code> times the event is emitted. This
+includes the first time it's called.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Scheduler</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="o">.</span><span class="n">with_processes</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Print &quot;hello&quot; only every 2 times the scheduler starts.</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="hll"><span class="nd">@scheduler</span><span class="o">.</span><span class="n">on_start</span><span class="p">(</span><span class="n">every</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</span><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">def</span> <span class="nf">print_hello</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;hello&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Run the scheduler 5 times</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<div class="result">
+<p>hello
+hello
+
+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace;font-size:0.7rem">
+<code style="font-family:inherit"><span style="color: #800080; text-decoration-color: #800080">╭─</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold"> Scheduler </span><span style="color: #800080; text-decoration-color: #800080">──────────────────────────────────────────────────────────────────╮</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span> <span style="font-weight: bold"> Executor                  Queue: (</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">0</span><span style="font-weight: bold">)                                       </span> <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╭─ ProcessPoolExecutor─╮                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  │ <span style="font-weight: bold">{</span><span style="color: #008000; text-decoration-color: #008000">&#x27;max_workers&#x27;</span>: <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">1</span><span style="font-weight: bold">}</span>   │                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>  ╰──────────────────────╯                                                    <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">│</span>                                                                              <span style="color: #800080; text-decoration-color: #800080">│</span>
+<span style="color: #800080; text-decoration-color: #800080">╰──────────────────────────────────────────────────────────────────────────────╯</span>
+<span style="color: #800080; text-decoration-color: #800080">┗━━ </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_empty</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 5</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_start</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 5</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span>└── <span style="color: #00ffff; text-decoration-color: #00ffff; font-style: italic">def </span><span style="color: #800000; text-decoration-color: #800000; font-weight: bold">print_hello</span><span style="font-weight: bold">()</span> -&gt; <span style="color: #008000; text-decoration-color: #008000">&#x27;None&#x27;</span><span style="font-style: italic"> (</span><span style="color: #808000; text-decoration-color: #808000; font-style: italic">2</span><span style="font-style: italic">)</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finishing</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 5</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_finished</span><span style="color: #808000; text-decoration-color: #808000; font-weight: bold; font-style: italic"> 5</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_stop</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_timeout</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_submitted</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_done</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_cancelled</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_exception</span>
+<span style="color: #800080; text-decoration-color: #800080">    </span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold">@</span><span style="color: #800080; text-decoration-color: #800080; font-weight: bold; font-style: italic">on_future_result</span>
+</code>
+</pre>
+
+</p>
+</div><div class="markdown-exec"></div>
+</p>
+</div>
+</div>
+</div>
+</details>
+<h5 id="amltk.scheduling.events--emitter-subscribers-and-events">Emitter, Subscribers and Events<a class="headerlink" href="#amltk.scheduling.events--emitter-subscribers-and-events" title="Permanent link">#</a></h5>
+<p>This part of the documentation is not necessary to understand or use for AMLTK. People
+wishing to build tools upon AMLTK may still find this a useful component to add to their
+arsenal.</p>
+<p>The core of making this functionality work is the <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/events/#amltk.scheduling.events.Emitter"><code>Emitter</code></a>.
+Its purpose is to have <code>@events</code> that can be emitted and subscribed to. Classes like the
+<a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/scheduler/#amltk.scheduling.scheduler.Scheduler"><code>Scheduler</code></a> and <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/task/#amltk.scheduling.task.Task"><code>Task</code></a> carry
+around with them an <code>Emitter</code> to enable all of this functionality.</p>
+<p>Creating an <code>Emitter</code> is rather straight-forward, but we must also create
+<a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/events/#amltk.scheduling.events.Event"><code>Events</code></a> that people can subscribe to.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Emitter</span><span class="p">,</span> <span class="n">Event</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">emitter</span> <span class="o">=</span> <span class="n">Emitter</span><span class="p">(</span><span class="s2">&quot;my-emitter&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">event</span><span class="p">:</span> <span class="n">Event</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">Event</span><span class="p">(</span><span class="s2">&quot;my-event&quot;</span><span class="p">)</span> <span class="c1"># (1)!</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nd">@emitter</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">def</span> <span class="nf">my_callback</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Got </span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">!&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">emitter</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="mi">42</span><span class="p">)</span> <span class="c1"># (2)!</span>
+</code></pre></div>
+<ol>
+<li>The typing <code class="highlight"><span class="n">Event</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span></code> is used to indicate that the event will be emitting
+    an integer. This is not necessary, but it is useful for type-checking and
+    documentation.</li>
+<li>The <code class="highlight"><span class="n">emitter</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="mi">42</span><span class="p">)</span></code> is used to emit the event. This will call
+    all the callbacks registered for the event, i.e. <code class="highlight"><span class="n">my_callback</span><span class="p">()</span></code>.</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Independent Events</p>
+<p>Given a single <code>Emitter</code> and a single instance of an <code>Event</code>, there is no way to
+have different <code>@events</code> for callbacks. There are two options, both used extensively
+in AMLTK.</p>
+<p>The first is to have different <code>Events</code> quite naturally, i.e. you distinguish
+between different things that can happen. However, you often want to have different
+objects emit the same <code>Event</code> but have different callbacks for each object.</p>
+<p>This makes most sense in the context of a <code>Task</code> the <code>Event</code> instances are shared as
+class variables in the <code>Task</code> class, however a user likely want's to subscribe to
+the <code>Event</code> for a specific instance of the <code>Task</code>.</p>
+<p>This is where the second option comes in, in which each object carries around its
+own <code>Emitter</code> instance. This is how a user can subscribe to the same kind of <code>Event</code>
+but individually for each <code>Task</code>.</p>
+</div>
+<p>However, to shield users from this and to create named access points for users to
+subscribe to, we can use the <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/events/#amltk.scheduling.events.Subscriber"><code>Subscriber</code></a> class,
+conveniently created by the <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/events/#amltk.scheduling.events.Emitter.subscriber"><code>Emitter.subscriber()</code></a>
+method.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span> <span class="nn">amltk.scheduling</span> <span class="kn">import</span> <span class="n">Emitter</span><span class="p">,</span> <span class="n">Event</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">emitter</span> <span class="o">=</span> <span class="n">Emitter</span><span class="p">(</span><span class="s2">&quot;my-emitter&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">class</span> <span class="nc">GPT</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">Event</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Event</span><span class="p">(</span><span class="s2">&quot;my-event&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">on_answer</span><span class="p">:</span> <span class="n">Subscriber</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">emitter</span><span class="o">.</span><span class="n">subscriber</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event</span><span class="p">)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="k">def</span> <span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        <span class="n">emitter</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="s2">&quot;hello world!&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">gpt</span> <span class="o">=</span> <span class="n">GPT</span><span class="p">()</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="nd">@gpt</span><span class="o">.</span><span class="n">on_answer</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="k">def</span> <span class="nf">print_answer</span><span class="p">(</span><span class="n">answer</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="n">gpt</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;What is the conical way for an AI to greet someone?&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Typically these event based systems make little sense in a synchronous context, however
+with the <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/scheduler/#amltk.scheduling.scheduler.Scheduler"><code>Scheduler</code></a> and <a class="autorefs autorefs-internal" href="../../../api/amltk/scheduling/task/#amltk.scheduling.task.Task"><code>Task</code></a>
+classes, they are used to enable a simple way to use multiprocessing and remote compute.</p>
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../queue_monitor/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Queue monitor">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Queue monitor
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../pipelines/pipeline/" class="md-footer__link md-footer__link--next" aria-label="Next: Pipeline">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Pipeline
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/automl" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://twitter.com/automl_org" target="_blank" rel="noopener" title="twitter.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M459.37 151.716c.325 4.548.325 9.097.325 13.645 0 138.72-105.583 298.558-298.558 298.558-59.452 0-114.68-17.219-161.137-47.106 8.447.974 16.568 1.299 25.34 1.299 49.055 0 94.213-16.568 130.274-44.832-46.132-.975-84.792-31.188-98.112-72.772 6.498.974 12.995 1.624 19.818 1.624 9.421 0 18.843-1.3 27.614-3.573-48.081-9.747-84.143-51.98-84.143-102.985v-1.299c13.969 7.797 30.214 12.67 47.431 13.319-28.264-18.843-46.781-51.005-46.781-87.391 0-19.492 5.197-37.36 14.294-52.954 51.655 63.675 129.3 105.258 216.365 109.807-1.624-7.797-2.599-15.918-2.599-24.04 0-57.828 46.782-104.934 104.934-104.934 30.213 0 57.502 12.67 76.67 33.137 23.715-4.548 46.456-13.32 66.599-25.34-7.798 24.366-24.366 44.833-46.132 57.827 21.117-2.273 41.584-8.122 60.426-16.243-14.292 20.791-32.161 39.308-52.628 54.253z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.annotate", "content.code.copy", "navigation.footer", "navigation.sections", "toc.follow", "toc.integrate", "navigation.tabs", "navigation.tabs.sticky", "header.autohide", "search.suggest", "search.highlight", "search.share"], "search": "../../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c18c5fb9.min.js"></script>
+      
+        <script src="../../../assets/_markdown_exec_pyodide.js"></script>
+      
+    
+  <script>document$.subscribe(() => {const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});})</script></body>
+</html>
