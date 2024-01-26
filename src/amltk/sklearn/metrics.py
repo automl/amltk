@@ -77,12 +77,12 @@ def as_metric(
 
     # This is using what sklearn use in their `__repr__` method
     if bounds is None:
-        bounds = _SCORER_BOUNDS.get(_scorer._score_func.__name__, None)
+        bounds = _SCORER_BOUNDS.get(_name, None)
 
     if bounds is None:
         warnings.warn(
-            f"Cannot infer bounds for scorer {_scorer._score_func.__name__!r}. "
-            "Using the default bounds of (-inf, inf).",
+            f"Cannot infer bounds for scorer {_name}. Please explicitly provide "
+            " them with the `bounds` argument or set them to `(-np.inf, np.inf)`.",
             UserWarning,
             stacklevel=2,
         )
