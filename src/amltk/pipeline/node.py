@@ -1083,7 +1083,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 walltime_limit=process_walltime_limit,
                 cputime_limit=process_cputime_limit,
             )
-            plugins = (*_plugins, plugin)
+            _plugins = (*_plugins, plugin)
 
         # If threadpool_limit_ctl None, we should default to inspecting if it's
         # an sklearn pipeline. This is because sklearn pipelines
