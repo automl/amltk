@@ -79,6 +79,11 @@ class Metric:
     ) -> Metric:
         """Create a metric from a sklearn metric.
 
+        The benefit of using this function is that it will also
+        set the bounds of the metric if possible, which can often
+        help Optimizers know how to normalize metrics and helping
+        them with search.
+
         ```python exec="true" source="material-block" result="python"
         from amltk.optimization import Metric
 
