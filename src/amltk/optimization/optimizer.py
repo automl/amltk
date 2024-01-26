@@ -146,8 +146,7 @@ class Optimizer(Generic[I]):
         !!! note
 
             Subclasses should override this with more specific configuration
-            but these 3 arguments should be all that's necessary to create
-            the optimizer.
+            but these arguments should be all that's necessary to create the optimizer.
 
         Args:
             space: The space to optimize over.
