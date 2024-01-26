@@ -249,7 +249,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         self,
         *,
         space: SearchSpace,
-        loss_metric: Metric,
+        loss_metric: Metric | Sequence[Metric],
         cost_metric: Metric | None = None,
         optimizer: BaseOptimizer,
         working_dir: Path,
@@ -307,7 +307,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             | Mapping[str, ConfigurationSpace | Parameter]
             | Node
         ),
-        metrics: Metric,
+        metrics: Metric | Sequence[Metric],
         cost_metric: Metric | None = None,
         bucket: PathBucket | str | Path | None = None,
         searcher: str | BaseOptimizer = "default",

@@ -15,18 +15,22 @@ extract the search space for the optimizer.
 """
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
     Concatenate,
     Generic,
     ParamSpec,
+    Protocol,
     TypeVar,
     overload,
 )
+from typing_extensions import Self
 
 from more_itertools import all_unique
 
@@ -36,10 +40,13 @@ if TYPE_CHECKING:
     from amltk.optimization.metric import Metric
     from amltk.optimization.trial import Trial
     from amltk.pipeline import Node
+    from amltk.types import Seed
 
 I = TypeVar("I")  # noqa: E741
 P = ParamSpec("P")
 ParserOutput = TypeVar("ParserOutput")
+
+logger = logging.getLogger(__name__)
 
 
 class Optimizer(Generic[I]):
@@ -123,3 +130,91 @@ class Optimizer(Generic[I]):
 
         """
         return None
+
+    @classmethod
+    @abstractmethod
+    def create(
+        cls,
+        *,
+        space: Node,
+        metrics: Metric | Sequence[Metric],
+        bucket: str | Path | PathBucket | None = None,
+        seed: Seed | None = None,
+    ) -> Self:
+        """Create this optimizer.
+
+        !!! note
+
+            Subclasses should override this with more specific configuration
+            but these arguments should be all that's necessary to create the optimizer.
+
+        Args:
+            space: The space to optimize over.
+            bucket: The bucket for where to store things related to the trial.
+            metrics: The metrics to optimize.
+            seed: The seed to use for the optimizer.
+
+        Returns:
+            The optimizer.
+        """
+
+    class CreateSignature(Protocol):
+        """A Protocol which defines the keywords required to create an
+        optimizer with deterministic behavior at a desired location.
+
+        This protocol matches the `Optimizer.create` classmethod, however we also
+        allow any function which accepts the keyword arguments to create an
+        Optimizer.
+        """
+
+        def __call__(
+            self,
+            *,
+            space: Node,
+            metrics: Metric | Sequence[Metric],
+            bucket: PathBucket | None = None,
+            seed: Seed | None = None,
+        ) -> Optimizer:
+            """A function which creates an optimizer for node.optimize should
+            accept the following keyword arguments.
+
+            Args:
+                space: The node to optimize
+                metrics: The metrics to optimize
+                bucket: The bucket to store the results in
+                seed: The seed to use for the optimization
+            """
+            ...
+
+    @classmethod
+    def _get_known_importable_optimizer_classes(cls) -> Iterator[type[Optimizer]]:
+        """Get all developer known optimizer classes. This is used for defaults.
+
+        Do not rely on this functionality and prefer to give concrete optimizers to
+        functionality requiring one. This is intended for convenience of particular
+        quickstart methods.
+        """
+        # NOTE: We can't use the `Optimizer.__subclasses__` method as the optimizers
+        # are not imported by any other module initially and so they do no exist
+        # until imported. Hence this manual iteration. For now, we be explicit and
+        # only if the optimizer list grows should we consider dynamic importing.
+        try:
+            from amltk.optimization.optimizers.smac import SMACOptimizer
+
+            yield SMACOptimizer
+        except ImportError as e:
+            logger.debug("Failed to import SMACOptimizer", exc_info=e)
+
+        try:
+            from amltk.optimization.optimizers.optuna import OptunaOptimizer
+
+            yield OptunaOptimizer
+        except ImportError as e:
+            logger.debug("Failed to import OptunaOptimizer", exc_info=e)
+
+        try:
+            from amltk.optimization.optimizers.neps import NEPSOptimizer
+
+            yield NEPSOptimizer
+        except ImportError as e:
+            logger.debug("Failed to import NEPSOptimizer", exc_info=e)

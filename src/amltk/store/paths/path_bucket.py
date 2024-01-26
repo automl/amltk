@@ -108,7 +108,7 @@ class PathBucket(Bucket[str, Path]):
 
     def __init__(
         self,
-        path: Path | str,
+        path: PathBucket | Path | str,
         *,
         loaders: Sequence[type[PathLoader]] | None = None,
         create: bool = True,
@@ -135,6 +135,8 @@ class PathBucket(Bucket[str, Path]):
 
         if isinstance(path, str):
             path = Path(path)
+        elif isinstance(path, PathBucket):
+            path = path.path
 
         if clean and path.exists():
             shutil.rmtree(path, ignore_errors=True)
@@ -146,7 +148,7 @@ class PathBucket(Bucket[str, Path]):
             path.mkdir(parents=True, exist_ok=True)
 
         self._create = create
-        self.path = path
+        self.path: Path = path
         self.loaders = _loaders
 
     def sizes(self) -> dict[str, int]:

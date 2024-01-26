@@ -65,7 +65,7 @@ import operator
 from collections import defaultdict
 from collections.abc import Callable, Hashable, Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar, overload
 from typing_extensions import override
 
 import pandas as pd
@@ -527,7 +527,14 @@ class History(RichRenderable):
 
         return sorted(history.reports, key=sort_key, reverse=reverse)
 
-    @override
+    @overload
+    def __getitem__(self, key: int | str) -> Trial.Report:
+        ...
+
+    @overload
+    def __getitem__(self, key: slice) -> Trial.Report:
+        ...
+
     def __getitem__(  # type: ignore
         self,
         key: int | str | slice,

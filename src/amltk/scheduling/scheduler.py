@@ -1302,7 +1302,7 @@ class Scheduler(RichRenderable):
         ) = "raise",
         on_cancelled: Literal["raise", "end", "continue"] = "raise",
         asyncio_debug_mode: bool = False,
-        display: bool | Iterable[RenderableType] = False,
+        display: bool | Iterable[RenderableType] | Literal["auto"] = "auto",
     ) -> ExitState:
         """Run the scheduler.
 
@@ -1378,6 +1378,11 @@ class Scheduler(RichRenderable):
                 Defaults to `False`. Please see [asyncio.run][] for more.
             display: Whether to display the scheduler live in the console.
 
+                * If `#!python "auto"`, will display the scheduler if in
+                    a notebook or colab environemnt. Otherwise, it will not display
+                    it. If left as "auto" and the display occurs, a warning will
+                    be printed alongside it.
+                * If `#!python False`, will not display anything.
                 * If `#!python True`, will display the scheduler and all its tasks.
                 * If a `#!python list[RenderableType]` , will display the scheduler
                     itself plus those renderables.
@@ -1388,6 +1393,20 @@ class Scheduler(RichRenderable):
         Raises:
             RuntimeError: If the scheduler is already running.
         """
+        if display == "auto":
+            from amltk._richutil import is_jupyter
+
+            display = is_jupyter()
+            if display is True:
+                warnings.warn(
+                    "Detected that current running context is in a notebook!"
+                    " When `display='auto'`, the default, the scheduler will"
+                    " automatically be set to display. If you do not want this or"
+                    " wish to disable this warning, please set `display=False`.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         return asyncio.run(
             self.async_run(
                 timeout=timeout,

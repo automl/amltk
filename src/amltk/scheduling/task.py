@@ -444,7 +444,7 @@ class Task(RichRenderable, Generic[P, R]):
 
     @override
     def __repr__(self) -> str:
-        kwargs = {"unique_ref": self.unique_ref}
+        kwargs = {"unique_ref": self.unique_ref, "plugins": self.plugins}
         kwargs_str = ", ".join(f"{k}={v}" for k, v in kwargs.items())
         return f"{self.__class__.__name__}({kwargs_str})"
 

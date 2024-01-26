@@ -31,7 +31,7 @@ Config: TypeAlias = Mapping[str, Any]
 Space = TypeVar("Space")
 """Generic for objects that are aware of a space but not the specific kind"""
 
-Seed: TypeAlias = int | np.integer | (np.random.RandomState | np.random.Generator)
+Seed: TypeAlias = int | np.integer | np.random.RandomState | np.random.Generator
 """Type alias for kinds of Seeded objects."""
 
 FidT: TypeAlias = tuple[int, int] | tuple[float, float] | list[Any]
