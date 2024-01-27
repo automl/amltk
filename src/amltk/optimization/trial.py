@@ -305,7 +305,7 @@ class Trial(RichRenderable, Generic[I]):
 
             The behaviour previosuly was to always swallow errors and not
             raise them. This is now deprecated and will be changed to raising
-            the error by default in the future. To keep the old behaviour,
+            the error by default (`False`) in the future. To keep the old behaviour,
             please explicitly set `catch_exceptions=True`.
 
         ```python exec="true" source="material-block" result="python" title="begin" hl_lines="5"
@@ -340,12 +340,12 @@ class Trial(RichRenderable, Generic[I]):
                 During the `with` block, if an exception is raised, this will
                 attached to the trial. You can specify what to do then.
 
-                * `"raise"`: Will raise the exception after attaching it to the trial.
-                * `"catch"`: Will catch the exception and attach it to the trial, without
+                * `False`: Will raise the exception after attaching it to the trial.
+                * `True`: Will catch the exception and attach it to the trial, without
                     raising it.
-                * `None`: A deprecated value which for now implies `"catch"`.
-                    This will change `"raise"` in the future and should be explicitly
-                    set to `"catch"` if you want to catch the exception.
+                * `None`: A deprecated value which for now implies `True`.
+                    This will change `False` in the future and should be explicitly
+                    set to `True` if you want to catch the exception.
 
 
             time: The timer kind to use for the trial. Defaults to the default
