@@ -130,9 +130,6 @@ def evaluate(trial: Trial) -> Trial.Report:
         trial.store({"model.pkl": model, "predictions.npy": predictions}),
         return trial.success(accuracy=0.8, inference_time=...)
 
-    if trial.exception:
-        return trial.fail()
-
 # Easily swap between optimizers, without needing to change the rest of your code
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.optimization.optimizers.smac import OptunaOptimizer

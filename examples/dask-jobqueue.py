@@ -102,11 +102,10 @@ def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
     sklearn_pipeline = _pipeline.configure(trial.config).build("sklearn")
 
     with trial.begin():
-        sklearn_pipeline.fit(X_train, y_train)
-
-    if trial.exception:
-        trial.store({"exception.txt": f"{trial.exception}\n {trial.traceback}"})
-        return trial.fail()
+        try:
+            sklearn_pipeline.fit(X_train, y_train)
+        except Exception as e:
+            return trial.fail(exception=e)
 
     with trial.profile("predictions"):
         train_predictions = sklearn_pipeline.predict(X_train)

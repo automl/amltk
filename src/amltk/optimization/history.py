@@ -19,9 +19,6 @@ used to keep a structured record of what occured with
         with trial.begin():
             loss = x**2 - y
 
-        if trial.exception:
-            return trial.fail()
-
         return trial.success(loss=loss)
 
     # ... usually obtained from an optimizer

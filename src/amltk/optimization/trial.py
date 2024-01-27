@@ -29,6 +29,7 @@ from __future__ import annotations
 import copy
 import logging
 import traceback
+import traceback as traceback_module
 import warnings
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -106,9 +107,6 @@ class Trial(RichRenderable, Generic[I]):
 
             with trial.begin():
                 cost = x**2 - y
-
-            if trial.exception:
-                return trial.fail()
 
             return trial.success(cost=cost)
 
@@ -433,7 +431,6 @@ class Trial(RichRenderable, Generic[I]):
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss_metric])
 
         with trial.begin():
-            # Do some work
             report = trial.success(loss=1)
 
         print(report)
@@ -474,7 +471,13 @@ class Trial(RichRenderable, Generic[I]):
             metric_values=tuple(_recorded_values),
         )
 
-    def fail(self, **metrics: float | int) -> Trial.Report[I]:
+    def fail(
+        self,
+        exception: Exception | None = None,
+        traceback: str | None = None,
+        /,
+        **metrics: float | int,
+    ) -> Trial.Report[I]:
         """Generate a failure report.
 
         !!! note "Non specifed metrics"
@@ -491,18 +494,35 @@ class Trial(RichRenderable, Generic[I]):
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
         with trial.begin():
-            raise ValueError("This is an error")  # Something went wrong
-
-        if trial.exception: # You can check for an exception of the trial here
-            report = trial.fail()
+            try:
+                raise ValueError("This is an error")  # Something went wrong
+            except Exception as e:
+                report = trial.fail(exception=e)
+            else:
+                report = trial.success(loss=1)
 
         print(report.metrics)
         print(report)
         ```
 
+        Args:
+            exception: The exception that caused the failure, if any.
+            traceback: The traceback of the exception, if any. If an exception is
+                provided put no tracback, the traceback will be taken from the
+                current stack.
+            **metrics: The metrics of the trial, where the key is the name of the
+                metrics and the value is the metric.
+
         Returns:
             The result of the trial.
         """
+        if exception is not None:
+            traceback = traceback if traceback else traceback_module.format_exc()
+            self.exception = exception
+
+        if traceback is not None:
+            self.traceback = traceback
+
         _recorded_values: list[Metric.Value] = []
         for _metric in self.metrics:
             if (raw_value := metrics.get(_metric.name)) is not None:
@@ -523,12 +543,6 @@ class Trial(RichRenderable, Generic[I]):
     ) -> Trial.Report[I]:
         """Generate a crash report.
 
-        !!! note
-
-            You will typically not create these manually, but instead if we don't
-            recieve a report from a target function evaluation, but only an error,
-            we assume something crashed and generate a crash report for you.
-
         !!! note "Non specifed metrics"
 
             We will use the [`.metrics`][amltk.optimization.Trial.metrics] to determine
@@ -545,15 +559,12 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The report of the trial.
         """
-        if exception is None and self.exception is None:
-            raise RuntimeError(
-                "Cannot generate a crash report without an exception."
-                " Please provide an exception or use `with trial.begin():` to start"
-                " the trial.",
-            )
+        if exception is not None:
+            traceback = traceback if traceback else traceback_module.format_exc()
+            self.exception = exception
 
-        self.exception = exception if exception else self.exception
-        self.traceback = traceback if traceback else self.traceback
+        if traceback is not None:
+            self.traceback = traceback
 
         return Trial.Report(
             trial=self,

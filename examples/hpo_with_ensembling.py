@@ -214,7 +214,7 @@ def target_function(
     pipeline = pipeline.configure(trial.config)  # <!> (2)!
     sklearn_pipeline = pipeline.build("sklearn")  # <!>
 
-    with trial.begin():  # <!> (3)!
+    with trial.begin(catch_exceptions=True):  # <!> (3)!
         sklearn_pipeline.fit(X_train, y_train)
 
     if trial.exception:

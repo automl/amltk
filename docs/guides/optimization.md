@@ -129,18 +129,16 @@ for _ in range(10):
     x = trial.config["my-searchable:x"]
 
     # Begin the trial
-    with trial.begin(catch_warnings=True):
-        score = poly(x)
-
-    if trial.exception is None:
-        # Generate a success report
-        report: Trial.Report = trial.success(score=score)
-    else:
-        # Generate a failed report (i.e. poly(x) raised divide by zero exception with x=0)
-        report: Trial.Report = trial.fail()
+    with trial.begin():
+        try:
+            score = poly(x)
+        except Exception as e:
+            report = trial.fail(exception=e)
+        else:
+            report = trial.success(score=score)
 
     # Store artifacts with the trial, using file extensions to infer how to store it
-    trial.store({ "config.json": trial.config, "array.npy": [1, 2, 3] })
+    trial.store({"config.json": trial.config, "array.npy": [1, 2, 3] })
 
     # Tell the Optimizer about the report
     optimizer.tell(report)
