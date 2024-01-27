@@ -64,13 +64,15 @@ def target_function(trial: Trial, pipeline: Pipeline) -> Trial.Report:
     clf = pipeline.configure(trial.config).build("sklearn")
 
     with trial.begin():
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        loss = 1 - accuracy
-        return trial.success(loss=loss, accuracy=accuracy)
+        try:
+            clf.fit(X_train, y_train)
+            y_pred = clf.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
+            loss = 1 - accuracy
+            return trial.success(loss=loss, accuracy=accuracy)
+        except Exception as e:
+            return trial.fail(e)
 
-    return trial.fail()
 from amltk._doc import make_picklable; make_picklable(target_function)  # markdown-exec: hide
 
 pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})

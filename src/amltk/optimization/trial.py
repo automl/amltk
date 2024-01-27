@@ -28,7 +28,8 @@ from __future__ import annotations
 
 import copy
 import logging
-import traceback
+import traceback as traceback_module
+import warnings
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
-from typing_extensions import ParamSpec, Self, override
+from typing_extensions import ParamSpec, Self, deprecated, override
 
 import numpy as np
 import pandas as pd
@@ -264,9 +265,11 @@ class Trial(RichRenderable, Generic[I]):
     """The summary of the trial. These are for summary statistics of a trial and
     are single values."""
 
-    exception: BaseException | None = field(repr=True, default=None)
+    # @deprecated(1.11.0)
+    exception: Exception | None = field(repr=True, default=None)
     """The exception raised by the trial, if any."""
 
+    # @deprecated(1.11.0)
     traceback: str | None = field(repr=False, default=None)
     """The traceback of the exception, if any."""
 
@@ -283,6 +286,14 @@ class Trial(RichRenderable, Generic[I]):
         """The profiles of the trial."""
         return self.profiler.profiles
 
+    @deprecated(
+        "`trial.begin() silently catches exceptions and attaches them to"
+        " To be more explicit and have the same functionality, please use"
+        " `with trial.profile('some tag'):` to profile and manually use"
+        " `try: ... except: ...` to catch exceptions and report them"
+        " with `trial.fail(exception)`."
+        "\nDeprecated in 1.11.0",
+    )
     @contextmanager
     def begin(
         self,
@@ -290,6 +301,18 @@ class Trial(RichRenderable, Generic[I]):
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
     ) -> Iterator[None]:
         """Begin the trial with a `contextmanager`.
+
+        !!! warning "Deprecated"
+
+            This method is deprecated, please use the following idiom instead:
+
+            ```python
+            with trial.profile("trial"):
+                try:
+                    # Do some work
+                except Exception as error:
+                    return trial.fail(error)
+            ```
 
         Will begin timing the trial in the `with` block, attaching the profiled time and memory
         to the trial once completed, under `.profile.time` and `.profile.memory` attributes.
@@ -336,7 +359,7 @@ class Trial(RichRenderable, Generic[I]):
                 yield
             except Exception as error:  # noqa: BLE001
                 self.exception = error
-                self.traceback = traceback.format_exc()
+                self.traceback = traceback_module.format_exc()
             finally:
                 self.time = self.profiler["trial"].time
                 self.memory = self.profiler["trial"].memory
@@ -438,7 +461,13 @@ class Trial(RichRenderable, Generic[I]):
             metric_values=tuple(_recorded_values),
         )
 
-    def fail(self, **metrics: float | int) -> Trial.Report[I]:
+    def fail(
+        self,
+        exception: Exception | None = None,
+        traceback: str | None = None,
+        /,
+        **metrics: float | int,
+    ) -> Trial.Report[I]:
         """Generate a failure report.
 
         !!! note "Non specifed metrics"
@@ -467,22 +496,48 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The result of the trial.
         """
-        _recorded_values: list[Metric.Value] = []
-        for _metric in self.metrics:
-            if (raw_value := metrics.get(_metric.name)) is not None:
-                _recorded_values.append(_metric.as_value(raw_value))
-            else:
-                _recorded_values.append(_metric.worst)
+        pair = (self.exception, exception)
+        match pair:
+            # Uh oh, they used trial.begin() and reported something. We default
+            # to what was explicitly provided
+            case (Exception(), Exception() as e):
+                warnings.warn(
+                    "Trial already has an exception attached from `begin()`, but you"
+                    " are trying to report another one. This will overwrite the "
+                    " previous exception. Please prefer not to use the deprecated"
+                    " `begin()` method",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                if traceback is None:
+                    traceback = "".join(traceback_module.format_tb(e.__traceback__))
+            # Nothing to do
+            case (None, None):
+                pass
+            # All good, we use whatever was provided if at all
+            case (None, Exception()):
+                if traceback is None:
+                    traceback = traceback_module.format_exc()
+            # In this case, they used trial.begin() and didn't report
+            # anything explicitly, we keep old behaviour until removed.
+            case (Exception(), None):
+                exception = self.exception  # type: ignore
+                traceback = self.traceback
 
         return Trial.Report(
             trial=self,
             status=Trial.Status.FAIL,
-            metric_values=tuple(_recorded_values),
+            exception=exception,
+            traceback=traceback,
+            metric_values=tuple(
+                _metric.as_value(metrics.get(_metric.name, _metric.worst.value))
+                for _metric in self.metrics
+            ),
         )
 
     def crashed(
         self,
-        exception: BaseException | None = None,
+        exception: Exception,
         traceback: str | None = None,
     ) -> Trial.Report[I]:
         """Generate a crash report.
@@ -509,20 +564,15 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The report of the trial.
         """
-        if exception is None and self.exception is None:
-            raise RuntimeError(
-                "Cannot generate a crash report without an exception."
-                " Please provide an exception or use `with trial.begin():` to start"
-                " the trial.",
-            )
-
-        self.exception = exception if exception else self.exception
-        self.traceback = traceback if traceback else self.traceback
+        if traceback is None:
+            traceback = "".join(traceback_module.format_tb(exception.__traceback__))
 
         return Trial.Report(
             trial=self,
             status=Trial.Status.CRASHED,
             metric_values=tuple(metric.worst for metric in self.metrics),
+            exception=exception,
+            traceback=traceback,
         )
 
     def store(
@@ -939,6 +989,13 @@ class Trial(RichRenderable, Generic[I]):
         status: Trial.Status
         """The status of the trial."""
 
+        exception: BaseException | None = field(repr=True, default=None)
+        """The exception reported if any."""
+
+        # @deprecated(1.11.0)
+        traceback: str | None = field(repr=False, default=None)
+        """The traceback reported if any."""
+
         metrics: dict[str, float] = field(init=False)
         """The metric values of the trial."""
 
@@ -955,16 +1012,6 @@ class Trial(RichRenderable, Generic[I]):
             self.metrics = {value.name: value.value for value in self.metric_values}
             self.metric_names = tuple(metric.name for metric in self.metric_values)
             self.metric_defs = {v.metric.name: v.metric for v in self.metric_values}
-
-        @property
-        def exception(self) -> BaseException | None:
-            """The exception of the trial, if any."""
-            return self.trial.exception
-
-        @property
-        def traceback(self) -> str | None:
-            """The traceback of the trial, if any."""
-            return self.trial.traceback
 
         @property
         def name(self) -> str:
@@ -1265,25 +1312,23 @@ class Trial(RichRenderable, Generic[I]):
                 profiler=Profiler(profiles=profiles),
                 metrics=list(metrics.keys()),
                 summary=mapping_select(d, "summary:"),
-                exception=exception,
-                traceback=traceback,
             )
-            status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             _values: dict[str, float] = {m.name: r.value for m, r in metrics.items()}
-            if status == Trial.Status.SUCCESS:
-                return trial.success(**_values)
 
-            if status == Trial.Status.FAIL:
-                return trial.fail(**_values)
-
-            if status == Trial.Status.CRASHED:
-                return trial.crashed(
-                    exception=Exception("Unknown status.")
-                    if trial.exception is None
-                    else None,
-                )
-
-            return trial.crashed(exception=Exception("Unknown status."))
+            status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
+            match status:
+                case Trial.Status.SUCCESS:
+                    return trial.success(**_values)
+                case Trial.Status.FAIL:
+                    exc = Exception(exception) if exception else None
+                    tb = str(traceback) if traceback else None
+                    return trial.fail(exc, tb, **_values)
+                case Trial.Status.CRASHED:
+                    exc = Exception(exception) if exception else Exception("Unknown")
+                    tb = str(traceback) if traceback else None
+                    return trial.crashed(exc, tb)
+                case Trial.Status.UNKNOWN | _:
+                    return trial.crashed(exception=Exception("Unknown status."))
 
         def rich_renderables(self) -> Iterable[RenderableType]:
             """The renderables for rich for this report."""

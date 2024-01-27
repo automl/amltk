@@ -47,10 +47,13 @@ def target_function(trial: Trial, pipeline: Node) -> Trial.Report:
     clf = pipeline.configure(trial.config).build("sklearn")
 
     with trial.begin():
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        return trial.success(accuracy=accuracy)
+        try:
+            clf.fit(X_train, y_train)
+            y_pred = clf.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
+            return trial.success(accuracy=accuracy)
+        except Exception as e:
+            return trial.fail(e)
 
     return trial.fail()
 from amltk._doc import make_picklable; make_picklable(target_function)  # markdown-exec: hide
