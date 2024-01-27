@@ -150,9 +150,7 @@ class _PynisherWrap(Generic[P, R]):
                 return fn(*args, **kwargs)
             except pynisher.PynisherException as e:
                 tb = traceback.format_exc()
-                trial.exception = e
-                trial.traceback = tb
-                return trial.fail()  # type: ignore
+                return trial.fail(e, tb)  # type: ignore
         else:
             return fn(*args, **kwargs)
 
