@@ -114,24 +114,23 @@ accuracy = Metric("accuracy", maximize=True, bounds=(0. 1))
 inference_time = Metric("inference_time", maximize=False)
 
 def evaluate(trial: Trial) -> Trial.Report:
+    model = pipeline.configure(trial.config).build("sklearn")
 
-    # Say when and where you trial begins
-    with trial.begin():
-        model = pipeline.configure(trial.config).build("sklearn")
-
+    try:
         # Profile the things you'd like
         with trial.profile("fit"):
             model.fit(...)
 
-        # Record anything else you'd like
-        trial.summary["model_size"] = ...
+    except Exception as e:
+        # Generate reports from exceptions easily
+        return trial.fail(exception=e)
 
-        # Store whatever you'd like
-        trial.store({"model.pkl": model, "predictions.npy": predictions}),
-        return trial.success(accuracy=0.8, inference_time=...)
+    # Record anything else you'd like
+    trial.summary["model_size"] = ...
 
-    if trial.exception:
-        return trial.fail()
+    # Store whatever you'd like
+    trial.store({"model.pkl": model, "predictions.npy": predictions}),
+    return trial.success(accuracy=0.8, inference_time=...)
 
 # Easily swap between optimizers, without needing to change the rest of your code
 from amltk.optimization.optimizers.smac import SMACOptimizer

@@ -36,7 +36,7 @@ def eval_trial(
 
     reports: list[Trial.Report] = []
     for _trial in trial:
-        with _trial.begin():
+        with _trial.profile("trial"):
             with _trial.profile("dummy"):
                 pass
 
@@ -175,12 +175,11 @@ def test_history_sortby() -> None:
     history = History()
 
     for trial in trials:
-        with trial.begin():
-            if trial.name in summary_items:
-                trial.summary["other_loss"] = trial.config["x"] ** 2
+        if trial.name in summary_items:
+            trial.summary["other_loss"] = trial.config["x"] ** 2
 
-            report = trial.success(loss=trial.config["x"])
-            history.add(report)
+        report = trial.success(loss=trial.config["x"])
+        history.add(report)
 
     trace_loss = history.sortby("loss")
     assert len(trace_loss) == len(trials)
@@ -207,10 +206,9 @@ def test_history_incumbents() -> None:
     history = History()
 
     for trial in trials:
-        with trial.begin():
-            x = trial.config["x"]
-            report = trial.success(loss=x, score=x)
-            history.add(report)
+        x = trial.config["x"]
+        report = trial.success(loss=x, score=x)
+        history.add(report)
 
     hist_1 = history.incumbents("loss", ffill=True)
     expected_1 = [0, -1, -1, -3, -3, -5, -5, -7, -7, -9]

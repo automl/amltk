@@ -23,9 +23,6 @@ class _CustomError(Exception):
 
 def target_funtion(trial: Trial, pipeline: Node) -> Trial.Report:  # noqa: ARG001
     # We don't really care here
-    with trial.begin():
-        pass
-
     threadpool_info = threadpoolctl.threadpool_info()
     trial.summary["num_threads"] = threadpool_info[0]["num_threads"]
     return trial.success(acc=0.5)
@@ -51,8 +48,6 @@ def test_populates_given_history(tmp_path: Path) -> None:
     history = History()
     component = Component(object, space={"a": (0.0, 1.0)})
     trial = Trial(name="test_trial", config={})
-    with trial.begin():
-        pass
     report = trial.success()
     history.add(report)
 

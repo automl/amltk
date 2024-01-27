@@ -52,7 +52,7 @@ def target_function(trial: Trial, pipeline: Pipeline) -> Trial.Report:
     X_train, X_test, y_train, y_test = train_test_split(X, y)
     clf = pipeline.configure(trial.config).build("sklearn")
 
-    with trial.begin():
+    with trial.profile("trial"):
         try:
             clf.fit(X_train, y_train)
             y_pred = clf.predict(X_test)

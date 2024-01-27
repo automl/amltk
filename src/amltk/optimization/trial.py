@@ -78,10 +78,6 @@ class Trial(RichRenderable, Generic[I]):
 
     ??? tip "Usage"
 
-        To begin a trial, you can use the
-        [`trial.begin()`][amltk.optimization.Trial.begin], which will catch
-        exceptions/traceback and profile the block of code.
-
         If all went smooth, your trial was successful and you can use
         [`trial.success()`][amltk.optimization.Trial.success] to generate
         a success [`Report`][amltk.optimization.Trial.Report], typically
@@ -89,10 +85,11 @@ class Trial(RichRenderable, Generic[I]):
 
         If your trial failed, you can instead use the
         [`trial.fail()`][amltk.optimization.Trial.fail] to generate a
-        failure [`Report`][amltk.optimization.Trial.Report], where
-        any caught exception will be attached to it. Each
-        [`Optimizer`][amltk.optimization.Optimizer] will take care of what to do
-        from here.
+        failure [`Report`][amltk.optimization.Trial.Report]. If use pass
+        in an exception to `fail()`, it will be attached to the report along
+        with any traceback it can deduce.
+        Each [`Optimizer`][amltk.optimization.Optimizer] will take
+        care of what to do from here.
 
         ```python exec="true" source="material-block" html="true"
         from amltk.optimization import Trial, Metric
@@ -104,11 +101,8 @@ class Trial(RichRenderable, Generic[I]):
             x = trial.config["x"]
             y = trial.config["y"]
 
-            with trial.begin():
+            with trial.profile("expensive-calculation):
                 cost = x**2 - y
-
-            if trial.exception:
-                return trial.fail()
 
             return trial.success(cost=cost)
 
@@ -141,10 +135,13 @@ class Trial(RichRenderable, Generic[I]):
     !!! tip "Reporting success (or failure)"
 
         When using the [`success()`][amltk.optimization.trial.Trial.success]
-        or [`fail()`][amltk.optimization.trial.Trial.success] method, make sure to
-        provide values for all metrics specified in the
-        [`.metrics`][amltk.optimization.Trial.metrics] attribute. Usually these are
-        set by the optimizer generating the `Trial`.
+        method, make sure to provide values for all metrics specified in the
+        [`.metrics`][amltk.optimization.Trial.metrics] attribute.
+        Usually these are set by the optimizer generating the `Trial`.
+
+        If you instead report using [`fail()`][amltk.optimization.trial.Trial.success],
+        any metric not specified will be set to the
+        [`.worst`][amltk.optimization.Metric.worst] value of the metric.
 
         Each metric has a unique name, and it's crucial to use the correct names when
         reporting success, otherwise an error will occur.
@@ -177,9 +174,8 @@ class Trial(RichRenderable, Generic[I]):
     some extra objects in the [`.extra`][amltk.optimization.Trial.extras] dict.
 
     To profile your trial, you can wrap the logic you'd like to check with
-    [`trial.begin()`][amltk.optimization.Trial.begin], which will automatically
-    catch any errors, record the traceback, and profile the block of code, in
-    terms of time and memory.
+    [`trial.profile()`][amltk.optimization.Trial.profile], which will automatically
+    profile the block of code for memory before and after as well as time taken.
 
     You can access the profiled time and memory using the
     [`.time`][amltk.optimization.Trial.time] and
@@ -418,10 +414,7 @@ class Trial(RichRenderable, Generic[I]):
         loss_metric = Metric("loss", minimize=True)
 
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss_metric])
-
-        with trial.begin():
-            # Do some work
-            report = trial.success(loss=1)
+        report = trial.success(loss=1)
 
         print(report)
         ```
@@ -483,11 +476,10 @@ class Trial(RichRenderable, Generic[I]):
         loss = Metric("loss", minimize=True, bounds=(0, 1_000))
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
-        with trial.begin():
+        try:
             raise ValueError("This is an error")  # Something went wrong
-
-        if trial.exception: # You can check for an exception of the trial here
-            report = trial.fail()
+        except Exception as error:
+            report = trial.fail(error)
 
         print(report.metrics)
         print(report)
@@ -959,10 +951,10 @@ class Trial(RichRenderable, Generic[I]):
 
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
-        with trial.begin():
+        with trial.profile("fitting"):
             # Do some work
             # ...
-            report: Trial.Report = trial.success(loss=1)
+            report = trial.success(loss=1)
 
         print(report.df())
         ```
@@ -1141,23 +1133,6 @@ class Trial(RichRenderable, Generic[I]):
 
                  Use the same argument for `where=` as you did for `store()`.
 
-            ```python exec="true" source="material-block" result="python" title="retrieve" hl_lines="7"
-            from amltk.optimization import Trial
-            from amltk.store import PathBucket
-
-            bucket = PathBucket("results")
-            trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
-
-            trial.store({"config.json": trial.config})
-            with trial.begin():
-                report = trial.success()
-
-            config = report.retrieve("config.json")
-            print(config)
-            ```
-
-            You could also create a Bucket and use that instead.
-
             ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
 
             from amltk.optimization import Trial
@@ -1168,9 +1143,7 @@ class Trial(RichRenderable, Generic[I]):
             trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
 
             trial.store({"config.json": trial.config})
-
-            with trial.begin():
-                report = trial.success()
+            report = trial.success()
 
             config = report.retrieve("config.json")
             print(config)

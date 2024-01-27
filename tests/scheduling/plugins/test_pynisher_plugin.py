@@ -60,20 +60,11 @@ def big_memory_function(mem_in_bytes: int) -> bytearray:
 
 
 def trial_with_big_memory(trial: Trial, mem_in_bytes: int) -> Trial.Report:
-    with trial.begin():
-        pass
-
-    # We're particularly interested when the memory error happens during the
-    # task execution, not during the trial begin period
     big_memory_function(mem_in_bytes)
-
     return trial.success()
 
 
 def trial_with_time_wasting(trial: Trial, duration: int) -> Trial.Report:
-    with trial.begin():
-        time_wasting_function(duration)
-
     time_wasting_function(duration)
     return trial.success()
 

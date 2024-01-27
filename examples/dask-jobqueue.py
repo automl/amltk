@@ -17,6 +17,7 @@ SMAC can not handle fast updates and seems to be quite
 efficient for this workload with ~32 cores.
 """
 
+import traceback
 from typing import Any
 
 import openml
@@ -101,12 +102,13 @@ def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
 
     sklearn_pipeline = _pipeline.configure(trial.config).build("sklearn")
 
-    with trial.begin():
-        sklearn_pipeline.fit(X_train, y_train)
-
-    if trial.exception:
-        trial.store({"exception.txt": f"{trial.exception}\n {trial.traceback}"})
-        return trial.fail()
+    try:
+        with trial.profile("fit"):
+            sklearn_pipeline.fit(X_train, y_train)
+    except Exception as e:
+        tb = traceback.format_exc()
+        trial.store({"exception.txt": f"{e}\n {tb}"})
+        return trial.fail(e, tb)
 
     with trial.profile("predictions"):
         train_predictions = sklearn_pipeline.predict(X_train)

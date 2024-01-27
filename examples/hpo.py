@@ -120,16 +120,12 @@ def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
     # Configure the pipeline with the trial config before building it.
     sklearn_pipeline = _pipeline.configure(trial.config).build("sklearn")
 
-    # Fit the pipeline, indicating when you want to start the trial timing and error
-    # catchnig.
-    with trial.begin():
-        sklearn_pipeline.fit(X_train, y_train)
-
-    # If an exception happened, we use `trial.fail` to indicate that the
-    # trial failed
-    if trial.exception:
-        trial.store({"exception.txt": f"{trial.exception}\n {trial.traceback}"})
-        return trial.fail()
+    # Fit the pipeline, indicating when you want to start the trial timing
+    try:
+        with trial.profile("fit"):
+            sklearn_pipeline.fit(X_train, y_train)
+    except Exception as e:
+        return trial.fail(e)
 
     # Make our predictions with the model
     with trial.profile("predictions"):

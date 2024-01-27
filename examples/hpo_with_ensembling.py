@@ -37,6 +37,7 @@ You can skip the imports sections and go straight to the
 from __future__ import annotations
 
 import shutil
+import traceback
 from asyncio import Future
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -214,19 +215,19 @@ def target_function(
     pipeline = pipeline.configure(trial.config)  # <!> (2)!
     sklearn_pipeline = pipeline.build("sklearn")  # <!>
 
-    with trial.begin():  # <!> (3)!
-        sklearn_pipeline.fit(X_train, y_train)
-
-    if trial.exception:
+    try:
+        with trial.profile("fit"):  # <!> (3)!
+            sklearn_pipeline.fit(X_train, y_train)
+    except Exception as e:
+        tb = traceback.format_exc()
         trial.store(
             {
-                "exception.txt": str(trial.exception),
+                "exception.txt": str(e),
                 "config.json": dict(trial.config),
-                "traceback.txt": str(trial.traceback),
+                "traceback.txt": str(tb),
             },
         )
-
-        return trial.fail()  # <!> (4)!
+        return trial.fail(e, tb)  # <!> (4)!
 
     # Make our predictions with the model
     train_predictions = sklearn_pipeline.predict(X_train)

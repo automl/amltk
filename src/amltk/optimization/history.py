@@ -16,12 +16,7 @@ used to keep a structured record of what occured with
         y = trial.config["y"]
         trial.store({"config.json": trial.config})
 
-        with trial.begin():
-            loss = x**2 - y
-
-        if trial.exception:
-            return trial.fail()
-
+        loss = x**2 - y
         return trial.success(loss=loss)
 
     # ... usually obtained from an optimizer
@@ -109,10 +104,9 @@ class History(RichRenderable):
     history = History()
 
     for trial in trials:
-        with trial.begin():
-            x = trial.config["x"]
-            report = trial.success(cost=x**2 - x*2 + 4)
-            history.add(report)
+        x = trial.config["x"]
+        report = trial.success(cost=x**2 - x*2 + 4)
+        history.add(report)
 
     for report in history:
         print(f"{report.name=}, {report}")
@@ -251,10 +245,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         print(history.df())
         ```
@@ -316,10 +309,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         filtered_history = history.filter(lambda report: report.metrics["cost"] < 10)
         for report in filtered_history:
@@ -349,13 +341,12 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                if x % 2 == 0:
-                    report = trial.fail(cost=1_000)
-                else:
-                    report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            if x % 2 == 0:
+                report = trial.fail(cost=1_000)
+            else:
+                report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         for status, history in history.groupby("status").items():
             print(f"{status=}, {len(history)=}")
@@ -371,10 +362,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.fail(cost=x)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.fail(cost=x)
+            history.add(report)
 
         for below_5, history in history.groupby(lambda r: r.metrics["cost"] < 5).items():
             print(f"{below_5=}, {len(history)=}")
@@ -417,10 +407,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         incumbents = (
             history
@@ -483,10 +472,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         trace = (
             history
