@@ -101,7 +101,7 @@ class Trial(RichRenderable, Generic[I]):
             x = trial.config["x"]
             y = trial.config["y"]
 
-            with trial.profile("expensive-calculation):
+            with trial.profile("expensive-calculation"):
                 cost = x**2 - y
 
             return trial.success(cost=cost)
