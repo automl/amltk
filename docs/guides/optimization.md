@@ -129,7 +129,7 @@ for _ in range(10):
     x = trial.config["my-searchable:x"]
 
     # Begin the trial
-    with trial.begin():
+    with trial.begin(catch_warnings=True):
         score = poly(x)
 
     if trial.exception is None:

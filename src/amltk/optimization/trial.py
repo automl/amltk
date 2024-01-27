@@ -29,6 +29,7 @@ from __future__ import annotations
 import copy
 import logging
 import traceback
+import warnings
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -286,6 +287,8 @@ class Trial(RichRenderable, Generic[I]):
     @contextmanager
     def begin(
         self,
+        *,
+        catch_exceptions: bool | None = None,
         time: Timer.Kind | Literal["wall", "cpu", "process"] | None = None,
         memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
     ) -> Iterator[None]:
@@ -295,8 +298,15 @@ class Trial(RichRenderable, Generic[I]):
         to the trial once completed, under `.profile.time` and `.profile.memory` attributes.
 
         If an exception is raised, it will be attached to the trial under `.exception`
-        with the traceback attached to the actual error message, such that it can
-        be pickled and sent back to the main process loop.
+        with the `.traceback`. You can control what happens with the exception then,
+        by using the `catch_exceptions=` argument.
+
+        warning: "Default `catch_exceptions=`: Deprecated @1.11.0"
+
+            The behaviour previosuly was to always swallow errors and not
+            raise them. This is now deprecated and will be changed to raising
+            the error by default in the future. To keep the old behaviour,
+            please explicitly set `catch_exceptions=True`.
 
         ```python exec="true" source="material-block" result="python" title="begin" hl_lines="5"
         from amltk.optimization import Trial
@@ -326,17 +336,43 @@ class Trial(RichRenderable, Generic[I]):
         ```
 
         Args:
+            catch_exceptions:
+                During the `with` block, if an exception is raised, this will
+                attached to the trial. You can specify what to do then.
+
+                * `"raise"`: Will raise the exception after attaching it to the trial.
+                * `"catch"`: Will catch the exception and attach it to the trial, without
+                    raising it.
+                * `None`: A deprecated value which for now implies `"catch"`.
+                    This will change `"raise"` in the future and should be explicitly
+                    set to `"catch"` if you want to catch the exception.
+
+
             time: The timer kind to use for the trial. Defaults to the default
                 timer kind of the profiler.
             memory_unit: The memory unit to use for the trial. Defaults to the
                 default memory unit of the profiler.
         """  # noqa: E501
+        if catch_exceptions is None:
+            warnings.warn(
+                " No value passed in for `catch_exceptions`."
+                " Previously, this would catch exceptions and not raise them."
+                " This behaviour is deprecated and will be changed to raising"
+                " the exception in the future. Please explicitly set this to"
+                " `catch_exceptions=True` to silence this warning and keep the"
+                " old behaviour.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         with self.profiler(name="trial", memory_unit=memory_unit, time_kind=time):
             try:
                 yield
             except Exception as error:  # noqa: BLE001
                 self.exception = error
                 self.traceback = traceback.format_exc()
+                if catch_exceptions is False:
+                    raise error
             finally:
                 self.time = self.profiler["trial"].time
                 self.memory = self.profiler["trial"].memory
