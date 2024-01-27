@@ -127,7 +127,7 @@ def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
     except Exception as e:
         # If something went wrong, we can just return a failed report
         # with the exception
-        return trial.fail(exception=e)
+        return trial.fail(e)
 
     # Make our predictions with the model
     with trial.profile("predictions"):

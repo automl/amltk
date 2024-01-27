@@ -132,8 +132,8 @@ for _ in range(10):
     with trial.begin():
         try:
             score = poly(x)
-        except Exception as e:
-            report = trial.fail(exception=e)
+        except Exception as exception:
+            report = trial.fail(exception)
         else:
             report = trial.success(score=score)
 

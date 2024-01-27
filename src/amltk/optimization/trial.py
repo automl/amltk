@@ -497,7 +497,7 @@ class Trial(RichRenderable, Generic[I]):
             try:
                 raise ValueError("This is an error")  # Something went wrong
             except Exception as e:
-                report = trial.fail(exception=e)
+                report = trial.fail(e)
             else:
                 report = trial.success(loss=1)
 

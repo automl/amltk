@@ -105,7 +105,7 @@ def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
         try:
             sklearn_pipeline.fit(X_train, y_train)
         except Exception as e:
-            return trial.fail(exception=e)
+            return trial.fail(e)
 
     with trial.profile("predictions"):
         train_predictions = sklearn_pipeline.predict(X_train)
