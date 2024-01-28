@@ -1,3 +1,14 @@
+## 1.10.1 (2024-01-28)
+
+### Fix
+
+- **dask-jobqueue**: Make sure to close client
+
+### Refactor
+
+- Make things more context manager
+- **trial**: Remove `begin()` (#238)
+
 ## 1.10.0 (2024-01-26)
 
 ### Feat
