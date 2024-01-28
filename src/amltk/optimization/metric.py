@@ -5,13 +5,18 @@ A `Metric` is defined by a `.name: str` and whether it is better to `.minimize: 
 the metric. Further, you can specify `.bounds: tuple[lower, upper]` which can
 help optimizers and other code know how to treat metrics.
 
-To easily convert between [`loss`][amltk.optimization.Metric.Value.loss],
-[`score`][amltk.optimization.Metric.Value.score] of a
-a value in a [`Metric.Value`][amltk.optimization.Metric.Value] object.
+To easily convert between `loss` and
+`score` of some value you can use the [`loss()`][amltk.optimization.Metric.loss]
+and [`score()`][amltk.optimization.Metric.score] methods.
 
-If the metric is bounded, you can also get the
-[`distance_to_optimal`][amltk.optimization.Metric.Value.distance_to_optimal]
-which is the distance to the optimal value.
+If the metric is bounded, you can also make use of the
+[`distance_to_optimal()`][amltk.optimization.Metric.distance_to_optimal]
+function which is the distance to the optimal value.
+
+In the case of optimization, we provide a
+[`normalized_loss()`][amltk.optimization.Metric.normalized_loss] which
+normalized the value to be a minimization loss, that is also bounded
+if the metric itself is bounded.
 
 ```python exec="true" source="material-block" result="python"
 from amltk.optimization import Metric
@@ -27,7 +32,7 @@ print(f"Score: {acc_value.score}")  # Something that can be maximized
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, ParamSpec
 from typing_extensions import Self, override
@@ -94,7 +99,7 @@ class Metric(Generic[P]):
         self,
         *,
         response_method: (
-            SklearnResponseMethods | Iterable[SklearnResponseMethods] | None
+            SklearnResponseMethods | Sequence[SklearnResponseMethods] | None
         ) = None,
         **scorer_kwargs: Any,
     ) -> _Scorer:
@@ -252,7 +257,7 @@ class MetricCollection(Mapping[str, Metric]):
         self,
         *,
         response_methods: (
-            Mapping[str, SklearnResponseMethods | Iterable[SklearnResponseMethods]]
+            Mapping[str, SklearnResponseMethods | Sequence[SklearnResponseMethods]]
             | None
         ) = None,
         scorer_kwargs: Mapping[str, Mapping[str, Any]] | None = None,

@@ -443,7 +443,7 @@ class History(RichRenderable):
             case str():
                 metric = self.metrics[key]
                 __op = operator.lt if metric.minimize else operator.gt  # type: ignore
-                op = lambda r1, r2: __op(r1.metrics[key], r2.metrics[key])
+                op = lambda r1, r2: __op(r1.values[key], r2.values[key])
             case _:
                 op = key
 

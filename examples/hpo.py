@@ -195,7 +195,7 @@ X_test, y_test = data["test"]
 
 bucket = PathBucket("example-hpo", clean=True, create=True)
 data_bucket = bucket / "data"
-bucket.store(
+data_bucket.store(
     {
         "X_train.csv": X_train,
         "X_val.csv": X_val,

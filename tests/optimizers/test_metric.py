@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
 from pytest_cases import case, parametrize_with_cases
 
 from amltk.optimization.metric import Metric
@@ -74,7 +75,8 @@ def case_metric_loss_bounded() -> MetricTest:
 @parametrize_with_cases(argnames="C", cases=".")
 def test_metrics_have_expected_outputs(C: MetricTest) -> None:
     assert C.metric.loss(C.value) == C.expected_loss
-    assert C.metric.distance_to_optimal(C.value) == C.expected_distance_from_optimal
+    if C.expected_distance_from_optimal is not None:
+        assert C.metric.distance_to_optimal(C.value) == C.expected_distance_from_optimal
     assert C.metric.score(C.value) == C.expected_score
     assert str(C.metric) == C.expected_str
 
@@ -123,13 +125,26 @@ def test_maximize_metric_worst_optimal_if_bounded(C: MetricTest) -> None:
 
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["unbounded"])
-def test_distance_to_optimal_is_none_for_unbounded(C: MetricTest) -> None:
-    assert C.metric.distance_to_optimal(C.value) is None
+def test_distance_to_optimal_is_raises_for_unbounded(C: MetricTest) -> None:
+    with pytest.raises(ValueError, match="unbounded"):
+        C.metric.distance_to_optimal(C.value)
 
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["bounded"])
 def test_distance_to_optimal_is_always_positive_for_bounded(C: MetricTest) -> None:
     assert C.metric.distance_to_optimal(C.value) >= 0
+
+
+@parametrize_with_cases(argnames="C", cases=".", has_tag=["bounded"])
+def test_normalized_loss_for_bounded(C: MetricTest) -> None:
+    assert 0 <= C.metric.normalized_loss(C.value) >= 1
+    assert C.metric.normalized_loss(C.metric.optimal) == 0
+    assert C.metric.normalized_loss(C.metric.worst) == 1
+
+
+@parametrize_with_cases(argnames="C", cases=".", has_tag=["unbounded"])
+def test_normalized_loss_for_unbounded_is_loss(C: MetricTest) -> None:
+    assert C.metric.normalized_loss(C.value) == C.metric.loss(C.value)
 
 
 @parametrize_with_cases(argnames="C", cases=".")

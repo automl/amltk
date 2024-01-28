@@ -216,19 +216,19 @@ def test_history_incumbents() -> None:
 
     hist_1 = history.incumbents("loss", ffill=True)
     expected_1 = [0, -1, -1, -3, -3, -5, -5, -7, -7, -9]
-    assert [r.metrics["loss"] for r in hist_1] == expected_1
+    assert [r.values["loss"] for r in hist_1] == expected_1
 
     hist_2 = history.incumbents("loss", ffill=False)
     expected_2 = [0, -1, -3, -5, -7, -9]
-    assert [r.metrics["loss"] for r in hist_2] == expected_2
+    assert [r.values["loss"] for r in hist_2] == expected_2
 
     hist_3 = history.incumbents("score", ffill=True)
     expected_3 = [0, 0, 2, 2, 4, 4, 6, 6, 8, 8]
-    assert [r.metrics["score"] for r in hist_3] == expected_3
+    assert [r.values["score"] for r in hist_3] == expected_3
 
     hist_4 = history.incumbents("score", ffill=False)
     expected_4 = [0, 2, 4, 6, 8]
-    assert [r.metrics["score"] for r in hist_4] == expected_4
+    assert [r.values["score"] for r in hist_4] == expected_4
 
 
 @parametrize_with_cases("reports", cases=".")

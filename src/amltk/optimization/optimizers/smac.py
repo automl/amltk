@@ -333,11 +333,14 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         for name, metric in self.metrics.items():
             value = report.values.get(metric.name)
             if value is None:
-                raise ValueError(
-                    f"Could not find metric '{metric.name}' in report values."
-                    " Make sure you use `trial.success()` in your target function."
-                    " So that we can report the metric value to SMAC.",
-                )
+                if report.status == Trial.Status.SUCCESS:
+                    raise ValueError(
+                        f"Could not find metric '{metric.name}' in report values."
+                        " Make sure you use `trial.success()` in your target function."
+                        " So that we can report the metric value to SMAC.",
+                    )
+                value = metric.worst
+
             costs[name] = metric.normalized_loss(value)
 
         logger.debug(f"Reporting for trial {report.trial.name} with costs: {costs}")
