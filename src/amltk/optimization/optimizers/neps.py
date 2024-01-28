@@ -63,14 +63,16 @@ def target_function(trial: Trial, pipeline: Pipeline) -> Trial.Report:
     X_train, X_test, y_train, y_test = train_test_split(X, y)
     clf = pipeline.configure(trial.config).build("sklearn")
 
-    with trial.begin():
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        loss = 1 - accuracy
-        return trial.success(loss=loss, accuracy=accuracy)
+    with trial.profile("trial"):
+        try:
+            clf.fit(X_train, y_train)
+            y_pred = clf.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
+            loss = 1 - accuracy
+            return trial.success(loss=loss, accuracy=accuracy)
+        except Exception as e:
+            return trial.fail(e)
 
-    return trial.fail()
 from amltk._doc import make_picklable; make_picklable(target_function)  # markdown-exec: hide
 
 pipeline = Component(RandomForestClassifier, space={"n_estimators": (10, 100)})
@@ -140,6 +142,7 @@ import amltk.randomness
 from amltk.optimization import Optimizer, Trial
 from amltk.pipeline import Node
 from amltk.pipeline.parsers.configspace import parser as configspace_parser
+from amltk.profiling import Timer
 from amltk.store import PathBucket
 
 if TYPE_CHECKING:
@@ -251,6 +254,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         space: SearchSpace,
         loss_metric: Metric | Sequence[Metric],
         cost_metric: Metric | None = None,
+        time_profile: str | None = None,
         optimizer: BaseOptimizer,
         working_dir: Path,
         seed: Seed | None = None,
@@ -262,6 +266,8 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             space: The space to use.
             loss_metric: The metric to optimize.
             cost_metric: The cost metric to use. Only certain NePs optimizers support
+            time_profile: The profile from which to get the timing of
+                the trial from.
             optimizer: The optimizer to use.
             seed: The seed to use for the trials (and not optimizers).
             working_dir: The directory to use for the trials.
@@ -289,6 +295,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         self.working_dir = working_dir
         self.loss_metric = loss_metric
         self.cost_metric = cost_metric
+        self.time_profile = time_profile
 
         self.optimizer_state_file = self.working_dir / "optimizer_state.yaml"
         self.base_result_directory = self.working_dir / "results"
@@ -297,8 +304,9 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         self.working_dir.mkdir(parents=True, exist_ok=True)
         self.base_result_directory.mkdir(parents=True, exist_ok=True)
 
+    @override
     @classmethod
-    def create(  # noqa: PLR0913
+    def create(
         cls,
         *,
         space: (
@@ -309,6 +317,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         ),
         metrics: Metric | Sequence[Metric],
         cost_metric: Metric | None = None,
+        time_profile: str | None = None,
         bucket: PathBucket | str | Path | None = None,
         searcher: str | BaseOptimizer = "default",
         working_dir: str | Path = "neps",
@@ -330,6 +339,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
 
             cost_metric: The cost metric to use. Only certain NePs optimizers support
                 this.
+            time_profile: What profiler to take the time end from.
             seed: The seed to use for the trials.
 
                 !!! warning
@@ -387,6 +397,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             seed=seed,
             loss_metric=metrics,
             cost_metric=cost_metric,
+            time_profile=time_profile,
             optimizer=searcher,
             working_dir=working_dir,
         )
@@ -485,7 +496,20 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             neps_loss = metric_result.loss
 
         result: dict[str, Any] = {"loss": neps_loss}
-        metadata: dict[str, Any] = {"time_end": report.time.end}
+
+        metadata: dict[str, Any]
+        if (
+            self.time_profile is not None
+            and (profile := report.profiles.get(self.time_profile)) is not None
+        ):
+            if profile.time.unit is not Timer.Unit.SECONDS:
+                raise NotImplementedError(
+                    "NePs only supports seconds as the time unit",
+                )
+            metadata = {"time_end": profile.time.end}
+        else:
+            # TODO: I'm not sure "time_end" is requried but probably for some optimizers
+            metadata = {}
 
         if self.cost_metric is not None:
             cost_metric: Metric = self.cost_metric

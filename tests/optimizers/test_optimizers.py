@@ -34,19 +34,16 @@ metrics = [
 
 def target_function(trial: Trial, err: Exception | None = None) -> Trial.Report:
     """A target function for testing optimizers."""
-    with trial.begin():
+    with trial.profile("trial"):
         # Do stuff with trail.info here
         logger.debug(trial.info)
 
         if err is not None:
-            raise err
+            return trial.fail(err)
 
         return trial.success(
             **{metric.name: metric.optimal.value for metric in trial.metrics},
         )
-
-    # Should fill in metric.worst here
-    return trial.fail()  # pyright: ignore
 
 
 def valid_time_interval(interval: Timer.Interval) -> bool:
@@ -113,7 +110,7 @@ def test_report_success(optimizer: Optimizer) -> None:
     optimizer.tell(report)
 
     assert report.status == Trial.Status.SUCCESS
-    assert valid_time_interval(report.time)
+    assert valid_time_interval(report.profiles["trial"].time)
     assert report.trial.info is trial.info
     assert report.metric_values == tuple(metric.optimal for metric in optimizer.metrics)
 
@@ -125,7 +122,7 @@ def test_report_failure(optimizer: Optimizer):
     optimizer.tell(report)
     assert report.status is Trial.Status.FAIL
 
-    assert valid_time_interval(report.time)
+    assert valid_time_interval(report.profiles["trial"].time)
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
     assert report.metric_values == tuple(metric.worst for metric in optimizer.metrics)

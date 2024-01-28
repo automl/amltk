@@ -16,12 +16,7 @@ used to keep a structured record of what occured with
         y = trial.config["y"]
         trial.store({"config.json": trial.config})
 
-        with trial.begin():
-            loss = x**2 - y
-
-        if trial.exception:
-            return trial.fail()
-
+        loss = x**2 - y
         return trial.success(loss=loss)
 
     # ... usually obtained from an optimizer
@@ -45,7 +40,7 @@ You'll often need to perform some operations on a
 * [`groupby(key=...)`][amltk.optimization.History.groupby] - Groups the history by some
     key, e.g. `#!python history.groupby(lambda report: report.config["x"] < 5)`
 * [`sortby(key=...)`][amltk.optimization.History.sortby] - Sorts the history by some
-    key, e.g. `#!python history.sortby(lambda report: report.time.end)`
+    key, e.g. `#!python history.sortby(lambda report: report.profiles["trial"].time.end)`
 
 There is also some serialization capabilities built in, to allow you to store
 your reports and load them back in later:
@@ -109,10 +104,9 @@ class History(RichRenderable):
     history = History()
 
     for trial in trials:
-        with trial.begin():
-            x = trial.config["x"]
-            report = trial.success(cost=x**2 - x*2 + 4)
-            history.add(report)
+        x = trial.config["x"]
+        report = trial.success(cost=x**2 - x*2 + 4)
+        history.add(report)
 
     for report in history:
         print(f"{report.name=}, {report}")
@@ -251,10 +245,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         print(history.df())
         ```
@@ -316,10 +309,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         filtered_history = history.filter(lambda report: report.metrics["cost"] < 10)
         for report in filtered_history:
@@ -349,13 +341,12 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                if x % 2 == 0:
-                    report = trial.fail(cost=1_000)
-                else:
-                    report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            if x % 2 == 0:
+                report = trial.fail(cost=1_000)
+            else:
+                report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         for status, history in history.groupby("status").items():
             print(f"{status=}, {len(history)=}")
@@ -371,10 +362,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.fail(cost=x)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.fail(cost=x)
+            history.add(report)
 
         for below_5, history in history.groupby(lambda r: r.metrics["cost"] < 5).items():
             print(f"{below_5=}, {len(history)=}")
@@ -401,8 +391,7 @@ class History(RichRenderable):
         self,
         key: Callable[[Trial.Report, Trial.Report], bool] | str,
         *,
-        sortby: Callable[[Trial.Report], Comparable]
-        | str = lambda report: report.time.end,
+        sortby: Callable[[Trial.Report], Comparable] | str = lambda r: r.reported_at,
         reverse: bool | None = None,
         ffill: bool = False,
     ) -> list[Trial.Report]:
@@ -417,14 +406,13 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         incumbents = (
             history
-            .incumbents("cost", sortby=lambda r: r.time.end)
+            .incumbents("cost", sortby=lambda r: r.reported_at)
         )
         for report in incumbents:
             print(f"{report.metrics=}, {report.config=}")
@@ -483,10 +471,9 @@ class History(RichRenderable):
         history = History()
 
         for trial in trials:
-            with trial.begin():
-                x = trial.config["x"]
-                report = trial.success(cost=x**2 - x*2 + 4)
-                history.add(report)
+            x = trial.config["x"]
+            report = trial.success(cost=x**2 - x*2 + 4)
+            history.add(report)
 
         trace = (
             history

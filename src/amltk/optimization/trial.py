@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import copy
 import logging
-import traceback
+import traceback as traceback_module
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -43,6 +43,7 @@ import pandas as pd
 
 from amltk._functional import dict_get_not_none, mapping_select, prefix_keys
 from amltk._richutil.renderable import RichRenderable
+from amltk._util import parse_timestamp_object
 from amltk.optimization.metric import Metric
 from amltk.profiling import Memory, Profile, Profiler, Timer
 from amltk.store import Bucket, PathBucket
@@ -77,10 +78,6 @@ class Trial(RichRenderable, Generic[I]):
 
     ??? tip "Usage"
 
-        To begin a trial, you can use the
-        [`trial.begin()`][amltk.optimization.Trial.begin], which will catch
-        exceptions/traceback and profile the block of code.
-
         If all went smooth, your trial was successful and you can use
         [`trial.success()`][amltk.optimization.Trial.success] to generate
         a success [`Report`][amltk.optimization.Trial.Report], typically
@@ -88,10 +85,11 @@ class Trial(RichRenderable, Generic[I]):
 
         If your trial failed, you can instead use the
         [`trial.fail()`][amltk.optimization.Trial.fail] to generate a
-        failure [`Report`][amltk.optimization.Trial.Report], where
-        any caught exception will be attached to it. Each
-        [`Optimizer`][amltk.optimization.Optimizer] will take care of what to do
-        from here.
+        failure [`Report`][amltk.optimization.Trial.Report]. If use pass
+        in an exception to `fail()`, it will be attached to the report along
+        with any traceback it can deduce.
+        Each [`Optimizer`][amltk.optimization.Optimizer] will take
+        care of what to do from here.
 
         ```python exec="true" source="material-block" html="true"
         from amltk.optimization import Trial, Metric
@@ -103,11 +101,8 @@ class Trial(RichRenderable, Generic[I]):
             x = trial.config["x"]
             y = trial.config["y"]
 
-            with trial.begin():
+            with trial.profile("expensive-calculation"):
                 cost = x**2 - y
-
-            if trial.exception:
-                return trial.fail()
 
             return trial.success(cost=cost)
 
@@ -140,10 +135,13 @@ class Trial(RichRenderable, Generic[I]):
     !!! tip "Reporting success (or failure)"
 
         When using the [`success()`][amltk.optimization.trial.Trial.success]
-        or [`fail()`][amltk.optimization.trial.Trial.success] method, make sure to
-        provide values for all metrics specified in the
-        [`.metrics`][amltk.optimization.Trial.metrics] attribute. Usually these are
-        set by the optimizer generating the `Trial`.
+        method, make sure to provide values for all metrics specified in the
+        [`.metrics`][amltk.optimization.Trial.metrics] attribute.
+        Usually these are set by the optimizer generating the `Trial`.
+
+        If you instead report using [`fail()`][amltk.optimization.trial.Trial.success],
+        any metric not specified will be set to the
+        [`.worst`][amltk.optimization.Metric.worst] value of the metric.
 
         Each metric has a unique name, and it's crucial to use the correct names when
         reporting success, otherwise an error will occur.
@@ -176,14 +174,10 @@ class Trial(RichRenderable, Generic[I]):
     some extra objects in the [`.extra`][amltk.optimization.Trial.extras] dict.
 
     To profile your trial, you can wrap the logic you'd like to check with
-    [`trial.begin()`][amltk.optimization.Trial.begin], which will automatically
-    catch any errors, record the traceback, and profile the block of code, in
-    terms of time and memory.
+    [`trial.profile()`][amltk.optimization.Trial.profile], which will automatically
+    profile the block of code for memory before and after as well as time taken.
 
-    You can access the profiled time and memory using the
-    [`.time`][amltk.optimization.Trial.time] and
-    [`.memory`][amltk.optimization.Trial.memory] attributes.
-    If you've [`profile()`][amltk.optimization.Trial.profile]'ed any other intervals,
+    If you've [`profile()`][amltk.optimization.Trial.profile]'ed any intervals,
     you can access them by name through
     [`trial.profiles`][amltk.optimization.Trial.profiles].
     Please see the [`Profiler`][amltk.profiling.profiler.Profiler]
@@ -248,12 +242,6 @@ class Trial(RichRenderable, Generic[I]):
     fidelities: dict[str, Any] | None = None
     """The fidelities at which to evaluate the trial, if any."""
 
-    time: Timer.Interval = field(repr=False, default_factory=Timer.na)
-    """The time taken by the trial, once ended."""
-
-    memory: Memory.Interval = field(repr=False, default_factory=Memory.na)
-    """The memory used by the trial, once ended."""
-
     profiler: Profiler = field(
         repr=False,
         default_factory=lambda: Profiler(memory_unit="B", time_kind="wall"),
@@ -263,12 +251,6 @@ class Trial(RichRenderable, Generic[I]):
     summary: dict[str, Any] = field(default_factory=dict)
     """The summary of the trial. These are for summary statistics of a trial and
     are single values."""
-
-    exception: BaseException | None = field(repr=True, default=None)
-    """The exception raised by the trial, if any."""
-
-    traceback: str | None = field(repr=False, default=None)
-    """The traceback of the exception, if any."""
 
     storage: set[Any] = field(default_factory=set)
     """Anything stored in the trial, the elements of the list are keys that can be
@@ -282,64 +264,6 @@ class Trial(RichRenderable, Generic[I]):
     def profiles(self) -> Mapping[str, Profile.Interval]:
         """The profiles of the trial."""
         return self.profiler.profiles
-
-    @contextmanager
-    def begin(
-        self,
-        time: Timer.Kind | Literal["wall", "cpu", "process"] | None = None,
-        memory_unit: Memory.Unit | Literal["B", "KB", "MB", "GB"] | None = None,
-    ) -> Iterator[None]:
-        """Begin the trial with a `contextmanager`.
-
-        Will begin timing the trial in the `with` block, attaching the profiled time and memory
-        to the trial once completed, under `.profile.time` and `.profile.memory` attributes.
-
-        If an exception is raised, it will be attached to the trial under `.exception`
-        with the traceback attached to the actual error message, such that it can
-        be pickled and sent back to the main process loop.
-
-        ```python exec="true" source="material-block" result="python" title="begin" hl_lines="5"
-        from amltk.optimization import Trial
-
-        trial = Trial(name="trial", config={"x": 1})
-
-        with trial.begin():
-            # Do some work
-            pass
-
-        print(trial.memory)
-        print(trial.time)
-        ```
-
-        ```python exec="true" source="material-block" result="python" title="begin-fail" hl_lines="5"
-        from amltk.optimization import Trial
-
-        trial = Trial(name="trial", config={"x": -1})
-
-        with trial.begin():
-            raise ValueError("x must be positive")
-
-        print(trial.exception)
-        print(trial.traceback)
-        print(trial.memory)
-        print(trial.time)
-        ```
-
-        Args:
-            time: The timer kind to use for the trial. Defaults to the default
-                timer kind of the profiler.
-            memory_unit: The memory unit to use for the trial. Defaults to the
-                default memory unit of the profiler.
-        """  # noqa: E501
-        with self.profiler(name="trial", memory_unit=memory_unit, time_kind=time):
-            try:
-                yield
-            except Exception as error:  # noqa: BLE001
-                self.exception = error
-                self.traceback = traceback.format_exc()
-            finally:
-                self.time = self.profiler["trial"].time
-                self.memory = self.profiler["trial"].memory
 
     @contextmanager
     def profile(
@@ -395,10 +319,7 @@ class Trial(RichRenderable, Generic[I]):
         loss_metric = Metric("loss", minimize=True)
 
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss_metric])
-
-        with trial.begin():
-            # Do some work
-            report = trial.success(loss=1)
+        report = trial.success(loss=1)
 
         print(report)
         ```
@@ -438,7 +359,13 @@ class Trial(RichRenderable, Generic[I]):
             metric_values=tuple(_recorded_values),
         )
 
-    def fail(self, **metrics: float | int) -> Trial.Report[I]:
+    def fail(
+        self,
+        exception: Exception | None = None,
+        traceback: str | None = None,
+        /,
+        **metrics: float | int,
+    ) -> Trial.Report[I]:
         """Generate a failure report.
 
         !!! note "Non specifed metrics"
@@ -454,11 +381,10 @@ class Trial(RichRenderable, Generic[I]):
         loss = Metric("loss", minimize=True, bounds=(0, 1_000))
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
-        with trial.begin():
+        try:
             raise ValueError("This is an error")  # Something went wrong
-
-        if trial.exception: # You can check for an exception of the trial here
-            report = trial.fail()
+        except Exception as error:
+            report = trial.fail(error)
 
         print(report.metrics)
         print(report)
@@ -467,22 +393,23 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The result of the trial.
         """
-        _recorded_values: list[Metric.Value] = []
-        for _metric in self.metrics:
-            if (raw_value := metrics.get(_metric.name)) is not None:
-                _recorded_values.append(_metric.as_value(raw_value))
-            else:
-                _recorded_values.append(_metric.worst)
+        if exception is not None and traceback is None:
+            traceback = traceback_module.format_exc()
 
         return Trial.Report(
             trial=self,
             status=Trial.Status.FAIL,
-            metric_values=tuple(_recorded_values),
+            exception=exception,
+            traceback=traceback,
+            metric_values=tuple(
+                _metric.as_value(metrics.get(_metric.name, _metric.worst.value))
+                for _metric in self.metrics
+            ),
         )
 
     def crashed(
         self,
-        exception: BaseException | None = None,
+        exception: Exception,
         traceback: str | None = None,
     ) -> Trial.Report[I]:
         """Generate a crash report.
@@ -509,20 +436,15 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The report of the trial.
         """
-        if exception is None and self.exception is None:
-            raise RuntimeError(
-                "Cannot generate a crash report without an exception."
-                " Please provide an exception or use `with trial.begin():` to start"
-                " the trial.",
-            )
-
-        self.exception = exception if exception else self.exception
-        self.traceback = traceback if traceback else self.traceback
+        if traceback is None:
+            traceback = "".join(traceback_module.format_tb(exception.__traceback__))
 
         return Trial.Report(
             trial=self,
             status=Trial.Status.CRASHED,
             metric_values=tuple(metric.worst for metric in self.metrics),
+            exception=exception,
+            traceback=traceback,
         )
 
     def store(
@@ -792,12 +714,11 @@ class Trial(RichRenderable, Generic[I]):
         """
         self.extras[name] = plugin_item
 
-    def rich_renderables(self) -> Iterable[RenderableType]:  # noqa: C901
+    def rich_renderables(self) -> Iterable[RenderableType]:
         """The renderables for rich for this report."""
         from rich.panel import Panel
         from rich.pretty import Pretty
         from rich.table import Table
-        from rich.text import Text
 
         items: list[RenderableType] = []
         table = Table.grid(padding=(0, 1), expand=False)
@@ -828,12 +749,6 @@ class Trial(RichRenderable, Generic[I]):
 
         if any(self.storage):
             table.add_row("storage", Pretty(self.storage))
-
-        if self.exception:
-            table.add_row("exception", Text(str(self.exception), style="bold red"))
-
-        if self.traceback:
-            table.add_row("traceback", Text(self.traceback, style="bold red"))
 
         for name, profile in self.profiles.items():
             table.add_row("profile:" + name, Pretty(profile))
@@ -909,10 +824,10 @@ class Trial(RichRenderable, Generic[I]):
 
         trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
 
-        with trial.begin():
+        with trial.profile("fitting"):
             # Do some work
             # ...
-            report: Trial.Report = trial.success(loss=1)
+            report = trial.success(loss=1)
 
         print(report.df())
         ```
@@ -939,6 +854,21 @@ class Trial(RichRenderable, Generic[I]):
         status: Trial.Status
         """The status of the trial."""
 
+        reported_at: datetime = field(default_factory=datetime.now)
+        """When this Report was generated.
+
+        This will primarily be `None` if there was no corresponding key
+        when loading this report from a serialized form, such as
+        with [`from_df()`][amltk.optimization.Trial.Report.from_df]
+        or [`from_dict()`][amltk.optimization.Trial.Report.from_dict].
+        """
+
+        exception: BaseException | None = field(repr=True, default=None)
+        """The exception reported if any."""
+
+        traceback: str | None = field(repr=False, default=None)
+        """The traceback reported if any."""
+
         metrics: dict[str, float] = field(init=False)
         """The metric values of the trial."""
 
@@ -955,16 +885,6 @@ class Trial(RichRenderable, Generic[I]):
             self.metrics = {value.name: value.value for value in self.metric_values}
             self.metric_names = tuple(metric.name for metric in self.metric_values)
             self.metric_defs = {v.metric.name: v.metric for v in self.metric_values}
-
-        @property
-        def exception(self) -> BaseException | None:
-            """The exception of the trial, if any."""
-            return self.trial.exception
-
-        @property
-        def traceback(self) -> str | None:
-            """The traceback of the trial, if any."""
-            return self.trial.traceback
 
         @property
         def name(self) -> str:
@@ -990,16 +910,6 @@ class Trial(RichRenderable, Generic[I]):
         def storage(self) -> set[str]:
             """The storage of the trial."""
             return self.trial.storage
-
-        @property
-        def time(self) -> Timer.Interval:
-            """The time of the trial."""
-            return self.trial.time
-
-        @property
-        def memory(self) -> Memory.Interval:
-            """The memory of the trial."""
-            return self.trial.memory
 
         @property
         def bucket(self) -> PathBucket:
@@ -1043,6 +953,7 @@ class Trial(RichRenderable, Generic[I]):
                 "exception": str(self.exception) if self.exception else "NA",
                 "traceback": str(self.traceback) if self.traceback else "NA",
                 "bucket": str(self.bucket.path),
+                "reported_at": self.reported_at,
             }
             if metrics:
                 for value in self.metric_values:
@@ -1053,11 +964,7 @@ class Trial(RichRenderable, Generic[I]):
                 items.update(**prefix_keys(self.trial.config, "config:"))
             if profiles:
                 for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
-                    # We log this one seperatly
-                    if name == "trial":
-                        items.update(profile.to_dict())
-                    else:
-                        items.update(profile.to_dict(prefix=f"profile:{name}"))
+                    items.update(profile.to_dict(prefix=f"profile:{name}"))
 
             return pd.DataFrame(items, index=[0]).convert_dtypes().set_index("name")
 
@@ -1094,23 +1001,6 @@ class Trial(RichRenderable, Generic[I]):
 
                  Use the same argument for `where=` as you did for `store()`.
 
-            ```python exec="true" source="material-block" result="python" title="retrieve" hl_lines="7"
-            from amltk.optimization import Trial
-            from amltk.store import PathBucket
-
-            bucket = PathBucket("results")
-            trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
-
-            trial.store({"config.json": trial.config})
-            with trial.begin():
-                report = trial.success()
-
-            config = report.retrieve("config.json")
-            print(config)
-            ```
-
-            You could also create a Bucket and use that instead.
-
             ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
 
             from amltk.optimization import Trial
@@ -1121,9 +1011,7 @@ class Trial(RichRenderable, Generic[I]):
             trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
 
             trial.store({"config.json": trial.config})
-
-            with trial.begin():
-                report = trial.success()
+            report = trial.success()
 
             config = report.retrieve("config.json")
             print(config)
@@ -1229,15 +1117,6 @@ class Trial(RichRenderable, Generic[I]):
                 for metric, value in _intermediate.items()
             }
 
-            _trial_profile_items = {
-                k: v for k, v in d.items() if k.startswith(("memory:", "time:"))
-            }
-            if any(_trial_profile_items):
-                trial_profile = Profile.from_dict(_trial_profile_items)
-                profiles["trial"] = trial_profile
-            else:
-                trial_profile = Profile.na()
-
             exception = d.get("exception")
             traceback = d.get("traceback")
             trial_seed = d.get("trial_seed")
@@ -1260,30 +1139,34 @@ class Trial(RichRenderable, Generic[I]):
                 bucket=bucket,
                 seed=trial_seed,
                 fidelities=mapping_select(d, "fidelities:"),
-                time=trial_profile.time,
-                memory=trial_profile.memory,
                 profiler=Profiler(profiles=profiles),
                 metrics=list(metrics.keys()),
                 summary=mapping_select(d, "summary:"),
-                exception=exception,
-                traceback=traceback,
             )
-            status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             _values: dict[str, float] = {m.name: r.value for m, r in metrics.items()}
-            if status == Trial.Status.SUCCESS:
-                return trial.success(**_values)
 
-            if status == Trial.Status.FAIL:
-                return trial.fail(**_values)
+            status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
+            match status:
+                case Trial.Status.SUCCESS:
+                    report = trial.success(**_values)
+                case Trial.Status.FAIL:
+                    exc = Exception(exception) if exception else None
+                    tb = str(traceback) if traceback else None
+                    report = trial.fail(exc, tb, **_values)
+                case Trial.Status.CRASHED:
+                    exc = Exception(exception) if exception else Exception("Unknown")
+                    tb = str(traceback) if traceback else None
+                    report = trial.crashed(exc, tb)
+                case Trial.Status.UNKNOWN | _:
+                    report = trial.crashed(exception=Exception("Unknown status."))
 
-            if status == Trial.Status.CRASHED:
-                return trial.crashed(
-                    exception=Exception("Unknown status.")
-                    if trial.exception is None
-                    else None,
+            timestamp = d.get("reported_at")
+            if timestamp is None:
+                raise ValueError(
+                    "Cannot load report from dict without a 'reported_at' field.",
                 )
-
-            return trial.crashed(exception=Exception("Unknown status."))
+            report.reported_at = parse_timestamp_object(timestamp)
+            return report
 
         def rich_renderables(self) -> Iterable[RenderableType]:
             """The renderables for rich for this report."""

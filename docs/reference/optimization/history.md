@@ -28,10 +28,9 @@ trials = [
 
 reports = []
 for trial in trials:
-    with trial.begin():
-        x = trial.config["x"]
-        report = trial.success(loss=quadratic(x))
-        history.add(report)
+    x = trial.config["x"]
+    report = trial.success(loss=quadratic(x))
+    history.add(report)
 
 print(history.df())
 ```
@@ -55,9 +54,8 @@ see the [optimization guide](../../guides/optimization.md) for more details.
 
     def target_function(trial: Trial) -> Trial.Report:
         x = trial.config["x"]
-        with trial.begin():
-            cost = quadratic(x)
-            return trial.success(cost=cost)
+        cost = quadratic(x)
+        return trial.success(cost=cost)
 
     optimizer = SMACOptimizer(space=searchable, metrics=Metric("cost", minimize=True), seed=42)
 

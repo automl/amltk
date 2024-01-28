@@ -128,16 +128,14 @@ for _ in range(10):
     # Access the the trial's config
     x = trial.config["my-searchable:x"]
 
-    # Begin the trial
-    with trial.begin():
+    try:
         score = poly(x)
-
-    if trial.exception is None:
-        # Generate a success report
-        report: Trial.Report = trial.success(score=score)
-    else:
+    except ZeroDivisionError as e:
         # Generate a failed report (i.e. poly(x) raised divide by zero exception with x=0)
-        report: Trial.Report = trial.fail()
+        report = trial.fail(e)
+    else:
+        # Generate a success report
+        report = trial.success(score=score)
 
     # Store artifacts with the trial, using file extensions to infer how to store it
     trial.store({ "config.json": trial.config, "array.npy": [1, 2, 3] })
@@ -167,12 +165,6 @@ functionality to help you during optimization.
 
 The `.config` will contain name spaced parameters, in this case, `my-searchable:x`, based on the
 pipeline/search space you specified.
-
-We also wrap the actual evaluation of the function in a [`with trial.begin():`][amltk.optimization.Trial.begin] which
-will time and profile the evaluation of the function and handle any exceptions that occur within the block.
-
-If an exception occured in the `#!python with trial.begin():` block, any exception/traceback that occured will be
-attached to [`.exception`][amltk.optimization.Trial.exception] and [`.traceback`][amltk.optimization.Trial.traceback].
 
 It's also quite typical to store artifacts with the trial, a common feature of things like TensorBoard, MLFlow, etc.
 We provide a primitive way to store artifacts with the trial using [`.store()`][amltk.optimization.Trial.store] which
@@ -209,12 +201,11 @@ trials = [
 ]
 
 for trial in trials:
-    with trial.begin():
-        x = trial.config["x"]
-        if x >= 2:
-            report = trial.fail()
-        else:
-            report = trial.success(score=x)
+    x = trial.config["x"]
+    if x >= 2:
+        report = trial.fail()
+    else:
+        report = trial.success(score=x)
 
     history.add(report)
 
@@ -307,7 +298,7 @@ def evaluate(
     y = y.value()
 
     # Use sklearns.cross_validate as our evaluator
-    with trial.begin():
+    with trial.profile("cross-validate"):
         results = cross_validate(sklearn_pipeline, X, y, scoring="accuracy", cv=3, return_estimator=True)
 
     test_scores = results["test_score"]

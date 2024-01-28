@@ -974,8 +974,11 @@ class Node(RichRenderable, Generic[Item, Space]):
                     ::: amltk.pipeline.node.OnBeginCallbackSignature
 
             on_trial_exception:
-                What to do when a trial raises an exception within its
-                [`with trial.begin():`][amltk.optimization.Trial.begin] block.
+                What to do when a trial returns a fail report from
+                [`trial.fail()`][amltk.optimization.trial.Trial.fail] or
+                [`trial.crashed()`][amltk.optimization.trial.Trial.crashed]
+                that contains an exception.
+
                 Please see the [optimization guide](../../../guides/optimization.md)
                 for more. In all cases, the exception will be attached to the
                 [`Trial.Report`][amltk.optimization.Trial.Report] object under
@@ -988,6 +991,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the optimization process will end gracefully.
                 * If `#!python "continue"`, the exception will be ignored and
                 the optimization procedure will continue.
+
             max_trials:
                 The maximum number of trials to run. If `None`, then the
                 optimization will continue for as long as the scheduler is
@@ -1395,8 +1399,11 @@ class Node(RichRenderable, Generic[Item, Space]):
                     ::: amltk.pipeline.node.OnBeginCallbackSignature
 
             on_trial_exception:
-                What to do when a trial raises an exception within its
-                [`with trial.begin():`][amltk.optimization.Trial.begin] block.
+                What to do when a trial returns a fail report from
+                [`trial.fail()`][amltk.optimization.trial.Trial.fail] or
+                [`trial.crashed()`][amltk.optimization.trial.Trial.crashed]
+                that contains an exception.
+
                 Please see the [optimization guide](../../../guides/optimization.md)
                 for more. In all cases, the exception will be attached to the
                 [`Trial.Report`][amltk.optimization.Trial.Report] object under
@@ -1409,10 +1416,12 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the optimization process will end gracefully.
                 * If `#!python "continue"`, the exception will be ignored and
                 the optimization procedure will continue.
+
             max_trials:
                 The maximum number of trials to run. If `None`, then the
                 optimization will continue for as long as the scheduler is
                 running. You'll likely want to configure this.
+
             process_memory_limit:
                 If specified, the [`Task`][amltk.scheduling.task.Task] will
                 use the
