@@ -27,12 +27,20 @@ print(f"Score: {acc_value.score}")  # Something that can be maximized
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Generic, ParamSpec
 from typing_extensions import Self, override
+
+if TYPE_CHECKING:
+    from sklearn.metrics._scorer import _Scorer
+
+
+P = ParamSpec("P")
 
 
 @dataclass(frozen=True)
-class Metric:
+class Metric(Generic[P]):
     """A metric with a given name, optimal direction, and possible bounds."""
 
     name: str
@@ -43,6 +51,9 @@ class Metric:
 
     bounds: tuple[float, float] | None = field(kw_only=True, default=None)
     """The bounds of the metric, if any."""
+
+    fn: Callable[P, float] | None = field(kw_only=True, default=None, compare=False)
+    """A function to attach to this metric to be used within a trial."""
 
     def __post_init__(self) -> None:
         if self.bounds is not None:
@@ -65,12 +76,39 @@ class Metric:
                     " Must be a valid Python identifier.",
                 )
 
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> float:
+        """Call the associated function with this metric."""
+        if self.fn is None:
+            raise ValueError(
+                f"Metric {self.name} does not have a function to call."
+                " Please provide a function to `Metric(fn=...)` if you"
+                " want to call this metric like this.",
+            )
+        return self.fn(*args, **kwargs)
+
+    def as_sklearn_scorer(self) -> _Scorer:
+        """Convert a metric to a sklearn scorer."""
+        from sklearn.metrics import get_scorer, make_scorer
+
+        match self.fn:
+            case None:
+                try:
+                    return get_scorer(self.name)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Could not find scorer for {self.name}."
+                        " Please provide a function to `Metric(fn=...)`.",
+                    ) from e
+            case fn:
+                return make_scorer(fn, greater_is_better=not self.minimize)
+
     @override
     def __str__(self) -> str:
         parts = [self.name]
         if self.bounds is not None:
             parts.append(f"[{self.bounds[0]}, {self.bounds[1]}]")
         parts.append(f"({'minimize' if self.minimize else 'maximize'})")
+
         return " ".join(parts)
 
     @classmethod
@@ -127,10 +165,6 @@ class Metric:
         return self.as_value(v)
 
     def as_value(self, value: float | int) -> Metric.Value:
-        """Convert a value to an metric value."""
-        return Metric.Value(metric=self, value=float(value))
-
-    def __call__(self, value: float | int) -> Metric.Value:
         """Convert a value to an metric value."""
         return Metric.Value(metric=self, value=float(value))
 
