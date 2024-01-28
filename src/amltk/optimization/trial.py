@@ -30,7 +30,6 @@ import copy
 import logging
 import traceback as traceback_module
 from collections.abc import (
-    Callable,
     Hashable,
     Iterable,
     Iterator,
@@ -510,34 +509,15 @@ class Trial(RichRenderable, Generic[I]):
             traceback=traceback,
         )
 
-    def store(
-        self,
-        items: Mapping[str, T],
-        *,
-        where: (
-            str | Path | Bucket | Callable[[str, Mapping[str, T]], None] | None
-        ) = None,
-    ) -> None:
+    def store(self, items: Mapping[str, T]) -> None:
         """Store items related to the trial.
 
         ```python exec="true" source="material-block" result="python" title="store" hl_lines="5"
         from amltk.optimization import Trial
         from amltk.store import PathBucket
 
-        trial = Trial(name="trial", config={"x": 1}, bucket=PathBucket("results"))
+        trial = Trial(name="trial", config={"x": 1}, bucket=PathBucket("my-trial"))
         trial.store({"config.json": trial.config})
-
-        print(trial.storage)
-        ```
-
-        You could also specify `where=` exactly to store the thing
-
-        ```python exec="true" source="material-block" result="python" title="store-bucket" hl_lines="7"
-        from amltk.optimization import Trial
-
-        trial = Trial(name="trial", config={"x": 1})
-        trial.store({"config.json": trial.config}, where="./results")
-
         print(trial.storage)
         ```
 
@@ -546,48 +526,12 @@ class Trial(RichRenderable, Generic[I]):
                 to the item itself.If using a `str`, `Path` or `PathBucket`,
                 the keys of the items should be a valid filename, including
                 the correct extension. e.g. `#!python {"config.json": trial.config}`
-
-            where: Where to store the items.
-
-                * If `None`, will use the bucket attached to the `Trial` if any,
-                    otherwise it will raise an error.
-
-                * If a `str` or `Path`, will store
-                a bucket will be created at the path, and the items will be
-                stored in a sub-bucket with the name of the trial.
-
-                * If a `Bucket`, will store the items **in a sub-bucket** with the
-                name of the trial.
-
-                * If a `Callable`, will call the callable with the name of the
-                trial and the key-valued pair of items to store.
         """  # noqa: E501
-        method: Bucket
-        match where:
-            case None:
-                method = self.bucket
-                method.sub(self.name).store(items)
-            case str() | Path():
-                method = PathBucket(where, create=True)
-                method.sub(self.name).store(items)
-            case Bucket():
-                method = where
-                method.sub(self.name).store(items)
-            case _:
-                # Leave it up to supplied method
-                where(self.name, items)
-
+        self.bucket.store(items)
         # Add the keys to storage
         self.storage.update(items)
 
-    def delete_from_storage(
-        self,
-        items: Iterable[str],
-        *,
-        where: (
-            str | Path | Bucket | Callable[[str, Iterable[str]], dict[str, bool]] | None
-        ) = None,
-    ) -> dict[str, bool]:
+    def delete_from_storage(self, items: Iterable[str]) -> dict[str, bool]:
         """Delete items related to the trial.
 
         ```python exec="true" source="material-block" result="python" title="delete-storage" hl_lines="6"
@@ -620,39 +564,13 @@ class Trial(RichRenderable, Generic[I]):
 
         Args:
             items: The items to delete, an iterable of keys
-            where: Where the items are stored
-
-                * If `None`, will use the bucket attached to the `Trial` if any,
-                    otherwise it will raise an error.
-
-                * If a `str` or `Path`, will lookup a bucket at the path,
-                and the items will be deleted from a sub-bucket with the name of the trial.
-
-                * If a `Bucket`, will delete the items in a sub-bucket with the
-                name of the trial.
-
-                * If a `Callable`, will call the callable with the name of the
-                trial and the keys of the items to delete. Should a mapping from
-                the key to whether it was deleted or not.
 
         Returns:
             A dict from the key to whether it was deleted or not.
         """  # noqa: E501
         # If not a Callable, we convert to a path bucket
-        method: Bucket
-        match where:
-            case None:
-                method = self.bucket
-            case str() | Path():
-                method = PathBucket(where, create=False)
-            case Bucket():
-                method = where
-            case _:
-                # Leave it up to supplied method
-                return where(self.name, items)
-
-        sub_bucket = method.sub(self.name)
-        return sub_bucket.remove(items)
+        self.bucket.remove(items)
+        self.storage.difference_update(items)
 
     def copy(self) -> Self:
         """Create a copy of the trial.
@@ -663,37 +581,15 @@ class Trial(RichRenderable, Generic[I]):
         return copy.deepcopy(self)
 
     @overload
-    def retrieve(
-        self,
-        key: str,
-        *,
-        where: str | Path | Bucket[str, Any] | None = ...,
-        check: None = None,
-    ) -> Any:
+    def retrieve(self, key: str, *, check: None = None) -> Any:
         ...
 
     @overload
-    def retrieve(
-        self,
-        key: str,
-        *,
-        where: str | Path | Bucket[str, Any] | None = ...,
-        check: type[R],
-    ) -> R:
+    def retrieve(self, key: str, *, check: type[R]) -> R:
         ...
 
-    def retrieve(
-        self,
-        key: str,
-        *,
-        where: str | Path | Bucket[str, Any] | None = None,
-        check: type[R] | None = None,
-    ) -> R | Any:
+    def retrieve(self, key: str, *, check: type[R] | None = None) -> R | Any:
         """Retrieve items related to the trial.
-
-        !!! note "Same argument for `where=`"
-
-             Use the same argument for `where=` as you did for `store()`.
 
         ```python exec="true" source="material-block" result="python" title="retrieve" hl_lines="7"
         from amltk.optimization import Trial
@@ -710,41 +606,10 @@ class Trial(RichRenderable, Generic[I]):
         print(config)
         ```
 
-        You could also manually specify where something get's stored and retrieved
-
-        ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
-
-        from amltk.optimization import Trial
-        from amltk.store import PathBucket
-
-        path = "./config_path"
-
-        trial = Trial(name="trial", config={"x": 1})
-
-        trial.store({"config.json": trial.config}, where=path)
-
-        config = trial.retrieve("config.json", where=path)
-        print(config)
-        import shutil; shutil.rmtree(path)  # markdown-exec: hide
-        ```
-
         Args:
             key: The key of the item to retrieve as said in `.storage`.
             check: If provided, will check that the retrieved item is of the
-                provided type. If not, will raise a `TypeError`. This
-                is only used if `where=` is a `str`, `Path` or `Bucket`.
-
-            where: Where to retrieve the items from.
-
-                * If `None`, will use the bucket attached to the `Trial` if any,
-                    otherwise it will raise an error.
-
-                * If a `str` or `Path`, will store
-                a bucket will be created at the path, and the items will be
-                retrieved from a sub-bucket with the name of the trial.
-
-                * If a `Bucket`, will retrieve the items from a sub-bucket with the
-                name of the trial.
+                provided type. If not, will raise a `TypeError`.
 
         Returns:
             The retrieved item.
@@ -753,20 +618,7 @@ class Trial(RichRenderable, Generic[I]):
             TypeError: If `check=` is provided and  the retrieved item is not of the provided
                 type.
         """  # noqa: E501
-        # If not a Callable, we convert to a path bucket
-        method: Bucket[str, Any]
-        match where:
-            case None:
-                method = self.bucket
-            case str():
-                method = PathBucket(where, create=True)
-            case Path():
-                method = PathBucket(where, create=True)
-            case Bucket():
-                method = where
-
-        # Store in a sub-bucket
-        return method.sub(self.name)[key].load(check=check)
+        return self.bucket[key].load(check=check)
 
     def attach_extra(self, name: str, plugin_item: Any) -> None:
         """Attach a plugin item to the trial.
@@ -1024,37 +876,15 @@ class Trial(RichRenderable, Generic[I]):
             return pd.DataFrame(items, index=[0]).convert_dtypes().set_index("name")
 
         @overload
-        def retrieve(
-            self,
-            key: str,
-            *,
-            where: str | Path | Bucket[str, Any] | None = ...,
-            check: None = None,
-        ) -> Any:
+        def retrieve(self, key: str, *, check: None = None) -> Any:
             ...
 
         @overload
-        def retrieve(
-            self,
-            key: str,
-            *,
-            where: str | Path | Bucket[str, Any] | None = ...,
-            check: type[R],
-        ) -> R:
+        def retrieve(self, key: str, *, check: type[R]) -> R:
             ...
 
-        def retrieve(
-            self,
-            key: str,
-            *,
-            where: str | Path | Bucket[str, Any] | None = None,
-            check: type[R] | None = None,
-        ) -> R | Any:
+        def retrieve(self, key: str, *, check: type[R] | None = None) -> R | Any:
             """Retrieve items related to the trial.
-
-            !!! note "Same argument for `where=`"
-
-                 Use the same argument for `where=` as you did for `store()`.
 
             ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
 
@@ -1075,19 +905,7 @@ class Trial(RichRenderable, Generic[I]):
             Args:
                 key: The key of the item to retrieve as said in `.storage`.
                 check: If provided, will check that the retrieved item is of the
-                    provided type. If not, will raise a `TypeError`. This
-                    is only used if `where=` is a `str`, `Path` or `Bucket`.
-                where: Where to retrieve the items from.
-
-                    * If `None`, will use the bucket attached to the `Trial` if any,
-                        otherwise it will raise an error.
-
-                    * If a `str` or `Path`, will store
-                    a bucket will be created at the path, and the items will be
-                    retrieved from a sub-bucket with the name of the trial.
-
-                    * If a `Bucket`, will retrieve the items from a sub-bucket with the
-                    name of the trial.
+                    provided type. If not, will raise a `TypeError`.
 
             Returns:
                 The retrieved item.
@@ -1096,21 +914,15 @@ class Trial(RichRenderable, Generic[I]):
                 TypeError: If `check=` is provided and  the retrieved item is not of the provided
                     type.
             """  # noqa: E501
-            return self.trial.retrieve(key, where=where, check=check)
+            return self.trial.retrieve(key, check=check)
 
-        def store(
-            self,
-            items: Mapping[str, T],
-            *,
-            where: (
-                str | Path | Bucket | Callable[[str, Mapping[str, T]], None] | None
-            ) = None,
-        ) -> None:
+        def store(self, items: Mapping[str, T]) -> None:
             """Store items related to the trial.
 
-            See: [`Trial.store()`][amltk.optimization.trial.Trial.store]
+            See Also:
+                * [`Trial.store()`][amltk.optimization.trial.Trial.store]
             """
-            self.trial.store(items, where=where)
+            self.trial.store(items)
 
         @classmethod
         def from_df(cls, df: pd.DataFrame | pd.Series) -> Trial.Report:
