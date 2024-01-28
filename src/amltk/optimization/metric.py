@@ -27,13 +27,13 @@ print(f"Score: {acc_value.score}")  # Something that can be maximized
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Generic, ParamSpec
 from typing_extensions import Self, override
 
 if TYPE_CHECKING:
-    from sklearn.metrics._scorer import _Scorer
+    from sklearn.metrics._scorer import _MultimetricScorer, _Scorer
 
 
 P = ParamSpec("P")
@@ -234,3 +234,49 @@ class Metric(Generic[P]):
             if isinstance(__value, float | int):
                 return self.value == float(__value)
             return NotImplemented
+
+
+@dataclass(frozen=True, kw_only=True)
+class MetricCollection(Mapping[str, Metric]):
+    """A collection of metrics."""
+
+    metrics: Mapping[str, Metric] = field(default_factory=dict)
+    """The metrics in this collection."""
+
+    @override
+    def __getitem__(self, key: str) -> Metric:
+        return self.metrics[key]
+
+    @override
+    def __len__(self) -> int:
+        return len(self.metrics)
+
+    @override
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.metrics)
+
+    def as_sklearn(self, *, raise_exc: bool = True) -> _MultimetricScorer:
+        """Convert this collection to a sklearn scorer."""
+        from sklearn.metrics._scorer import _MultimetricScorer
+
+        scorers = {k: v.as_sklearn_scorer() for k, v in self.items()}
+        return _MultimetricScorer(scorers=scorers, raise_exc=raise_exc)
+
+    @classmethod
+    def from_collection(
+        cls,
+        metrics: Metric | Iterable[Metric] | MetricCollection,
+    ) -> MetricCollection:
+        """Create a metric collection from an iterable of metrics."""
+        match metrics:
+            case Metric():
+                return cls(metrics={metrics.name: metrics})
+            case MetricCollection():
+                return MetricCollection(metrics=metrics.metrics)
+            case Iterable():
+                return cls(metrics={m.name: m for m in metrics})  # type: ignore
+            case _:
+                raise TypeError(
+                    f"Expected a Metric, Iterable[Metric], or Mapping[str, Metric]."
+                    f" Got {type(metrics)} instead.",
+                )
