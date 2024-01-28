@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import warnings
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -75,3 +78,18 @@ def parse_timestamp_object(timestamp: Any) -> datetime:
                 ) from e
         case _:
             raise TypeError(f"Could not parse {timestamp=} of type {type(timestamp)}.")
+
+
+@contextmanager
+def ignore_warnings() -> Iterator[None]:
+    """Ignore warnings for the duration of the context manager."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        yield
+
+
+@contextmanager
+def mutli_context(*managers: AbstractContextManager) -> Iterator:
+    """Run multiple context managers at once."""
+    with ExitStack() as stack:
+        yield [stack.enter_context(m) for m in managers]

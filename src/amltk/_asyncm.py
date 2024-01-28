@@ -97,3 +97,12 @@ class ContextEvent(asyncio.Event):
             A tuple of the message and exception.
         """
         return self.msg, self.exception
+
+    def __enter__(self) -> ContextEvent:
+        """Enter the context manager."""
+        self.set()
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        """Exit the context manager."""
+        self.clear()
