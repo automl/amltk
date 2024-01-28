@@ -192,7 +192,6 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         super().__init__(bucket=bucket, metrics=metrics)
         self.seed = amltk.randomness.as_int(seed)
         self.study = study
-        self.metrics = metrics
         self.space = space
 
     @classmethod
@@ -293,14 +292,13 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         config = optuna_trial.params
         trial_number = optuna_trial.number
         unique_name = f"{trial_number=}"
-        metrics = [self.metrics] if isinstance(self.metrics, Metric) else self.metrics
         return Trial(
             name=unique_name,
             seed=self.seed,
             config=config,
             info=optuna_trial,
             bucket=self.bucket,
-            metrics=metrics,
+            metrics={m.name: m for m in self.metrics},
         )
 
     @override

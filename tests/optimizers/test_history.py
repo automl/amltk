@@ -9,7 +9,7 @@ from pytest_cases import case, parametrize_with_cases
 
 from amltk.optimization import History, Metric, Trial
 
-metrics = [Metric("loss", minimize=True)]
+metrics = {"loss": Metric("loss", minimize=True)}
 
 
 def quadratic(x: float) -> float:
@@ -200,7 +200,7 @@ def test_history_incumbents() -> None:
     m1 = Metric("score", minimize=False)
     m2 = Metric("loss", minimize=True)
     trials: list[Trial] = [
-        Trial(name=f"trial_{i+6}", metrics=[m1, m2], config={"x": i})
+        Trial(name=f"trial_{i+6}", metrics={"score": m1, "loss": m2}, config={"x": i})
         for i in [0, -1, 2, -3, 4, -5, 6, -7, 8, -9]
     ]
     history = History()

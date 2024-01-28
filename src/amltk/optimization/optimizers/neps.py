@@ -465,7 +465,7 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             info=info,
             seed=self.seed,
             bucket=self.bucket,
-            metrics=metrics,
+            metrics={m.name: m for m in metrics},
         )
         logger.debug(f"Asked for trial {trial.name}")
         return trial

@@ -42,7 +42,10 @@ def target_function(trial: Trial, err: Exception | None = None) -> Trial.Report:
             return trial.fail(err)
 
         return trial.success(
-            **{metric.name: metric.optimal.value for metric in trial.metrics},
+            **{
+                metric_name: metric.optimal.value
+                for metric_name, metric in trial.metrics.items()
+            },
         )
 
 

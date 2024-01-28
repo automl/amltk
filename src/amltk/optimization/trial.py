@@ -29,7 +29,7 @@ from __future__ import annotations
 import copy
 import logging
 import traceback as traceback_module
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -233,7 +233,7 @@ class Trial(RichRenderable, Generic[I]):
     info: I | None = field(default=None, repr=False)
     """The info of the trial provided by the optimizer."""
 
-    metrics: Sequence[Metric] = field(default_factory=list)
+    metrics: Mapping[str, Metric] = field(default_factory=dict)
     """The metrics associated with the trial."""
 
     seed: int | None = None
@@ -332,21 +332,21 @@ class Trial(RichRenderable, Generic[I]):
             The report of the trial.
         """  # noqa: E501
         _recorded_values: list[Metric.Value] = []
-        for _metric in self.metrics:
-            if (raw_value := metrics.get(_metric.name)) is not None:
-                _recorded_values.append(_metric.as_value(raw_value))
+        for metric_name, metric_def in self.metrics.items():
+            if (raw_value := metrics.get(metric_name)) is not None:
+                _recorded_values.append(metric_def.as_value(raw_value))
             else:
                 raise ValueError(
                     f"Cannot report success without {self.metrics=}."
-                    f" Please provide a value for the metric '{_metric.name}'."
-                    f"\nPlease provide '{_metric.name}' as `trial.success("
-                    f"{_metric.name}=value)` or rename your metric to"
-                    f'`Metric(name="{{provided_key}}", minimize={_metric.minimize}, '
-                    f"bounds={_metric.bounds})`",
+                    f" Please provide a value for the metric '{metric_name}'."
+                    f"\nPlease provide '{metric_name}' as `trial.success("
+                    f"{metric_name}=value)` or rename your metric to"
+                    f'`Metric(name="{{provided_key}}", minimize={metric_def.minimize}, '
+                    f"bounds={metric_def.bounds})`",
                 )
 
         # Need to check if anything extra was reported!
-        extra = set(metrics.keys()) - {metric.name for metric in self.metrics}
+        extra = set(metrics.keys()) - self.metrics.keys()
         if extra:
             raise ValueError(
                 f"Cannot report success with extra metrics: {extra=}."
@@ -402,8 +402,8 @@ class Trial(RichRenderable, Generic[I]):
             exception=exception,
             traceback=traceback,
             metric_values=tuple(
-                _metric.as_value(metrics.get(_metric.name, _metric.worst.value))
-                for _metric in self.metrics
+                metric_def.as_value(metrics.get(metric_name, metric_def.worst.value))
+                for metric_name, metric_def in self.metrics.items()
             ),
         )
 
@@ -442,7 +442,9 @@ class Trial(RichRenderable, Generic[I]):
         return Trial.Report(
             trial=self,
             status=Trial.Status.CRASHED,
-            metric_values=tuple(metric.worst for metric in self.metrics),
+            metric_values=tuple(
+                metric_def.worst for metric_def in self.metrics.values()
+            ),
             exception=exception,
             traceback=traceback,
         )
@@ -1140,7 +1142,7 @@ class Trial(RichRenderable, Generic[I]):
                 seed=trial_seed,
                 fidelities=mapping_select(d, "fidelities:"),
                 profiler=Profiler(profiles=profiles),
-                metrics=list(metrics.keys()),
+                metrics={m.name: m for m in metrics},
                 summary=mapping_select(d, "summary:"),
             )
             _values: dict[str, float] = {m.name: r.value for m, r in metrics.items()}

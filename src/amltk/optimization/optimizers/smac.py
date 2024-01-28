@@ -318,7 +318,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
             seed=seed,
             fidelities=trial_fids,
             bucket=self.bucket,
-            metrics=self.metrics,
+            metrics={m.name: m for m in self.metrics},
         )
         logger.debug(f"Asked for trial {trial.name}")
         return trial
