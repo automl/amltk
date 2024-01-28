@@ -40,7 +40,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 from typing_extensions import ParamSpec, Self, override
 
@@ -52,7 +51,7 @@ from amltk._richutil.renderable import RichRenderable
 from amltk._util import parse_timestamp_object
 from amltk.optimization.metric import Metric, MetricCollection
 from amltk.profiling import Memory, Profile, Profiler, Timer
-from amltk.store import Bucket, PathBucket
+from amltk.store import PathBucket
 
 if TYPE_CHECKING:
     from rich.console import RenderableType
@@ -569,8 +568,9 @@ class Trial(RichRenderable, Generic[I]):
             A dict from the key to whether it was deleted or not.
         """  # noqa: E501
         # If not a Callable, we convert to a path bucket
-        self.bucket.remove(items)
+        removed = self.bucket.remove(items)
         self.storage.difference_update(items)
+        return removed
 
     def copy(self) -> Self:
         """Create a copy of the trial.
@@ -862,7 +862,7 @@ class Trial(RichRenderable, Generic[I]):
                 "reported_at": self.reported_at,
             }
             if metrics:
-                for metric_name, value in self.values:
+                for metric_name, value in self.values.items():
                     metric_def = self.metrics[metric_name]
                     items[f"metric:{metric_def}"] = value
             if summary:

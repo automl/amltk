@@ -101,7 +101,6 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 from typing_extensions import override
 
 import numpy as np
-from more_itertools import first_true
 from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, MultiFidelityFacade, Scenario
 from smac.runhistory import (
@@ -110,7 +109,7 @@ from smac.runhistory import (
     TrialValue as SMACTrialValue,
 )
 
-from amltk.optimization import Metric, Optimizer, Trial
+from amltk.optimization import Metric, MetricCollection, Optimizer, Trial
 from amltk.pipeline import Node
 from amltk.profiling import Profile
 from amltk.randomness import as_int
@@ -311,14 +310,14 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}_{seed=}_{budget=}_{instance=}"
-        trial: Trial[SMACTrialInfo] = Trial(
+        trial: Trial[SMACTrialInfo] = Trial.create(
             name=unique_name,
             config=dict(config),
             info=smac_trial_info,
             seed=seed,
             fidelities=trial_fids,
-            bucket=self.bucket,
-            metrics={m.name: m for m in self.metrics},
+            bucket=self.bucket / unique_name,
+            metrics=MetricCollection.from_collection(self.metrics),
         )
         logger.debug(f"Asked for trial {trial.name}")
         return trial
@@ -335,18 +334,13 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         cost: float | list[float]
         match self.metrics:
             case [metric]:  # Single obj
-                val: Metric.Value = first_true(
-                    report.metric_values,
-                    pred=lambda m: m.metric == metric,
-                    default=metric.worst,
-                )
-                cost = self.cost(val)
+                value = report.values.get(metric.name, metric.worst)
+                cost = self.cost(metric, value)
             case metrics:
                 # NOTE: We need to make sure that there sorted in the order
                 # that SMAC expects, with any missing metrics filled in
-                _lookup = {v.metric.name: v for v in report.metric_values}
                 cost = [
-                    self.cost(_lookup.get(metric.name, metric.worst))
+                    self.cost(metric, report.values.get(metric.name, metric.worst))
                     for metric in metrics
                 ]
 
@@ -440,10 +434,10 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 return [cls.crash_cost(m) for m in metrics]
 
     @classmethod
-    def cost(cls, value: Metric.Value) -> float:
+    def cost(cls, metric: Metric, value: float) -> float:
         """Get the cost for a metric value for SMAC."""
-        match value.distance_to_optimal:
+        match metric.distance_to_optimal(value):
             case None:  # If we can't compute the distance, use the loss
-                return value.loss
+                return metric.loss(value)
             case distance:  # If we can compute the distance, use that
                 return distance
