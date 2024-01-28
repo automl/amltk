@@ -177,10 +177,7 @@ class Trial(RichRenderable, Generic[I]):
     [`trial.profile()`][amltk.optimization.Trial.profile], which will automatically
     profile the block of code for memory before and after as well as time taken.
 
-    You can access the profiled time and memory using the
-    [`.time`][amltk.optimization.Trial.time] and
-    [`.memory`][amltk.optimization.Trial.memory] attributes.
-    If you've [`profile()`][amltk.optimization.Trial.profile]'ed any other intervals,
+    If you've [`profile()`][amltk.optimization.Trial.profile]'ed any intervals,
     you can access them by name through
     [`trial.profiles`][amltk.optimization.Trial.profiles].
     Please see the [`Profiler`][amltk.profiling.profiler.Profiler]
