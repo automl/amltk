@@ -265,14 +265,14 @@ class MetricCollection(Mapping[str, Metric]):
     @classmethod
     def from_collection(
         cls,
-        metrics: Metric | Iterable[Metric] | MetricCollection,
+        metrics: Metric | Iterable[Metric] | Mapping[str, Metric],
     ) -> MetricCollection:
         """Create a metric collection from an iterable of metrics."""
         match metrics:
             case Metric():
                 return cls(metrics={metrics.name: metrics})
-            case MetricCollection():
-                return MetricCollection(metrics=metrics.metrics)
+            case Mapping():
+                return MetricCollection(metrics={m.name: m for m in metrics.values()})
             case Iterable():
                 return cls(metrics={m.name: m for m in metrics})  # type: ignore
             case _:
