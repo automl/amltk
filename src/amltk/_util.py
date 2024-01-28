@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+
+import pandas as pd
 
 
 def threadpoolctl_heuristic(item_contained_in_node: Any | None) -> bool:
@@ -41,3 +44,34 @@ def threadpoolctl_heuristic(item_contained_in_node: Any | None) -> bool:
         return issubclass(item_contained_in_node, BaseEstimator)
     except ImportError:
         return False
+
+
+def parse_timestamp_object(timestamp: Any) -> datetime:
+    """Parse a timestamp object, erring if it can't be parsed.
+
+    Args:
+        timestamp: The timestamp to parse.
+
+    Returns:
+        The parsed timestamp or `None` if it could not be parsed.
+    """
+    # Make sure we correctly set it's generated at if
+    # we can
+    match timestamp:
+        case datetime():
+            return timestamp
+        case pd.Timestamp():
+            return timestamp.to_pydatetime()
+        case float() | int():
+            return datetime.fromtimestamp(timestamp)
+        case str():
+            try:
+                return datetime.fromisoformat(timestamp)
+            except ValueError as e:
+                raise ValueError(
+                    f"Could not parse `str` type timestamp for '{timestamp}'."
+                    " \nPlease provide a valid isoformat timestamp, e.g."
+                    "'2021-01-01T00:00:00.000000'.",
+                ) from e
+        case _:
+            raise TypeError(f"Could not parse {timestamp=} of type {type(timestamp)}.")

@@ -40,7 +40,7 @@ You'll often need to perform some operations on a
 * [`groupby(key=...)`][amltk.optimization.History.groupby] - Groups the history by some
     key, e.g. `#!python history.groupby(lambda report: report.config["x"] < 5)`
 * [`sortby(key=...)`][amltk.optimization.History.sortby] - Sorts the history by some
-    key, e.g. `#!python history.sortby(lambda report: report.time.end)`
+    key, e.g. `#!python history.sortby(lambda report: report.profiles["trial"].time.end)`
 
 There is also some serialization capabilities built in, to allow you to store
 your reports and load them back in later:
@@ -391,8 +391,7 @@ class History(RichRenderable):
         self,
         key: Callable[[Trial.Report, Trial.Report], bool] | str,
         *,
-        sortby: Callable[[Trial.Report], Comparable]
-        | str = lambda report: report.time.end,
+        sortby: Callable[[Trial.Report], Comparable] | str = lambda r: r.reported_at,
         reverse: bool | None = None,
         ffill: bool = False,
     ) -> list[Trial.Report]:
@@ -413,7 +412,7 @@ class History(RichRenderable):
 
         incumbents = (
             history
-            .incumbents("cost", sortby=lambda r: r.time.end)
+            .incumbents("cost", sortby=lambda r: r.reported_at)
         )
         for report in incumbents:
             print(f"{report.metrics=}, {report.config=}")

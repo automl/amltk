@@ -110,7 +110,7 @@ def test_report_success(optimizer: Optimizer) -> None:
     optimizer.tell(report)
 
     assert report.status == Trial.Status.SUCCESS
-    assert valid_time_interval(report.time)
+    assert valid_time_interval(report.profiles["trial"].time)
     assert report.trial.info is trial.info
     assert report.metric_values == tuple(metric.optimal for metric in optimizer.metrics)
 
@@ -122,7 +122,7 @@ def test_report_failure(optimizer: Optimizer):
     optimizer.tell(report)
     assert report.status is Trial.Status.FAIL
 
-    assert valid_time_interval(report.time)
+    assert valid_time_interval(report.profiles["trial"].time)
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
     assert report.metric_values == tuple(metric.worst for metric in optimizer.metrics)
