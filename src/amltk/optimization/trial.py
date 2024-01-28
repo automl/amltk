@@ -967,11 +967,7 @@ class Trial(RichRenderable, Generic[I]):
                 items.update(**prefix_keys(self.trial.config, "config:"))
             if profiles:
                 for name, profile in sorted(self.profiles.items(), key=lambda x: x[0]):
-                    # We log this one seperatly
-                    if name == "trial":
-                        items.update(profile.to_dict())
-                    else:
-                        items.update(profile.to_dict(prefix=f"profile:{name}"))
+                    items.update(profile.to_dict(prefix=f"profile:{name}"))
 
             return pd.DataFrame(items, index=[0]).convert_dtypes().set_index("name")
 
