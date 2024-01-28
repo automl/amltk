@@ -256,6 +256,7 @@ import warnings
 from asyncio import Future
 from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import CancelledError, Executor, ProcessPoolExecutor
+from contextlib import nullcontext
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import partial
@@ -275,6 +276,7 @@ from uuid import uuid4
 from amltk._asyncm import ContextEvent
 from amltk._functional import Flag, subclass_map
 from amltk._richutil.renderable import RichRenderable
+from amltk._util import ignore_warnings, mutli_context
 from amltk.exceptions import SchedulerNotRunningError
 from amltk.scheduling.events import Emitter, Event, Subscriber
 from amltk.scheduling.executors import SequentialExecutor
@@ -497,7 +499,7 @@ class Scheduler(RichRenderable):
         self._queue_has_items_event = asyncio.Event()
 
         # This is triggered when run is called
-        self._running_event = asyncio.Event()
+        self._running_event = ContextEvent()
 
         # This is set once `run` is called.
         # Either contains the mapping from exception to what to do,
@@ -1170,123 +1172,120 @@ class Scheduler(RichRenderable):
         logger.debug("Stop event triggered, stopping scheduler")
         return True
 
-    async def _run_scheduler(  # noqa: C901, PLR0912, PLR0915
+    async def _run_scheduler(  # noqa: C901, PLR0915
         self,
         *,
         timeout: float | None = None,
         end_on_empty: bool = True,
         wait: bool = True,
     ) -> ExitState.Code | BaseException:
-        self.executor.__enter__()
-        self._stop_event = ContextEvent()
+        with mutli_context(
+            self.executor,
+            self._live_output if self._live_output is not None else nullcontext(),
+            ignore_warnings() if self._live_output is not None else nullcontext(),
+        ):
+            self._stop_event = ContextEvent()
 
-        if self._live_output is not None:
-            self._live_output.__enter__()
+            # Start a Thread Timer as our timing mechanism.
+            # HACK: This is required because the SequentialExecutor mode
+            # will not allow the async loop to run, meaning we can't update
+            # any internal state. For this reason, we use a Thread
+            if timeout is not None:
+                self._timeout_timer = Timer(timeout, lambda: None)
+                self._timeout_timer.start()
 
-            # If we are doing a live display, we have to disable
-            # warnings as they will screw up the display rendering
-            # However, we re-enable it after the scheduler has finished running
-            warning_catcher = warnings.catch_warnings()
-            warning_catcher.__enter__()
-            warnings.filterwarnings("ignore")
-        else:
-            warning_catcher = None
+            with self._running_event:
+                self.on_start.emit()
 
-        # Declare we are running
-        self._running_event.set()
+                # Monitor for `stop` being triggered
+                stop_triggered = asyncio.create_task(
+                    self._stop_when_triggered(self._stop_event),
+                )
 
-        # Start a Thread Timer as our timing mechanism.
-        # HACK: This is required because the SequentialExecutor mode
-        # will not allow the async loop to run, meaning we can't update
-        # any internal state.
-        if timeout is not None:
-            self._timeout_timer = Timer(timeout, lambda: None)
-            self._timeout_timer.start()
+                # Monitor for the queue being empty
+                monitor_empty = asyncio.create_task(self._monitor_queue_empty())
+                if end_on_empty:
+                    self.on_empty(lambda: monitor_empty.cancel(), hidden=True)
 
-        self.on_start.emit()
+                # The timeout criterion is satisfied by the `timeout` arg
+                await asyncio.wait(
+                    [stop_triggered, monitor_empty],
+                    timeout=timeout,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
 
-        # Monitor for `stop` being triggered
-        stop_triggered = asyncio.create_task(
-            self._stop_when_triggered(self._stop_event),
-        )
+                # Determine the reason for stopping
+                stop_reason: BaseException | ExitState.Code
+                if stop_triggered.done() and self._stop_event.is_set():
+                    stop_reason = ExitState.Code.STOPPED
 
-        # Monitor for the queue being empty
-        monitor_empty = asyncio.create_task(self._monitor_queue_empty())
-        if end_on_empty:
-            self.on_empty(lambda: monitor_empty.cancel(), hidden=True)
+                    msg, exception = self._stop_event.context
+                    _log = logger.exception if exception else logger.debug
+                    _log(f"Stop Message: {msg}", exc_info=exception)
 
-        # The timeout criterion is satisfied by the `timeout` arg
-        await asyncio.wait(
-            [stop_triggered, monitor_empty],
-            timeout=timeout,
-            return_when=asyncio.FIRST_COMPLETED,
-        )
+                    self.on_stop.emit(str(msg), exception)
+                    if self._on_exc_method_map and exception:
+                        stop_reason = exception
+                    else:
+                        stop_reason = ExitState.Code.STOPPED
+                elif monitor_empty.done():
+                    logger.debug("Scheduler stopped due to being empty.")
+                    stop_reason = ExitState.Code.EXHAUSTED
+                elif timeout is not None:
+                    logger.debug(f"Scheduler stopping as {timeout=} reached.")
+                    stop_reason = ExitState.Code.TIMEOUT
+                    self.on_timeout.emit()
+                else:
+                    logger.warning("Scheduler stopping for unknown reason!")
+                    stop_reason = ExitState.Code.UNKNOWN
 
-        # Determine the reason for stopping
-        stop_reason: BaseException | ExitState.Code
-        if stop_triggered.done() and self._stop_event.is_set():
-            stop_reason = ExitState.Code.STOPPED
+                # Stop all running async tasks, i.e. monitoring the queue to trigger
+                # an event
+                tasks = [monitor_empty, stop_triggered]
+                for task in tasks:
+                    task.cancel()
 
-            msg, exception = self._stop_event.context
-            _log = logger.exception if exception else logger.debug
-            _log(f"Stop Message: {msg}", exc_info=exception)
+                # Await all the cancelled tasks and read the exceptions
+                await asyncio.gather(*tasks, return_exceptions=True)
 
-            self.on_stop.emit(str(msg), exception)
-            if self._on_exc_method_map and exception:
-                stop_reason = exception
-            else:
-                stop_reason = ExitState.Code.STOPPED
-        elif monitor_empty.done():
-            logger.debug("Scheduler stopped due to being empty.")
-            stop_reason = ExitState.Code.EXHAUSTED
-        elif timeout is not None:
-            logger.debug(f"Scheduler stopping as {timeout=} reached.")
-            stop_reason = ExitState.Code.TIMEOUT
-            self.on_timeout.emit()
-        else:
-            logger.warning("Scheduler stopping for unknown reason!")
-            stop_reason = ExitState.Code.UNKNOWN
+                self.on_finishing.emit()
+                logger.debug("Scheduler is finished")
+                logger.debug(f"Shutting down scheduler executor with {wait=}")
 
-        # Stop all running async tasks, i.e. monitoring the queue to trigger an event
-        tasks = [monitor_empty, stop_triggered]
-        for task in tasks:
-            task.cancel()
+            # Scheduler is now refusing jobs
+            logger.debug("Scheduler has shutdown and declared as no longer running")
 
-        # Await all the cancelled tasks and read the exceptions
-        await asyncio.gather(*tasks, return_exceptions=True)
+            # This will try to end the tasks based on wait and self._terminate
+            if not wait:
+                if self._terminate is None:
+                    logger.warning(
+                        "Cancelling currently running tasks and then waiting "
+                        f" as there is no termination strategy for {self.executor=}`.",
+                    )
 
-        self.on_finishing.emit()
-        logger.debug("Scheduler is finished")
-        logger.debug(f"Shutting down scheduler executor with {wait=}")
+                for future in self.queue:
+                    if not future.done():
+                        logger.debug(f"Cancelling {future=}")
+                        future.cancel()
 
-        # The scheduler is now refusing jobs
-        self._running_event.clear()
-        logger.debug("Scheduler has shutdown and declared as no longer running")
+                if self._terminate is not None:
+                    logger.debug(f"Terminating workers with {termination_strategy=}")
+                    self._terminate(self.executor)
 
-        # This will try to end the tasks based on wait and self._terminate
-        Scheduler._end_pending(
-            wait=wait,
-            futures=list(self.queue.keys()),
-            executor=self.executor,
-            termination_strategy=self._terminate,
-        )
+            logger.debug("Waiting for executor to finish.")
+            self.executor.shutdown(wait=wait)
+            self.on_finished.emit()
+            logger.debug(f"Scheduler finished with status {stop_reason}")
 
-        self.on_finished.emit()
-        logger.debug(f"Scheduler finished with status {stop_reason}")
+            # Clear all events
+            self._stop_event.clear()
+            self._queue_has_items_event.clear()
 
-        # Clear all events
-        self._stop_event.clear()
-        self._queue_has_items_event.clear()
+            if self._live_output is not None:
+                self._live_output.refresh()
 
-        if self._live_output is not None:
-            self._live_output.refresh()
-            self._live_output.stop()
-
-        if self._timeout_timer is not None:
-            self._timeout_timer.cancel()
-
-        if warning_catcher is not None:
-            warning_catcher.__exit__()  # type: ignore
+            if self._timeout_timer is not None:
+                self._timeout_timer.cancel()
 
         return stop_reason
 
@@ -1687,41 +1686,6 @@ class Scheduler(RichRenderable):
         _fn = partial(fn, *args, **kwargs)
         loop = asyncio.get_running_loop()
         return loop.call_later(delay, _fn)
-
-    @staticmethod
-    def _end_pending(
-        *,
-        futures: list[Future],
-        executor: Executor,
-        wait: bool = True,
-        termination_strategy: Callable[[Executor], Any] | None = None,
-    ) -> None:
-        if wait:
-            logger.debug("Waiting for currently running tasks to finish.")
-            executor.shutdown(wait=wait)
-        elif termination_strategy is None:
-            logger.warning(
-                "Cancelling currently running tasks and then waiting "
-                f" as there is no termination strategy provided for {executor=}`.",
-            )
-            # Just try to cancel the tasks. Will cancel pending tasks
-            # but executors like dask will even kill the job
-            for future in futures:
-                if not future.done():
-                    logger.debug(f"Cancelling {future=}")
-                    future.cancel()
-
-            # Here we wait, if we could  cancel, then we wait for that
-            # to happen, otherwise we are just waiting as anticipated.
-            executor.shutdown(wait=wait)
-        else:
-            logger.debug(f"Terminating workers with {termination_strategy=}")
-            for future in futures:
-                if not future.done():
-                    logger.debug(f"Cancelling {future=}")
-                    future.cancel()
-            termination_strategy(executor)
-            executor.shutdown(wait=wait)
 
     def add_renderable(self, renderable: RenderableType) -> None:
         """Add a renderable object to the scheduler.
