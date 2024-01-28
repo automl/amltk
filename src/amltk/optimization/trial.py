@@ -29,7 +29,14 @@ from __future__ import annotations
 import copy
 import logging
 import traceback as traceback_module
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import (
+    Callable,
+    Hashable,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+)
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -44,7 +51,7 @@ import pandas as pd
 from amltk._functional import dict_get_not_none, mapping_select, prefix_keys
 from amltk._richutil.renderable import RichRenderable
 from amltk._util import parse_timestamp_object
-from amltk.optimization.metric import Metric
+from amltk.optimization.metric import Metric, MetricCollection
 from amltk.profiling import Memory, Profile, Profiler, Timer
 from amltk.store import Bucket, PathBucket
 
@@ -225,40 +232,94 @@ class Trial(RichRenderable, Generic[I]):
     config: Mapping[str, Any]
     """The config of the trial provided by the optimizer."""
 
-    bucket: PathBucket = field(
-        default_factory=lambda: PathBucket("unknown-trial-bucket"),
-    )
+    bucket: PathBucket
     """The bucket to store trial related output to."""
 
-    info: I | None = field(default=None, repr=False)
+    info: I | None = field(repr=False)
     """The info of the trial provided by the optimizer."""
 
-    metrics: Mapping[str, Metric] = field(default_factory=dict)
-    """The metrics associated with the trial."""
+    metrics: MetricCollection
+    """The metrics associated with the trial.
+
+    You can access the metrics by name, e.g. `#!python trial.metrics["loss"]`.
+    """
 
     seed: int | None = None
     """The seed to use if suggested by the optimizer."""
 
-    fidelities: dict[str, Any] | None = None
+    fidelities: Mapping[str, Any]
     """The fidelities at which to evaluate the trial, if any."""
 
-    profiler: Profiler = field(
-        repr=False,
-        default_factory=lambda: Profiler(memory_unit="B", time_kind="wall"),
-    )
+    profiler: Profiler = field(repr=False)
     """A profiler for this trial."""
 
-    summary: dict[str, Any] = field(default_factory=dict)
+    summary: MutableMapping[str, Any]
     """The summary of the trial. These are for summary statistics of a trial and
     are single values."""
 
-    storage: set[Any] = field(default_factory=set)
+    storage: set[Any]
     """Anything stored in the trial, the elements of the list are keys that can be
     used to retrieve them later, such as a Path.
     """
 
-    extras: dict[str, Any] = field(default_factory=dict)
+    extras: MutableMapping[str, Any]
     """Any extras attached to the trial."""
+
+    @classmethod
+    def create(  # noqa: PLR0913
+        cls,
+        name: str,
+        config: Mapping[str, Any] | None = None,
+        *,
+        metrics: Metric | Iterable[Metric] | Mapping[str, Metric] | None = None,
+        info: I | None = None,
+        seed: int | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        profiler: Profiler | None = None,
+        bucket: PathBucket | None = None,
+        summary: MutableMapping[str, Any] | None = None,
+        storage: set[Hashable] | None = None,
+        extras: MutableMapping[str, Any] | None = None,
+    ) -> Trial[I]:
+        """Create a trial.
+
+        Args:
+            name: The name of the trial.
+            metrics: The metrics of the trial.
+            config: The config of the trial.
+            info: The info of the trial.
+            seed: The seed of the trial.
+            fidelities: The fidelities of the trial.
+            bucket: The bucket of the trial.
+            profiler: The profiler of the trial.
+            summary: The summary of the trial.
+            storage: The storage of the trial.
+            extras: The extras of the trial.
+
+        Returns:
+            The trial.
+        """
+        return Trial(
+            name=name,
+            metrics=(
+                MetricCollection.from_collection(metrics)
+                if metrics is not None
+                else MetricCollection()
+            ),
+            profiler=(
+                profiler
+                if profiler is not None
+                else Profiler(memory_unit="B", time_kind="wall")
+            ),
+            config=config if config is not None else {},
+            info=info,
+            seed=seed,
+            fidelities=fidelities if fidelities is not None else {},
+            bucket=bucket if bucket is not None else PathBucket("unknown-trial-bucket"),
+            summary=summary if summary is not None else {},
+            storage=storage if storage is not None else set(),
+            extras=extras if extras is not None else {},
+        )
 
     @property
     def profiles(self) -> Mapping[str, Profile.Interval]:
@@ -331,33 +392,29 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The report of the trial.
         """  # noqa: E501
-        _recorded_values: list[Metric.Value] = []
-        for metric_name, metric_def in self.metrics.items():
-            if (raw_value := metrics.get(metric_name)) is not None:
-                _recorded_values.append(metric_def.as_value(raw_value))
+        values: dict[str, float] = {}
+
+        for metric_def in self.metrics.values():
+            if (reported_value := metrics.get(metric_def.name)) is not None:
+                values[metric_def.name] = reported_value
             else:
                 raise ValueError(
-                    f"Cannot report success without {self.metrics=}."
-                    f" Please provide a value for the metric '{metric_name}'."
-                    f"\nPlease provide '{metric_name}' as `trial.success("
-                    f"{metric_name}=value)` or rename your metric to"
-                    f'`Metric(name="{{provided_key}}", minimize={metric_def.minimize}, '
-                    f"bounds={metric_def.bounds})`",
+                    f" Please provide a value for the metric '{metric_def.name}' as "
+                    " this is one of the metrics of the trial. "
+                    f"\n Try `trial.success({metric_def.name}=value, ...)`.",
                 )
 
         # Need to check if anything extra was reported!
         extra = set(metrics.keys()) - self.metrics.keys()
         if extra:
             raise ValueError(
-                f"Cannot report success with extra metrics: {extra=}."
-                f"\nOnly {self.metrics=} are allowed.",
+                f"Cannot report `success()` with extra metrics: {extra=}."
+                f"\nOnly metrics {list(self.metrics)} as these are the metrics"
+                " provided for this trial."
+                "\nTo record other numerics, use `trial.summary` instead.",
             )
 
-        return Trial.Report(
-            trial=self,
-            status=Trial.Status.SUCCESS,
-            metric_values=tuple(_recorded_values),
-        )
+        return Trial.Report(trial=self, status=Trial.Status.SUCCESS, values=values)
 
     def fail(
         self,
@@ -396,15 +453,22 @@ class Trial(RichRenderable, Generic[I]):
         if exception is not None and traceback is None:
             traceback = traceback_module.format_exc()
 
+        # Need to check if anything extra was reported!
+        extra = set(metrics.keys()) - self.metrics.keys()
+        if extra:
+            raise ValueError(
+                f"Cannot report `fail()` with extra metrics: {extra=}."
+                f"\nOnly metrics {list(self.metrics)} as these are the metrics"
+                " provided for this trial."
+                "\nTo record other numerics, use `trial.summary` instead.",
+            )
+
         return Trial.Report(
             trial=self,
             status=Trial.Status.FAIL,
             exception=exception,
             traceback=traceback,
-            metric_values=tuple(
-                metric_def.as_value(metrics.get(metric_name, metric_def.worst.value))
-                for metric_name, metric_def in self.metrics.items()
-            ),
+            values=metrics,
         )
 
     def crashed(
@@ -442,9 +506,6 @@ class Trial(RichRenderable, Generic[I]):
         return Trial.Report(
             trial=self,
             status=Trial.Status.CRASHED,
-            metric_values=tuple(
-                metric_def.worst for metric_def in self.metrics.values()
-            ),
             exception=exception,
             traceback=traceback,
         )
@@ -517,7 +578,7 @@ class Trial(RichRenderable, Generic[I]):
                 where(self.name, items)
 
         # Add the keys to storage
-        self.storage.update(items.keys())
+        self.storage.update(items)
 
     def delete_from_storage(
         self,
@@ -865,28 +926,14 @@ class Trial(RichRenderable, Generic[I]):
         or [`from_dict()`][amltk.optimization.Trial.Report.from_dict].
         """
 
-        exception: BaseException | None = field(repr=True, default=None)
+        exception: BaseException | None = None
         """The exception reported if any."""
 
         traceback: str | None = field(repr=False, default=None)
         """The traceback reported if any."""
 
-        metrics: dict[str, float] = field(init=False)
-        """The metric values of the trial."""
-
-        metric_values: tuple[Metric.Value, ...] = field(default_factory=tuple)
-        """The metrics of the trial, linked to the metrics."""
-
-        metric_defs: dict[str, Metric] = field(init=False)
-        """A lookup to the metric definitions"""
-
-        metric_names: tuple[str, ...] = field(init=False)
-        """The names of the metrics."""
-
-        def __post_init__(self) -> None:
-            self.metrics = {value.name: value.value for value in self.metric_values}
-            self.metric_names = tuple(metric.name for metric in self.metric_values)
-            self.metric_defs = {v.metric.name: v.metric for v in self.metric_values}
+        values: Mapping[str, float] = field(default_factory=dict)
+        """The reported metric values of the trial."""
 
         @property
         def name(self) -> str:
@@ -899,12 +946,17 @@ class Trial(RichRenderable, Generic[I]):
             return self.trial.config
 
         @property
+        def metrics(self) -> MetricCollection:
+            """The metrics of the trial."""
+            return self.trial.metrics
+
+        @property
         def profiles(self) -> Mapping[str, Profile.Interval]:
             """The profiles of the trial."""
             return self.trial.profiles
 
         @property
-        def summary(self) -> dict[str, Any]:
+        def summary(self) -> MutableMapping[str, Any]:
             """The summary of the trial."""
             return self.trial.summary
 
@@ -958,8 +1010,9 @@ class Trial(RichRenderable, Generic[I]):
                 "reported_at": self.reported_at,
             }
             if metrics:
-                for value in self.metric_values:
-                    items[f"metric:{value.metric}"] = value.value
+                for metric_name, value in self.values:
+                    metric_def = self.metrics[metric_name]
+                    items[f"metric:{metric_def}"] = value
             if summary:
                 items.update(**prefix_keys(self.trial.summary, "summary:"))
             if configs:
@@ -1111,12 +1164,8 @@ class Trial(RichRenderable, Generic[I]):
             # on serialization to keep the order, which is not ideal either.
             # May revisit this if we need to
             raw_metrics: dict[str, float] = mapping_select(d, "metric:")
-            _intermediate = {
+            metrics: dict[Metric, float] = {
                 Metric.from_str(name): value for name, value in raw_metrics.items()
-            }
-            metrics: dict[Metric, Metric.Value] = {
-                metric: metric.as_value(value)
-                for metric, value in _intermediate.items()
             }
 
             exception = d.get("exception")
@@ -1134,7 +1183,7 @@ class Trial(RichRenderable, Generic[I]):
             else:
                 bucket = PathBucket(f"uknown_trial_bucket-{datetime.now().isoformat()}")
 
-            trial: Trial[None] = Trial(
+            trial: Trial = Trial.create(
                 name=d["name"],
                 config=mapping_select(d, "config:"),
                 info=None,  # We don't save this to disk so we load it back as None
@@ -1142,10 +1191,12 @@ class Trial(RichRenderable, Generic[I]):
                 seed=trial_seed,
                 fidelities=mapping_select(d, "fidelities:"),
                 profiler=Profiler(profiles=profiles),
-                metrics={m.name: m for m in metrics},
+                metrics=metrics.keys(),
                 summary=mapping_select(d, "summary:"),
+                storage=set(mapping_select(d, "storage:").values()),
+                extras=mapping_select(d, "extras:"),
             )
-            _values: dict[str, float] = {m.name: r.value for m, r in metrics.items()}
+            _values: dict[str, float] = {m.name: v for m, v in metrics.items()}
 
             status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             match status:
