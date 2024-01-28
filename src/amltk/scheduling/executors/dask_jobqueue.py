@@ -99,7 +99,8 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
             self.cluster.scale(n_workers)
 
         self.n_workers = n_workers
-        self.executor: ClientExecutor = self.cluster.get_client().get_executor()
+        self._client = self.cluster.get_client()
+        self.executor: ClientExecutor = self._client.get_executor()
 
     @override
     def __enter__(self) -> Self:
@@ -116,6 +117,7 @@ class DaskJobqueueExecutor(Executor, Generic[_JQC]):
     @override
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self.executor.__exit__(*args, **kwargs)
+        self._client.close()
 
     @override
     def submit(
