@@ -12,7 +12,7 @@ class MetricTest:
     """A test case for a metric."""
 
     metric: Metric
-    v: Metric.Value
+    value: float
     expected_loss: float
     expected_distance_from_optimal: float | None
     expected_score: float
@@ -24,7 +24,7 @@ def case_metric_score_bounded() -> MetricTest:
     metric = Metric("score_bounded", minimize=False, bounds=(0, 1))
     return MetricTest(
         metric=metric,
-        v=metric(0.3),
+        value=0.3,
         expected_loss=-0.3,
         expected_distance_from_optimal=0.7,
         expected_score=0.3,
@@ -37,7 +37,7 @@ def case_metric_score_unbounded() -> MetricTest:
     metric = Metric("score_unbounded", minimize=False)
     return MetricTest(
         metric=metric,
-        v=metric(0.3),
+        value=0.3,
         expected_loss=-0.3,
         expected_distance_from_optimal=None,
         expected_score=0.3,
@@ -50,7 +50,7 @@ def case_metric_loss_unbounded() -> MetricTest:
     metric = Metric("loss_unbounded", minimize=True)
     return MetricTest(
         metric=metric,
-        v=metric(0.8),
+        value=0.8,
         expected_loss=0.8,
         expected_distance_from_optimal=None,
         expected_score=-0.8,
@@ -63,7 +63,7 @@ def case_metric_loss_bounded() -> MetricTest:
     metric = Metric("loss_bounded", minimize=True, bounds=(-1, 1))
     return MetricTest(
         metric=metric,
-        v=metric(0.8),
+        value=0.8,
         expected_loss=0.8,
         expected_distance_from_optimal=1.8,
         expected_score=-0.8,
@@ -73,27 +73,27 @@ def case_metric_loss_bounded() -> MetricTest:
 
 @parametrize_with_cases(argnames="C", cases=".")
 def test_metrics_have_expected_outputs(C: MetricTest) -> None:
-    assert C.v.loss == C.expected_loss
-    assert C.v.distance_to_optimal == C.expected_distance_from_optimal
-    assert C.v.score == C.expected_score
+    assert C.metric.loss(C.value) == C.expected_loss
+    assert C.metric.distance_to_optimal(C.value) == C.expected_distance_from_optimal
+    assert C.metric.score(C.value) == C.expected_score
     assert str(C.metric) == C.expected_str
 
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["maximize"])
 def test_metric_value_is_score_if_maximize(C: MetricTest) -> None:
-    assert C.v.value == C.v.score
-    assert C.v.value == -C.v.loss
+    assert C.value == C.metric.score(C.value)
+    assert C.value == -C.metric.loss(C.value)
 
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["minimize"])
 def test_metric_value_is_loss_if_minimize(C: MetricTest) -> None:
-    assert C.v.value == C.v.loss
-    assert C.v.value == -C.v.score
+    assert C.value == C.metric.loss(C.value)
+    assert C.value == -C.metric.score(C.value)
 
 
 @parametrize_with_cases(argnames="C", cases=".")
 def test_metric_value_score_is_just_loss_inverted(C: MetricTest) -> None:
-    assert C.v.score == -C.v.loss
+    assert C.metric.score(C.value) == -C.metric.loss(C.value)
 
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["minimize", "unbounded"])
@@ -124,13 +124,12 @@ def test_maximize_metric_worst_optimal_if_bounded(C: MetricTest) -> None:
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["unbounded"])
 def test_distance_to_optimal_is_none_for_unbounded(C: MetricTest) -> None:
-    assert C.v.distance_to_optimal is None
+    assert C.metric.distance_to_optimal(C.value) is None
 
 
 @parametrize_with_cases(argnames="C", cases=".", has_tag=["bounded"])
 def test_distance_to_optimal_is_always_positive_for_bounded(C: MetricTest) -> None:
-    assert C.v.distance_to_optimal
-    assert C.v.distance_to_optimal >= 0
+    assert C.metric.distance_to_optimal(C.value) >= 0
 
 
 @parametrize_with_cases(argnames="C", cases=".")

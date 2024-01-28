@@ -43,7 +43,7 @@ def target_function(trial: Trial, err: Exception | None = None) -> Trial.Report:
 
         return trial.success(
             **{
-                metric_name: metric.optimal.value
+                metric_name: metric.optimal
                 for metric_name, metric in trial.metrics.items()
             },
         )
@@ -115,7 +115,9 @@ def test_report_success(optimizer: Optimizer) -> None:
     assert report.status == Trial.Status.SUCCESS
     assert valid_time_interval(report.profiles["trial"].time)
     assert report.trial.info is trial.info
-    assert report.metric_values == tuple(metric.optimal for metric in optimizer.metrics)
+    assert report.values == {
+        name: metric.optimal for name, metric in optimizer.metrics.items()
+    }
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")
@@ -128,7 +130,9 @@ def test_report_failure(optimizer: Optimizer):
     assert valid_time_interval(report.profiles["trial"].time)
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
-    assert report.metric_values == tuple(metric.worst for metric in optimizer.metrics)
+    assert report.values == {
+        name: metric.optimal for name, metric in optimizer.metrics.items()
+    }
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")

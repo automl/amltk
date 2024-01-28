@@ -40,6 +40,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 from typing_extensions import ParamSpec, Self, override
 
@@ -274,7 +275,7 @@ class Trial(RichRenderable, Generic[I]):
         seed: int | None = None,
         fidelities: Mapping[str, Any] | None = None,
         profiler: Profiler | None = None,
-        bucket: PathBucket | None = None,
+        bucket: str | Path | PathBucket | None = None,
         summary: MutableMapping[str, Any] | None = None,
         storage: set[Hashable] | None = None,
         extras: MutableMapping[str, Any] | None = None,
@@ -313,7 +314,15 @@ class Trial(RichRenderable, Generic[I]):
             info=info,
             seed=seed,
             fidelities=fidelities if fidelities is not None else {},
-            bucket=bucket if bucket is not None else PathBucket("unknown-trial-bucket"),
+            bucket=(
+                bucket
+                if isinstance(bucket, PathBucket)
+                else (
+                    PathBucket(bucket)
+                    if bucket is not None
+                    else PathBucket(f"trial-{name}-{datetime.now().isoformat()}")
+                )
+            ),
             summary=summary if summary is not None else {},
             storage=storage if storage is not None else set(),
             extras=extras if extras is not None else {},

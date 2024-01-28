@@ -6,6 +6,7 @@ import warnings
 from collections import Counter
 from collections.abc import Iterator
 from concurrent.futures import Executor, ProcessPoolExecutor
+from pathlib import Path
 
 import pytest
 from dask.distributed import Client, LocalCluster, Worker
@@ -268,7 +269,7 @@ def test_time_limited_task_can_be_ignored_by_scheduler(scheduler: Scheduler) -> 
     assert isinstance(end_status.exception, PynisherPlugin.WallTimeoutException)
 
 
-def test_trial_gets_autodetect_memory(scheduler: Scheduler) -> None:
+def test_trial_gets_autodetect_memory(scheduler: Scheduler, tmp_path: Path) -> None:
     if not PynisherPlugin.supports("memory"):
         pytest.skip("Pynisher does not support memory limits on this system")
 
@@ -281,7 +282,7 @@ def test_trial_gets_autodetect_memory(scheduler: Scheduler) -> None:
             disable_trial_handling=False,
         ),
     )
-    trial = Trial(name="test_trial", config={})
+    trial = Trial.create(name="test_trial", config={}, bucket=tmp_path / "trial")
 
     @scheduler.on_start
     def start_task() -> None:
@@ -316,7 +317,7 @@ def test_trial_gets_autodetect_memory(scheduler: Scheduler) -> None:
     assert isinstance(reports[0].exception, PynisherPlugin.MemoryLimitException)
 
 
-def test_trial_gets_autodetect_time(scheduler: Scheduler) -> None:
+def test_trial_gets_autodetect_time(scheduler: Scheduler, tmp_path: Path) -> None:
     if not PynisherPlugin.supports("wall_time"):
         pytest.skip("Pynisher does not support wall_time limits on this system")
 
@@ -327,7 +328,7 @@ def test_trial_gets_autodetect_time(scheduler: Scheduler) -> None:
             disable_trial_handling=False,
         ),
     )
-    trial = Trial(name="test_trial", config={})
+    trial = Trial.create(name="test_trial", config={}, bucket=tmp_path / "trial")
 
     @scheduler.on_start
     def start_task() -> None:

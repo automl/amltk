@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, ParamSpec
 from typing_extensions import Self, override
 
+import numpy as np
+
 if TYPE_CHECKING:
     from sklearn.metrics._scorer import _MultimetricScorer, _Scorer
 
@@ -185,11 +187,14 @@ class Metric(Generic[P]):
 
         return float("-inf") if self.minimize else float("inf")
 
-    def distance_to_optimal(self, v: float, /) -> float | None:
+    def distance_to_optimal(self, v: float) -> float:
         """The distance to the optimal value, using the bounds if possible."""
         match self.bounds:
             case None:
-                return None
+                raise ValueError(
+                    f"Metric {self.name} is unbounded, can not compute distance"
+                    " to optimal.",
+                )
             case (lower, upper) if lower <= v <= upper:
                 if self.minimize:
                     return abs(v - lower)
@@ -198,6 +203,22 @@ class Metric(Generic[P]):
                 raise ValueError(f"Value {v} is not within {self.bounds=}")
             case _:
                 raise ValueError(f"Invalid {self.bounds=}")
+
+    def normalized_loss(self, v: float) -> float:
+        """The normalized loss of a value if possible.
+
+        If both sides of the bounds are finite, we can normalize the value
+        to be between 0 and 1.
+        """
+        match self.bounds:
+            # If both sides are finite, we can 0-1 normalize
+            case (lower, upper) if not (np.isinf(lower) or np.isinf(upper)):
+                cost = (v - lower) / (upper - lower)
+            # No bounds or one unbounded bound, we can't normalize
+            case _:
+                cost = v
+
+        return cost if self.minimize else -cost
 
     def loss(self, v: float, /) -> float:
         """Convert a value to a loss."""
@@ -248,6 +269,14 @@ class MetricCollection(Mapping[str, Metric]):
             for k, v in self.items()
         }
         return _MultimetricScorer(scorers=scorers, raise_exc=raise_exc)
+
+    def optimums(self) -> Mapping[str, float]:
+        """The optimums of the metrics."""
+        return {k: v.optimal for k, v in self.items()}
+
+    def worsts(self) -> Mapping[str, float]:
+        """The worsts of the metrics."""
+        return {k: v.worst for k, v in self.items()}
 
     @classmethod
     def from_empty(cls) -> MetricCollection:

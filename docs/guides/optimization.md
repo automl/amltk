@@ -190,14 +190,13 @@ at the end.
 from amltk.optimization import History, Trial, Metric
 from amltk.store import PathBucket
 
-bucket = PathBucket("my-bucket")
 metric = Metric("score", minimize=False, bounds=(0, 5))
 history = History()
 
 trials = [
-    Trial(name="trial-1", config={"x": 1.0}, bucket=bucket, metrics=[metric]),
-    Trial(name="trial-2", config={"x": 2.0}, bucket=bucket, metrics=[metric]),
-    Trial(name="trial-3", config={"x": 3.0}, bucket=bucket, metrics=[metric]),
+    Trial.create(name="trial-1", config={"x": 1.0}, metrics=[metric]),
+    Trial.create(name="trial-2", config={"x": 2.0}, metrics=[metric]),
+    Trial.create(name="trial-3", config={"x": 3.0}, metrics=[metric]),
 ]
 
 for trial in trials:
@@ -214,6 +213,7 @@ print(df)
 
 best = history.best()
 print(best)
+for t in trials: t.bucket.rmdir()  # markdown-exec: hide
 ```
 
 You can use the [`History.df()`][amltk.optimization.History.df] method to get a dataframe of the history and
