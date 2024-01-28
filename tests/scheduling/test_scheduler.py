@@ -5,6 +5,7 @@ import time
 import warnings
 from asyncio import Future
 from collections import Counter
+from collections.abc import Iterator
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
@@ -82,8 +83,10 @@ def case_sequential_executor() -> SequentialExecutor:
 
 @fixture(scope="function")
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
-def scheduler(executor: Executor) -> Scheduler:
-    return Scheduler(executor)
+def scheduler(executor: Executor) -> Iterator[Scheduler]:
+    yield Scheduler(executor)
+    if isinstance(executor, ClientExecutor):
+        executor._client.close()
 
 
 def test_scheduler_with_timeout_and_wait_for_tasks(scheduler: Scheduler) -> None:

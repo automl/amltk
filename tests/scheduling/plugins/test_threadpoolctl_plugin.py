@@ -4,6 +4,7 @@ import logging
 import sys
 import warnings
 from collections import Counter
+from collections.abc import Iterator
 from concurrent.futures import Executor, ProcessPoolExecutor
 from typing import Any
 
@@ -61,8 +62,10 @@ def case_loky_executor() -> ProcessPoolExecutor:
 
 @fixture(scope="function")
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
-def scheduler(executor: Executor) -> Scheduler:
-    return Scheduler(executor)
+def scheduler(executor: Executor) -> Iterator[Scheduler]:
+    yield Scheduler(executor)
+    if isinstance(executor, ClientExecutor):
+        executor._client.close()
 
 
 def f() -> list[Any]:

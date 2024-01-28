@@ -52,6 +52,8 @@ def case_dask_executor() -> ClientExecutor:
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Iterator[Scheduler]:
     yield Scheduler(executor)
+    if isinstance(executor, ClientExecutor):
+        executor._client.close()
 
 
 def big_memory_function(mem_in_bytes: int) -> bytearray:

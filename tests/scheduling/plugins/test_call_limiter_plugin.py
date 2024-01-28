@@ -55,6 +55,8 @@ def case_loky_executor() -> ProcessPoolExecutor:
 @parametrize_with_cases("executor", cases=".", has_tag="executor")
 def scheduler(executor: Executor) -> Iterator[Scheduler]:
     yield Scheduler(executor)
+    if isinstance(executor, ClientExecutor):
+        executor._client.close()
 
 
 def time_wasting_function(duration: int) -> int:

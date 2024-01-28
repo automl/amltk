@@ -83,6 +83,9 @@ provide a robust and flexible framework for scheduling compute across workers.
     client = Client(...)
     executor = client.get_executor()
     scheduler = Scheduler(executor=executor)
+
+    # Important to do if the program will continue!
+    client.close()
     ```
 
 ### :simple-dask: `dask-jobqueue`
