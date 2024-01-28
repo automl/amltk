@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generic, ParamSpec
+from typing import TYPE_CHECKING, Any, Generic, Literal, ParamSpec
 from typing_extensions import Self, override
 
 if TYPE_CHECKING:
@@ -37,6 +37,8 @@ if TYPE_CHECKING:
 
 
 P = ParamSpec("P")
+
+SklearnResponseMethods = Literal["predict", "predict_proba", "decision_function"]
 
 
 @dataclass(frozen=True)
@@ -86,8 +88,25 @@ class Metric(Generic[P]):
             )
         return self.fn(*args, **kwargs)
 
-    def as_sklearn_scorer(self) -> _Scorer:
-        """Convert a metric to a sklearn scorer."""
+    def as_scorer(
+        self,
+        *,
+        response_method: (
+            SklearnResponseMethods | Iterable[SklearnResponseMethods] | None
+        ) = None,
+        **scorer_kwargs: Any,
+    ) -> _Scorer:
+        """Convert a metric to a sklearn scorer.
+
+        Args:
+            response_method: The response method to use for the scorer.
+                This can be a single method or an iterable of methods.
+            scorer_kwargs: Additional keyword arguments to pass to the
+                scorer during the call. Forwards to [`sklearn.metrics.make_scorer`][].
+
+        Returns:
+            The sklearn scorer.
+        """
         from sklearn.metrics import get_scorer, make_scorer
 
         match self.fn:
@@ -100,7 +119,12 @@ class Metric(Generic[P]):
                         " Please provide a function to `Metric(fn=...)`.",
                     ) from e
             case fn:
-                return make_scorer(fn, greater_is_better=not self.minimize)
+                return make_scorer(
+                    fn,
+                    greater_is_better=not self.minimize,
+                    response_method=response_method,
+                    **scorer_kwargs,
+                )
 
     @override
     def __str__(self) -> str:
@@ -146,94 +170,42 @@ class Metric(Generic[P]):
         return cls(name=name, minimize=minimize, bounds=bounds)
 
     @property
-    def worst(self) -> Metric.Value:
+    def worst(self) -> float:
         """The worst possible value of the metric."""
-        if self.bounds:
-            v = self.bounds[1] if self.minimize else self.bounds[0]
-            return self.as_value(v)
+        if self.bounds is not None:
+            return self.bounds[1] if self.minimize else self.bounds[0]
 
-        v = float("inf") if self.minimize else float("-inf")
-        return self.as_value(v)
+        return float("inf") if self.minimize else float("-inf")
 
     @property
-    def optimal(self) -> Metric.Value:
+    def optimal(self) -> float:
         """The optimal value of the metric."""
         if self.bounds:
-            v = self.bounds[0] if self.minimize else self.bounds[1]
-            return self.as_value(v)
-        v = float("-inf") if self.minimize else float("inf")
-        return self.as_value(v)
+            return self.bounds[0] if self.minimize else self.bounds[1]
 
-    def as_value(self, value: float | int) -> Metric.Value:
-        """Convert a value to an metric value."""
-        return Metric.Value(metric=self, value=float(value))
+        return float("-inf") if self.minimize else float("inf")
 
-    @dataclass(frozen=True, order=True)
-    class Value:
-        """A recorded value of an metric."""
+    def distance_to_optimal(self, v: float, /) -> float | None:
+        """The distance to the optimal value, using the bounds if possible."""
+        match self.bounds:
+            case None:
+                return None
+            case (lower, upper) if lower <= v <= upper:
+                if self.minimize:
+                    return abs(v - lower)
+                return abs(v - upper)
+            case (lower, upper):
+                raise ValueError(f"Value {v} is not within {self.bounds=}")
+            case _:
+                raise ValueError(f"Invalid {self.bounds=}")
 
-        metric: Metric = field(compare=False, hash=True)
-        """The metric."""
+    def loss(self, v: float, /) -> float:
+        """Convert a value to a loss."""
+        return float(v) if self.minimize else -float(v)
 
-        value: float = field(compare=True, hash=True)
-        """The value of the metric."""
-
-        @property
-        def minimize(self) -> bool:
-            """Whether to minimize or maximize the metric."""
-            return self.metric.minimize
-
-        @property
-        def bounds(self) -> tuple[float, float] | None:
-            """Whether to minimize or maximize the metric."""
-            return self.metric.bounds
-
-        @property
-        def name(self) -> str:
-            """The name of the metric."""
-            return self.metric.name
-
-        @property
-        def loss(self) -> float:
-            """Convert a value to a loss."""
-            if self.minimize:
-                return float(self.value)
-            return -float(self.value)
-
-        @property
-        def score(self) -> float:
-            """Convert a value to a score."""
-            if self.minimize:
-                return -float(self.value)
-            return float(self.value)
-
-        @property
-        def distance_to_optimal(self) -> float | None:
-            """The distance to the optimal value, using the bounds if possible."""
-            match self.bounds:
-                case None:
-                    return None
-                case (lower, upper) if lower <= self.value <= upper:
-                    if self.minimize:
-                        return abs(self.value - lower)
-                    return abs(self.value - upper)
-                case (lower, upper):
-                    raise ValueError(f"Value {self.value} is not within {self.bounds=}")
-
-            return None
-
-        def __float__(self) -> float:
-            """Convert a value to a float."""
-            return float(self.value)
-
-        @override
-        def __eq__(self, __value: object) -> bool:
-            """Check if two values are equal."""
-            if isinstance(__value, Metric.Value):
-                return self.value == __value.value
-            if isinstance(__value, float | int):
-                return self.value == float(__value)
-            return NotImplemented
+    def score(self, v: float, /) -> float:
+        """Convert a value to a score."""
+        return -float(v) if self.minimize else float(v)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -255,12 +227,32 @@ class MetricCollection(Mapping[str, Metric]):
     def __iter__(self) -> Iterator[str]:
         return iter(self.metrics)
 
-    def as_sklearn(self, *, raise_exc: bool = True) -> _MultimetricScorer:
+    def as_sklearn_scorer(
+        self,
+        *,
+        response_methods: (
+            Mapping[str, SklearnResponseMethods | Iterable[SklearnResponseMethods]]
+            | None
+        ) = None,
+        scorer_kwargs: Mapping[str, Mapping[str, Any]] | None = None,
+        raise_exc: bool = True,
+    ) -> _MultimetricScorer:
         """Convert this collection to a sklearn scorer."""
         from sklearn.metrics._scorer import _MultimetricScorer
 
-        scorers = {k: v.as_sklearn_scorer() for k, v in self.items()}
+        rms = response_methods or {}
+        skwargs = scorer_kwargs or {}
+
+        scorers = {
+            k: v.as_scorer(response_method=rms.get(k), **skwargs.get(k, {}))
+            for k, v in self.items()
+        }
         return _MultimetricScorer(scorers=scorers, raise_exc=raise_exc)
+
+    @classmethod
+    def from_empty(cls) -> MetricCollection:
+        """Create an empty metric collection."""
+        return cls(metrics={})
 
     @classmethod
     def from_collection(
