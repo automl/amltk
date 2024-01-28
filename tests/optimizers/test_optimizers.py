@@ -130,9 +130,7 @@ def test_report_failure(optimizer: Optimizer):
     assert valid_time_interval(report.profiles["trial"].time)
     assert isinstance(report.exception, ValueError)
     assert isinstance(report.traceback, str)
-    assert report.values == {
-        name: metric.optimal for name, metric in optimizer.metrics.items()
-    }
+    assert report.values == {}
 
 
 @parametrize_with_cases("optimizer", cases=".", prefix="opt_")

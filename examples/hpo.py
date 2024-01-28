@@ -72,8 +72,14 @@ pipeline = (
     Sequential(name="Pipeline")
     >> Split(
         {
-            "categorical": [SimpleImputer(strategy="constant", fill_value="missing"), OneHotEncoder(drop="first")],
-            "numerical": Component(SimpleImputer, space={"strategy": ["mean", "median"]}),
+            "categorical": [
+                SimpleImputer(strategy="constant", fill_value="missing"),
+                OneHotEncoder(drop="first"),
+            ],
+            "numerical": Component(
+                SimpleImputer,
+                space={"strategy": ["mean", "median"]},
+            ),
         },
         name="feature_preprocessing",
     )
@@ -102,19 +108,24 @@ specific `trial.config` suggested by the [`Optimizer`][amltk.optimization.Optimi
 from sklearn.metrics import accuracy_score
 
 from amltk.optimization import Trial
+from amltk.store import PathBucket
 
 
-def target_function(trial: Trial, _pipeline: Node) -> Trial.Report:
+def target_function(
+    trial: Trial,
+    _pipeline: Node,
+    data_bucket: PathBucket,
+) -> Trial.Report:
     trial.store({"config.json": trial.config})
     # Load in data
     with trial.profile("data-loading"):
         X_train, X_val, X_test, y_train, y_val, y_test = (
-            trial.bucket["X_train.csv"].load(),
-            trial.bucket["X_val.csv"].load(),
-            trial.bucket["X_test.csv"].load(),
-            trial.bucket["y_train.npy"].load(),
-            trial.bucket["y_val.npy"].load(),
-            trial.bucket["y_test.npy"].load(),
+            data_bucket["X_train.csv"].load(),
+            data_bucket["X_val.csv"].load(),
+            data_bucket["X_test.csv"].load(),
+            data_bucket["y_train.npy"].load(),
+            data_bucket["y_val.npy"].load(),
+            data_bucket["y_test.npy"].load(),
         )
 
     # Configure the pipeline with the trial config before building it.
@@ -183,6 +194,7 @@ X_val, y_val = data["val"]
 X_test, y_test = data["test"]
 
 bucket = PathBucket("example-hpo", clean=True, create=True)
+data_bucket = bucket / "data"
 bucket.store(
     {
         "X_train.csv": X_train,
@@ -196,6 +208,7 @@ bucket.store(
 
 print(bucket)
 print(dict(bucket))
+print(dict(data_bucket))
 """
 ### Setting up the Scheduler, Task and Optimizer
 We use the [`Scheduler.with_processes`][amltk.scheduling.Scheduler.with_processes]
@@ -251,7 +264,7 @@ launches the task we created earlier with this trial.
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
-    task.submit(trial, _pipeline=pipeline)
+    task.submit(trial, _pipeline=pipeline, data_bucket=data_bucket)
 
 
 """
@@ -296,12 +309,13 @@ If you want to run the optimization in parallel, you can use the
 a report. This will launch a new task as soon as one finishes.
 """
 
+
 @task.on_result
 def launch_another_task(*_: Any) -> None:
     """When we get a report, evaluate another trial."""
     if scheduler.running():
         trial = optimizer.ask()
-        task.submit(trial, _pipeline=pipeline)
+        task.submit(trial, _pipeline=pipeline, data_bucket=data_bucket)
 
 
 """
