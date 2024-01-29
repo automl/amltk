@@ -217,13 +217,14 @@ class Metric(Generic[P]):
         """
         match self.bounds:
             # If both sides are finite, we can 0-1 normalize
-            case (lower, upper) if not (np.isinf(lower) or np.isinf(upper)):
+            case (lower, upper) if not np.isinf(lower) and not np.isinf(upper):
                 cost = (v - lower) / (upper - lower)
+                cost = 1 - cost if self.minimize is False else cost
             # No bounds or one unbounded bound, we can't normalize
             case _:
-                cost = v
+                cost = v if self.minimize else -v
 
-        return cost if self.minimize else -cost
+        return cost
 
     def loss(self, v: float, /) -> float:
         """Convert a value to a loss."""
