@@ -31,7 +31,7 @@ license = { file = "LICENSE" }
 [project.optional-dependencies]
 dev = ["amltk[doc, tooling, test, examples]"]
 tooling = ["commitizen", "pre-commit", "ruff", "mypy", "types-psutil", "types-pyyaml"]
-test = ["pytest<8", "pytest-coverage", "pytest-cases", "amltk[examples]"]
+test = ["pytest<9", "pytest-coverage", "pytest-cases", "amltk[examples]"]
 examples = ["openml", "amltk[optuna, smac, sklearn, rich, loky, dask, xgboost, wandb, pynisher, path_loaders]"]
 doc = [
   "mkdocs",
