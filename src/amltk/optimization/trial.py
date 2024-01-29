@@ -113,7 +113,11 @@ class Trial(RichRenderable, Generic[I]):
             return trial.success(cost=cost)
 
         # ... usually obtained from an optimizer
-        trial = Trial(name="some-unique-name", config={"x": 1, "y": 2}, metrics=[cost])
+        trial = Trial.create(
+            name="some-unique-name",
+            config={"x": 1, "y": 2},
+            metrics=[cost]
+        )
 
         report = target_function(trial)
         print(report.df())
@@ -160,7 +164,7 @@ class Trial(RichRenderable, Generic[I]):
             from amltk.optimization import Trial, Metric
 
             # Gotten from some optimizer usually, i.e. via `optimizer.ask()`
-            trial = Trial(
+            trial = Trial.create(
                 name="example_trial",
                 config={"param": 42},
                 metrics=[Metric(name="accuracy", minimize=False)]
@@ -194,7 +198,7 @@ class Trial(RichRenderable, Generic[I]):
         ```python exec="true" source="material-block" result="python" title="profile"
         from amltk.optimization import Trial
 
-        trial = Trial(name="some-unique-name", config={})
+        trial = Trial.create(name="some-unique-name", config={})
 
         # ... somewhere where you've begun your trial.
         with trial.profile("some_interval"):
@@ -351,7 +355,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.optimization import Trial
         import time
 
-        trial = Trial(name="trial", config={"x": 1})
+        trial = Trial.create(name="trial", config={"x": 1})
 
         with trial.profile("some_interval"):
             # Do some work
@@ -386,7 +390,7 @@ class Trial(RichRenderable, Generic[I]):
 
         loss_metric = Metric("loss", minimize=True)
 
-        trial = Trial(name="trial", config={"x": 1}, metrics=[loss_metric])
+        trial = Trial.create(name="trial", config={"x": 1}, metrics=[loss_metric])
         report = trial.success(loss=1)
 
         print(report)
@@ -443,14 +447,14 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.optimization import Trial, Metric
 
         loss = Metric("loss", minimize=True, bounds=(0, 1_000))
-        trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
+        trial = Trial.create(name="trial", config={"x": 1}, metrics=[loss])
 
         try:
             raise ValueError("This is an error")  # Something went wrong
         except Exception as error:
             report = trial.fail(error)
 
-        print(report.metrics)
+        print(report.values)
         print(report)
         ```
 
@@ -524,7 +528,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.optimization import Trial
         from amltk.store import PathBucket
 
-        trial = Trial(name="trial", config={"x": 1}, bucket=PathBucket("my-trial"))
+        trial = Trial.create(name="trial", config={"x": 1}, bucket=PathBucket("my-trial"))
         trial.store({"config.json": trial.config})
         print(trial.storage)
         ```
@@ -547,7 +551,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.store import PathBucket
 
         bucket = PathBucket("results")
-        trial = Trial(name="trial", config={"x": 1}, info={}, bucket=bucket)
+        trial = Trial.create(name="trial", config={"x": 1}, info={}, bucket=bucket)
 
         trial.store({"config.json": trial.config})
         trial.delete_from_storage(items=["config.json"])
@@ -562,7 +566,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.store import PathBucket
 
         bucket = PathBucket("results")
-        trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
+        trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
 
         trial.store({"config.json": trial.config})
         trial.delete_from_storage(items=["config.json"])
@@ -607,7 +611,7 @@ class Trial(RichRenderable, Generic[I]):
         bucket = PathBucket("results")
 
         # Create a trial, normally done by an optimizer
-        trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
+        trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
 
         trial.store({"config.json": trial.config})
         config = trial.retrieve("config.json")
@@ -746,7 +750,7 @@ class Trial(RichRenderable, Generic[I]):
 
         loss = Metric("loss", minimize=True)
 
-        trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
+        trial = Trial.create(name="trial", config={"x": 1}, metrics=[loss])
 
         with trial.profile("fitting"):
             # Do some work
@@ -902,7 +906,7 @@ class Trial(RichRenderable, Generic[I]):
 
             bucket = PathBucket("results")
 
-            trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
+            trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
 
             trial.store({"config.json": trial.config})
             report = trial.success()

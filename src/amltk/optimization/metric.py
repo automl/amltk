@@ -21,12 +21,12 @@ if the metric itself is bounded.
 ```python exec="true" source="material-block" result="python"
 from amltk.optimization import Metric
 
-acc = Metric("accuracy", minimize=False, bounds=(0.0, 1.0))
+acc = Metric("accuracy", minimize=False, bounds=(0, 100))
 
-acc_value = acc.as_value(0.9)
-print(f"Cost: {acc_value.distance_to_optimal}")  # Distance to optimal.
-print(f"Loss: {acc_value.loss}")  # Something that can be minimized
-print(f"Score: {acc_value.score}")  # Something that can be maximized
+print(f"Distance: {acc.distance_to_optimal(90)}")  # Distance to optimal.
+print(f"Loss: {acc.loss(90)}")  # Something that can be minimized
+print(f"Score: {acc.score(90)}")  # Something that can be maximized
+print(f"Normalized loss: {acc.normalized_loss(90)}")  # Normalized loss
 ```
 
 """

@@ -117,7 +117,7 @@ class OnBeginCallbackSignature(Protocol):
         # You can do early stopping based on a target metric
         @task.on_result
         def stop_if_target_reached(_: Future, report: Trial.Report) -> None:
-            score = report.metrics["accuracy"]
+            score = report.values["accuracy"]
             if score >= 0.95:
                 scheduler.stop(stop_msg="Target reached!"))
 
@@ -127,7 +127,7 @@ class OnBeginCallbackSignature(Protocol):
 
         @task.on_result
         def stop_if_no_improvement_for_n_runs(_: Future, report: Trial.Report) -> None:
-            score = report.metrics["accuracy"]
+            score = report.values["accuracy"]
             if score > last_score:
                 n = 0
                 last_score = score
