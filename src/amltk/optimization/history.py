@@ -174,7 +174,10 @@ class History(RichRenderable):
                 _metric_name = metric.name
 
         _by = min if _metric_def.minimize else max
-        return _by(self.reports, key=lambda r: r.values[_metric_name])
+        return _by(
+            (r for r in self.reports if _metric_name in r.values),
+            key=lambda r: r.values[_metric_name],
+        )
 
     def add(self, report: Trial.Report | Iterable[Trial.Report]) -> None:
         """Adds a report or reports to the history.

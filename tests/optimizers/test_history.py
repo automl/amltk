@@ -196,6 +196,26 @@ def test_history_sortby() -> None:
     assert sorted(losses) == losses
 
 
+def test_history_best() -> None:
+    trials: list[Trial] = [
+        Trial.create(name=f"trial_{i}", metrics=metrics, config={"x": i})
+        for i in range(10)
+    ]
+
+    history = History()
+
+    for trial in trials:
+        # This should have been the best but failed
+        if trial.name == "trial_0":
+            history.add(trial.fail())
+        else:
+            history.add(trial.success(loss=trial.config["x"]))
+
+    best = history.best("loss")
+    assert best.name == "trial_1"
+    assert best.values["loss"] == 1
+
+
 def test_history_incumbents() -> None:
     m1 = Metric("score", minimize=False)
     m2 = Metric("loss", minimize=True)
