@@ -367,7 +367,7 @@ class PynisherPlugin(Plugin):
                     )
 
                     # Will auto-detect
-                    trial = Trial(...)
+                    trial = Trial.create(...)
                     task_one.submit(trial, ...)
                     task_two.submit(..., trial=trial)
 

@@ -100,8 +100,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, overload
 from typing_extensions import override
 
-import numpy as np
-from more_itertools import first_true
 from pynisher import MemoryLimitException, TimeoutException
 from smac import HyperparameterOptimizationFacade, MultiFidelityFacade, Scenario
 from smac.runhistory import (
@@ -159,12 +157,11 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         """
         # We need to very that the scenario is correct incase user pass in
         # their own facade construction
-        assert self.crash_cost(metrics) == facade.scenario.crash_cost
+        assert list(self.crash_costs(metrics).values()) == facade.scenario.crash_cost
 
         metrics = metrics if isinstance(metrics, Sequence) else [metrics]
         super().__init__(metrics=metrics, bucket=bucket)
         self.facade = facade
-        self.metrics = metrics
         self.fidelities = fidelities
         self.time_profile = time_profile
 
@@ -238,7 +235,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 seed=seed,
                 min_budget=min_budget,
                 max_budget=max_budget,
-                crash_cost=cls.crash_cost(metrics),
+                crash_cost=list(cls.crash_costs(metrics).values()),
             )
             facade_cls = MultiFidelityFacade
         else:
@@ -248,7 +245,7 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
                 output_directory=bucket.path / "smac3_output",
                 deterministic=deterministic,
                 objectives=metric_names,
-                crash_cost=cls.crash_cost(metrics),
+                crash_cost=list(cls.crash_costs(metrics).values()),
             )
             facade_cls = HyperparameterOptimizationFacade
 
@@ -311,13 +308,13 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
 
         config_id = self.facade.runhistory.config_ids[config]
         unique_name = f"{config_id=}_{seed=}_{budget=}_{instance=}"
-        trial: Trial[SMACTrialInfo] = Trial(
+        trial: Trial[SMACTrialInfo] = Trial.create(
             name=unique_name,
             config=dict(config),
             info=smac_trial_info,
             seed=seed,
             fidelities=trial_fids,
-            bucket=self.bucket,
+            bucket=self.bucket / unique_name,
             metrics=self.metrics,
         )
         logger.debug(f"Asked for trial {trial.name}")
@@ -332,25 +329,23 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         """
         assert report.trial.info is not None
 
-        cost: float | list[float]
-        match self.metrics:
-            case [metric]:  # Single obj
-                val: Metric.Value = first_true(
-                    report.metric_values,
-                    pred=lambda m: m.metric == metric,
-                    default=metric.worst,
-                )
-                cost = self.cost(val)
-            case metrics:
-                # NOTE: We need to make sure that there sorted in the order
-                # that SMAC expects, with any missing metrics filled in
-                _lookup = {v.metric.name: v for v in report.metric_values}
-                cost = [
-                    self.cost(_lookup.get(metric.name, metric.worst))
-                    for metric in metrics
-                ]
+        costs: dict[str, float] = {}
+        for name, metric in self.metrics.items():
+            value = report.values.get(metric.name)
+            if value is None:
+                if report.status == Trial.Status.SUCCESS:
+                    raise ValueError(
+                        f"Could not find metric '{metric.name}' in report values."
+                        " Make sure you use `trial.success()` in your target function."
+                        " So that we can report the metric value to SMAC.",
+                    )
+                value = metric.worst
 
-        logger.debug(f"Telling report for trial {report.trial.name}")
+            costs[name] = metric.normalized_loss(value)
+
+        logger.debug(f"Reporting for trial {report.trial.name} with costs: {costs}")
+
+        cost = next(iter(costs.values())) if len(costs) == 1 else list(costs.values())
 
         # If we're successful, get the cost and times and report them
         params: dict[str, Any]
@@ -418,32 +413,18 @@ class SMACOptimizer(Optimizer[SMACTrialInfo]):
         """The preferred parser for this optimizer."""
         return "configspace"
 
-    @overload
     @classmethod
-    def crash_cost(cls, metric: Metric) -> float:
-        ...
-
-    @overload
-    @classmethod
-    def crash_cost(cls, metric: Sequence[Metric]) -> list[float]:
-        ...
-
-    @classmethod
-    def crash_cost(cls, metric: Metric | Sequence[Metric]) -> float | list[float]:
+    def crash_costs(cls, metric: Metric | Iterable[Metric]) -> dict[str, float]:
         """Get the crash cost for a metric for SMAC."""
         match metric:
-            case Metric(bounds=(lower, upper)):  # Bounded metrics
-                return abs(upper - lower)
-            case Metric():  # Unbounded metric
-                return np.inf
-            case metrics:
-                return [cls.crash_cost(m) for m in metrics]
-
-    @classmethod
-    def cost(cls, value: Metric.Value) -> float:
-        """Get the cost for a metric value for SMAC."""
-        match value.distance_to_optimal:
-            case None:  # If we can't compute the distance, use the loss
-                return value.loss
-            case distance:  # If we can compute the distance, use that
-                return distance
+            case Metric():
+                return {metric.name: metric.normalized_loss(metric.worst)}
+            case Iterable():
+                return {
+                    metric.name: metric.normalized_loss(metric.worst)
+                    for metric in metric
+                }
+            case _:
+                raise TypeError(
+                    f"Expected a Metric, Mapping, or Iterable of Metrics. Got {metric}",
+                )

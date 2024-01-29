@@ -22,7 +22,7 @@ def quadratic(x):
 
 history = History()
 trials = [
-    Trial(name=f"trial_{count}", config={"x": i}, metrics=[loss])
+    Trial.create(name=f"trial_{count}", config={"x": i}, metrics=[loss])
     for count, i in enumerate(range(-5, 5))
 ]
 
@@ -91,7 +91,7 @@ print(history[last_report.name])
 
 ```python exec="true" source="material-block" result="python" session="ref-history"
 for report in history:
-    print(report.name, f"loss = {report.metrics['loss']}")
+    print(report.name, f"loss = {report.values['loss']}")
 ```
 
 ```python exec="true" source="material-block" result="python" session="ref-history"

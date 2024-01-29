@@ -24,7 +24,8 @@ used to keep a structured record of what occured with
     history = History()
 
     for x, y in zip([1, 2, 3], [4, 5, 6]):
-        trial = Trial(name="some-unique-name", config={"x": x, "y": y}, bucket=bucket, metrics=[loss])
+        name = f"trial_{x}_{y}"
+        trial = Trial.create(name=name, config={"x": x, "y": y}, bucket=bucket / name, metrics=[loss])
         report = target_function(trial)
         history.add(report)
 
@@ -67,13 +68,13 @@ import pandas as pd
 
 from amltk._functional import compare_accumulate
 from amltk._richutil import RichRenderable
+from amltk.optimization.metric import Metric
 from amltk.optimization.trial import Trial
 from amltk.types import Comparable
 
 if TYPE_CHECKING:
     from rich.console import RenderableType
 
-    from amltk.optimization.metric import Metric
 
 T = TypeVar("T")
 CT = TypeVar("CT", bound=Comparable)
@@ -98,7 +99,7 @@ class History(RichRenderable):
 
     metric = Metric("cost", minimize=True)
     trials = [
-        Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric])
+        Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric])
         for i in range(10)
     ]
     history = History()
@@ -139,7 +140,7 @@ class History(RichRenderable):
         history.add(reports)
         return history
 
-    def best(self, metric: str | None = None) -> Trial.Report:
+    def best(self, metric: str | Metric | None = None) -> Trial.Report:
         """Returns the best report in the history.
 
         Args:
@@ -150,26 +151,33 @@ class History(RichRenderable):
         Returns:
             The best report.
         """
-        if metric is None:
-            if len(self.metrics) > 1:
-                raise ValueError(
-                    "There are multiple metrics in the history, "
-                    "please specify which metric to sort by.",
-                )
+        match metric:
+            case None:
+                if len(self.metrics) > 1:
+                    raise ValueError(
+                        "There are multiple metrics in the history, "
+                        "please specify which metric to sort by for best.",
+                    )
 
-            _metric_def = next(iter(self.metrics.values()))
-            _metric_name = _metric_def.name
-        else:
-            if metric not in self.metrics:
-                raise ValueError(
-                    f"Metric {metric} not found in history. "
-                    f"Available metrics: {list(self.metrics.keys())}",
-                )
-            _metric_def = self.metrics[metric]
-            _metric_name = metric
+                _metric_def = next(iter(self.metrics.values()))
+                _metric_name = _metric_def.name
+            case str():
+                if metric not in self.metrics:
+                    raise ValueError(
+                        f"Metric {metric} not found in history. "
+                        f"Available metrics: {list(self.metrics.keys())}",
+                    )
+                _metric_def = self.metrics[metric]
+                _metric_name = metric
+            case Metric():
+                _metric_def = metric
+                _metric_name = metric.name
 
         _by = min if _metric_def.minimize else max
-        return _by(self.reports, key=lambda r: r.metrics[_metric_name])
+        return _by(
+            (r for r in self.reports if _metric_name in r.values),
+            key=lambda r: r.values[_metric_name],
+        )
 
     def add(self, report: Trial.Report | Iterable[Trial.Report]) -> None:
         """Adds a report or reports to the history.
@@ -179,16 +187,7 @@ class History(RichRenderable):
         """
         match report:
             case Trial.Report():
-                for m in report.metric_values:
-                    if (_m := self.metrics.get(m.name)) is not None:
-                        if m.metric != _m:
-                            raise ValueError(
-                                f"Metric {m.name} has conflicting definitions:"
-                                f"\n{m.metric} != {_m}",
-                            )
-                    else:
-                        self.metrics[m.name] = m.metric
-
+                self.metrics.update(report.metrics)
                 self.reports.append(report)
                 self._lookup[report.name] = len(self.reports) - 1
             case Iterable():
@@ -241,7 +240,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -305,7 +304,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -313,9 +312,9 @@ class History(RichRenderable):
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
 
-        filtered_history = history.filter(lambda report: report.metrics["cost"] < 10)
+        filtered_history = history.filter(lambda report: report.values["cost"] < 10)
         for report in filtered_history:
-            cost = report.metrics["cost"]
+            cost = report.values["cost"]
             print(f"{report.name}, {cost=}, {report}")
         ```
 
@@ -337,7 +336,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -358,7 +357,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -366,7 +365,7 @@ class History(RichRenderable):
             report = trial.fail(cost=x)
             history.add(report)
 
-        for below_5, history in history.groupby(lambda r: r.metrics["cost"] < 5).items():
+        for below_5, history in history.groupby(lambda r: r.values["cost"] < 5).items():
             print(f"{below_5=}, {len(history)=}")
         ```
 
@@ -402,7 +401,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -415,7 +414,7 @@ class History(RichRenderable):
             .incumbents("cost", sortby=lambda r: r.reported_at)
         )
         for report in incumbents:
-            print(f"{report.metrics=}, {report.config=}")
+            print(f"{report.values=}, {report.config=}")
         ```
 
         Args:
@@ -448,7 +447,7 @@ class History(RichRenderable):
             case str():
                 metric = self.metrics[key]
                 __op = operator.lt if metric.minimize else operator.gt  # type: ignore
-                op = lambda r1, r2: __op(r1.metrics[key], r2.metrics[key])
+                op = lambda r1, r2: __op(r1.values[key], r2.values[key])
             case _:
                 op = key
 
@@ -467,7 +466,7 @@ class History(RichRenderable):
         from amltk.optimization import Trial, History, Metric
 
         metric = Metric("cost", minimize=True)
-        trials = [Trial(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
+        trials = [Trial.create(name=f"trial_{i}", config={"x": i}, metrics=[metric]) for i in range(10)]
         history = History()
 
         for trial in trials:
@@ -482,34 +481,33 @@ class History(RichRenderable):
         )
 
         for report in trace:
-            print(f"{report.metrics}, {report}")
+            print(f"{report.values}, {report}")
         ```
 
         Args:
             key: The key to sort by. If given a str, it will sort by
-                the value of that key in the `.metrics` and also filter
+                the value of that key in the `.values` and also filter
                 out anything that does not contain this key.
             reverse: Whether to sort in some given order. By
                 default (`None`), if given a metric key, the reports with
                 the best metric values will be sorted first. If
                 given a `#!python Callable`, the reports with the
                 smallest values will be sorted first. Using
-                `reverse=True` will always reverse this order, while
-                `reverse=False` will always preserve it.
+                `reverse=True/False` will apply to python's
+                [`sorted()`][sorted].
 
         Returns:
             A sorted list of reports
         """  # noqa: E501
         # If given a str, filter out anything that doesn't have that key
         if isinstance(key, str):
-            history = self.filter(lambda report: key in report.metric_names)
-            sort_key: Callable[[Trial.Report], Comparable] = lambda r: r.metrics[key]
-            reverse = (
-                reverse if reverse is not None else (not self.metrics[key].minimize)
-            )
+            history = self.filter(lambda report: key in report.values)
+            sort_key = lambda r: r.values[key]
+            reverse = reverse if reverse is not None else not self.metrics[key].minimize
         else:
             history = self
             sort_key = key
+            # Default is False
             reverse = False if reverse is None else reverse
 
         return sorted(history.reports, key=sort_key, reverse=reverse)

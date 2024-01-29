@@ -47,7 +47,11 @@ def test_custom_callback_used(tmp_path: Path) -> None:
 def test_populates_given_history(tmp_path: Path) -> None:
     history = History()
     component = Component(object, space={"a": (0.0, 1.0)})
-    trial = Trial(name="test_trial", config={})
+    trial = Trial.create(
+        name="test_trial",
+        config={},
+        bucket=PathBucket(tmp_path) / "trial",
+    )
     report = trial.success()
     history.add(report)
 

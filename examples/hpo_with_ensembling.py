@@ -227,7 +227,7 @@ def target_function(
                 "traceback.txt": str(tb),
             },
         )
-        return trial.fail(e, tb)  # <!> (4)!
+        return trial.fail()  # <!> (4)!
 
     # Make our predictions with the model
     train_predictions = sklearn_pipeline.predict(X_train)
@@ -302,7 +302,7 @@ def create_ensemble(
         return Ensemble({}, [], {})
 
     validation_predictions = {
-        report.name: report.retrieve("val_probabilities.npy", where=bucket)
+        report.name: report.retrieve("val_probabilities.npy")
         for report in history
     }
     targets = bucket["y_val.npy"].load()
@@ -322,10 +322,7 @@ def create_ensemble(
         seed=seed,  # <!>
     )  # <!>
 
-    configs = {
-        name: history.find(name).retrieve("config.json", where=bucket)
-        for name in weights
-    }
+    configs = {name: history[name].retrieve("config.json") for name in weights}
     return Ensemble(weights=weights, trajectory=trajectory, configs=configs)
 
 

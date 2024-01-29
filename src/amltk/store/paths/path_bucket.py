@@ -136,6 +136,7 @@ class PathBucket(Bucket[str, Path]):
         if isinstance(path, str):
             path = Path(path)
         elif isinstance(path, PathBucket):
+            # TODO: Should we inherit the loaders?
             path = path.path
 
         if clean and path.exists():

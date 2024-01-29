@@ -9,7 +9,7 @@ from pytest_cases import case, parametrize_with_cases
 
 from amltk.optimization import History, Metric, Trial
 
-metrics = [Metric("loss", minimize=True)]
+metrics = {"loss": Metric("loss", minimize=True)}
 
 
 def quadratic(x: float) -> float:
@@ -56,34 +56,34 @@ def case_empty() -> list[Trial.Report]:
 
 @case(tags=["success"])
 def case_one_report_success() -> list[Trial.Report]:
-    trial: Trial = Trial(name="trial_1", config={"x": 1}, metrics=metrics)
+    trial: Trial = Trial.create(name="trial_1", config={"x": 1}, metrics=metrics)
     return eval_trial(trial)
 
 
 @case(tags=["fail"])
 def case_one_report_fail() -> list[Trial.Report]:
-    trial: Trial = Trial(name="trial_1", config={"x": 1}, metrics=metrics)
+    trial: Trial = Trial.create(name="trial_1", config={"x": 1}, metrics=metrics)
     return eval_trial(trial, fail=100)
 
 
 @case(tags=["crash"])
 def case_one_report_crash() -> list[Trial.Report]:
-    trial: Trial = Trial(name="trial_1", config={"x": 1}, metrics=metrics)
+    trial: Trial = Trial.create(name="trial_1", config={"x": 1}, metrics=metrics)
     return eval_trial(trial, crash=ValueError("Some Error"))
 
 
 @case(tags=["success", "fail", "crash"])
 def case_many_report() -> list[Trial.Report]:
     success_trials: list[Trial] = [
-        Trial(name=f"trial_{i+6}", config={"x": i}, metrics=metrics)
+        Trial.create(name=f"trial_{i+6}", config={"x": i}, metrics=metrics)
         for i in range(-5, 5)
     ]
     fail_trials: list[Trial] = [
-        Trial(name=f"trial_{i+16}", config={"x": i}, metrics=metrics)
+        Trial.create(name=f"trial_{i+16}", config={"x": i}, metrics=metrics)
         for i in range(-5, 5)
     ]
     crash_trials: list[Trial] = [
-        Trial(name=f"trial_{i+26}", config={"x": i}, metrics=metrics)
+        Trial.create(name=f"trial_{i+26}", config={"x": i}, metrics=metrics)
         for i in range(-5, 5)
     ]
 
@@ -167,7 +167,7 @@ def test_trace_sortby(reports: list[Trial.Report]) -> None:
 
 def test_history_sortby() -> None:
     trials: list[Trial] = [
-        Trial(name=f"trial_{i+6}", metrics=metrics, config={"x": i})
+        Trial.create(name=f"trial_{i+6}", metrics=metrics, config={"x": i})
         for i in range(-5, 5)
     ]
 
@@ -183,7 +183,7 @@ def test_history_sortby() -> None:
 
     trace_loss = history.sortby("loss")
     assert len(trace_loss) == len(trials)
-    losses = [r.metrics["loss"] for r in trace_loss]
+    losses = [r.values["loss"] for r in trace_loss]
     assert sorted(losses) == losses
 
     trace_other = history.filter(lambda report: "other_loss" in report.summary).sortby(
@@ -196,11 +196,35 @@ def test_history_sortby() -> None:
     assert sorted(losses) == losses
 
 
+def test_history_best() -> None:
+    trials: list[Trial] = [
+        Trial.create(name=f"trial_{i}", metrics=metrics, config={"x": i})
+        for i in range(10)
+    ]
+
+    history = History()
+
+    for trial in trials:
+        # This should have been the best but failed
+        if trial.name == "trial_0":
+            history.add(trial.fail())
+        else:
+            history.add(trial.success(loss=trial.config["x"]))
+
+    best = history.best("loss")
+    assert best.name == "trial_1"
+    assert best.values["loss"] == 1
+
+
 def test_history_incumbents() -> None:
     m1 = Metric("score", minimize=False)
     m2 = Metric("loss", minimize=True)
     trials: list[Trial] = [
-        Trial(name=f"trial_{i+6}", metrics=[m1, m2], config={"x": i})
+        Trial.create(
+            name=f"trial_{i+6}",
+            metrics={"score": m1, "loss": m2},
+            config={"x": i},
+        )
         for i in [0, -1, 2, -3, 4, -5, 6, -7, 8, -9]
     ]
     history = History()
@@ -212,19 +236,19 @@ def test_history_incumbents() -> None:
 
     hist_1 = history.incumbents("loss", ffill=True)
     expected_1 = [0, -1, -1, -3, -3, -5, -5, -7, -7, -9]
-    assert [r.metrics["loss"] for r in hist_1] == expected_1
+    assert [r.values["loss"] for r in hist_1] == expected_1
 
     hist_2 = history.incumbents("loss", ffill=False)
     expected_2 = [0, -1, -3, -5, -7, -9]
-    assert [r.metrics["loss"] for r in hist_2] == expected_2
+    assert [r.values["loss"] for r in hist_2] == expected_2
 
     hist_3 = history.incumbents("score", ffill=True)
     expected_3 = [0, 0, 2, 2, 4, 4, 6, 6, 8, 8]
-    assert [r.metrics["score"] for r in hist_3] == expected_3
+    assert [r.values["score"] for r in hist_3] == expected_3
 
     hist_4 = history.incumbents("score", ffill=False)
     expected_4 = [0, 2, 4, 6, 8]
-    assert [r.metrics["score"] for r in hist_4] == expected_4
+    assert [r.values["score"] for r in hist_4] == expected_4
 
 
 @parametrize_with_cases("reports", cases=".")

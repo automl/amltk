@@ -133,7 +133,6 @@ from typing_extensions import override
 import metahyper.api
 from ConfigSpace import ConfigurationSpace
 from metahyper import instance_from_map
-from more_itertools import first_true
 from neps.optimizers import SearcherMapping
 from neps.search_spaces.parameter import Parameter
 from neps.search_spaces.search_space import SearchSpace, pipeline_space_from_configspace
@@ -459,13 +458,13 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             case cost_metric:
                 metrics = [self.loss_metric, cost_metric]
 
-        trial = Trial(
+        trial = Trial.create(
             name=info.name,
             config=info.config,
             info=info,
             seed=self.seed,
-            bucket=self.bucket,
-            metrics=metrics,
+            bucket=self.bucket / info.name,
+            metrics={m.name: m for m in metrics},
         )
         logger.debug(f"Asked for trial {trial.name}")
         return trial
@@ -482,20 +481,10 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
         assert info is not None
 
         # Get a metric result
-        metric_result = first_true(
-            report.metric_values,
-            pred=lambda value: value.metric.name == self.loss_metric.name,
-            default=self.loss_metric.worst,
-        )
+        loss = report.values.get(self.loss_metric.name, self.loss_metric.worst)
+        normalized_loss = self.loss_metric.normalized_loss(loss)
 
-        # Convert metric result to a minimization loss
-        neps_loss: float
-        if (_loss := metric_result.distance_to_optimal) is not None:
-            neps_loss = _loss
-        else:
-            neps_loss = metric_result.loss
-
-        result: dict[str, Any] = {"loss": neps_loss}
+        result: dict[str, Any] = {"loss": normalized_loss}
 
         metadata: dict[str, Any]
         if (
@@ -512,13 +501,9 @@ class NEPSOptimizer(Optimizer[NEPSTrialInfo]):
             metadata = {}
 
         if self.cost_metric is not None:
-            cost_metric: Metric = self.cost_metric
-            _cost = first_true(
-                report.metric_values,
-                pred=lambda value: value.metric.name == cost_metric.name,
-                default=self.cost_metric.worst,
-            )
-            cost = _cost.value
+            cost = report.values.get(self.cost_metric.name, self.cost_metric.worst)
+
+            # We don't normalize here
             result["cost"] = cost
 
             # If it's a budget aware optimizer

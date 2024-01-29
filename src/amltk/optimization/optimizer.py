@@ -34,6 +34,7 @@ from typing_extensions import Self
 
 from more_itertools import all_unique
 
+from amltk.optimization.metric import MetricCollection
 from amltk.store.paths.path_bucket import PathBucket
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ class Optimizer(Generic[I]):
     `tell` to inform the optimizer of the report from that trial.
     """
 
-    metrics: Sequence[Metric]
+    metrics: MetricCollection
     """The metrics to optimize."""
 
     bucket: PathBucket
@@ -81,7 +82,7 @@ class Optimizer(Generic[I]):
                 f"Got {metrics} with names {[metric.name for metric in metrics]}",
             )
 
-        self.metrics = metrics
+        self.metrics = MetricCollection.from_collection(metrics)
         self.bucket = (
             bucket
             if bucket is not None

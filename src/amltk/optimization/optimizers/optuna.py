@@ -111,7 +111,6 @@ from typing import TYPE_CHECKING, Any, overload
 from typing_extensions import Self, override
 
 import optuna
-from more_itertools import first_true
 from optuna.samplers import BaseSampler, NSGAIISampler, TPESampler
 from optuna.study import Study, StudyDirection
 from optuna.trial import (
@@ -192,9 +191,9 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         super().__init__(bucket=bucket, metrics=metrics)
         self.seed = amltk.randomness.as_int(seed)
         self.study = study
-        self.metrics = metrics
         self.space = space
 
+    @override
     @classmethod
     def create(
         cls,
@@ -293,14 +292,13 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         config = optuna_trial.params
         trial_number = optuna_trial.number
         unique_name = f"{trial_number=}"
-        metrics = [self.metrics] if isinstance(self.metrics, Metric) else self.metrics
-        return Trial(
+        return Trial.create(
             name=unique_name,
             seed=self.seed,
             config=config,
             info=optuna_trial,
-            bucket=self.bucket,
-            metrics=metrics,
+            bucket=self.bucket / unique_name,
+            metrics=self.metrics,
         )
 
     @override
@@ -318,31 +316,15 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
                 # NOTE: Can't tell any values if the trial crashed or failed
                 self.study.tell(trial=trial, state=TrialState.FAIL)
             case Trial.Status.SUCCESS:
-                match self.metrics:
-                    case [metric]:
-                        metric_value: Metric.Value = first_true(
-                            report.metric_values,
-                            pred=lambda m: m.metric == metric,
-                            default=metric.worst,
-                        )
-                        self.study.tell(
-                            trial=trial,
-                            state=TrialState.COMPLETE,
-                            values=metric_value.value,
-                        )
-                    case metrics:
-                        # NOTE: We need to make sure that there sorted in the order
-                        # that Optuna expects, with any missing metrics filled in
-                        _lookup = {v.metric.name: v for v in report.metric_values}
-                        values = [
-                            _lookup.get(metric.name, metric.worst).value
-                            for metric in metrics
-                        ]
-                        self.study.tell(
-                            trial=trial,
-                            state=TrialState.COMPLETE,
-                            values=values,
-                        )
+                values = {
+                    name: report.values.get(name, metric.worst)
+                    for name, metric in self.metrics.items()
+                }
+                v: list[float] = list(values.values())
+                if len(v) == 1:
+                    self.study.tell(trial=trial, state=TrialState.COMPLETE, values=v[0])
+                else:
+                    self.study.tell(trial=trial, state=TrialState.COMPLETE, values=v)
 
     @override
     @classmethod

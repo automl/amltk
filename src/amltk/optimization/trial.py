@@ -29,7 +29,13 @@ from __future__ import annotations
 import copy
 import logging
 import traceback as traceback_module
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import (
+    Hashable,
+    Iterable,
+    Iterator,
+    Mapping,
+    MutableMapping,
+)
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -44,9 +50,9 @@ import pandas as pd
 from amltk._functional import dict_get_not_none, mapping_select, prefix_keys
 from amltk._richutil.renderable import RichRenderable
 from amltk._util import parse_timestamp_object
-from amltk.optimization.metric import Metric
+from amltk.optimization.metric import Metric, MetricCollection
 from amltk.profiling import Memory, Profile, Profiler, Timer
-from amltk.store import Bucket, PathBucket
+from amltk.store import PathBucket
 
 if TYPE_CHECKING:
     from rich.console import RenderableType
@@ -107,7 +113,11 @@ class Trial(RichRenderable, Generic[I]):
             return trial.success(cost=cost)
 
         # ... usually obtained from an optimizer
-        trial = Trial(name="some-unique-name", config={"x": 1, "y": 2}, metrics=[cost])
+        trial = Trial.create(
+            name="some-unique-name",
+            config={"x": 1, "y": 2},
+            metrics=[cost]
+        )
 
         report = target_function(trial)
         print(report.df())
@@ -154,7 +164,7 @@ class Trial(RichRenderable, Generic[I]):
             from amltk.optimization import Trial, Metric
 
             # Gotten from some optimizer usually, i.e. via `optimizer.ask()`
-            trial = Trial(
+            trial = Trial.create(
                 name="example_trial",
                 config={"param": 42},
                 metrics=[Metric(name="accuracy", minimize=False)]
@@ -188,7 +198,7 @@ class Trial(RichRenderable, Generic[I]):
         ```python exec="true" source="material-block" result="python" title="profile"
         from amltk.optimization import Trial
 
-        trial = Trial(name="some-unique-name", config={})
+        trial = Trial.create(name="some-unique-name", config={})
 
         # ... somewhere where you've begun your trial.
         with trial.profile("some_interval"):
@@ -225,40 +235,102 @@ class Trial(RichRenderable, Generic[I]):
     config: Mapping[str, Any]
     """The config of the trial provided by the optimizer."""
 
-    bucket: PathBucket = field(
-        default_factory=lambda: PathBucket("unknown-trial-bucket"),
-    )
+    bucket: PathBucket
     """The bucket to store trial related output to."""
 
-    info: I | None = field(default=None, repr=False)
+    info: I | None = field(repr=False)
     """The info of the trial provided by the optimizer."""
 
-    metrics: Sequence[Metric] = field(default_factory=list)
-    """The metrics associated with the trial."""
+    metrics: MetricCollection
+    """The metrics associated with the trial.
+
+    You can access the metrics by name, e.g. `#!python trial.metrics["loss"]`.
+    """
 
     seed: int | None = None
     """The seed to use if suggested by the optimizer."""
 
-    fidelities: dict[str, Any] | None = None
+    fidelities: Mapping[str, Any]
     """The fidelities at which to evaluate the trial, if any."""
 
-    profiler: Profiler = field(
-        repr=False,
-        default_factory=lambda: Profiler(memory_unit="B", time_kind="wall"),
-    )
+    profiler: Profiler = field(repr=False)
     """A profiler for this trial."""
 
-    summary: dict[str, Any] = field(default_factory=dict)
+    summary: MutableMapping[str, Any]
     """The summary of the trial. These are for summary statistics of a trial and
     are single values."""
 
-    storage: set[Any] = field(default_factory=set)
+    storage: set[Any]
     """Anything stored in the trial, the elements of the list are keys that can be
     used to retrieve them later, such as a Path.
     """
 
-    extras: dict[str, Any] = field(default_factory=dict)
+    extras: MutableMapping[str, Any]
     """Any extras attached to the trial."""
+
+    @classmethod
+    def create(  # noqa: PLR0913
+        cls,
+        name: str,
+        config: Mapping[str, Any] | None = None,
+        *,
+        metrics: Metric | Iterable[Metric] | Mapping[str, Metric] | None = None,
+        info: I | None = None,
+        seed: int | None = None,
+        fidelities: Mapping[str, Any] | None = None,
+        profiler: Profiler | None = None,
+        bucket: str | Path | PathBucket | None = None,
+        summary: MutableMapping[str, Any] | None = None,
+        storage: set[Hashable] | None = None,
+        extras: MutableMapping[str, Any] | None = None,
+    ) -> Trial[I]:
+        """Create a trial.
+
+        Args:
+            name: The name of the trial.
+            metrics: The metrics of the trial.
+            config: The config of the trial.
+            info: The info of the trial.
+            seed: The seed of the trial.
+            fidelities: The fidelities of the trial.
+            bucket: The bucket of the trial.
+            profiler: The profiler of the trial.
+            summary: The summary of the trial.
+            storage: The storage of the trial.
+            extras: The extras of the trial.
+
+        Returns:
+            The trial.
+        """
+        return Trial(
+            name=name,
+            metrics=(
+                MetricCollection.from_collection(metrics)
+                if metrics is not None
+                else MetricCollection()
+            ),
+            profiler=(
+                profiler
+                if profiler is not None
+                else Profiler(memory_unit="B", time_kind="wall")
+            ),
+            config=config if config is not None else {},
+            info=info,
+            seed=seed,
+            fidelities=fidelities if fidelities is not None else {},
+            bucket=(
+                bucket
+                if isinstance(bucket, PathBucket)
+                else (
+                    PathBucket(bucket)
+                    if bucket is not None
+                    else PathBucket(f"trial-{name}-{datetime.now().isoformat()}")
+                )
+            ),
+            summary=summary if summary is not None else {},
+            storage=storage if storage is not None else set(),
+            extras=extras if extras is not None else {},
+        )
 
     @property
     def profiles(self) -> Mapping[str, Profile.Interval]:
@@ -283,7 +355,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.optimization import Trial
         import time
 
-        trial = Trial(name="trial", config={"x": 1})
+        trial = Trial.create(name="trial", config={"x": 1})
 
         with trial.profile("some_interval"):
             # Do some work
@@ -318,7 +390,7 @@ class Trial(RichRenderable, Generic[I]):
 
         loss_metric = Metric("loss", minimize=True)
 
-        trial = Trial(name="trial", config={"x": 1}, metrics=[loss_metric])
+        trial = Trial.create(name="trial", config={"x": 1}, metrics=[loss_metric])
         report = trial.success(loss=1)
 
         print(report)
@@ -331,33 +403,29 @@ class Trial(RichRenderable, Generic[I]):
         Returns:
             The report of the trial.
         """  # noqa: E501
-        _recorded_values: list[Metric.Value] = []
-        for _metric in self.metrics:
-            if (raw_value := metrics.get(_metric.name)) is not None:
-                _recorded_values.append(_metric.as_value(raw_value))
+        values: dict[str, float] = {}
+
+        for metric_def in self.metrics.values():
+            if (reported_value := metrics.get(metric_def.name)) is not None:
+                values[metric_def.name] = reported_value
             else:
                 raise ValueError(
-                    f"Cannot report success without {self.metrics=}."
-                    f" Please provide a value for the metric '{_metric.name}'."
-                    f"\nPlease provide '{_metric.name}' as `trial.success("
-                    f"{_metric.name}=value)` or rename your metric to"
-                    f'`Metric(name="{{provided_key}}", minimize={_metric.minimize}, '
-                    f"bounds={_metric.bounds})`",
+                    f" Please provide a value for the metric '{metric_def.name}' as "
+                    " this is one of the metrics of the trial. "
+                    f"\n Try `trial.success({metric_def.name}=value, ...)`.",
                 )
 
         # Need to check if anything extra was reported!
-        extra = set(metrics.keys()) - {metric.name for metric in self.metrics}
+        extra = set(metrics.keys()) - self.metrics.keys()
         if extra:
             raise ValueError(
-                f"Cannot report success with extra metrics: {extra=}."
-                f"\nOnly {self.metrics=} are allowed.",
+                f"Cannot report `success()` with extra metrics: {extra=}."
+                f"\nOnly metrics {list(self.metrics)} as these are the metrics"
+                " provided for this trial."
+                "\nTo record other numerics, use `trial.summary` instead.",
             )
 
-        return Trial.Report(
-            trial=self,
-            status=Trial.Status.SUCCESS,
-            metric_values=tuple(_recorded_values),
-        )
+        return Trial.Report(trial=self, status=Trial.Status.SUCCESS, values=values)
 
     def fail(
         self,
@@ -379,14 +447,14 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.optimization import Trial, Metric
 
         loss = Metric("loss", minimize=True, bounds=(0, 1_000))
-        trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
+        trial = Trial.create(name="trial", config={"x": 1}, metrics=[loss])
 
         try:
             raise ValueError("This is an error")  # Something went wrong
         except Exception as error:
             report = trial.fail(error)
 
-        print(report.metrics)
+        print(report.values)
         print(report)
         ```
 
@@ -396,15 +464,22 @@ class Trial(RichRenderable, Generic[I]):
         if exception is not None and traceback is None:
             traceback = traceback_module.format_exc()
 
+        # Need to check if anything extra was reported!
+        extra = set(metrics.keys()) - self.metrics.keys()
+        if extra:
+            raise ValueError(
+                f"Cannot report `fail()` with extra metrics: {extra=}."
+                f"\nOnly metrics {list(self.metrics)} as these are the metrics"
+                " provided for this trial."
+                "\nTo record other numerics, use `trial.summary` instead.",
+            )
+
         return Trial.Report(
             trial=self,
             status=Trial.Status.FAIL,
             exception=exception,
             traceback=traceback,
-            metric_values=tuple(
-                _metric.as_value(metrics.get(_metric.name, _metric.worst.value))
-                for _metric in self.metrics
-            ),
+            values=metrics,
         )
 
     def crashed(
@@ -442,39 +517,19 @@ class Trial(RichRenderable, Generic[I]):
         return Trial.Report(
             trial=self,
             status=Trial.Status.CRASHED,
-            metric_values=tuple(metric.worst for metric in self.metrics),
             exception=exception,
             traceback=traceback,
         )
 
-    def store(
-        self,
-        items: Mapping[str, T],
-        *,
-        where: (
-            str | Path | Bucket | Callable[[str, Mapping[str, T]], None] | None
-        ) = None,
-    ) -> None:
+    def store(self, items: Mapping[str, T]) -> None:
         """Store items related to the trial.
 
         ```python exec="true" source="material-block" result="python" title="store" hl_lines="5"
         from amltk.optimization import Trial
         from amltk.store import PathBucket
 
-        trial = Trial(name="trial", config={"x": 1}, bucket=PathBucket("results"))
+        trial = Trial.create(name="trial", config={"x": 1}, bucket=PathBucket("my-trial"))
         trial.store({"config.json": trial.config})
-
-        print(trial.storage)
-        ```
-
-        You could also specify `where=` exactly to store the thing
-
-        ```python exec="true" source="material-block" result="python" title="store-bucket" hl_lines="7"
-        from amltk.optimization import Trial
-
-        trial = Trial(name="trial", config={"x": 1})
-        trial.store({"config.json": trial.config}, where="./results")
-
         print(trial.storage)
         ```
 
@@ -483,48 +538,12 @@ class Trial(RichRenderable, Generic[I]):
                 to the item itself.If using a `str`, `Path` or `PathBucket`,
                 the keys of the items should be a valid filename, including
                 the correct extension. e.g. `#!python {"config.json": trial.config}`
-
-            where: Where to store the items.
-
-                * If `None`, will use the bucket attached to the `Trial` if any,
-                    otherwise it will raise an error.
-
-                * If a `str` or `Path`, will store
-                a bucket will be created at the path, and the items will be
-                stored in a sub-bucket with the name of the trial.
-
-                * If a `Bucket`, will store the items **in a sub-bucket** with the
-                name of the trial.
-
-                * If a `Callable`, will call the callable with the name of the
-                trial and the key-valued pair of items to store.
         """  # noqa: E501
-        method: Bucket
-        match where:
-            case None:
-                method = self.bucket
-                method.sub(self.name).store(items)
-            case str() | Path():
-                method = PathBucket(where, create=True)
-                method.sub(self.name).store(items)
-            case Bucket():
-                method = where
-                method.sub(self.name).store(items)
-            case _:
-                # Leave it up to supplied method
-                where(self.name, items)
-
+        self.bucket.store(items)
         # Add the keys to storage
-        self.storage.update(items.keys())
+        self.storage.update(items)
 
-    def delete_from_storage(
-        self,
-        items: Iterable[str],
-        *,
-        where: (
-            str | Path | Bucket | Callable[[str, Iterable[str]], dict[str, bool]] | None
-        ) = None,
-    ) -> dict[str, bool]:
+    def delete_from_storage(self, items: Iterable[str]) -> dict[str, bool]:
         """Delete items related to the trial.
 
         ```python exec="true" source="material-block" result="python" title="delete-storage" hl_lines="6"
@@ -532,7 +551,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.store import PathBucket
 
         bucket = PathBucket("results")
-        trial = Trial(name="trial", config={"x": 1}, info={}, bucket=bucket)
+        trial = Trial.create(name="trial", config={"x": 1}, info={}, bucket=bucket)
 
         trial.store({"config.json": trial.config})
         trial.delete_from_storage(items=["config.json"])
@@ -547,7 +566,7 @@ class Trial(RichRenderable, Generic[I]):
         from amltk.store import PathBucket
 
         bucket = PathBucket("results")
-        trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
+        trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
 
         trial.store({"config.json": trial.config})
         trial.delete_from_storage(items=["config.json"])
@@ -557,39 +576,14 @@ class Trial(RichRenderable, Generic[I]):
 
         Args:
             items: The items to delete, an iterable of keys
-            where: Where the items are stored
-
-                * If `None`, will use the bucket attached to the `Trial` if any,
-                    otherwise it will raise an error.
-
-                * If a `str` or `Path`, will lookup a bucket at the path,
-                and the items will be deleted from a sub-bucket with the name of the trial.
-
-                * If a `Bucket`, will delete the items in a sub-bucket with the
-                name of the trial.
-
-                * If a `Callable`, will call the callable with the name of the
-                trial and the keys of the items to delete. Should a mapping from
-                the key to whether it was deleted or not.
 
         Returns:
             A dict from the key to whether it was deleted or not.
         """  # noqa: E501
         # If not a Callable, we convert to a path bucket
-        method: Bucket
-        match where:
-            case None:
-                method = self.bucket
-            case str() | Path():
-                method = PathBucket(where, create=False)
-            case Bucket():
-                method = where
-            case _:
-                # Leave it up to supplied method
-                return where(self.name, items)
-
-        sub_bucket = method.sub(self.name)
-        return sub_bucket.remove(items)
+        removed = self.bucket.remove(items)
+        self.storage.difference_update(items)
+        return removed
 
     def copy(self) -> Self:
         """Create a copy of the trial.
@@ -600,37 +594,15 @@ class Trial(RichRenderable, Generic[I]):
         return copy.deepcopy(self)
 
     @overload
-    def retrieve(
-        self,
-        key: str,
-        *,
-        where: str | Path | Bucket[str, Any] | None = ...,
-        check: None = None,
-    ) -> Any:
+    def retrieve(self, key: str, *, check: None = None) -> Any:
         ...
 
     @overload
-    def retrieve(
-        self,
-        key: str,
-        *,
-        where: str | Path | Bucket[str, Any] | None = ...,
-        check: type[R],
-    ) -> R:
+    def retrieve(self, key: str, *, check: type[R]) -> R:
         ...
 
-    def retrieve(
-        self,
-        key: str,
-        *,
-        where: str | Path | Bucket[str, Any] | None = None,
-        check: type[R] | None = None,
-    ) -> R | Any:
+    def retrieve(self, key: str, *, check: type[R] | None = None) -> R | Any:
         """Retrieve items related to the trial.
-
-        !!! note "Same argument for `where=`"
-
-             Use the same argument for `where=` as you did for `store()`.
 
         ```python exec="true" source="material-block" result="python" title="retrieve" hl_lines="7"
         from amltk.optimization import Trial
@@ -639,7 +611,7 @@ class Trial(RichRenderable, Generic[I]):
         bucket = PathBucket("results")
 
         # Create a trial, normally done by an optimizer
-        trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
+        trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
 
         trial.store({"config.json": trial.config})
         config = trial.retrieve("config.json")
@@ -647,41 +619,10 @@ class Trial(RichRenderable, Generic[I]):
         print(config)
         ```
 
-        You could also manually specify where something get's stored and retrieved
-
-        ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
-
-        from amltk.optimization import Trial
-        from amltk.store import PathBucket
-
-        path = "./config_path"
-
-        trial = Trial(name="trial", config={"x": 1})
-
-        trial.store({"config.json": trial.config}, where=path)
-
-        config = trial.retrieve("config.json", where=path)
-        print(config)
-        import shutil; shutil.rmtree(path)  # markdown-exec: hide
-        ```
-
         Args:
             key: The key of the item to retrieve as said in `.storage`.
             check: If provided, will check that the retrieved item is of the
-                provided type. If not, will raise a `TypeError`. This
-                is only used if `where=` is a `str`, `Path` or `Bucket`.
-
-            where: Where to retrieve the items from.
-
-                * If `None`, will use the bucket attached to the `Trial` if any,
-                    otherwise it will raise an error.
-
-                * If a `str` or `Path`, will store
-                a bucket will be created at the path, and the items will be
-                retrieved from a sub-bucket with the name of the trial.
-
-                * If a `Bucket`, will retrieve the items from a sub-bucket with the
-                name of the trial.
+                provided type. If not, will raise a `TypeError`.
 
         Returns:
             The retrieved item.
@@ -690,20 +631,7 @@ class Trial(RichRenderable, Generic[I]):
             TypeError: If `check=` is provided and  the retrieved item is not of the provided
                 type.
         """  # noqa: E501
-        # If not a Callable, we convert to a path bucket
-        method: Bucket[str, Any]
-        match where:
-            case None:
-                method = self.bucket
-            case str():
-                method = PathBucket(where, create=True)
-            case Path():
-                method = PathBucket(where, create=True)
-            case Bucket():
-                method = where
-
-        # Store in a sub-bucket
-        return method.sub(self.name)[key].load(check=check)
+        return self.bucket[key].load(check=check)
 
     def attach_extra(self, name: str, plugin_item: Any) -> None:
         """Attach a plugin item to the trial.
@@ -822,7 +750,7 @@ class Trial(RichRenderable, Generic[I]):
 
         loss = Metric("loss", minimize=True)
 
-        trial = Trial(name="trial", config={"x": 1}, metrics=[loss])
+        trial = Trial.create(name="trial", config={"x": 1}, metrics=[loss])
 
         with trial.profile("fitting"):
             # Do some work
@@ -863,28 +791,14 @@ class Trial(RichRenderable, Generic[I]):
         or [`from_dict()`][amltk.optimization.Trial.Report.from_dict].
         """
 
-        exception: BaseException | None = field(repr=True, default=None)
+        exception: BaseException | None = None
         """The exception reported if any."""
 
         traceback: str | None = field(repr=False, default=None)
         """The traceback reported if any."""
 
-        metrics: dict[str, float] = field(init=False)
-        """The metric values of the trial."""
-
-        metric_values: tuple[Metric.Value, ...] = field(default_factory=tuple)
-        """The metrics of the trial, linked to the metrics."""
-
-        metric_defs: dict[str, Metric] = field(init=False)
-        """A lookup to the metric definitions"""
-
-        metric_names: tuple[str, ...] = field(init=False)
-        """The names of the metrics."""
-
-        def __post_init__(self) -> None:
-            self.metrics = {value.name: value.value for value in self.metric_values}
-            self.metric_names = tuple(metric.name for metric in self.metric_values)
-            self.metric_defs = {v.metric.name: v.metric for v in self.metric_values}
+        values: Mapping[str, float] = field(default_factory=dict)
+        """The reported metric values of the trial."""
 
         @property
         def name(self) -> str:
@@ -897,12 +811,17 @@ class Trial(RichRenderable, Generic[I]):
             return self.trial.config
 
         @property
+        def metrics(self) -> MetricCollection:
+            """The metrics of the trial."""
+            return self.trial.metrics
+
+        @property
         def profiles(self) -> Mapping[str, Profile.Interval]:
             """The profiles of the trial."""
             return self.trial.profiles
 
         @property
-        def summary(self) -> dict[str, Any]:
+        def summary(self) -> MutableMapping[str, Any]:
             """The summary of the trial."""
             return self.trial.summary
 
@@ -956,8 +875,9 @@ class Trial(RichRenderable, Generic[I]):
                 "reported_at": self.reported_at,
             }
             if metrics:
-                for value in self.metric_values:
-                    items[f"metric:{value.metric}"] = value.value
+                for metric_name, value in self.values.items():
+                    metric_def = self.metrics[metric_name]
+                    items[f"metric:{metric_def}"] = value
             if summary:
                 items.update(**prefix_keys(self.trial.summary, "summary:"))
             if configs:
@@ -969,37 +889,15 @@ class Trial(RichRenderable, Generic[I]):
             return pd.DataFrame(items, index=[0]).convert_dtypes().set_index("name")
 
         @overload
-        def retrieve(
-            self,
-            key: str,
-            *,
-            where: str | Path | Bucket[str, Any] | None = ...,
-            check: None = None,
-        ) -> Any:
+        def retrieve(self, key: str, *, check: None = None) -> Any:
             ...
 
         @overload
-        def retrieve(
-            self,
-            key: str,
-            *,
-            where: str | Path | Bucket[str, Any] | None = ...,
-            check: type[R],
-        ) -> R:
+        def retrieve(self, key: str, *, check: type[R]) -> R:
             ...
 
-        def retrieve(
-            self,
-            key: str,
-            *,
-            where: str | Path | Bucket[str, Any] | None = None,
-            check: type[R] | None = None,
-        ) -> R | Any:
+        def retrieve(self, key: str, *, check: type[R] | None = None) -> R | Any:
             """Retrieve items related to the trial.
-
-            !!! note "Same argument for `where=`"
-
-                 Use the same argument for `where=` as you did for `store()`.
 
             ```python exec="true" source="material-block" result="python" title="retrieve-bucket" hl_lines="11"
 
@@ -1008,7 +906,7 @@ class Trial(RichRenderable, Generic[I]):
 
             bucket = PathBucket("results")
 
-            trial = Trial(name="trial", config={"x": 1}, bucket=bucket)
+            trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
 
             trial.store({"config.json": trial.config})
             report = trial.success()
@@ -1020,19 +918,7 @@ class Trial(RichRenderable, Generic[I]):
             Args:
                 key: The key of the item to retrieve as said in `.storage`.
                 check: If provided, will check that the retrieved item is of the
-                    provided type. If not, will raise a `TypeError`. This
-                    is only used if `where=` is a `str`, `Path` or `Bucket`.
-                where: Where to retrieve the items from.
-
-                    * If `None`, will use the bucket attached to the `Trial` if any,
-                        otherwise it will raise an error.
-
-                    * If a `str` or `Path`, will store
-                    a bucket will be created at the path, and the items will be
-                    retrieved from a sub-bucket with the name of the trial.
-
-                    * If a `Bucket`, will retrieve the items from a sub-bucket with the
-                    name of the trial.
+                    provided type. If not, will raise a `TypeError`.
 
             Returns:
                 The retrieved item.
@@ -1041,21 +927,15 @@ class Trial(RichRenderable, Generic[I]):
                 TypeError: If `check=` is provided and  the retrieved item is not of the provided
                     type.
             """  # noqa: E501
-            return self.trial.retrieve(key, where=where, check=check)
+            return self.trial.retrieve(key, check=check)
 
-        def store(
-            self,
-            items: Mapping[str, T],
-            *,
-            where: (
-                str | Path | Bucket | Callable[[str, Mapping[str, T]], None] | None
-            ) = None,
-        ) -> None:
+        def store(self, items: Mapping[str, T]) -> None:
             """Store items related to the trial.
 
-            See: [`Trial.store()`][amltk.optimization.trial.Trial.store]
+            See Also:
+                * [`Trial.store()`][amltk.optimization.trial.Trial.store]
             """
-            self.trial.store(items, where=where)
+            self.trial.store(items)
 
         @classmethod
         def from_df(cls, df: pd.DataFrame | pd.Series) -> Trial.Report:
@@ -1109,12 +989,8 @@ class Trial(RichRenderable, Generic[I]):
             # on serialization to keep the order, which is not ideal either.
             # May revisit this if we need to
             raw_metrics: dict[str, float] = mapping_select(d, "metric:")
-            _intermediate = {
+            metrics: dict[Metric, float] = {
                 Metric.from_str(name): value for name, value in raw_metrics.items()
-            }
-            metrics: dict[Metric, Metric.Value] = {
-                metric: metric.as_value(value)
-                for metric, value in _intermediate.items()
             }
 
             exception = d.get("exception")
@@ -1132,7 +1008,7 @@ class Trial(RichRenderable, Generic[I]):
             else:
                 bucket = PathBucket(f"uknown_trial_bucket-{datetime.now().isoformat()}")
 
-            trial: Trial[None] = Trial(
+            trial: Trial = Trial.create(
                 name=d["name"],
                 config=mapping_select(d, "config:"),
                 info=None,  # We don't save this to disk so we load it back as None
@@ -1140,10 +1016,12 @@ class Trial(RichRenderable, Generic[I]):
                 seed=trial_seed,
                 fidelities=mapping_select(d, "fidelities:"),
                 profiler=Profiler(profiles=profiles),
-                metrics=list(metrics.keys()),
+                metrics=metrics.keys(),
                 summary=mapping_select(d, "summary:"),
+                storage=set(mapping_select(d, "storage:").values()),
+                extras=mapping_select(d, "extras:"),
             )
-            _values: dict[str, float] = {m.name: r.value for m, r in metrics.items()}
+            _values: dict[str, float] = {m.name: v for m, v in metrics.items()}
 
             status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             match status:
