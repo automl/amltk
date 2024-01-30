@@ -432,35 +432,41 @@ def _evaluate_fold(
 
 def _iter_cross_validate(
     estimator: BaseEstimatorT,
-    X: pd.DataFrame | np.ndarray,  # noqa: N803
-    y: pd.Series | pd.DataFrame | np.ndarray,
+    X: Stored[pd.DataFrame | np.ndarray],  # noqa: N803
+    y: Stored[pd.Series | pd.DataFrame | np.ndarray],
     splitter: BaseShuffleSplit | BaseCrossValidator,
     scorers: Mapping[str, _Scorer],
     *,
-    params: Mapping[str, Any] | None = None,
+    params: Mapping[str, Any | Stored[Any]] | None = None,
     profiler: Profiler | None = None,
     train_score: bool = False,
 ) -> Iterator[tuple[BaseEstimatorT, Mapping[str, float], Mapping[str, float] | None]]:
     profiler = Profiler(disabled=True) if profiler is None else profiler
+    params = {} if params is None else params
+    loaded_params: dict[str, Any] = {
+        k: v.load() if isinstance(v, Stored) else v for k, v in params.items()
+    }
 
     # NOTE: This flow adapted from sklearns 1.4 cross_validate
     _scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
-    params = {} if params is None else params
-    routed_params = _route_params(splitter, estimator, _scorer, **params)
+    routed_params = _route_params(splitter, estimator, _scorer, **loaded_params)
     fit_params = routed_params["estimator"]["fit"]
     scorer_params = routed_params["scorer"]["score"]
 
     # Notably, this is an iterator
-    indicies = splitter.split(X, y, **routed_params["splitter"]["split"])
+    X_loaded = X.load()
+    y_loaded = y.load()
+    indicies = splitter.split(X_loaded, y_loaded, **routed_params["splitter"]["split"])
 
     fit_params = fit_params if fit_params is not None else {}
     scorer_params = scorer_params if scorer_params is not None else {}
 
     for i_train, i_test in indicies:
+        # Sadly this function needs the full X and y due to its internal checks
         yield _evaluate_fold(
             estimator=estimator,
-            X=X,
-            y=y,
+            X=X_loaded,
+            y=y_loaded,
             i_train=i_train,
             i_val=i_test,
             profiler=profiler,
@@ -489,9 +495,6 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
     params = {} if params is None else params
     # Make sure to load all the stored values
 
-    loaded_params: dict[str, Any] = {
-        k: v.load() if isinstance(v, Stored) else v for k, v in params.items()
-    }
     build_params = {} if build_params is None else build_params
     random_state = amltk.randomness.as_randomstate(trial.seed)
 
@@ -536,11 +539,11 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
 
     cv_iter = _iter_cross_validate(
         estimator=estimator,
-        X=X.load(),
-        y=y.load(),
+        X=X,
+        y=y,
         splitter=splitter,
         scorers=scorers,
-        params=loaded_params,
+        params=params,
         profiler=trial.profiler,
         train_score=train_score,
     )
