@@ -99,7 +99,7 @@ class TaskTypeWarning(UserWarning):
     """A warning raised about the task type."""
 
 
-class NoProvidedIsClassificationWarning(TaskTypeWarning):
+class AutomaticTaskTypeInferredWarning(TaskTypeWarning):
     """A warning raised when the task type is inferred from the target data."""
 
 
@@ -214,7 +214,7 @@ def identify_task_type(  # noqa: PLR0911
             "`task_hint` was not provided. The task type was inferred from"
             f" the target data to be '{inferred_type}'."
             " To silence this warning, please provide `task_hint`.",
-            NoProvidedIsClassificationWarning,
+            AutomaticTaskTypeInferredWarning,
             stacklevel=2,
         )
         return inferred_type
