@@ -385,7 +385,48 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
 
 
 class CVEvaluation(EvaluationProtocol):
-    """Cross-validation evaluation protocol."""
+    """Cross-validation evaluation protocol.
+
+    This protocol will create a cross-validation task to be used in parallel and
+    optimization. It represents a typical cross-validation evaluation for sklearn.
+
+    Aside from the init parameters, it expects:
+    * The pipeline you are optimizing can be made into a [sklearn.pipeline.Pipeline][]
+    calling [`.build("sklearn")`][amltk.pipeline.Node.build].
+    * The seed for the trial will be passed as a param to
+    [`.configure()`][amltk.pipeline.Node.configure]. If you have a component
+    that accepts a `random_state` parameter, you can use a
+    [`request()`][amltk.pipeline.request] so that it will be seeded correctly.
+
+    ```python exec="true" source="material-block" result="python"
+    from amltk.sklearn import CVEvaluation
+    from amltk.pipeline import Component, request
+    from amltk.optimization import Metric
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import get_scorer
+
+    pipeline = Component(
+        RandomForestClassifier,
+        config={"random_state": request("random_state")},
+        space={"n_estimators": (10, 100), "critera": ["gini", "entropy"]},
+    )
+    evaluator = CVEvaluation(
+        X,
+        y,
+        cv=3,
+        additional_scorers={"f1": get_scorer("f1")},
+        store_models=False,
+        train_score=True,
+    )
+
+    history = pipeline.optimize(
+        target=evaluator,
+        metrics=Metric("accuracy", minimize=False, bounds=(0, 1)),
+        n_workers=4,
+    )
+    print(history.df())
+    ```
+    """
 
     TMP_DIR_PREFIX: ClassVar[str] = "amltk-sklearn-cv-evaluation-data-"
     """Prefix for temporary directory names.
