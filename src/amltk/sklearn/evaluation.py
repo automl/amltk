@@ -176,28 +176,77 @@ def identify_task_type(  # noqa: PLR0911
 ) -> TaskTypeName:
     """Identify the task type from the target data."""
     sklearn_target_type = type_of_target(y)
-    match is_classification:
-        case None:
+    match (sklearn_target_type, is_classification):
+        case (task_type, None):
+            warnings.warn(
+                "`is_classification` was not provided. The task type was inferred from"
+                f" the target data to be {task_type=}."
+                " To silence this warning, please provide `is_classification`"
+                " as either `True` or `False`.",
+                UserWarning,
+                stacklevel=2,
+            )
             return sklearn_target_type
-        case True:
-            match sklearn_target_type:
-                case "continuous":
-                    unique_values = np.unique(y)
-                    if len(unique_values) == 2:  # noqa: PLR2004
-                        return "binary"
-                    return "multiclass"
-                case "continuous-multioutput":
-                    return "multiclass-multioutput"
-                case _:
-                    return sklearn_target_type
-        case False:
-            match sklearn_target_type:
-                case "binary" | "multiclass":
-                    return "continuous"
-                case "multiclass-multioutput" | "multilabel-indicator":
-                    return "continuous-multioutput"
-                case _:
-                    return sklearn_target_type
+        case ("continuous", True) if len(np.unique(y)) == 2:  # noqa: PLR2004
+            warnings.warn(
+                f"`{is_classification=}` but the target"
+                f" data was inferred to be `{sklearn_target_type}` originally."
+                " We have corrected this to be `binary` as there were only"
+                " 2 unique values. This may cause crashes. To silence this"
+                " warning, you can encode your target data as `binary` by"
+                " making it a categorical or by using a `LabelEncoder`.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return "binary"
+        case ("continuous", True):
+            warnings.warn(
+                f"`{is_classification=}` but the target"
+                f" data was inferred to be `{sklearn_target_type}` originally."
+                " We have corrected this to be `multiclass` due to more than"
+                " 2 unique values. This may cause crashes. To silence this"
+                " warning, you can encode your target data as `multiclass` by"
+                " making it a categorical or by using a `LabelEncoder`.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return "multiclass"
+        case ("continuous-multioutput", True):
+            warnings.warn(
+                f"`{is_classification=}` but the target"
+                f" data was inferred to be `{sklearn_target_type}` originally."
+                " We have corrected this to be `multiclass-multioutput`."
+                " This may cause crashes. To silence this warning, you can"
+                " encode your target data as `multiclass-multioutput` by"
+                " making each of your target columns categorical.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return "multiclass-multioutput"
+        case (_, True):
+            return sklearn_target_type
+        case ("binary" | "multiclass", False):
+            warnings.warn(
+                "`is_classification` was provided as `False` but the target"
+                f" data was inferred to be `{sklearn_target_type}` originally."
+                " We have corrected this to be `multiclass-multioutput`."
+                " This may cause crashes. To silence this warning, you can"
+                " encode your target data as `multiclass-multioutput` by"
+                " making each of your target columns categorical.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return "continuous"
+        case ("multiclass-multioutput" | "multilabel-indicator", False):
+            return "continuous-multioutput"
+        case (_, False):
+            return sklearn_target_type
+        case _:
+            raise RuntimeError(
+                "Unhandled case in `identify_task_type`. Please report this as a bug."
+                " This is likely due to a change in sklearn's `type_of_target`"
+                f" function. {sklearn_target_type=}, {is_classification=}",
+            )
 
 
 def _iter_cross_validate(
