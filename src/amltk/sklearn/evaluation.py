@@ -626,9 +626,11 @@ class CVEvaluation(EvaluationProtocol):
     from amltk.sklearn import CVEvaluation
     from amltk.pipeline import Component, request
     from amltk.optimization import Metric
+
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import get_scorer
     from sklearn.datasets import load_iris
+    from pathlib import Path
 
     pipeline = Component(
         RandomForestClassifier,
@@ -636,6 +638,7 @@ class CVEvaluation(EvaluationProtocol):
         space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
     )
 
+    working_dir = Path("./some-path")
     X, y = load_iris(return_X_y=True)
     evaluator = CVEvaluation(
         X,
@@ -645,25 +648,28 @@ class CVEvaluation(EvaluationProtocol):
         additional_scorers={"roc_auc": get_scorer("roc_auc_ovr")},
         store_models=False,
         train_score=True,
+        data_dir=working_dir,
     )
 
     history = pipeline.optimize(
         target=evaluator,
         metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
+        working_dir=working_dir,
     )
     print(history.df())
+    evaluator.working_dir.rmdir()  # Cleanup
     ```
     """
 
     TMP_DIR_PREFIX: ClassVar[str] = "amltk-sklearn-cv-evaluation-data-"
     """Prefix for temporary directory names.
 
-    This is only used when `datadir` is not specified. If not specified
+    This is only used when `working_dir` is not specified. If not specified
     you can control the tmp dir location by setting the `TMPDIR`
     environment variable. By default this is `/tmp`.
 
     When using a temporary directory, it will be deleted by default,
-    controlled by the `delete_datadir=` argument.
+    controlled by the `delete_working_dir=` argument.
     """
 
     _X_FILENAME: ClassVar[str] = "X.pkl"
@@ -752,7 +758,7 @@ class CVEvaluation(EvaluationProtocol):
         random_state: Seed | None = None,  # Only used if cv is an int/float
         params: Mapping[str, Any] | None = None,
         task_hint: TaskTypeName | Literal["classification", "regression"] | None = None,
-        datadir: str | Path | PathBucket | None = None,
+        working_dir: str | Path | PathBucket | None = None,
         on_error: Literal["raise", "fail"] = "fail",
     ) -> None:
         """Initialize the evaluation protocol.
@@ -795,7 +801,7 @@ class CVEvaluation(EvaluationProtocol):
                 If you know this value, it is recommended to provide it as
                 sometimes the target is ambiguous and sklearn may infer
                 incorrectly.
-            datadir: The directory to use for storing data. If not provided,
+            working_dir: The directory to use for storing data. If not provided,
                 a temporary directory will be used. If provided as a string
                 or a `Path`, it will be used as the path to the directory.
             on_error: What to do if an error occurs in the task. This can be
@@ -807,7 +813,7 @@ class CVEvaluation(EvaluationProtocol):
                 even if some trials fail.
         """
         super().__init__()
-        match datadir:
+        match working_dir:
             case None:
                 tmpdir = Path(
                     tempfile.mkdtemp(
@@ -817,9 +823,9 @@ class CVEvaluation(EvaluationProtocol):
                 )
                 databucket = PathBucket(tmpdir)
             case str() | Path():
-                databucket = PathBucket(datadir)
+                databucket = PathBucket(working_dir)
             case PathBucket():
-                databucket = datadir
+                databucket = working_dir
 
         match task_hint:
             case "classification" | "regression" | None:
