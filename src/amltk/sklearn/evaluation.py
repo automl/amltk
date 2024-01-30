@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sized
 from functools import partial
@@ -115,56 +116,46 @@ def _route_params(
         ) from e
 
 
-def _default_resampler(
+def _default_holdout(
     task_type: TaskTypeName,
+    holdout_size: float,
     *,
-    n_splits: int,
     random_state: Seed | None = None,
-    train_size: float = 0.67,
-) -> BaseShuffleSplit | BaseCrossValidator:
-    if n_splits < 1:
-        raise ValueError("Must have at least one split")
+) -> ShuffleSplit | StratifiedShuffleSplit:
+    if not (0 < holdout_size < 1):
+        raise ValueError(f"`{holdout_size=}` must be in (0, 1)")
 
-    is_holdout = n_splits == 1
-    random_state = amltk.randomness.as_int(random_state)
-
-    # TODO: Custom splitter for edge case where we only have one label
-    # For a given class
-    # if "The least populated class in y has only" in e.args[0]:
-    # Required for both of them here
+    rs = amltk.randomness.as_int(random_state)
     match task_type:
         case "binary" | "multiclass":
-            if is_holdout:
-                return StratifiedShuffleSplit(
-                    n_splits=1,
-                    random_state=random_state,
-                    train_size=train_size,
-                )
-            return StratifiedKFold(
-                n_splits=n_splits,
-                shuffle=True,
-                random_state=random_state,
-            )
-        # NOTE: They don't natively support multilabel-indicator for stratified
+            return StratifiedShuffleSplit(1, random_state=rs, test_size=holdout_size)
         case "multilabel-indicator" | "multiclass-multioutput":
-            if is_holdout:
-                return ShuffleSplit(
-                    n_splits=1,
-                    random_state=random_state,
-                    train_size=train_size,
-                )
-
-            return KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+            return ShuffleSplit(1, random_state=rs, test_size=holdout_size)
         case "continuous" | "continuous-multioutput":
-            if is_holdout:
-                return ShuffleSplit(
-                    n_splits=1,
-                    random_state=random_state,
-                    train_size=train_size,
-                )
+            return ShuffleSplit(1, random_state=rs, test_size=holdout_size)
+        case _:
+            raise ValueError(f"Don't know how to handle {task_type=}")
 
-            return KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
+def _default_cv_resampler(
+    task_type: TaskTypeName,
+    n_splits: int,
+    *,
+    random_state: Seed | None = None,
+) -> StratifiedKFold | KFold:
+    if n_splits < 1:
+        raise ValueError(f"Must have at least one split but got {n_splits=}")
+
+    rs = amltk.randomness.as_int(random_state)
+
+    match task_type:
+        case "binary" | "multiclass":
+            return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=rs)
+        case "multilabel-indicator" | "multiclass-multioutput":
+            # NOTE: They don't natively support multilabel-indicator for stratified
+            return KFold(n_splits=n_splits, shuffle=True, random_state=rs)
+        case "continuous" | "continuous-multioutput":
+            return KFold(n_splits=n_splits, shuffle=True, random_state=rs)
         case _:
             raise ValueError(f"Don't know how to handle {task_type=} with {n_splits=}")
 
@@ -563,7 +554,11 @@ class CVEvaluation(EvaluationProtocol):
         X: pd.DataFrame | np.ndarray,  # noqa: N803
         y: pd.Series | pd.DataFrame | np.ndarray,
         *,
-        cv: int | float | BaseShuffleSplit | BaseCrossValidator,
+        strategy: Literal["holdout", "cv"]
+        | BaseShuffleSplit
+        | BaseCrossValidator = "cv",
+        n_splits: int = 5,  # sklearn default
+        holdout_size: float = 0.33,
         train_score: bool = False,
         store_models: bool = False,
         additional_scorers: Mapping[str, _Scorer] | None = None,
@@ -577,20 +572,24 @@ class CVEvaluation(EvaluationProtocol):
         Args:
             X: The features to use for training.
             y: The target to use for training.
-            cv: The cross-validation strategy to use. This can be either an
-                integer, a float, or a scikit-learn cross-validator.
-                If an integer is provided, it will be used as the number of
-                folds to use. If a float is provided, it will be used as the
-                train size in a train/test split.
-                If a scikit-learn cross-validator is provided, this will be
-                used directly.
+            strategy: The cross-validation strategy to use. This can be either
+                `#!python "holdout"` or `#!python "cv"`. Please see the related
+                arguments below. If a scikit-learn cross-validator is provided,
+                this will be used directly.
+            n_splits: The number of cross-validation splits to use.
+                This argument will be ignored if `#!python strategy="holdout"`
+                or a custom splitter is provided for `strategy=`.
+            holdout_size: The size of the holdout set to use. This argument
+                will be ignored if `#!python strategy="cv"` or a custom splitter
+                is provided for `strategy=`.
             train_score: Whether to score on the training data as well. This
                 will take extra time as predictions will be made on the
                 training data as well.
             store_models: Whether to store the trained models in the trial.
             additional_scorers: Additional scorers to use.
             random_state: The random state to use for the cross-validation
-                strategy. This is only used if `cv` is an integer or a float.
+                `strategy=`. If a custom splitter is provided, this will be
+                ignored.
             params: Parameters to pass to the estimator, splitter or scorers.
                 See https://scikit-learn.org/stable/metadata_routing.html for
                 more information.
@@ -614,32 +613,27 @@ class CVEvaluation(EvaluationProtocol):
                 databucket = datadir
 
         task_type = identify_task_type(y, is_classification=is_classification)
-        match cv:
-            case int():
-                if cv <= 1:
-                    raise ValueError("cv must be > 1 if provided as an int")
-                cv = _default_resampler(
+        match strategy:
+            case "cv":
+                splitter = _default_cv_resampler(
                     task_type,
-                    n_splits=cv,
+                    n_splits=n_splits,
                     random_state=random_state,
                 )
-            case float():
-                if not 0 < cv < 1:
-                    raise ValueError("cv must be > 0 and < 1 if provided as a float")
-                cv = _default_resampler(
+            case "holdout":
+                splitter = _default_holdout(
                     task_type,
-                    n_splits=1,
+                    holdout_size=holdout_size,
                     random_state=random_state,
-                    train_size=cv,
                 )
             case _:
-                pass
+                splitter = strategy
 
         self.task_type = task_type
         self.additional_scorers = additional_scorers
         self.databucket = databucket
         self.is_classification = is_classification
-        self.splitter = cv
+        self.splitter = splitter
         self.params = dict(params) if params is not None else {}
         self.store_models = store_models
         self.train_score = train_score
