@@ -60,10 +60,43 @@ TaskTypeName: TypeAlias = Literal[
     "binary",
     "multiclass",
     "multilabel-indicator",
+    "multiclass-multioutput",
     "continuous",
     "continuous-multioutput",
-    "multiclass-multioutput",
 ]
+_valid_task_types: tuple[TaskTypeName, ...] = (
+    "binary",
+    "multiclass",
+    "multilabel-indicator",
+    "multiclass-multioutput",
+    "continuous",
+    "continuous-multioutput",
+)
+
+
+class ImplicitMetricConversionWarning(UserWarning):
+    """A warning raised when a metric is implicitly converted to an sklearn scorer.
+
+    This is raised when a metric is provided with a custom function and is
+    implicitly converted to an sklearn scorer. This may fail in some cases
+    and it is recommended to explicitly convert the metric to an sklearn
+    scorer with `make_scorer` and then pass it to the metric with
+    [`Metric(fn=...)`][amltk.optimization.Metric].
+    """
+
+
+class TaskTypeWarning(UserWarning):
+    """A warning raised about the task type."""
+
+
+class NoProvidedIsClassificationWarning(TaskTypeWarning):
+    """A warning raised when the task type is inferred from the target data."""
+
+
+class MismatchedTaskTypeWarning(TaskTypeWarning):
+    """A warning raised when inferred task type with `task_hint` does not
+    match the inferred task type from the target data.
+    """
 
 
 def _route_params(
@@ -162,80 +195,110 @@ def _default_cv_resampler(
 def identify_task_type(  # noqa: PLR0911
     y: np.ndarray | pd.Series | pd.DataFrame,
     *,
-    is_classification: bool | None = None,
+    task_hint: Literal["classification", "regression"] | None = None,
 ) -> TaskTypeName:
     """Identify the task type from the target data."""
-    sklearn_target_type = type_of_target(y)
-    match (sklearn_target_type, is_classification):
-        case (task_type, None):
+    inferred_type: TaskTypeName = type_of_target(y)
+    if task_hint is None:
+        warnings.warn(
+            "`task_hint` was not provided. The task type was inferred from"
+            f" the target data to be '{inferred_type}'."
+            " To silence this warning, please provide `task_hint`.",
+            NoProvidedIsClassificationWarning,
+            stacklevel=2,
+        )
+        return inferred_type
+
+    match task_hint, inferred_type:
+        # First two cases are everything is fine
+        case (
+            "classification",
+            "binary"
+            | "multiclass"
+            | "multilabel-indicator"
+            | "multiclass-multioutput",
+        ):
+            return inferred_type
+        case ("regression", "continuous" | "continuous-multioutput"):
+            return inferred_type
+        # Hinted to be regression but we got a single column classification task
+        case ("regression", "binary" | "multiclass"):
             warnings.warn(
-                "`is_classification` was not provided. The task type was inferred from"
-                f" the target data to be {task_type=}."
-                " To silence this warning, please provide `is_classification`"
-                " as either `True` or `False`.",
-                UserWarning,
-                stacklevel=2,
-            )
-            return sklearn_target_type
-        case ("continuous", True) if len(np.unique(y)) == 2:  # noqa: PLR2004
-            warnings.warn(
-                f"`{is_classification=}` but the target"
-                f" data was inferred to be `{sklearn_target_type}` originally."
-                " We have corrected this to be `binary` as there were only"
-                " 2 unique values. This may cause crashes. To silence this"
-                " warning, you can encode your target data as `binary` by"
-                " making it a categorical or by using a `LabelEncoder`.",
-                UserWarning,
-                stacklevel=2,
-            )
-            return "binary"
-        case ("continuous", True):
-            warnings.warn(
-                f"`{is_classification=}` but the target"
-                f" data was inferred to be `{sklearn_target_type}` originally."
-                " We have corrected this to be `multiclass` due to more than"
-                " 2 unique values. This may cause crashes. To silence this"
-                " warning, you can encode your target data as `multiclass` by"
-                " making it a categorical or by using a `LabelEncoder`.",
-                UserWarning,
-                stacklevel=2,
-            )
-            return "multiclass"
-        case ("continuous-multioutput", True):
-            warnings.warn(
-                f"`{is_classification=}` but the target"
-                f" data was inferred to be `{sklearn_target_type}` originally."
-                " We have corrected this to be `multiclass-multioutput`."
-                " This may cause crashes. To silence this warning, you can"
-                " encode your target data as `multiclass-multioutput` by"
-                " making each of your target columns categorical.",
-                UserWarning,
-                stacklevel=2,
-            )
-            return "multiclass-multioutput"
-        case (_, True):
-            return sklearn_target_type
-        case ("binary" | "multiclass", False):
-            warnings.warn(
-                "`is_classification` was provided as `False` but the target"
-                f" data was inferred to be `{sklearn_target_type}` originally."
-                " We have corrected this to be `multiclass-multioutput`."
-                " This may cause crashes. To silence this warning, you can"
-                " encode your target data as `multiclass-multioutput` by"
-                " making each of your target columns categorical.",
-                UserWarning,
+                f"`{task_hint=}` but `{inferred_type=}`."
+                " Set to `continuous` as there is only one target column.",
+                MismatchedTaskTypeWarning,
                 stacklevel=2,
             )
             return "continuous"
-        case ("multiclass-multioutput" | "multilabel-indicator", False):
-            return "continuous-multioutput"
-        case (_, False):
-            return sklearn_target_type
+        # Hinted to be regression but we got multi-column classification task
+        case ("regression", "multilabel-indicator" | "multiclass-multioutput"):
+            warnings.warn(
+                f"`{task_hint=}` but `{inferred_type=}`."
+                " Set to `continuous-multiouput` as there are more than 1 target"
+                " columns.",
+                MismatchedTaskTypeWarning,
+                stacklevel=2,
+            )
+            return "continuous"
+        # Hinted to be classification but we got a single column regression task
+        case ("classification", "continuous"):
+            match len(np.unique(y)):
+                case 1:
+                    raise ValueError(
+                        "The target data has only one unique value. This is"
+                        f" not a valid classification task.\n{y=}",
+                    )
+                case 2:
+                    warnings.warn(
+                        f"`{task_hint=}` but `{inferred_type=}`."
+                        " Set to `binary` as only 2 unique values."
+                        " To silence this, provide a specific task type to"
+                        f"`task_hint=` from {_valid_task_types}.",
+                        MismatchedTaskTypeWarning,
+                        stacklevel=2,
+                    )
+                    return "binary"
+                case _:
+                    warnings.warn(
+                        f"`{task_hint=}` but `{inferred_type=}`."
+                        " Set to `multiclass` as >2 unique values."
+                        " To silence this, provide a specific task type to"
+                        f"`task_hint=` from {_valid_task_types}.",
+                        MismatchedTaskTypeWarning,
+                        stacklevel=2,
+                    )
+                    return "multiclass"
+        # Hinted to be classification but we got multi-column regression task
+        case ("classification", "continuous-multioutput"):
+            # NOTE: this is a matrix wide .unique, I'm not sure how things
+            # work with multiclass-multioutput and whether it should be
+            # done by 2 unique per column
+            uniques_per_col = [np.unique(col) for col in y.T]
+            binary_columns = all(len(col) <= 2 for col in uniques_per_col)  # noqa: PLR2004
+            if binary_columns:
+                warnings.warn(
+                    f"`{task_hint=}` but `{inferred_type=}`."
+                    " Set to `multilabel-indicator` as <=2 unique values per column."
+                    " To silence this, provide a specific task type to"
+                    f"`task_hint=` from {_valid_task_types}.",
+                    MismatchedTaskTypeWarning,
+                    stacklevel=2,
+                )
+                return "multilabel-indicator"
+            else:  # noqa: RET505
+                warnings.warn(
+                    f"`{task_hint=}` but `{inferred_type=}`."
+                    " Set to `multiclass-multioutput` as at least one column has"
+                    " >2 unique values."
+                    " To silence this, provide a specific task type to"
+                    f"`task_hint=` from {_valid_task_types}.",
+                    MismatchedTaskTypeWarning,
+                    stacklevel=2,
+                )
+                return "multiclass-multioutput"
         case _:
             raise RuntimeError(
-                "Unhandled case in `identify_task_type`. Please report this as a bug."
-                " This is likely due to a change in sklearn's `type_of_target`"
-                f" function. {sklearn_target_type=}, {is_classification=}",
+                f"Unreachable, please report this bug. {task_hint=}, {inferred_type=}",
             )
 
 
@@ -272,7 +335,12 @@ def _fit(
         )
         assert isinstance(train_scores, dict)
         for k, v in train_scores.items():
-            if np.isfinite(v) is not True:  # Can return list, check explicitly True
+            # Can return list or np.bool_
+            # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
+            # Also, we can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
+            # Hence we have to use equality checking
+            # God I feel like I'm doing javascript
+            if np.isfinite(v) != True:  # noqa: E712
                 raise ValueError(
                     f"Scorer {k} returned {v} for train fold. The scorer should"
                     " should return a finite float",
@@ -308,7 +376,12 @@ def _score_val_fold(
         # for `inf` or `nan` values.
         assert isinstance(scores, dict)
         for k, v in scores.items():
-            if np.isfinite(v) is not True:  # Can return list, check explicitly True
+            # Can return list or np.bool_
+            # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
+            # Also, we can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
+            # Hence we have to use equality checking
+            # God I feel like I'm doing javascript
+            if np.isfinite(v) != True:  # noqa: E712
                 raise ValueError(
                     f"Scorer {k} returned {v} for validation fold. The scorer"
                     " should return a finite float",
@@ -411,6 +484,7 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
     params: Mapping[str, Stored[Any] | Any] | None = None,
     builder: Literal["sklearn"] | Callable[[Node], BaseEstimator] = "sklearn",
     build_params: Mapping[str, Any] | None = None,
+    on_error: Literal["fail", "raise"] = "fail",
 ) -> Trial.Report:
     params = {} if params is None else params
     # Make sure to load all the stored values
@@ -443,10 +517,19 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
             case _Scorer():  # type: ignore
                 scorers[metric_name] = metric
             case _:
-                raise ValueError(
-                    "Cannot use a metric with a function that is not a"
-                    " `sklearn.metrics._Scorer`.",
+                # We do a best effort here and try to convert the metric to
+                # an sklearn scorer.
+                warnings.warn(
+                    f"Found a metric with a custom function for {metric_name=}."
+                    " Attempting to convert it to an sklearn scorer. This may"
+                    " fail. If it does, please first your function to an sklearn"
+                    " scorer with `sklearn.metrics.make_scorer` and then pass"
+                    " it to `Metric(fn=...)`",
+                    ImplicitMetricConversionWarning,
+                    stacklevel=2,
                 )
+                # This may fail
+                scorers[metric_name] = metric.as_scorer()
 
     if additional_scorers is not None:
         scorers.update(additional_scorers)
@@ -487,6 +570,8 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
 
     except Exception as e:  # noqa: BLE001
         trial.dump_exception(e)
+        if on_error == "raise":
+            raise e
         return trial.fail(e)
     else:
         mean_val_scores = {k: np.mean(v) for k, v in all_val_scores.items()}
@@ -640,9 +725,9 @@ class CVEvaluation(EvaluationProtocol):
         X: pd.DataFrame | np.ndarray,  # noqa: N803
         y: pd.Series | pd.DataFrame | np.ndarray,
         *,
-        strategy: Literal["holdout", "cv"]
-        | BaseShuffleSplit
-        | BaseCrossValidator = "cv",
+        strategy: (
+            Literal["holdout", "cv"] | BaseShuffleSplit | BaseCrossValidator
+        ) = "cv",
         n_splits: int = 5,  # sklearn default
         holdout_size: float = 0.33,
         train_score: bool = False,
@@ -650,8 +735,9 @@ class CVEvaluation(EvaluationProtocol):
         additional_scorers: Mapping[str, _Scorer] | None = None,
         random_state: Seed | None = None,  # Only used if cv is an int/float
         params: Mapping[str, Any] | None = None,
-        is_classification: bool | None = None,
+        task_hint: TaskTypeName | Literal["classification", "regression"] | None = None,
         datadir: str | Path | PathBucket | None = None,
+        on_error: Literal["raise", "fail"] = "fail",
     ) -> None:
         """Initialize the evaluation protocol.
 
@@ -679,7 +765,16 @@ class CVEvaluation(EvaluationProtocol):
             params: Parameters to pass to the estimator, splitter or scorers.
                 See https://scikit-learn.org/stable/metadata_routing.html for
                 more information.
-            is_classification: Whether the task is a classification task.
+            task_hint: A string indicating the task type matching those
+                use by sklearn's `type_of_target`. This can be either
+                `#!python "binary"`, `#!python "multiclass"`,
+                `#!python "multilabel-indicator"`, `#!python "continuous"`,
+                `#!python "continuous-multioutput"` or
+                `#!python "multiclass-multioutput"`.
+
+                You can also provide `#!python "classification"` or
+                `#!python "regression"` for a more general hint.
+
                 If not provided, this will be inferred from the target data.
                 If you know this value, it is recommended to provide it as
                 sometimes the target is ambiguous and sklearn may infer
@@ -687,6 +782,13 @@ class CVEvaluation(EvaluationProtocol):
             datadir: The directory to use for storing data. If not provided,
                 a temporary directory will be used. If provided as a string
                 or a `Path`, it will be used as the path to the directory.
+            on_error: What to do if an error occurs in the task. This can be
+                either `#!python "raise"` or `#!python "fail"`. If `#!python "raise"`,
+                the error will be raised and the task will fail. If `#!python "fail"`,
+                the error will be caught and the task will report a failure report
+                with the error message stored inside.
+                Set this to `#!python "fail"` if you want to continue optimization
+                even if some trials fail.
         """
         super().__init__()
         match datadir:
@@ -698,7 +800,23 @@ class CVEvaluation(EvaluationProtocol):
             case PathBucket():
                 databucket = datadir
 
-        task_type = identify_task_type(y, is_classification=is_classification)
+        match task_hint:
+            case "classification" | "regression" | None:
+                task_type = identify_task_type(y, task_hint=task_hint)
+            case (
+                "binary"
+                | "multiclass"
+                | "multilabel-indicator"
+                | "continuous"
+                | "continuous-multioutput"
+                | "multiclass-multioutput"
+            ):
+                task_type = task_hint
+            case _:
+                raise ValueError(
+                    f"Invalid {task_hint=} provided. Must be in {_valid_task_types}",
+                )
+
         match strategy:
             case "cv":
                 splitter = _default_cv_resampler(
@@ -718,7 +836,6 @@ class CVEvaluation(EvaluationProtocol):
         self.task_type = task_type
         self.additional_scorers = additional_scorers
         self.databucket = databucket
-        self.is_classification = is_classification
         self.splitter = splitter
         self.params = dict(params) if params is not None else {}
         self.store_models = store_models
@@ -759,6 +876,7 @@ class CVEvaluation(EvaluationProtocol):
             train_score=self.train_score,
             builder="sklearn",  # TODO: Allow user to specify? e.g. custom builder
             build_params=None,  # TODO: Allow user to specify? e.g. Imblearn pipeline
+            on_error=on_error,
         )
 
     @override
