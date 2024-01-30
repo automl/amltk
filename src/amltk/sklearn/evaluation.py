@@ -565,7 +565,7 @@ class CVEvaluation(EvaluationProtocol):
         *,
         cv: int | float | BaseShuffleSplit | BaseCrossValidator,
         train_score: bool = False,
-        store_models: bool = True,
+        store_models: bool = False,
         additional_scorers: Mapping[str, _Scorer] | None = None,
         random_state: Seed | None = None,  # Only used if cv is an int/float
         params: Mapping[str, Any] | None = None,
