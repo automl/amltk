@@ -650,7 +650,6 @@ class CVEvaluation(EvaluationProtocol):
     history = pipeline.optimize(
         target=evaluator,
         metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
-        n_workers=4,
     )
     print(history.df())
     ```
