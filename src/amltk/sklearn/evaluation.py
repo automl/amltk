@@ -1,4 +1,13 @@
-"""TODO upon review."""
+"""This module contains the cross-validation evaluation protocol.
+
+This protocol will create a cross-validation task to be used in parallel and
+optimization. It represents a typical cross-validation evaluation for sklearn,
+handling some of the minor nuances of sklearn and it's interaction with
+optimization and parallelization.
+
+Please see [`CVEvaluation`][amltk.sklearn.evaluation.CVEvaluation] for more
+information on usage.
+"""
 from __future__ import annotations
 
 import logging
@@ -630,7 +639,8 @@ class CVEvaluation(EvaluationProtocol):
     evaluator = CVEvaluation(
         X,
         y,
-        cv=3,
+        n_splits=3,
+        strategy="cv",
         additional_scorers={"f1": get_scorer("f1")},
         store_models=False,
         train_score=True,
