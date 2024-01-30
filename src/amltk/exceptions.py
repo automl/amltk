@@ -110,3 +110,15 @@ class DuplicateNamesError(ValueError):
             f"Duplicate names found in {self.node.name} and can't be handled."
             f"\nnodes: {[n.name for n in self.node.nodes]}."
         )
+
+
+class AutomaticParameterWarning(UserWarning):
+    """Raised when automatic parameter is enabled.
+
+    Normally this means something should be explicitly set to
+    be more clear.
+    """
+
+
+class AutomaticThreadPoolCTLWarning(AutomaticParameterWarning):
+    """Raised when automatic threadpoolctl is enabled."""
