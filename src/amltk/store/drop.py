@@ -61,14 +61,14 @@ class Drop(Generic[KeyT]):
     _exists: Callable[[KeyT], bool] = field(repr=False)
 
     def as_stored(self, read: Callable[[KeyT], T] | None = None) -> Stored[T]:
-        """Convert the drop to a [`StoredValue`][amltk.store.StoredValue].
+        """Convert the drop to a [`Stored`][amltk.store.Stored].
 
         Args:
             read: The method to use to load the resource. If `None` then
                 the first loader that can load the resource will be used.
 
         Returns:
-            The drop as a [`StoredValue`][amltk.store.StoredValue].
+            The drop as a [`Stored`][amltk.store.Stored].
         """
         if read is None:
             loader = first(
