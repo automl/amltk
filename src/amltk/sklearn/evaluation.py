@@ -15,6 +15,7 @@ import tempfile
 import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sized
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeAlias, TypeVar
@@ -641,7 +642,7 @@ class CVEvaluation(EvaluationProtocol):
         y,
         n_splits=3,
         strategy="cv",
-        additional_scorers={"f1": get_scorer("f1")},
+        additional_scorers={"roc_auc": get_scorer("roc_auc_ovr")},
         store_models=False,
         train_score=True,
     )
@@ -809,8 +810,13 @@ class CVEvaluation(EvaluationProtocol):
         super().__init__()
         match datadir:
             case None:
-                tmpdir = tempfile.TemporaryDirectory(prefix=self.TMP_DIR_PREFIX)
-                databucket = PathBucket(tmpdir.name)
+                tmpdir = Path(
+                    tempfile.mkdtemp(
+                        prefix=self.TMP_DIR_PREFIX,
+                        suffix=datetime.now().isoformat(),
+                    ),
+                )
+                databucket = PathBucket(tmpdir)
             case str() | Path():
                 databucket = PathBucket(datadir)
             case PathBucket():
