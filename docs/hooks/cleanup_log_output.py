@@ -13,6 +13,8 @@ import mkdocs
 import mkdocs.plugins
 import mkdocs.structure.pages
 
+from amltk.exceptions import AutomaticParameterWarning, TaskTypeWarning
+
 log = logging.getLogger("mkdocs")
 
 
@@ -20,6 +22,10 @@ log = logging.getLogger("mkdocs")
 def on_startup(**kwargs: Any):
     # We get a load of deprecation warnings from SMAC
     warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    # We ignore AutoWarnings as our example tend to rely on
+    # a lot of the `"auto"` parameters
+    warnings.filterwarnings("ignore", category=AutomaticParameterWarning)
 
     # ConvergenceWarning from sklearn
     warnings.filterwarnings("ignore", module="sklearn")
