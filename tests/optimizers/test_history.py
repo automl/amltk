@@ -55,35 +55,65 @@ def case_empty() -> list[Trial.Report]:
 
 
 @case(tags=["success"])
-def case_one_report_success() -> list[Trial.Report]:
-    trial: Trial = Trial.create(name="trial_1", config={"x": 1}, metrics=metrics)
+def case_one_report_success(tmp_path: Path) -> list[Trial.Report]:
+    trial: Trial = Trial.create(
+        name="trial_1",
+        config={"x": 1},
+        metrics=metrics,
+        bucket=tmp_path,
+    )
     return eval_trial(trial)
 
 
 @case(tags=["fail"])
-def case_one_report_fail() -> list[Trial.Report]:
-    trial: Trial = Trial.create(name="trial_1", config={"x": 1}, metrics=metrics)
+def case_one_report_fail(tmp_path: Path) -> list[Trial.Report]:
+    trial: Trial = Trial.create(
+        name="trial_1",
+        config={"x": 1},
+        metrics=metrics,
+        bucket=tmp_path,
+    )
     return eval_trial(trial, fail=100)
 
 
 @case(tags=["crash"])
-def case_one_report_crash() -> list[Trial.Report]:
-    trial: Trial = Trial.create(name="trial_1", config={"x": 1}, metrics=metrics)
+def case_one_report_crash(tmp_path: Path) -> list[Trial.Report]:
+    trial: Trial = Trial.create(
+        name="trial_1",
+        config={"x": 1},
+        metrics=metrics,
+        bucket=tmp_path,
+    )
     return eval_trial(trial, crash=ValueError("Some Error"))
 
 
 @case(tags=["success", "fail", "crash"])
-def case_many_report() -> list[Trial.Report]:
+def case_many_report(tmp_path: Path) -> list[Trial.Report]:
     success_trials: list[Trial] = [
-        Trial.create(name=f"trial_{i+6}", config={"x": i}, metrics=metrics)
+        Trial.create(
+            name=f"trial_{i+6}",
+            config={"x": i},
+            metrics=metrics,
+            bucket=tmp_path,
+        )
         for i in range(-5, 5)
     ]
     fail_trials: list[Trial] = [
-        Trial.create(name=f"trial_{i+16}", config={"x": i}, metrics=metrics)
+        Trial.create(
+            name=f"trial_{i+16}",
+            config={"x": i},
+            metrics=metrics,
+            bucket=tmp_path,
+        )
         for i in range(-5, 5)
     ]
     crash_trials: list[Trial] = [
-        Trial.create(name=f"trial_{i+26}", config={"x": i}, metrics=metrics)
+        Trial.create(
+            name=f"trial_{i+26}",
+            config={"x": i},
+            metrics=metrics,
+            bucket=tmp_path,
+        )
         for i in range(-5, 5)
     ]
 
@@ -165,9 +195,14 @@ def test_trace_sortby(reports: list[Trial.Report]) -> None:
     )
 
 
-def test_history_sortby() -> None:
+def test_history_sortby(tmp_path: Path) -> None:
     trials: list[Trial] = [
-        Trial.create(name=f"trial_{i+6}", metrics=metrics, config={"x": i})
+        Trial.create(
+            name=f"trial_{i+6}",
+            metrics=metrics,
+            config={"x": i},
+            bucket=tmp_path,
+        )
         for i in range(-5, 5)
     ]
 
@@ -196,9 +231,14 @@ def test_history_sortby() -> None:
     assert sorted(losses) == losses
 
 
-def test_history_best() -> None:
+def test_history_best(tmp_path: Path) -> None:
     trials: list[Trial] = [
-        Trial.create(name=f"trial_{i}", metrics=metrics, config={"x": i})
+        Trial.create(
+            name=f"trial_{i}",
+            metrics=metrics,
+            config={"x": i},
+            bucket=tmp_path,
+        )
         for i in range(10)
     ]
 
@@ -216,7 +256,7 @@ def test_history_best() -> None:
     assert best.values["loss"] == 1
 
 
-def test_history_incumbents() -> None:
+def test_history_incumbents(tmp_path: Path) -> None:
     m1 = Metric("score", minimize=False)
     m2 = Metric("loss", minimize=True)
     trials: list[Trial] = [
@@ -224,6 +264,7 @@ def test_history_incumbents() -> None:
             name=f"trial_{i+6}",
             metrics={"score": m1, "loss": m2},
             config={"x": i},
+            bucket=tmp_path / "bucket",
         )
         for i in [0, -1, 2, -3, 4, -5, 6, -7, 8, -9]
     ]
