@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,7 +27,8 @@ from amltk.pipeline import Component
 from amltk.sklearn.evaluation import (
     CVEvaluation,
     TaskTypeName,
-    _default_resampler,
+    _default_cv_resampler,
+    _default_holdout,
     identify_task_type,
 )
 
@@ -49,6 +51,8 @@ def data_for_task_type(task_type: TaskTypeName) -> tuple[np.ndarray, np.ndarray]
             return make_regression(random_state=42, n_targets=1)  # type: ignore
         case "continuous-multioutput":
             return make_regression(random_state=42, n_targets=2)  # type: ignore
+
+    raise ValueError(f"Unknown task type {task_type}")
 
 
 def _sample_y(task_type: TaskTypeName) -> np.ndarray:
@@ -92,51 +96,57 @@ def test_identify_task_type(
     is_classification: bool,
     expected: str,
 ) -> None:
-    identified = identify_task_type(y, is_classification=is_classification)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        identified = identify_task_type(y, is_classification=is_classification)
+
     assert identified == expected
 
     pd_y = pd.Series(y) if np.ndim(y) == 1 else pd.DataFrame(y)
-    identified = identify_task_type(pd_y, is_classification=is_classification)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        identified = identify_task_type(pd_y, is_classification=is_classification)
+
     assert identified == expected
 
 
 @parametrize(
-    "task_type, n_splits, train_size, expected",
+    "task_type, expected",
     [
-        # CV - Notable, only binary and multiclass can be stratified
-        ("binary", 3, 0.0, StratifiedKFold),
-        ("multiclass", 3, 0.0, StratifiedKFold),
-        ("multilabel-indicator", 3, 0.0, KFold),
-        ("multiclass-multioutput", 3, 0.0, KFold),
-        ("continuous", 3, 0.0, KFold),
-        ("continuous-multioutput", 3, 0.0, KFold),
         # Holdout
-        ("binary", 1, 0.3, StratifiedShuffleSplit),  # With only one fold and test size
-        ("multiclass", 1, 0.3, StratifiedShuffleSplit),
-        ("multilabel-indicator", 1, 0.3, ShuffleSplit),
-        ("multiclass-multioutput", 1, 0.3, ShuffleSplit),
-        ("continuous", 1, 0.3, ShuffleSplit),
-        ("continuous-multioutput", 1, 0.3, ShuffleSplit),
+        ("binary", StratifiedShuffleSplit),
+        ("multiclass", StratifiedShuffleSplit),
+        ("multilabel-indicator", ShuffleSplit),
+        ("multiclass-multioutput", ShuffleSplit),
+        ("continuous", ShuffleSplit),
+        ("continuous-multioutput", ShuffleSplit),
     ],
 )
-def test_default_resampling(
-    task_type: TaskTypeName,
-    n_splits: int,
-    train_size: float,
-    expected: type,
-) -> None:
-    sampler = _default_resampler(
-        task_type,
-        n_splits=n_splits,
-        random_state=42,
-        train_size=train_size,
-    )
+def test_default_holdout(task_type: TaskTypeName, expected: type) -> None:
+    sampler = _default_holdout(task_type, holdout_size=0.387, random_state=42)
     assert isinstance(sampler, expected)
-    assert sampler.n_splits == n_splits  # type: ignore
+    assert sampler.n_splits == 1  # type: ignore
     assert sampler.random_state == 42  # type: ignore
+    assert sampler.test_size == 0.387  # type: ignore
 
-    if train_size != 0.0:
-        assert sampler.train_size == train_size  # type: ignore
+
+@parametrize(
+    "task_type, expected",
+    [
+        # CV - Notable, only binary and multiclass can be stratified
+        ("binary", StratifiedKFold),
+        ("multiclass", StratifiedKFold),
+        ("multilabel-indicator", KFold),
+        ("multiclass-multioutput", KFold),
+        ("continuous", KFold),
+        ("continuous-multioutput", KFold),
+    ],
+)
+def test_default_resampling(task_type: TaskTypeName, expected: type) -> None:
+    sampler = _default_cv_resampler(task_type, n_splits=2, random_state=42)
+    assert isinstance(sampler, expected)
+    assert sampler.n_splits == 2  # type: ignore
+    assert sampler.random_state == 42  # type: ignore
 
 
 @dataclass
@@ -226,15 +236,21 @@ def case_classification(
     ],
 )
 @parametrize("task_type", ["continuous", "continuous-multioutput"])
-@parametrize("cv", [3, 0.3])
+@parametrize("cv_value, strategy", [(3, "cv"), (0.3, "holdout")])
 def case_regression(
     tmp_path: Path,
     metric: Metric | list[Metric],
     additional_scorers: Mapping[str, _Scorer] | None,
     task_type: TaskTypeName,
-    cv: int | float | BaseShuffleSplit | BaseCrossValidator,
+    cv_value: int | float,
+    strategy: str,
 ) -> _EvalutionCase:
     x, y = data_for_task_type(task_type)
+    if strategy == "cv":
+        cv_kwargs = {"n_splits": cv_value, "strategy": "cv"}
+    else:
+        cv_kwargs = {"holdout_size": cv_value, "strategy": "holdout"}
+
     return _EvalutionCase(
         trial=Trial.create(
             name="test",
@@ -244,12 +260,12 @@ def case_regression(
             metrics=metric,
         ),
         pipeline=Component(DecisionTreeRegressor, config={"max_depth": 1}),
-        cv=cv,
         additional_scorers=additional_scorers,
         params=None,
         datadir=tmp_path / "data",
         X=x,
         y=y,
+        **cv_kwargs,
     )
 
 
@@ -257,11 +273,14 @@ def case_regression(
 @parametrize("store_models", [True, False])
 @parametrize("train_score", [True, False])
 @parametrize_with_cases("item", cases=".", prefix="case_")
+@parametrize("cv_value, strategy", [(3, "cv"), (0.3, "holdout")])
 def test_evaluator(
     as_pd: bool,
     store_models: bool,
     train_score: bool,
     item: _EvalutionCase,
+    cv_value: int | float,
+    strategy: str,
 ) -> None:
     x = pd.DataFrame(item.X) if as_pd else item.X
     y = (
@@ -270,16 +289,20 @@ def test_evaluator(
         else (pd.DataFrame(item.y) if np.ndim(item.y) > 1 else pd.Series(item.y))
     )
     trial = item.trial
+    if strategy == "cv":
+        cv_kwargs = {"n_splits": cv_value, "strategy": "cv"}
+    else:
+        cv_kwargs = {"holdout_size": cv_value, "strategy": "holdout"}
 
     evaluator = CVEvaluation(
         X=x,
         y=y,
-        cv=item.cv,
         datadir=item.datadir,
         train_score=train_score,
         store_models=store_models,
         params=item.params,
         additional_scorers=item.additional_scorers,
+        **cv_kwargs,
     )
     n_splits = evaluator.splitter.get_n_splits(x, y)
     assert n_splits is not None
