@@ -347,6 +347,7 @@ def test_evaluator(
         params=item.params,
         additional_scorers=item.additional_scorers,
         task_hint=item.task_type,
+        random_state=42,
         on_error="raise",
         **cv_kwargs,  # type: ignore
     )
