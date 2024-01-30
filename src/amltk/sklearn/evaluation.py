@@ -632,7 +632,7 @@ class CVEvaluation(EvaluationProtocol):
     pipeline = Component(
         RandomForestClassifier,
         config={"random_state": request("random_state")},
-        space={"n_estimators": (10, 100), "critera": ["gini", "entropy"]},
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
     )
 
     X, y = load_iris(return_X_y=True)
@@ -648,7 +648,7 @@ class CVEvaluation(EvaluationProtocol):
 
     history = pipeline.optimize(
         target=evaluator,
-        metrics=Metric("accuracy", minimize=False, bounds=(0, 1)),
+        metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
         n_workers=4,
     )
     print(history.df())

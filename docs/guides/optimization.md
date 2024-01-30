@@ -304,16 +304,17 @@ multiple processes or remote compute, this is a good practice to follow.
 For this we use a [`PathBucket`][amltk.store.PathBucket] and get
 a [`Stored`][amltk.store.Stored] from it, a reference to some object we can `load()` back in later.
 
-```python
+```python exec="true" result="python" source="material-block" session="optimizing-an-sklearn-pipeline"
 from sklearn.datasets import load_iris
+from amltk.store import PathBucket
 
 # Load in our data
 _X, _y = load_iris(return_X_y=True)
 
 # Store our data in a bucket
 bucket = PathBucket("my-bucket")
-stored_x = bucket["X.npy"].put(_X)
-stored_y = bucket["X.npy"].put(_y)
+stored_X = bucket["X.npy"].put(_X)
+stored_y = bucket["y.npy"].put(_y)
 ```
 
 Lastly, we'll create our optimizer and run it.
@@ -324,10 +325,8 @@ use cases, you should be able to swap in and out the optimizer and it should wor
 ```python exec="true" result="python" source="material-block" session="optimizing-an-sklearn-pipeline"
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.optimization import Metric, History
-from amltk.store import PathBucket
 
 metric = Metric("acc", minimize=False, bounds=(0, 1))
-bucket = PathBucket("my-bucket")
 optimizer = SMACOptimizer.create(
     space=my_pipeline,  # Let it know what to optimize
     metrics=metric,  # And let it know what to expect
