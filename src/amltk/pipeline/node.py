@@ -82,7 +82,7 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
     from rich.panel import Panel
 
-    from amltk.evalutors.evaluation_protocol import EvaluationProtocol
+    from amltk.optimization.evaluation import EvaluationProtocol
     from amltk.optimization.metric import Metric
     from amltk.optimization.trial import Trial
     from amltk.pipeline.components import Choice, Join, Sequential
@@ -911,7 +911,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 The function against which to optimize.
 
                 * If `target` is an
-                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
+                [`EvaluationProtocol`][amltk.optimization.evaluation.EvaluationProtocol],
                 then it will be used to evaluate the pipeline.
 
                 * If `target` is a function, then it must take in a
@@ -1310,7 +1310,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 The function against which to optimize.
 
                 * If `target` is an
-                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
+                [`EvaluationProtocol`][amltk.optimization.evaluation.EvaluationProtocol],
                 then it will be used to evaluate the pipeline.
 
                 * If `target` is a function, then it must take in a

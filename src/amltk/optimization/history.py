@@ -52,7 +52,7 @@ your reports and load them back in later:
     a `pd.DataFrame`.
 
 You can also retrieve individual reports from the history by using their
-name, e.g. `#!python history["some-unique-name"]` or iterate through
+name, e.g. `#!python history.reports["some-unique-name"]` or iterate through
 the history with `#!python for report in history: ...`.
 """  # noqa: E501
 from __future__ import annotations
@@ -108,6 +108,7 @@ class History(RichRenderable):
         x = trial.config["x"]
         report = trial.success(cost=x**2 - x*2 + 4)
         history.add(report)
+        trial.bucket.rmdir()  # markdown-exec: hide
 
     for report in history:
         print(f"{report.name=}, {report}")
@@ -247,6 +248,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         print(history.df())
         ```
@@ -310,6 +312,7 @@ class History(RichRenderable):
         for trial in trials:
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
+            trial.bucket.rmdir() # markdown-exec: hide
             history.add(report)
 
         filtered_history = history.filter(lambda report: report.values["cost"] < 10)
@@ -345,6 +348,7 @@ class History(RichRenderable):
                 report = trial.fail(cost=1_000)
             else:
                 report = trial.success(cost=x**2 - x*2 + 4)
+            trial.bucket.rmdir() # markdown-exec: hide
             history.add(report)
 
         for status, history in history.groupby("status").items():
@@ -364,6 +368,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.fail(cost=x)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         for below_5, history in history.groupby(lambda r: r.values["cost"] < 5).items():
             print(f"{below_5=}, {len(history)=}")
@@ -408,6 +413,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         incumbents = (
             history
@@ -473,6 +479,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         trace = (
             history

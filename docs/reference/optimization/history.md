@@ -33,6 +33,7 @@ for trial in trials:
     history.add(report)
 
 print(history.df())
+for trial in trials: trial.bucket.rmdir()  # markdown-exec: hide
 ```
 
 Typically, to use this inside of an optimization run, you would add the reports inside

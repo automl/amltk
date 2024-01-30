@@ -618,12 +618,15 @@ class CVEvaluation(EvaluationProtocol):
     from amltk.optimization import Metric
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import get_scorer
+    from sklearn.datasets import load_iris
 
     pipeline = Component(
         RandomForestClassifier,
         config={"random_state": request("random_state")},
         space={"n_estimators": (10, 100), "critera": ["gini", "entropy"]},
     )
+
+    X, y = load_iris(return_X_y=True)
     evaluator = CVEvaluation(
         X,
         y,

@@ -121,6 +121,7 @@ class Trial(RichRenderable, Generic[I]):
 
         report = target_function(trial)
         print(report.df())
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
 
@@ -178,6 +179,7 @@ class Trial(RichRenderable, Generic[I]):
 
             # Correct usage
             report = trial.success(accuracy=0.95)
+            trial.bucket.rmdir()  # markdown-exec: hide
             ```
 
     If using [`Plugins`][amltk.scheduling.plugins.Plugin], they may insert
@@ -206,6 +208,7 @@ class Trial(RichRenderable, Generic[I]):
                 pass
 
         print(trial.profiler.df())
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
     You can also record anything you'd like into the
@@ -379,6 +382,7 @@ class Trial(RichRenderable, Generic[I]):
             time.sleep(1)
 
         print(trial.profiler["some_interval"].time)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -411,6 +415,7 @@ class Trial(RichRenderable, Generic[I]):
         report = trial.success(loss=1)
 
         print(report)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -473,6 +478,7 @@ class Trial(RichRenderable, Generic[I]):
 
         print(report.values)
         print(report)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Returns:
@@ -548,6 +554,7 @@ class Trial(RichRenderable, Generic[I]):
         trial = Trial.create(name="trial", config={"x": 1}, bucket=PathBucket("my-trial"))
         trial.store({"config.json": trial.config})
         print(trial.storage)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -574,21 +581,7 @@ class Trial(RichRenderable, Generic[I]):
         trial.delete_from_storage(items=["config.json"])
 
         print(trial.storage)
-        ```
-
-        You could also create a Bucket and use that instead.
-
-        ```python exec="true" source="material-block" result="python" title="delete-storage-bucket" hl_lines="9"
-        from amltk.optimization import Trial
-        from amltk.store import PathBucket
-
-        bucket = PathBucket("results")
-        trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
-
-        trial.store({"config.json": trial.config})
-        trial.delete_from_storage(items=["config.json"])
-
-        print(trial.storage)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -634,6 +627,7 @@ class Trial(RichRenderable, Generic[I]):
         config = trial.retrieve("config.json")
 
         print(config)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -775,6 +769,7 @@ class Trial(RichRenderable, Generic[I]):
             report = trial.success(loss=1)
 
         print(report.df())
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         These reports are used to report back metrics to an
@@ -930,6 +925,7 @@ class Trial(RichRenderable, Generic[I]):
 
             config = report.retrieve("config.json")
             print(config)
+            trial.bucket.rmdir()  # markdown-exec: hide
             ```
 
             Args:

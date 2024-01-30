@@ -9,33 +9,32 @@ from pathlib import Path
 
 df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
 path = Path("df.csv")
-df.to_csv(path)
 
-stored_value = Stored(path, read=pd.read_csv)
+df.to_csv(path)
+stored_df = Stored(path, read=pd.read_csv)
 
 # Somewhere in a processes
-df = stored_value.value()
+df = stored_df.load()
 print(df)
-
-path.unlink()
+path.unlink()  # markdown-exec: hide
 ```
 
-You can quickly obtain these from buckets if you require
+You can quickly obtain these from buckets if you require using
+[`put()`][amltk.store.drop.Drop.put].
+
 ```python exec="true" source="material-block" result="python" title="Stored from bucket"
 from amltk import PathBucket
 import pandas as pd
 
 df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
 bucket = PathBucket("bucket_path")
-bucket.update({"df.csv": df})
 
-stored_value = bucket["df.csv"].as_stored()
+stored_df = bucket["df.csv"].put(df)
 
 # Somewhere in a processes
-df = stored_value.load()
+df = stored_df.load()
 print(df)
-
-bucket.rmdir()
+bucket.rmdir()  # markdown-exec: hide
 ```
 """
 from __future__ import annotations
