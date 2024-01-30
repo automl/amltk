@@ -333,10 +333,12 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
         k: v.load() if isinstance(v, Stored) else v for k, v in params.items()
     }
     build_params = {} if build_params is None else build_params
-    # TODO: Could possibly include `transform_context` here
+    random_state = amltk.randomness.as_randomstate(trial.seed)
+
+    # TODO: Could possibly include `transform_context` here to `configure()`
     estimator = pipeline.configure(
         trial.config,
-        params={"random_state": trial.seed},
+        params={"random_state": random_state},
     ).build(builder, **build_params)
 
     scorers: dict[str, _Scorer] = {}
