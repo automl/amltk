@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from amltk.store.loader import Loader
+from amltk.store.stored import Stored
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -82,7 +83,7 @@ class PathLoader(Loader[Path, T]):
     @override
     @classmethod
     @abstractmethod
-    def save(cls, obj: Any, key: Path, /) -> None:
+    def save(cls, obj: T, key: Path, /) -> Stored[T]:
         """Save an object to under the given key.
 
         Args:
@@ -148,13 +149,17 @@ class NPYLoader(PathLoader[np.ndarray]):
 
     @override
     @classmethod
-    def save(cls, obj: np.ndarray, key: Path, /) -> None:
+    def save(cls, obj: np.ndarray, key: Path, /) -> Stored[np.ndarray]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
         np.save(key, obj, allow_pickle=False)
+        return Stored(key, cls.load)
 
 
-class PDLoader(PathLoader[pd.DataFrame | pd.Series]):
+_DF = TypeVar("_DF", pd.DataFrame, pd.Series)
+
+
+class PDLoader(PathLoader[_DF]):
     """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`pd.DataFrame`][pandas.DataFrame]s.
 
@@ -218,54 +223,57 @@ class PDLoader(PathLoader[pd.DataFrame | pd.Series]):
 
     @override
     @classmethod
-    def load(cls, key: Path, /) -> pd.DataFrame | pd.Series:
+    def load(cls, key: Path, /) -> _DF:
         """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
         logger.debug(f"Loading {key=}")
         if key.suffix == ".csv":
-            return pd.read_csv(key, index_col=0)
+            return pd.read_csv(key, index_col=0)  # type: ignore
 
         if key.suffix == ".parquet":
-            return pd.read_parquet(key)
+            return pd.read_parquet(key)  # type: ignore
 
         if key.suffix == ".pdpickle":
             obj = pd.read_pickle(key)  # noqa: S301
-            if not isinstance(obj, pd.Series | pd.DataFrame):
+            if not isinstance(obj, pd.Series | pd.DataFrame):  # type: ignore
                 msg = (
                     f"Expected `pd.Series | pd.DataFrame` from {key=}"
                     f" but got `{type(obj).__name__}`."
                 )
                 raise TypeError(msg)
 
-            return obj
+            return obj  # type: ignore
 
         raise ValueError(f"Unknown file extension {key.suffix}")
 
     @override
     @classmethod
-    def save(cls, obj: pd.Series | pd.DataFrame, key: Path, /) -> None:
+    def save(cls, obj: _DF, key: Path, /) -> Stored[_DF]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         # Most pandas methods only seem to support dataframes
         logger.debug(f"Saving {key=}")
 
         if key.suffix == ".pdpickle":
             obj.to_pickle(key)
-            return
+            return Stored(key, cls.load)
 
         if key.suffix == ".csv":
             if obj.index.name is None and obj.index.nlevels == 1:
                 obj.index.name = "index"
 
             obj.to_csv(key, index=True)
-            return
+            return Stored(key, cls.load)
 
         if key.suffix == ".parquet":
             obj.to_parquet(key)
-            return
+            return Stored(key, cls.load)
 
         raise ValueError(f"Unknown extension {key.suffix=}")
 
 
-class JSONLoader(PathLoader[dict | list]):
+_Json = TypeVar("_Json", dict, list)
+
+
+class JSONLoader(PathLoader[_Json]):
     """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to JSON.
 
@@ -296,7 +304,7 @@ class JSONLoader(PathLoader[dict | list]):
 
     @override
     @classmethod
-    def load(cls, key: Path, /) -> dict | list:
+    def load(cls, key: Path, /) -> _Json:
         """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
         logger.debug(f"Loading {key=}")
         with key.open("r") as f:
@@ -306,18 +314,22 @@ class JSONLoader(PathLoader[dict | list]):
             msg = f"Expected `dict | list` from {key=} but got `{type(item).__name__}`"
             raise TypeError(msg)
 
-        return item
+        return item  # type: ignore
 
     @override
     @classmethod
-    def save(cls, obj: dict | list, key: Path, /) -> None:
+    def save(cls, obj: _Json, key: Path, /) -> Stored[_Json]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
         with key.open("w") as f:
             json.dump(obj, f)
+        return Stored(key, cls.load)
 
 
-class YAMLLoader(PathLoader[dict | list]):
+_Yaml = TypeVar("_Yaml", dict, list)
+
+
+class YAMLLoader(PathLoader[_Yaml]):
     """A [`Loader`][amltk.store.paths.path_loaders.PathLoader] for loading and
     saving [`dict`][dict]s and [`list`][list]s to YAML.
 
@@ -349,7 +361,7 @@ class YAMLLoader(PathLoader[dict | list]):
 
     @override
     @classmethod
-    def load(cls, key: Path, /) -> dict | list:
+    def load(cls, key: Path, /) -> _Yaml:
         """::: amltk.store.paths.path_loaders.PathLoader.load"""  # noqa: D415
         logger.debug(f"Loading {key=}")
         if yaml is None:
@@ -362,11 +374,11 @@ class YAMLLoader(PathLoader[dict | list]):
             msg = f"Expected `dict | list` from {key=} but got `{type(item).__name__}`"
             raise TypeError(msg)
 
-        return item
+        return item  # type: ignore
 
     @override
     @classmethod
-    def save(cls, obj: dict | list, key: Path, /) -> None:
+    def save(cls, obj: _Yaml, key: Path, /) -> Stored[_Yaml]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
         if yaml is None:
@@ -374,6 +386,8 @@ class YAMLLoader(PathLoader[dict | list]):
 
         with key.open("w") as f:
             yaml.dump(obj, f)
+
+        return Stored(key, cls.load)
 
 
 class PickleLoader(PathLoader[Any]):
@@ -427,11 +441,12 @@ class PickleLoader(PathLoader[Any]):
 
     @override
     @classmethod
-    def save(cls, obj: Any, key: Path, /) -> None:
+    def save(cls, obj: Any, key: Path, /) -> Stored[Any]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
         with key.open("wb") as f:
             pickle.dump(obj, f)
+        return Stored(key, cls.load)
 
 
 class TxtLoader(PathLoader[str]):
@@ -473,11 +488,12 @@ class TxtLoader(PathLoader[str]):
 
     @override
     @classmethod
-    def save(cls, obj: str, key: Path, /) -> None:
+    def save(cls, obj: str, key: Path, /) -> Stored[str]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
         with key.open("w") as f:
             f.write(obj)
+        return Stored(key, cls.load)
 
 
 class ByteLoader(PathLoader[bytes]):
@@ -518,8 +534,9 @@ class ByteLoader(PathLoader[bytes]):
 
     @override
     @classmethod
-    def save(cls, obj: bytes, key: Path, /) -> None:
+    def save(cls, obj: bytes, key: Path, /) -> Stored[bytes]:
         """::: amltk.store.paths.path_loaders.PathLoader.save"""  # noqa: D415
         logger.debug(f"Saving {key=}")
         with key.open("wb") as f:
             f.write(obj)
+        return Stored(key, cls.load)

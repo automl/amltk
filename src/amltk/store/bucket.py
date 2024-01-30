@@ -13,7 +13,6 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from collections.abc import (
-    Callable,
     Hashable,
     Iterable,
     Iterator,
@@ -243,22 +242,16 @@ class Bucket(ABC, MutableMapping[KeyT, Drop[LinkT]], Generic[KeyT, LinkT]):
         for key, value in items.items():
             self[key].put(value)
 
-    def remove(
-        self,
-        keys: Iterable[KeyT],
-        *,
-        how: Callable[[LinkT], bool] | None = None,
-    ) -> dict[KeyT, bool]:
+    def remove(self, keys: Iterable[KeyT]) -> dict[KeyT, bool]:
         """Remove resources from the bucket.
 
         Args:
             keys: The keys to the resources.
-            how: A function that removes the resource.
 
         Returns:
             A mapping of keys to whether they were removed.
         """
-        return {key: self[key].remove(how=how) for key in keys}
+        return {key: self[key].remove() for key in keys}
 
     def __truediv__(self, key: KeyT) -> Self:
         try:

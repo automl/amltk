@@ -1,3 +1,7 @@
+from amltk.optimization.evaluation import (
+    CustomEvaluationProtocol,
+    EvaluationProtocol,
+)
 from amltk.optimization.history import History
 from amltk.optimization.metric import Metric, MetricCollection
 from amltk.optimization.optimizer import Optimizer
@@ -9,4 +13,6 @@ __all__ = [
     "Metric",
     "MetricCollection",
     "History",
+    "EvaluationProtocol",
+    "CustomEvaluationProtocol",
 ]

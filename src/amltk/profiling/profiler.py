@@ -252,7 +252,7 @@ class Profiler(Mapping[str, Profile.Interval]):
         itr: Iterable[T],
         *,
         name: str,
-        itr_name: Callable[[int, T], str] | None = None,
+        itr_name: str | Callable[[int, T], str] | None = None,
     ) -> Iterator[T]:
         """Profile each item in an iterable.
 
@@ -267,11 +267,17 @@ class Profiler(Mapping[str, Profile.Interval]):
         Yields:
             The the items
         """
-        if itr_name is None:
-            itr_name = lambda i, _: str(i)
+        match itr_name:
+            case None:
+                _itr_name = lambda i, _: str(i)
+            case str():
+                _itr_name = lambda i, _: f"{itr_name}_{i}"
+            case _:
+                _itr_name = itr_name
+
         with self.measure(name=name):
             for i, item in enumerate(itr):
-                with self.measure(name=itr_name(i, item)):
+                with self.measure(name=_itr_name(i, item)):
                     yield item
 
     @contextmanager

@@ -2,8 +2,8 @@
 
 This is useful for transmitting large objects between processes.
 
-```python exec="true" source="material-block" result="python" title="StoredValue"
-from amltk.store import StoredValue
+```python exec="true" source="material-block" result="python" title="Stored"
+from amltk.store import Stored
 import pandas as pd
 from pathlib import Path
 
@@ -11,7 +11,7 @@ df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
 path = Path("df.csv")
 df.to_csv(path)
 
-stored_value = StoredValue(path, read=pd.read_csv)
+stored_value = Stored(path, read=pd.read_csv)
 
 # Somewhere in a processes
 df = stored_value.value()
@@ -21,7 +21,7 @@ path.unlink()
 ```
 
 You can quickly obtain these from buckets if you require
-```python exec="true" source="material-block" result="python" title="StoredValue from bucket"
+```python exec="true" source="material-block" result="python" title="Stored from bucket"
 from amltk import PathBucket
 import pandas as pd
 
@@ -29,37 +29,38 @@ df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
 bucket = PathBucket("bucket_path")
 bucket.update({"df.csv": df})
 
-stored_value = bucket["df.csv"].as_stored_value()
+stored_value = bucket["df.csv"].as_stored()
 
 # Somewhere in a processes
-df = stored_value.value()
+df = stored_value.load()
 print(df)
 
 bucket.rmdir()
 ```
-"""  # noqa: E501
+"""
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Generic, TypeVar
 
 K = TypeVar("K")
 V = TypeVar("V")
 
 
-@dataclass
-class StoredValue(Generic[K, V]):
+class Stored(Generic[V]):
     """A value that is stored on disk and can be loaded when needed."""
 
-    key: K
-    read: Callable[[K], V]
+    def __init__(self, key: K, read: Callable[[K], V]):
+        """Initialize the stored value.
 
-    _value: V | None = None
+        Args:
+            key: The key to load the value from.
+            read: A function that takes a key and returns the value.
+        """
+        super().__init__()
+        self.key = key
+        self.read = read
 
-    def value(self) -> V:
+    def load(self) -> V:
         """Get the value."""
-        if self._value is None:
-            self._value = self.read(self.key)
-
-        return self._value
+        return self.read(self.key)

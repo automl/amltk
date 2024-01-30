@@ -217,6 +217,7 @@ exclude = [
   "PD901",   #  X is a bad variable name. (pandas)
   "TCH",
   "N803",
+  "C901",  # Too complex
 ]
 "src/amltk/__version__.py" = ["D100"]
 "__init__.py" = ["I002"]

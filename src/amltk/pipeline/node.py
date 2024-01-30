@@ -1139,7 +1139,7 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"{max_trials=} must be a positive int")
 
-        from amltk.evalutors.evaluation_protocol import EvaluationProtocol
+        from amltk.optimization.evaluation import EvaluationProtocol
 
         match target:
             case EvaluationProtocol():
@@ -1150,9 +1150,9 @@ class Node(RichRenderable, Generic[Item, Space]):
                     "Not sure how to handle an already created task yet",
                 )
             case _ if callable(target):
-                from amltk.evalutors.evaluation_protocol import CustomProtocol
+                from amltk.optimization.evaluation import CustomEvaluationProtocol
 
-                target = CustomProtocol(target)
+                target = CustomEvaluationProtocol(target)
             case _:
                 raise ValueError(
                     f"Invalid target {target}. Must be a function or an"

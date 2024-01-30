@@ -260,31 +260,19 @@ my_pipeline = (
 from amltk._doc import doc_print; doc_print(print, my_pipeline)  # markdown-exec: hide
 ```
 
-Next up, we need to define a simple target function we want to evaluate on. With that, we'll also
-store our data, so that on each evaluate call, we load it in. This doesn't make much sense for a single in-process
-call but when scaling up to using multiple processes or remote compute, this is a good practice to follow. For this
-we use a [`PathBucket`][amltk.store.PathBucket] and get a [`StoredValue`][amltk.store.StoredValue] from it, basically
-a reference to some object we can load back in later.
+Next up, we need to define a simple target function we want to evaluate on.
 
 ```python exec="true" result="python" source="material-block" session="optimizing-an-sklearn-pipeline"
-from sklearn.datasets import load_iris
 from sklearn.model_selection import cross_validate
 from amltk.optimization import Trial
-from amltk.store import PathBucket, StoredValue
+from amltk.store import Stored
 import numpy as np
-
-# Load in our data
-_X, _y = load_iris(return_X_y=True)
-
-# Store our data in a bucket
-bucket = PathBucket("my-bucket")
-bucket.update({"X.npy": _X, "y.npy": _y})
 
 def evaluate(
     trial: Trial,
     pipeline: Sequential,
-    X: StoredValue[str, np.ndarray],
-    y: StoredValue[str, np.ndarray],
+    X: Stored[np.ndarray],
+    y: Stored[np.ndarray],
 ) -> Trial.Report:
     # Configure our pipeline and build it
     sklearn_pipeline = (
@@ -294,8 +282,8 @@ def evaluate(
     )
 
     # Load in our data
-    X = X.value()
-    y = y.value()
+    X = X.load()
+    y = y.load()
 
     # Use sklearns.cross_validate as our evaluator
     with trial.profile("cross-validate"):
@@ -307,6 +295,25 @@ def evaluate(
     # Report the mean test score
     mean_test_score = np.mean(test_scores)
     return trial.success(acc=mean_test_score)
+```
+
+With that, we'll also store our data, so that on each evaluate call, we load it in.
+This doesn't make much sense for a single in-process call but when scaling up to using
+multiple processes or remote compute, this is a good practice to follow.
+
+For this we use a [`PathBucket`][amltk.store.PathBucket] and get
+a [`Stored`][amltk.store.Stored] from it, a reference to some object we can `load()` back in later.
+
+```python
+from sklearn.datasets import load_iris
+
+# Load in our data
+_X, _y = load_iris(return_X_y=True)
+
+# Store our data in a bucket
+bucket = PathBucket("my-bucket")
+stored_x = bucket["X.npy"].put(_X)
+stored_y = bucket["X.npy"].put(_y)
 ```
 
 Lastly, we'll create our optimizer and run it.
@@ -327,8 +334,6 @@ optimizer = SMACOptimizer.create(
 )
 
 history = History()
-stored_X = bucket["X.npy"].as_stored_value()
-stored_y = bucket["y.npy"].as_stored_value()
 
 for _ in range(10):
     # Get a trial from the optimizer

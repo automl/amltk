@@ -8,9 +8,13 @@ module.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
+
+if TYPE_CHECKING:
+    from amltk.store.stored import Stored
 
 T = TypeVar("T")
+L = TypeVar("L")
 KeyT_contra = TypeVar("KeyT_contra", contravariant=True)
 
 
@@ -56,7 +60,7 @@ class Loader(ABC, Generic[KeyT_contra, T]):
 
     @classmethod
     @abstractmethod
-    def save(cls, obj: Any, key: KeyT_contra, /) -> None:
+    def save(cls, obj: Any, key: KeyT_contra, /) -> Stored[T]:
         """Save an object to under the given key.
 
         Args:

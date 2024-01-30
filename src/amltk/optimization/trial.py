@@ -337,6 +337,23 @@ class Trial(RichRenderable, Generic[I]):
         """The profiles of the trial."""
         return self.profiler.profiles
 
+    def dump_exception(
+        self,
+        exception: BaseException,
+        *,
+        name: str | None = None,
+    ) -> None:
+        """Dump an exception to the trial.
+
+        Args:
+            exception: The exception to dump.
+            name: The name of the file to dump to. If `None`, will be `"exception"`.
+        """
+        fname = name if name is not None else "exception"
+        traceback = "".join(traceback_module.format_tb(exception.__traceback__))
+        msg = f"{traceback}\n{exception.__class__.__name__}: {exception}"
+        self.store({f"{fname}.txt": msg})
+
     @contextmanager
     def profile(
         self,

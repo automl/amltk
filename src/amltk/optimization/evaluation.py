@@ -46,7 +46,7 @@ class EvaluationProtocol:
         return scheduler.task(self.fn, plugins=_plugins)
 
 
-class CustomProtocol(EvaluationProtocol):
+class CustomEvaluationProtocol(EvaluationProtocol):
     """A custom evaluation protocol based on a user function."""
 
     def __init__(self, fn: Callable[[Trial, Node], Trial.Report]) -> None:
