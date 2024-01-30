@@ -334,12 +334,10 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
     }
     build_params = {} if build_params is None else build_params
     # TODO: Could possibly include `transform_context` here
-    estimator = (
-        pipeline.configure(trial.config, params={"random_state": trial.seed})
-        .build(builder, **build_params)
-        # TODO: Hook to allow user to do this?
-        .set_output(transform="pandas")  # type: ignore
-    )
+    estimator = pipeline.configure(
+        trial.config,
+        params={"random_state": trial.seed},
+    ).build(builder, **build_params)
 
     scorers: dict[str, _Scorer] = {}
     for metric_name, metric in trial.metrics.items():
