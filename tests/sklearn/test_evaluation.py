@@ -209,7 +209,7 @@ class _EvalKwargs:
     additional_scorers: Mapping[str, _Scorer] | None
     params: Mapping[str, Any] | None
     task_type: TaskTypeName
-    datadir: Path
+    working_dir: Path
     X: pd.DataFrame | np.ndarray
     y: pd.Series | np.ndarray | pd.DataFrame
 
@@ -257,7 +257,7 @@ def case_classification(
         pipeline=Component(DecisionTreeClassifier, config={"max_depth": 1}),
         additional_scorers=additional_scorers,
         params=None,
-        datadir=tmp_path / "data",
+        working_dir=tmp_path / "data",
         X=x,
         y=y,
     )
@@ -307,7 +307,7 @@ def case_regression(
         additional_scorers=additional_scorers,
         task_type=task_type,
         params=None,
-        datadir=tmp_path / "data",
+        working_dir=tmp_path / "data",
         X=x,
         y=y,
     )
@@ -341,7 +341,7 @@ def test_evaluator(
     evaluator = CVEvaluation(
         X=x,
         y=y,
-        datadir=item.datadir,
+        working_dir=item.working_dir,
         train_score=train_score,
         store_models=store_models,
         params=item.params,
@@ -448,7 +448,7 @@ def test_consistent_results_across_seeds(
     evaluator_1 = CVEvaluation(
         X=x,
         y=y,
-        datadir=tmp_path,
+        working_dir=tmp_path,
         random_state=42,
         train_score=True,
         store_models=False,
