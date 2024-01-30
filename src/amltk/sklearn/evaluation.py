@@ -657,7 +657,7 @@ class CVEvaluation(EvaluationProtocol):
         working_dir=working_dir,
     )
     print(history.df())
-    evaluator.working_dir.rmdir()  # Cleanup
+    evaluator.bucket.rmdir()  # Cleanup
     ```
     """
 
@@ -705,11 +705,11 @@ class CVEvaluation(EvaluationProtocol):
     additional_scorers: Mapping[str, _Scorer] | None
     """Additional scorers that will be used."""
 
-    databucket: PathBucket
+    bucket: PathBucket
     """The bucket to use for storing data.
 
     For cleanup, you can call
-    [`databucket.rmdir()`][amltk.store.paths.path_bucket.PathBucket.rmdir].
+    [`bucket.rmdir()`][amltk.store.paths.path_bucket.PathBucket.rmdir].
     """
 
     splitter: BaseShuffleSplit | BaseCrossValidator
@@ -821,11 +821,11 @@ class CVEvaluation(EvaluationProtocol):
                         suffix=datetime.now().isoformat(),
                     ),
                 )
-                databucket = PathBucket(tmpdir)
+                bucket = PathBucket(tmpdir)
             case str() | Path():
-                databucket = PathBucket(working_dir)
+                bucket = PathBucket(working_dir)
             case PathBucket():
-                databucket = working_dir
+                bucket = working_dir
 
         match task_hint:
             case "classification" | "regression" | None:
@@ -862,14 +862,14 @@ class CVEvaluation(EvaluationProtocol):
 
         self.task_type = task_type
         self.additional_scorers = additional_scorers
-        self.databucket = databucket
+        self.bucket = bucket
         self.splitter = splitter
         self.params = dict(params) if params is not None else {}
         self.store_models = store_models
         self.train_score = train_score
 
-        self.X_stored = self.databucket[self._X_FILENAME].put(X)
-        self.y_stored = self.databucket[self._Y_FILENAME].put(y)
+        self.X_stored = self.bucket[self._X_FILENAME].put(X)
+        self.y_stored = self.bucket[self._Y_FILENAME].put(y)
 
         # We apply a heuristic that "large" parameters, such as sample_weights
         # should be stored to disk as transferring them directly to subprocess as
@@ -889,7 +889,7 @@ class CVEvaluation(EvaluationProtocol):
                 case _:
                     ext = "pkl"
 
-            self.params[k] = self.databucket[f"{k}.{ext}"].put(v)
+            self.params[k] = self.bucket[f"{k}.{ext}"].put(v)
 
         # This is the actual function that will be called in the task
         self.fn = partial(
