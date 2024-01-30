@@ -67,7 +67,7 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from amltk._functional import classname, funcname, mapping_select, prefix_keys
 from amltk._richutil import RichRenderable
-from amltk.exceptions import RequestNotMetError
+from amltk.exceptions import AutomaticThreadPoolCTLWarning, RequestNotMetError
 from amltk.optimization.history import History
 from amltk.optimization.optimizer import Optimizer
 from amltk.scheduling import Task
@@ -1110,6 +1110,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                         " the CPU and cause the system to slow down."
                         "\nPlease set `threadpool_limit_ctl=False` if you do not want"
                         " this behaviour and set it to `True` to silence this warning.",
+                        AutomaticThreadPoolCTLWarning,
                         stacklevel=2,
                     )
             case True:
