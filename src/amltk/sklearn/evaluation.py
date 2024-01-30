@@ -185,13 +185,13 @@ def _default_cv_resampler(
 def identify_task_type(  # noqa: PLR0911
     y: np.ndarray | pd.Series | pd.DataFrame,
     *,
-    task_hint: Literal["classification", "regression"] | None = None,
+    task_hint: Literal["classification", "regression", "auto"] = "auto",
 ) -> TaskTypeName:
     """Identify the task type from the target data."""
     inferred_type: TaskTypeName = type_of_target(y)
-    if task_hint is None:
+    if task_hint == "auto":
         warnings.warn(
-            "`task_hint` was not provided. The task type was inferred from"
+            f"`{task_hint=}` was not provided. The task type was inferred from"
             f" the target data to be '{inferred_type}'."
             " To silence this warning, please provide `task_hint`.",
             AutomaticTaskTypeInferredWarning,
@@ -737,7 +737,9 @@ class CVEvaluation(EvaluationProtocol):
         additional_scorers: Mapping[str, _Scorer] | None = None,
         random_state: Seed | None = None,  # Only used if cv is an int/float
         params: Mapping[str, Any] | None = None,
-        task_hint: TaskTypeName | Literal["classification", "regression"] | None = None,
+        task_hint: (
+            TaskTypeName | Literal["classification", "regression", "auto"]
+        ) = "auto",
         working_dir: str | Path | PathBucket | None = None,
         on_error: Literal["raise", "fail"] = "fail",
     ) -> None:
@@ -808,7 +810,7 @@ class CVEvaluation(EvaluationProtocol):
                 bucket = working_dir
 
         match task_hint:
-            case "classification" | "regression" | None:
+            case "classification" | "regression" | "auto":
                 task_type = identify_task_type(y, task_hint=task_hint)
             case (
                 "binary"

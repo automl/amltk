@@ -21,13 +21,13 @@ from sklearn.model_selection import (
 )
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
+from amltk.exceptions import TaskTypeWarning
 from amltk.optimization.trial import Metric, Trial
 from amltk.pipeline import Component, request
 from amltk.sklearn.evaluation import (
     CVEvaluation,
     ImplicitMetricConversionWarning,
     TaskTypeName,
-    TaskTypeWarning,
     _default_cv_resampler,
     _default_holdout,
     identify_task_type,
@@ -85,34 +85,34 @@ def _sample_y(task_type: TaskTypeName) -> np.ndarray:
 @parametrize(
     "real, task_hint, expected",
     [
-        ("binary", None, "binary"),
+        ("binary", "auto", "binary"),
         ("binary", "classification", "binary"),
         ("binary", "regression", "continuous"),
         #
-        ("multiclass", None, "multiclass"),
+        ("multiclass", "auto", "multiclass"),
         ("multiclass", "classification", "multiclass"),
         ("multiclass", "regression", "continuous"),
         #
-        ("multilabel-indicator", None, "multilabel-indicator"),
+        ("multilabel-indicator", "auto", "multilabel-indicator"),
         ("multilabel-indicator", "classification", "multilabel-indicator"),
         ("multilabel-indicator", "regression", "continuous-multioutput"),
         #
-        ("multiclass-multioutput", None, "multiclass-multioutput"),
+        ("multiclass-multioutput", "auto", "multiclass-multioutput"),
         ("multiclass-multioutput", "classification", "multiclass-multioutput"),
         ("multiclass-multioutput", "regression", "continuous-multioutput"),
         #
-        ("continuous", None, "continuous"),
+        ("continuous", "auto", "continuous"),
         ("continuous", "classification", "multiclass"),
         ("continuous", "regression", "continuous"),
         #
-        ("continuous-multioutput", None, "continuous-multioutput"),
+        ("continuous-multioutput", "auto", "continuous-multioutput"),
         ("continuous-multioutput", "classification", "multiclass-multioutput"),
         ("continuous-multioutput", "regression", "continuous-multioutput"),
     ],
 )
 def test_identify_task_type(
     real: TaskTypeName,
-    task_hint: Literal["classification", "regression"] | None,
+    task_hint: Literal["classification", "regression", "auto"],
     expected: TaskTypeName,
 ) -> None:
     with warnings.catch_warnings():
