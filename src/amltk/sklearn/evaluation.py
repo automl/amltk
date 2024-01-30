@@ -648,9 +648,9 @@ class CVEvaluation(EvaluationProtocol):
         self.y_stored = self.databucket[self._Y_FILENAME].put(y)
 
         # We apply a heuristic that "large" parameters, such as sample_weights
-        # should be stored to disk as transfering them directly to subprocess as
+        # should be stored to disk as transferring them directly to subprocess as
         # parameters is quite expensive (they must be non-optimally pickled and
-        # streamed to the recieving process). By saving it to a file, we can
+        # streamed to the receiving process). By saving it to a file, we can
         # make use of things like numpy/pandas specific efficient pickling
         # protocols and also avoid the need to stream it to the subprocess.
         storable_params = {
