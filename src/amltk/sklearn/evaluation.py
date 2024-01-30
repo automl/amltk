@@ -294,7 +294,15 @@ def _iter_cross_validate(
                 score_params=_scorer_params_test,
                 error_score="raise",
             )
+            # NOTE: Despite `error_score="raise"`, this will not raise
+            # for `inf` or `nan` values.
             assert isinstance(scores, dict)
+            for k, v in scores.items():
+                if np.isfinite(v) is not True:  # Can return list, check explicitly True
+                    raise ValueError(
+                        f"Scorer {k} returned {v} for validation fold. The scorer"
+                        " should return a finite float",
+                    )
 
         if train_score is True:
             train_scores = _score(
@@ -306,6 +314,12 @@ def _iter_cross_validate(
                 error_score="raise",
             )
             assert isinstance(train_scores, dict)
+            for k, v in train_scores.items():
+                if np.isfinite(v) is not True:  # Can return list, check explicitly True
+                    raise ValueError(
+                        f"Scorer {k} returned {v} for train fold. The scorer should"
+                        " should return a finite float",
+                    )
         else:
             train_scores = {}
 
