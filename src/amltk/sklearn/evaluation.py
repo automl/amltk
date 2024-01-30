@@ -13,7 +13,6 @@ from typing_extensions import override
 
 import numpy as np
 import pandas as pd
-from sklearn import clone
 from sklearn.base import BaseEstimator
 from sklearn.exceptions import UnsetMetadataPassedError
 from sklearn.metrics import get_scorer
@@ -240,6 +239,124 @@ def identify_task_type(  # noqa: PLR0911
             )
 
 
+def _fit(
+    estimator: BaseEstimatorT,
+    X: pd.DataFrame | np.ndarray,  # noqa: N803
+    y: pd.Series | pd.DataFrame | np.ndarray,
+    *,
+    i_train: np.ndarray,
+    profiler: Profiler,
+    fit_params: Mapping[str, Any],
+    scorer_params: Mapping[str, Any],
+    scorers: Mapping[str, _Scorer] | None = None,
+) -> tuple[BaseEstimatorT, Mapping[str, float] | None]:
+    _fit_params = _check_method_params(X, params=fit_params, indices=i_train)
+    _scorer_params_train = _check_method_params(X, scorer_params, indices=i_train)
+
+    X_train, y_train = _safe_split(estimator, X, y, indices=i_train)
+    with profiler("fit"):
+        if y_train is None:
+            estimator.fit(X_train, **_fit_params)  # type: ignore
+        else:
+            estimator.fit(X_train, y_train, **_fit_params)  # type: ignore
+
+    train_scores = None
+    if scorers is not None:
+        train_scores = _score(
+            estimator=estimator,
+            X_test=X_train,
+            y_test=y_train,
+            scorer=scorers,
+            score_params=_scorer_params_train,
+            error_score="raise",
+        )
+        assert isinstance(train_scores, dict)
+        for k, v in train_scores.items():
+            if np.isfinite(v) is not True:  # Can return list, check explicitly True
+                raise ValueError(
+                    f"Scorer {k} returned {v} for train fold. The scorer should"
+                    " should return a finite float",
+                )
+
+    return estimator, train_scores
+
+
+def _score_val_fold(
+    estimator: BaseEstimator,
+    X: pd.DataFrame | np.ndarray,  # noqa: N803
+    y: pd.Series | pd.DataFrame | np.ndarray,
+    *,
+    i_train: np.ndarray,
+    i_val: np.ndarray,
+    scorer_params: Mapping[str, Any],
+    scorers: Mapping[str, _Scorer],
+    profiler: Profiler,
+) -> Mapping[str, float]:
+    _scorer_params_test = _check_method_params(X, scorer_params, indices=i_val)
+    X_t, y_t = _safe_split(estimator, X, y, indices=i_val, train_indices=i_train)
+
+    with profiler("score"):
+        scores = _score(
+            estimator=estimator,
+            X_test=X_t,
+            y_test=y_t,
+            scorer=scorers,
+            score_params=_scorer_params_test,
+            error_score="raise",
+        )
+        # NOTE: Despite `error_score="raise"`, this will not raise
+        # for `inf` or `nan` values.
+        assert isinstance(scores, dict)
+        for k, v in scores.items():
+            if np.isfinite(v) is not True:  # Can return list, check explicitly True
+                raise ValueError(
+                    f"Scorer {k} returned {v} for validation fold. The scorer"
+                    " should return a finite float",
+                )
+
+        return scores
+
+
+def _evaluate_fold(
+    estimator: BaseEstimatorT,
+    X: pd.DataFrame | np.ndarray,  # noqa: N803
+    y: pd.Series | pd.DataFrame | np.ndarray,
+    *,
+    i_train: np.ndarray,
+    i_val: np.ndarray,
+    profiler: Profiler,
+    scorers: Mapping[str, _Scorer],
+    fit_params: Mapping[str, Any],
+    scorer_params: Mapping[str, Any],
+    train_score: bool,
+) -> tuple[BaseEstimatorT, Mapping[str, float], Mapping[str, float] | None]:
+    # These return new dictionaries
+
+    fitted_estimator, train_scores = _fit(
+        estimator=estimator,
+        X=X,
+        y=y,
+        i_train=i_train,
+        profiler=profiler,
+        fit_params=fit_params,
+        scorer_params=scorer_params,
+        scorers=scorers if train_score else None,
+    )
+
+    val_scores = _score_val_fold(
+        estimator=fitted_estimator,
+        X=X,
+        y=y,
+        i_train=i_train,
+        i_val=i_val,
+        scorers=scorers,
+        scorer_params=scorer_params,
+        profiler=profiler,
+    )
+
+    return fitted_estimator, val_scores, train_scores
+
+
 def _iter_cross_validate(
     estimator: BaseEstimatorT,
     X: pd.DataFrame | np.ndarray,  # noqa: N803
@@ -251,11 +368,10 @@ def _iter_cross_validate(
     profiler: Profiler | None = None,
     train_score: bool = False,
 ) -> Iterator[tuple[BaseEstimatorT, Mapping[str, float], Mapping[str, float] | None]]:
-    # NOTE: This is adapted from sklearns 1.4 cross_validate
-
     profiler = Profiler(disabled=True) if profiler is None else profiler
-    _scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
 
+    # NOTE: This flow adapted from sklearns 1.4 cross_validate
+    _scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
     params = {} if params is None else params
     routed_params = _route_params(splitter, estimator, _scorer, **params)
     fit_params = routed_params["estimator"]["fit"]
@@ -268,62 +384,18 @@ def _iter_cross_validate(
     scorer_params = scorer_params if scorer_params is not None else {}
 
     for i_train, i_test in indicies:
-        # These return new dictionaries
-        _fit_params = _check_method_params(X, params=fit_params, indices=i_train)
-        _scorer_params_train = _check_method_params(X, scorer_params, indices=i_train)
-        _scorer_params_test = _check_method_params(X, scorer_params, indices=i_test)
-
-        X_train, y_train = _safe_split(estimator, X, y, indices=i_train)
-
-        with profiler("fit"):
-            new_estimator: BaseEstimatorT
-            new_estimator = clone(estimator)  # type: ignore
-            if y_train is None:
-                new_estimator.fit(X_train, **_fit_params)  # type: ignore
-            else:
-                new_estimator.fit(X_train, y_train, **_fit_params)  # type: ignore
-
-        X_t, y_t = _safe_split(estimator, X, y, indices=i_test, train_indices=i_train)
-
-        with profiler("score"):
-            scores = _score(
-                estimator=new_estimator,
-                X_test=X_t,
-                y_test=y_t,
-                scorer=scorers,
-                score_params=_scorer_params_test,
-                error_score="raise",
-            )
-            # NOTE: Despite `error_score="raise"`, this will not raise
-            # for `inf` or `nan` values.
-            assert isinstance(scores, dict)
-            for k, v in scores.items():
-                if np.isfinite(v) is not True:  # Can return list, check explicitly True
-                    raise ValueError(
-                        f"Scorer {k} returned {v} for validation fold. The scorer"
-                        " should return a finite float",
-                    )
-
-        if train_score is True:
-            train_scores = _score(
-                estimator=new_estimator,
-                X_test=X_train,
-                y_test=y_train,
-                scorer=scorers,
-                score_params=_scorer_params_train,
-                error_score="raise",
-            )
-            assert isinstance(train_scores, dict)
-            for k, v in train_scores.items():
-                if np.isfinite(v) is not True:  # Can return list, check explicitly True
-                    raise ValueError(
-                        f"Scorer {k} returned {v} for train fold. The scorer should"
-                        " should return a finite float",
-                    )
-        else:
-            train_scores = {}
-
-        yield new_estimator, scores, train_scores
+        yield _evaluate_fold(
+            estimator=estimator,
+            X=X,
+            y=y,
+            i_train=i_train,
+            i_val=i_test,
+            profiler=profiler,
+            scorers=scorers,
+            fit_params=fit_params,
+            scorer_params=scorer_params,
+            train_score=train_score,
+        )
 
 
 def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
