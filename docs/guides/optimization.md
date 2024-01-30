@@ -324,6 +324,7 @@ use cases, you should be able to swap in and out the optimizer and it should wor
 ```python exec="true" result="python" source="material-block" session="optimizing-an-sklearn-pipeline"
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.optimization import Metric, History
+from amltk.store import PathBucket
 
 metric = Metric("acc", minimize=False, bounds=(0, 1))
 bucket = PathBucket("my-bucket")
