@@ -9,11 +9,15 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+import pytest
 from pytest_cases import case, parametrize, parametrize_with_cases
+from sklearn import config_context as sklearn_config_context
 from sklearn.datasets import make_classification, make_regression
-from sklearn.metrics import get_scorer
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import get_scorer, make_scorer
 from sklearn.metrics._scorer import _Scorer
 from sklearn.model_selection import (
+    GroupKFold,
     KFold,
     ShuffleSplit,
     StratifiedKFold,
@@ -317,14 +321,14 @@ def case_regression(
 @parametrize("store_models", [True, False])
 @parametrize("train_score", [True, False])
 @parametrize_with_cases("item", cases=".", prefix="case_")
-@parametrize("cv_value, strategy", [(2, "cv"), (0.3, "holdout")])
+@parametrize("cv_value, splitter", [(2, "cv"), (0.3, "holdout")])
 def test_evaluator(
     as_pd: bool,
     store_models: bool,
     train_score: bool,
     item: _EvalKwargs,
     cv_value: int | float,
-    strategy: str,
+    splitter: str,
 ) -> None:
     x = pd.DataFrame(item.X) if as_pd else item.X
     y = (
@@ -333,10 +337,10 @@ def test_evaluator(
         else (pd.DataFrame(item.y) if np.ndim(item.y) > 1 else pd.Series(item.y))
     )
     trial = item.trial
-    if strategy == "cv":
-        cv_kwargs = {"n_splits": cv_value, "strategy": "cv"}
+    if splitter == "cv":
+        cv_kwargs = {"n_splits": cv_value, "splitter": "cv"}
     else:
-        cv_kwargs = {"holdout_size": cv_value, "strategy": "holdout"}
+        cv_kwargs = {"holdout_size": cv_value, "splitter": "holdout"}
 
     evaluator = CVEvaluation(
         X=x,
@@ -406,11 +410,11 @@ def test_evaluator(
         "continuous-multioutput",
     ],
 )
-@parametrize("cv_value, strategy", [(2, "cv"), (0.3, "holdout")])
+@parametrize("cv_value, splitter", [(2, "cv"), (0.3, "holdout")])
 def test_consistent_results_across_seeds(
     tmp_path: Path,
     cv_value: int | float,
-    strategy: Literal["cv", "holdout"],
+    splitter: Literal["cv", "holdout"],
     task_type: TaskTypeName,
 ) -> None:
     x, y = data_for_task_type(task_type)
@@ -440,10 +444,10 @@ def test_consistent_results_across_seeds(
                 fn=lambda y_true, y_pred: (y_pred == y_true).mean().mean(),
             )
 
-    if strategy == "cv":
-        cv_kwargs = {"n_splits": cv_value, "strategy": "cv"}
+    if splitter == "cv":
+        cv_kwargs = {"n_splits": cv_value, "splitter": "cv"}
     else:
-        cv_kwargs = {"holdout_size": cv_value, "strategy": "holdout"}
+        cv_kwargs = {"holdout_size": cv_value, "splitter": "holdout"}
 
     evaluator_1 = CVEvaluation(
         X=x,
@@ -495,3 +499,152 @@ def test_consistent_results_across_seeds(
     df_1 = report_1.df(profiles=False).drop(columns=["reported_at"])
     df_2 = report_2.df(profiles=False).drop(columns=["reported_at"])
     pd.testing.assert_frame_equal(df_1, df_2)
+
+
+def test_scoring_params_get_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+        x, y = data_for_task_type("binary")
+
+        # This custom metrics requires a custom parameter
+        def custom_metric(
+            y_true: np.ndarray,  # noqa: ARG001
+            y_pred: np.ndarray,  # noqa: ARG001
+            *,
+            scorer_param_required: float,
+        ):
+            return scorer_param_required
+
+        custom_scorer = (
+            make_scorer(custom_metric, response_method="predict")
+            # Here we specify that it needs this parameter routed to it
+            .set_score_request(scorer_param_required=True)
+        )
+
+        value = 0.123
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"scorer_param_required": value},  # Pass it in here
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric(name="custom_metric", fn=custom_scorer),
+        )
+        report = evaluator.fn(trial, pipeline)
+
+        assert report.values["custom_metric"] == value
+
+
+def test_splitter_params_get_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        # A DecisionTreeClassifier by default allows for sample_weight as a parameter
+        # request
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+        x, y = data_for_task_type("binary")
+
+        # Make a group which is half 0 and half 1
+        _half = len(x) // 2
+        fake_groups = np.asarray([0] * _half + [1] * (len(x) - _half))
+
+        trial = Trial.create(name="test", bucket=tmp_path / "trial")
+
+        # First make sure it errors if groups is not provided to the splitter
+        evaluator = CVEvaluation(
+            x,
+            y,
+            # params={"groups": fake_groups},  # noqa: ERA001
+            splitter=GroupKFold(n_splits=2),
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        with pytest.raises(
+            ValueError,
+            match="The 'groups' parameter should not be None.",
+        ):
+            evaluator.fn(trial, pipeline)
+
+        # Now make sure it works
+        evaluator = CVEvaluation(
+            x,
+            y,
+            splitter=GroupKFold(n_splits=2),  # We specify a group splitter
+            params={"groups": fake_groups},  # Pass it in here
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        evaluator.fn(trial, pipeline)
+
+
+def test_estimator_params_get_forward(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        # NOTE: There is no way to explcitly check that metadata was indeed
+        # routed to the estimator, e.g. through an error. Please see this
+        # issue
+        # https://github.com/scikit-learn/scikit-learn/issues/23920
+
+        # We'll test this using the DummyClassifier with a Prior config.
+        # Thankfully this is deterministic so it's attributes_ should
+        # only get modified based on it's input.
+        # One attribute_ that gets modified depending on sample_weight
+        # is estimator.class_prior_ which we can check pretty easily.
+        x, y = data_for_task_type("binary")
+        sample_weight = np.random.rand(len(x))  # noqa: NPY002
+
+        def create_dummy_classifier_with_sample_weight_request(
+            *args: Any,
+            **kwargs: Any,
+        ) -> DummyClassifier:
+            est = DummyClassifier(*args, **kwargs)
+            # https://scikit-learn.org/stable/metadata_routing.html#api-interface
+            est.set_fit_request(sample_weight=True)
+            return est
+
+        pipeline = Component(
+            create_dummy_classifier_with_sample_weight_request,
+            config={"strategy": "prior"},
+        )
+
+        # First we use an evaluator without sample_weight
+        trial = Trial.create(name="test", bucket=tmp_path / "trial_1")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            holdout_size=0.3,
+            working_dir=tmp_path,
+            store_models=True,
+            # params={"sample_weight": sample_weight},  # noqa: ERA001
+            on_error="raise",
+        )
+        report = evaluator.fn(trial, pipeline)
+
+        # load pipeline, get 0th model, get it's class_prior_
+        class_weights_1 = report.retrieve("model_0.pkl")[0].class_prior_
+
+        # To make sure that our tests are correct, we repeat this without
+        # sample weights, should remain the same
+        trial = Trial.create(name="test", bucket=tmp_path / "trial_2")
+        report = evaluator.fn(trial, pipeline)
+        class_weights_2 = report.retrieve("model_0.pkl")[0].class_prior_
+
+        np.testing.assert_array_equal(class_weights_1, class_weights_2)
+
+        # Now with the sample weights, the class_prior_ should be different
+        trial = Trial.create(name="test", bucket=tmp_path / "trial_3")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            holdout_size=0.3,
+            working_dir=tmp_path,
+            store_models=True,
+            params={"sample_weight": sample_weight},  # Passed in this time
+            on_error="raise",
+        )
+        report = evaluator.fn(trial, pipeline)
+        class_weights_3 = report.retrieve("model_0.pkl")[0].class_prior_
+
+        with pytest.raises(AssertionError):
+            np.testing.assert_array_equal(class_weights_1, class_weights_3)

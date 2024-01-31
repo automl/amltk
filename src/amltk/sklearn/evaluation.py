@@ -508,7 +508,7 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
                         " name that can be used with sklearn's `get_scorer`",
                     ) from e
             case _Scorer():  # type: ignore
-                scorers[metric_name] = metric
+                scorers[metric_name] = metric.fn
             case _:
                 # We do a best effort here and try to convert the metric to
                 # an sklearn scorer.
@@ -624,7 +624,7 @@ class CVEvaluation(EvaluationProtocol):
         X,
         y,
         n_splits=3,
-        strategy="cv",
+        splitter="cv",
         additional_scorers={"roc_auc": get_scorer("roc_auc_ovr")},
         store_models=False,
         train_score=True,
@@ -727,7 +727,7 @@ class CVEvaluation(EvaluationProtocol):
         X: pd.DataFrame | np.ndarray,  # noqa: N803
         y: pd.Series | pd.DataFrame | np.ndarray,
         *,
-        strategy: (
+        splitter: (
             Literal["holdout", "cv"] | BaseShuffleSplit | BaseCrossValidator
         ) = "cv",
         n_splits: int = 5,  # sklearn default
@@ -748,23 +748,23 @@ class CVEvaluation(EvaluationProtocol):
         Args:
             X: The features to use for training.
             y: The target to use for training.
-            strategy: The cross-validation strategy to use. This can be either
+            splitter: The cross-validation splitter to use. This can be either
                 `#!python "holdout"` or `#!python "cv"`. Please see the related
                 arguments below. If a scikit-learn cross-validator is provided,
                 this will be used directly.
             n_splits: The number of cross-validation splits to use.
-                This argument will be ignored if `#!python strategy="holdout"`
-                or a custom splitter is provided for `strategy=`.
+                This argument will be ignored if `#!python splitter="holdout"`
+                or a custom splitter is provided for `splitter=`.
             holdout_size: The size of the holdout set to use. This argument
-                will be ignored if `#!python strategy="cv"` or a custom splitter
-                is provided for `strategy=`.
+                will be ignored if `#!python splitter="cv"` or a custom splitter
+                is provided for `splitter=`.
             train_score: Whether to score on the training data as well. This
                 will take extra time as predictions will be made on the
                 training data as well.
             store_models: Whether to store the trained models in the trial.
             additional_scorers: Additional scorers to use.
             random_state: The random state to use for the cross-validation
-                `strategy=`. If a custom splitter is provided, this will be
+                `splitter=`. If a custom splitter is provided, this will be
                 ignored.
             params: Parameters to pass to the estimator, splitter or scorers.
                 See https://scikit-learn.org/stable/metadata_routing.html for
@@ -826,7 +826,7 @@ class CVEvaluation(EvaluationProtocol):
                     f"Invalid {task_hint=} provided. Must be in {_valid_task_types}",
                 )
 
-        match strategy:
+        match splitter:
             case "cv":
                 splitter = _default_cv_resampler(
                     task_type,
@@ -840,7 +840,7 @@ class CVEvaluation(EvaluationProtocol):
                     random_state=random_state,
                 )
             case _:
-                splitter = strategy
+                splitter = splitter  # noqa: PLW0127
 
         self.task_type = task_type
         self.additional_scorers = additional_scorers
