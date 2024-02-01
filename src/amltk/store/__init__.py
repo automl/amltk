@@ -12,7 +12,7 @@ from amltk.store.paths.path_loaders import (
     TxtLoader,
     YAMLLoader,
 )
-from amltk.store.stored_value import StoredValue
+from amltk.store.stored import Stored
 
 __all__ = [
     "Bucket",
@@ -27,5 +27,5 @@ __all__ = [
     "TxtLoader",
     "ByteLoader",
     "PathLoader",
-    "StoredValue",
+    "Stored",
 ]

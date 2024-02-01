@@ -68,6 +68,13 @@ class IntegrationNotFoundError(Exception):
         super().__init__(f"No integration found for {name}.")
 
 
+class AutomaticParameterWarning(UserWarning):
+    """Raised when an "auto" parameter of a function is used
+    and triggers some behaviour which would be better explicitly
+    set.
+    """
+
+
 class SchedulerNotRunningError(RuntimeError):
     """The scheduler is not running."""
 
@@ -110,3 +117,32 @@ class DuplicateNamesError(ValueError):
             f"Duplicate names found in {self.node.name} and can't be handled."
             f"\nnodes: {[n.name for n in self.node.nodes]}."
         )
+
+
+class AutomaticThreadPoolCTLWarning(AutomaticParameterWarning):
+    """Raised when automatic threadpoolctl is enabled."""
+
+
+class ImplicitMetricConversionWarning(UserWarning):
+    """A warning raised when a metric is implicitly converted to an sklearn scorer.
+
+    This is raised when a metric is provided with a custom function and is
+    implicitly converted to an sklearn scorer. This may fail in some cases
+    and it is recommended to explicitly convert the metric to an sklearn
+    scorer with `make_scorer` and then pass it to the metric with
+    [`Metric(fn=...)`][amltk.optimization.Metric].
+    """
+
+
+class TaskTypeWarning(UserWarning):
+    """A warning raised about the task type."""
+
+
+class AutomaticTaskTypeInferredWarning(TaskTypeWarning, AutomaticParameterWarning):
+    """A warning raised when the task type is inferred from the target data."""
+
+
+class MismatchedTaskTypeWarning(TaskTypeWarning):
+    """A warning raised when inferred task type with `task_hint` does not
+    match the inferred task type from the target data.
+    """

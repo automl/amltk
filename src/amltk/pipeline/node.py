@@ -67,7 +67,7 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from amltk._functional import classname, funcname, mapping_select, prefix_keys
 from amltk._richutil import RichRenderable
-from amltk.exceptions import RequestNotMetError
+from amltk.exceptions import AutomaticThreadPoolCTLWarning, RequestNotMetError
 from amltk.optimization.history import History
 from amltk.optimization.optimizer import Optimizer
 from amltk.scheduling import Task
@@ -82,7 +82,7 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
     from rich.panel import Panel
 
-    from amltk.evalutors.evaluation_protocol import EvaluationProtocol
+    from amltk.optimization.evaluation import EvaluationProtocol
     from amltk.optimization.metric import Metric
     from amltk.optimization.trial import Trial
     from amltk.pipeline.components import Choice, Join, Sequential
@@ -911,7 +911,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 The function against which to optimize.
 
                 * If `target` is an
-                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
+                [`EvaluationProtocol`][amltk.optimization.evaluation.EvaluationProtocol],
                 then it will be used to evaluate the pipeline.
 
                 * If `target` is a function, then it must take in a
@@ -1110,6 +1110,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                         " the CPU and cause the system to slow down."
                         "\nPlease set `threadpool_limit_ctl=False` if you do not want"
                         " this behaviour and set it to `True` to silence this warning.",
+                        AutomaticThreadPoolCTLWarning,
                         stacklevel=2,
                     )
             case True:
@@ -1139,7 +1140,7 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"{max_trials=} must be a positive int")
 
-        from amltk.evalutors.evaluation_protocol import EvaluationProtocol
+        from amltk.optimization.evaluation import EvaluationProtocol
 
         match target:
             case EvaluationProtocol():
@@ -1150,9 +1151,9 @@ class Node(RichRenderable, Generic[Item, Space]):
                     "Not sure how to handle an already created task yet",
                 )
             case _ if callable(target):
-                from amltk.evalutors.evaluation_protocol import CustomProtocol
+                from amltk.optimization.evaluation import CustomEvaluationProtocol
 
-                target = CustomProtocol(target)
+                target = CustomEvaluationProtocol(target)
             case _:
                 raise ValueError(
                     f"Invalid target {target}. Must be a function or an"
@@ -1310,7 +1311,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                 The function against which to optimize.
 
                 * If `target` is an
-                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
+                [`EvaluationProtocol`][amltk.optimization.evaluation.EvaluationProtocol],
                 then it will be used to evaluate the pipeline.
 
                 * If `target` is a function, then it must take in a
