@@ -10,8 +10,10 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import pytest
+import sklearn.datasets
 from pytest_cases import case, parametrize, parametrize_with_cases
 from sklearn import config_context as sklearn_config_context
+from sklearn.cluster import KMeans
 from sklearn.datasets import make_classification, make_regression
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import get_scorer, make_scorer
@@ -648,3 +650,33 @@ def test_estimator_params_get_forward(tmp_path: Path) -> None:
 
         with pytest.raises(AssertionError):
             np.testing.assert_array_equal(class_weights_1, class_weights_3)
+
+
+def test_evaluator_with_clustering(tmp_path: Path) -> None:
+    x, y = sklearn.datasets.make_blobs(
+        n_samples=20,
+        centers=2,
+        n_features=2,
+        random_state=42,
+    )
+    pipeline = Component(KMeans, config={"n_clusters": 2, "random_state": 42})
+
+    metrics = Metric("adjusted_rand_score", minimize=False, bounds=(-0.5, 1))
+    trial = Trial.create(name="test", bucket=tmp_path / "trial", metrics=metrics)
+
+    evaluator = CVEvaluation(
+        x,  # type: ignore
+        y,  # type: ignore
+        working_dir=tmp_path,
+        on_error="raise",
+        random_state=42,
+    )
+    report = evaluator.fn(trial, pipeline)
+
+    # We are not really trying to detect the score of the algorithm, just to ensure
+    # that it did indeed train with the data and does not error.
+    # If it seems to get a slightly less score than 1.0 then that's okay,
+    # just change the value. Should not change due to the seeding but
+    # make sklearn changes something
+    assert "adjusted_rand_score" in report.values
+    assert report.values["adjusted_rand_score"] == pytest.approx(1.0)
