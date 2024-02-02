@@ -23,7 +23,7 @@ from typing_extensions import override
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.exceptions import UnsetMetadataPassedError
 from sklearn.metrics import get_scorer
 from sklearn.metrics._scorer import _MultimetricScorer, _Scorer
@@ -397,7 +397,7 @@ def _evaluate_fold(
     # These return new dictionaries
 
     fitted_estimator, train_scores = _fit(
-        estimator=estimator,
+        estimator=clone(estimator),
         X=X,
         y=y,
         i_train=i_train,
