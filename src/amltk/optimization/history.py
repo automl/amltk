@@ -398,7 +398,7 @@ class History(RichRenderable):
         sortby: Callable[[Trial.Report], Comparable] | str = lambda r: r.reported_at,
         reverse: bool | None = None,
         ffill: bool = False,
-    ) -> list[Trial.Report]:
+    ) -> History:
         """Returns a trace of the incumbents, where only the report that is better than the previous
         best report is kept.
 
@@ -458,14 +458,16 @@ class History(RichRenderable):
                 op = key
 
         sorted_reports = self.sortby(sortby, reverse=reverse)
-        return list(compare_accumulate(sorted_reports, op=op, ffill=ffill))
+        return History.from_reports(
+            compare_accumulate(sorted_reports, op=op, ffill=ffill),
+        )
 
     def sortby(
         self,
         key: Callable[[Trial.Report], Comparable] | str,
         *,
         reverse: bool | None = None,
-    ) -> list[Trial.Report]:
+    ) -> History:
         """Sorts the history by a key and returns a sorted History.
 
         ```python exec="true" source="material-block" result="python" title="sortby" hl_lines="15"
@@ -517,7 +519,9 @@ class History(RichRenderable):
             # Default is False
             reverse = False if reverse is None else reverse
 
-        return sorted(history.reports, key=sort_key, reverse=reverse)
+        return History.from_reports(
+            sorted(history.reports, key=sort_key, reverse=reverse),
+        )
 
     @overload
     def __getitem__(self, key: int | str) -> Trial.Report:

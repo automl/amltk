@@ -250,6 +250,9 @@ class Trial(RichRenderable, Generic[I]):
     You can access the metrics by name, e.g. `#!python trial.metrics["loss"]`.
     """
 
+    created_at: datetime
+    """When the trial was created."""
+
     seed: int | None = None
     """The seed to use if suggested by the optimizer."""
 
@@ -281,6 +284,7 @@ class Trial(RichRenderable, Generic[I]):
         info: I | None = None,
         seed: int | None = None,
         fidelities: Mapping[str, Any] | None = None,
+        created_at: datetime | None = None,
         profiler: Profiler | None = None,
         bucket: str | Path | PathBucket | None = None,
         summary: MutableMapping[str, Any] | None = None,
@@ -297,6 +301,7 @@ class Trial(RichRenderable, Generic[I]):
             seed: The seed of the trial.
             fidelities: The fidelities of the trial.
             bucket: The bucket of the trial.
+            created_at: When the trial was created.
             profiler: The profiler of the trial.
             summary: The summary of the trial.
             storage: The storage of the trial.
@@ -320,6 +325,7 @@ class Trial(RichRenderable, Generic[I]):
             config=config if config is not None else {},
             info=info,
             seed=seed,
+            created_at=created_at if created_at is not None else datetime.now(),
             fidelities=fidelities if fidelities is not None else {},
             bucket=(
                 bucket
@@ -884,6 +890,7 @@ class Trial(RichRenderable, Generic[I]):
                 "exception": str(self.exception) if self.exception else "NA",
                 "traceback": str(self.traceback) if self.traceback else "NA",
                 "bucket": str(self.bucket.path),
+                "created_at": self.trial.created_at,
                 "reported_at": self.reported_at,
             }
             if metrics:
@@ -1021,6 +1028,13 @@ class Trial(RichRenderable, Generic[I]):
             else:
                 bucket = PathBucket(f"uknown_trial_bucket-{datetime.now().isoformat()}")
 
+            created_at_timestamp = d.get("created_at")
+            if created_at_timestamp is None:
+                raise ValueError(
+                    "Cannot load report from dict without a 'created_at' field.",
+                )
+            created_at = parse_timestamp_object(created_at_timestamp)
+
             trial: Trial = Trial.create(
                 name=d["name"],
                 config=mapping_select(d, "config:"),
@@ -1030,6 +1044,7 @@ class Trial(RichRenderable, Generic[I]):
                 fidelities=mapping_select(d, "fidelities:"),
                 profiler=Profiler(profiles=profiles),
                 metrics=metrics.keys(),
+                created_at=created_at,
                 summary=mapping_select(d, "summary:"),
                 storage=set(mapping_select(d, "storage:").values()),
                 extras=mapping_select(d, "extras:"),
@@ -1057,6 +1072,7 @@ class Trial(RichRenderable, Generic[I]):
                     "Cannot load report from dict without a 'reported_at' field.",
                 )
             report.reported_at = parse_timestamp_object(timestamp)
+
             return report
 
         def rich_renderables(self) -> Iterable[RenderableType]:
