@@ -497,9 +497,10 @@ def test_consistent_results_across_seeds(
         )
 
     # We ignore profiles because they will be different timings
-    # We report.reported_at as they will naturally be different
-    df_1 = report_1.df(profiles=False).drop(columns=["reported_at"])
-    df_2 = report_2.df(profiles=False).drop(columns=["reported_at"])
+    # We ignore trial.created_at and report.reported_at as they will naturally
+    # be different
+    df_1 = report_1.df(profiles=False).drop(columns=["reported_at", "created_at"])
+    df_2 = report_2.df(profiles=False).drop(columns=["reported_at", "created_at"])
     pd.testing.assert_frame_equal(df_1, df_2)
 
 
