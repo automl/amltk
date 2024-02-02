@@ -662,8 +662,12 @@ class CVEvaluation(EvaluationProtocol):
     evaluator.bucket.rmdir()  # Cleanup
     ```
 
-    If you need to pass dataset specific items to the pipeline, you can do so
-    use the [`request`][amltk.pipeline.request] in the config of your pipeline.
+    If you need to pass specific configuration items to your pipeline during
+    configuration, you can do so using a [`request()`][amltk.pipeline.request]
+    in the config of your pipeline.
+
+    In the below example, we allow the pipeline to be configured with `"n_jobs"`
+    and pass it in to the `CVEvalautor` using the `params` argument.
 
     ```python exec="true" source="material-block" result="python"
     from amltk.sklearn import CVEvaluation
@@ -705,8 +709,6 @@ class CVEvaluation(EvaluationProtocol):
     print(history.df())
     evaluator.bucket.rmdir()  # Cleanup
     ```
-
-    You can use the same technique above to
     """
 
     TMP_DIR_PREFIX: ClassVar[str] = "amltk-sklearn-cv-evaluation-data-"
