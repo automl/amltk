@@ -841,9 +841,24 @@ class CVEvaluation(EvaluationProtocol):
                 You may also additionally include the following as dictionarys:
 
                 * `#!python "configure"`: Parameters to pass to the pipeline
-                    for [`configure()`][amltk.pipeline.Node.configure].
+                    for [`configure()`][amltk.pipeline.Node.configure]. Please
+                    the example in the class docstring for more information.
                 * `#!python "build"`: Parameters to pass to the pipeline for
                     [`build()`][amltk.pipeline.Node.build].
+
+                    ```python
+                    from imblearn.pipeline import Pipeline as ImbalancedPipeline
+                    CVEvaluator(
+                        ...,
+                        params={
+                            "build": {
+                                "builder": "sklearn",
+                                "pipeline_type": ImbalancedPipeline
+                            }
+                        }
+                    )
+                    ```
+
                 * `#!python "transform_context"`: The transform context to use
                     for [`configure()`][amltk.pipeline.Node.configure].
 
