@@ -564,9 +564,11 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
 
     except Exception as e:  # noqa: BLE001
         trial.dump_exception(e)
+        report = trial.fail(e)
         if on_error == "raise":
-            raise TrialError(f"Trial failed: {trial}") from e
-        return trial.fail(e)
+            raise TrialError(f"Trial failed: {report}") from e
+
+        return report
     else:
         mean_val_scores = {k: np.mean(v) for k, v in all_val_scores.items()}
         std_val_scores = {k: np.std(v) for k, v in all_val_scores.items()}

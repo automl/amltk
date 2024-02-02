@@ -27,7 +27,7 @@ from sklearn.model_selection import (
 )
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-from amltk.exceptions import TaskTypeWarning
+from amltk.exceptions import TaskTypeWarning, TrialError
 from amltk.optimization.trial import Metric, Trial
 from amltk.pipeline import Component, request
 from amltk.sklearn.evaluation import (
@@ -565,8 +565,8 @@ def test_splitter_params_get_forwarded(tmp_path: Path) -> None:
             on_error="raise",
         )
         with pytest.raises(
-            ValueError,
-            match="The 'groups' parameter should not be None.",
+            TrialError,
+            match=r"The 'groups' parameter should not be None.",
         ):
             evaluator.fn(trial, pipeline)
 
