@@ -5,11 +5,8 @@ from __future__ import annotations
 
 import traceback
 from collections.abc import Callable, Iterable, Iterator
-from typing import TYPE_CHECKING, Any, TypeVar
-from typing_extensions import ParamSpec, override
-
-if TYPE_CHECKING:
-    from amltk.pipeline.node import Node
+from typing import Any, TypeVar
+from typing_extensions import ParamSpec
 
 R = TypeVar("R")
 E = TypeVar("E")
@@ -101,22 +98,6 @@ class ComponentBuildError(TypeError):
 
 class DuplicateNamesError(ValueError):
     """Raised when duplicate names are found."""
-
-    def __init__(self, node: Node) -> None:
-        """Initialize the exception.
-
-        Args:
-            node: The node that has children with duplicate names.
-        """
-        super().__init__(node)
-        self.node = node
-
-    @override
-    def __str__(self) -> str:
-        return (
-            f"Duplicate names found in {self.node.name} and can't be handled."
-            f"\nnodes: {[n.name for n in self.node.nodes]}."
-        )
 
 
 class AutomaticThreadPoolCTLWarning(AutomaticParameterWarning):

@@ -62,12 +62,16 @@ from typing import (
 )
 from typing_extensions import override
 
-from more_itertools import first_true
+from more_itertools import all_unique, first_true
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from amltk._functional import classname, funcname, mapping_select, prefix_keys
 from amltk._richutil import RichRenderable
-from amltk.exceptions import AutomaticThreadPoolCTLWarning, RequestNotMetError
+from amltk.exceptions import (
+    AutomaticThreadPoolCTLWarning,
+    DuplicateNamesError,
+    RequestNotMetError,
+)
 from amltk.optimization.history import History
 from amltk.optimization.optimizer import Optimizer
 from amltk.scheduling import Task
@@ -298,6 +302,18 @@ class Node(RichRenderable, Generic[Item, Space]):
         object.__setattr__(self, "config_transform", config_transform)
         object.__setattr__(self, "meta", meta)
         object.__setattr__(self, "nodes", nodes)
+
+        if not all_unique(node.name for node in self.nodes):
+            raise DuplicateNamesError(
+                f"Duplicate node names in {self}. " "All nodes must have unique names.",
+            )
+
+        for child in self.nodes:
+            if child.name == self.name:
+                raise DuplicateNamesError(
+                    f"Cannot have a child node with the same name as its parent. "
+                    f"{self.name=} {child.name=}",
+                )
 
     def __getitem__(self, key: str) -> Node:
         """Get the first from [`.nodes`][amltk.pipeline.node.Node.nodes] with `key`."""
