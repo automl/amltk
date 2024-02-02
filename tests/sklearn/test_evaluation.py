@@ -736,34 +736,6 @@ class _MyPipeline(sklearn.pipeline.Pipeline):
         self.bamboozled = bamboozled
 
 
-def test_custom_build_params_gets_forwarded(tmp_path: Path) -> None:
-    with sklearn_config_context(enable_metadata_routing=True):
-        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
-
-        build_params = {"pipeline_type": _MyPipeline, "bamboozled": "yes"}
-
-        x, y = data_for_task_type("binary")
-        evaluator = CVEvaluation(
-            x,
-            y,
-            params={"build": build_params},
-            working_dir=tmp_path,
-            store_models=True,
-            on_error="raise",
-        )
-        trial = Trial.create(
-            name="test",
-            bucket=tmp_path / "trial",
-            metrics=Metric("accuracy"),
-        )
-
-        report = evaluator.fn(trial, pipeline)
-        model = report.retrieve("model_0.pkl")
-        assert isinstance(model, _MyPipeline)
-        assert hasattr(model, "bamboozled")
-        assert model.bamboozled == "yes"
-
-
 # Used in test below, builds one of the
 # _MyPipeline with a custom parameter that
 # will also get passed in
@@ -788,7 +760,7 @@ def test_custom_builder_can_be_forwarded(tmp_path: Path) -> None:
         evaluator = CVEvaluation(
             x,
             y,
-            params={"builder": _my_custom_builder, "build": {"bamboozled": "yes"}},
+            params={"build": {"builder": _my_custom_builder, "bamboozled": "yes"}},
             working_dir=tmp_path,
             store_models=True,
             on_error="raise",
