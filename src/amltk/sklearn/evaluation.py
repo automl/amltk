@@ -14,7 +14,7 @@ import logging
 import tempfile
 import warnings
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping, MutableMapping, Sized
+from collections.abc import Iterable, Iterator, Mapping, MutableMapping, Sized
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -468,7 +468,7 @@ def _iter_cross_validate(
         )
 
 
-def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
+def cross_validate_task(  # noqa: D103, C901, PLR0912, PLR0915
     trial: Trial,
     pipeline: Node,
     *,
@@ -479,7 +479,6 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
     train_score: bool = False,
     store_models: bool = True,
     params: MutableMapping[str, Stored[Any] | Any] | None = None,
-    builder: Literal["sklearn"] | Callable[[Node], BaseEstimator] = "sklearn",
     on_error: Literal["fail", "raise"] = "fail",
 ) -> Trial.Report:
     params = {} if params is None else params
@@ -491,21 +490,29 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
             f"Expected `params['configure']` to be a dict but got {configure_params=}",
         )
 
-    build_params = params.pop("build", {})
+    if "random_state" in configure_params:
+        raise ValueError(
+            "You should not provide `'random_state'` in `params['configure']`"
+            " as the seed is set by the optimizer.",
+        )
+    random_state = amltk.randomness.as_randomstate(trial.seed)
+    configure_params["random_state"] = random_state
+
+    build_params = params.pop("build", {"builder": "sklearn"})  # type: ignore
     if not isinstance(build_params, MutableMapping):
         raise ValueError(
             f"Expected `params['build']` to be a dict but got {build_params=}",
         )
 
-    builder = params.pop("builder", "sklearn")  # type: ignore
+    transform_context = params.pop("transform_context", None)  # type: ignore
 
-    random_state = amltk.randomness.as_randomstate(trial.seed)
-
-    # TODO: Could possibly include `transform_context` here to `configure()`
     estimator = pipeline.configure(
         trial.config,
-        params={**configure_params, "random_state": random_state},
-    ).build(builder, **build_params)
+        transform_context=transform_context,
+        params=configure_params,
+    ).build(
+        **build_params,
+    )
 
     scorers: dict[str, _Scorer] = {}
     for metric_name, metric in trial.metrics.items():
@@ -654,6 +661,52 @@ class CVEvaluation(EvaluationProtocol):
     print(history.df())
     evaluator.bucket.rmdir()  # Cleanup
     ```
+
+    If you need to pass dataset specific items to the pipeline, you can do so
+    use the [`request`][amltk.pipeline.request] in the config of your pipeline.
+
+    ```python exec="true" source="material-block" result="python"
+    from amltk.sklearn import CVEvaluation
+    from amltk.pipeline import Component, request
+    from amltk.optimization import Metric
+
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import get_scorer
+    from sklearn.datasets import load_iris
+    from pathlib import Path
+
+    working_dir = Path("./some-path")
+    X, y = load_iris(return_X_y=True)
+
+    pipeline = Component(
+        RandomForestClassifier,
+        config={
+            "random_state": request("random_state"),
+            # Allow it to be configured with n_jobs
+            "n_jobs": request("n_jobs", default=None)
+        },
+        space={"n_estimators": (10, 100), "criterion": ["gini", "entropy"]},
+    )
+
+    evaluator = CVEvaluation(
+        X,
+        y,
+        working_dir=working_dir,
+        # Use the `configure` keyword in params to pass to the `n_jobs`
+        # Anything in the pipeline requesting `n_jobs` will get the value
+        params={"configure": {"n_jobs": 2}}
+    )
+    history = pipeline.optimize(
+        target=evaluator,
+        metric=Metric("accuracy"),
+        working_dir=working_dir,
+        n_trials=1,
+    )
+    print(history.df())
+    evaluator.bucket.rmdir()  # Cleanup
+    ```
+
+    You can use the same technique above to
     """
 
     TMP_DIR_PREFIX: ClassVar[str] = "amltk-sklearn-cv-evaluation-data-"
@@ -784,6 +837,16 @@ class CVEvaluation(EvaluationProtocol):
             params: Parameters to pass to the estimator, splitter or scorers.
                 See https://scikit-learn.org/stable/metadata_routing.html for
                 more information.
+
+                You may also additionally include the following as dictionarys:
+
+                * `#!python "configure"`: Parameters to pass to the pipeline
+                    for [`configure()`][amltk.pipeline.Node.configure].
+                * `#!python "build"`: Parameters to pass to the pipeline for
+                    [`build()`][amltk.pipeline.Node.build].
+                * `#!python "transform_context"`: The transform context to use
+                    for [`configure()`][amltk.pipeline.Node.configure].
+
             task_hint: A string indicating the task type matching those
                 use by sklearn's `type_of_target`. This can be either
                 `#!python "binary"`, `#!python "multiclass"`,
