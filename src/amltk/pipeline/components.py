@@ -9,12 +9,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, overload
 from typing_extensions import Self, override
 
-from more_itertools import all_unique, first_true
+from more_itertools import first_true
 
 from amltk._functional import entity_name, mapping_select
 from amltk.exceptions import (
     ComponentBuildError,
-    DuplicateNamesError,
     NoChoiceMadeError,
     NodeNotFoundError,
 )
@@ -431,10 +430,6 @@ class Sequential(Node[Item, Space]):
         """
         _nodes = tuple(as_node(n) for n in nodes)
 
-        # Perhaps we need to do a deeper check on this...
-        if not all_unique(_nodes, key=lambda node: node.name):
-            raise DuplicateNamesError(self)
-
         if name is None:
             name = f"Seq-{randuid(8)}"
 
@@ -565,11 +560,6 @@ class Choice(Node[Item, Space]):
         _nodes: tuple[Node, ...] = tuple(
             sorted((as_node(n) for n in nodes), key=lambda n: n.name),
         )
-        if not all_unique(_nodes, key=lambda node: node.name):
-            raise ValueError(
-                f"Can't handle nodes as we can not generate a __choice__ for {nodes=}."
-                "\nAll nodes must have a unique name. Please provide a `name=` to them",
-            )
 
         if name is None:
             name = f"Choice-{randuid(8)}"
@@ -837,12 +827,6 @@ class Split(Node[Item, Space]):
         else:
             _nodes = tuple(as_node(n) for n in nodes)
 
-        if not all_unique(_nodes, key=lambda node: node.name):
-            raise ValueError(
-                f"Can't handle nodes they do not all contain unique names, {nodes=}."
-                "\nAll nodes must have a unique name. Please provide a `name=` to them",
-            )
-
         if name is None:
             name = f"Split-{randuid(8)}"
 
@@ -918,11 +902,6 @@ class Join(Node[Item, Space]):
             meta: Any meta information about this node.
         """
         _nodes = tuple(as_node(n) for n in nodes)
-        if not all_unique(_nodes, key=lambda node: node.name):
-            raise ValueError(
-                f"Can't handle nodes they do not all contain unique names, {nodes=}."
-                "\nAll nodes must have a unique name. Please provide a `name=` to them",
-            )
 
         if name is None:
             name = f"Join-{randuid(8)}"

@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from amltk.exceptions import RequestNotMetError
+from amltk.exceptions import DuplicateNamesError, RequestNotMetError
 from amltk.pipeline import Choice, Join, Node, Sequential, request
 
 
@@ -172,3 +172,13 @@ def test_walk() -> None:
     ):
         assert node == _exp_node
         assert path == _exp_path
+
+
+def test_node_fails_if_children_with_duplicate_name() -> None:
+    with pytest.raises(DuplicateNamesError):
+        Node(Node(name="child1"), Node(name="child1"), name="node")
+
+
+def test_node_fails_if_child_has_same_name() -> None:
+    with pytest.raises(DuplicateNamesError):
+        Node(Node(name="child1"), Node(name="node"), name="node")
