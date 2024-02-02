@@ -146,3 +146,9 @@ class MismatchedTaskTypeWarning(TaskTypeWarning):
     """A warning raised when inferred task type with `task_hint` does not
     match the inferred task type from the target data.
     """
+
+
+class TrialError(RuntimeError):
+    """An exception raised when a trial and it meant to be raised directly
+    to the user.
+    """
