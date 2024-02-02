@@ -14,7 +14,7 @@ import logging
 import tempfile
 import warnings
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sized
+from collections.abc import Callable, Iterable, Iterator, Mapping, MutableMapping, Sized
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -478,21 +478,33 @@ def cross_validate_task(  # noqa: D103, PLR0913, C901, PLR0912
     additional_scorers: Mapping[str, _Scorer] | None,
     train_score: bool = False,
     store_models: bool = True,
-    params: Mapping[str, Stored[Any] | Any] | None = None,
+    params: MutableMapping[str, Stored[Any] | Any] | None = None,
     builder: Literal["sklearn"] | Callable[[Node], BaseEstimator] = "sklearn",
-    build_params: Mapping[str, Any] | None = None,
     on_error: Literal["fail", "raise"] = "fail",
 ) -> Trial.Report:
     params = {} if params is None else params
     # Make sure to load all the stored values
 
-    build_params = {} if build_params is None else build_params
+    configure_params = params.pop("configure", {})
+    if not isinstance(configure_params, MutableMapping):
+        raise ValueError(
+            f"Expected `params['configure']` to be a dict but got {configure_params=}",
+        )
+
+    build_params = params.pop("build", {})
+    if not isinstance(build_params, MutableMapping):
+        raise ValueError(
+            f"Expected `params['build']` to be a dict but got {build_params=}",
+        )
+
+    builder = params.pop("builder", "sklearn")  # type: ignore
+
     random_state = amltk.randomness.as_randomstate(trial.seed)
 
     # TODO: Could possibly include `transform_context` here to `configure()`
     estimator = pipeline.configure(
         trial.config,
-        params={"random_state": random_state},
+        params={**configure_params, "random_state": random_state},
     ).build(builder, **build_params)
 
     scorers: dict[str, _Scorer] = {}
@@ -886,8 +898,6 @@ class CVEvaluation(EvaluationProtocol):
             params=self.params,
             store_models=self.store_models,
             train_score=self.train_score,
-            builder="sklearn",  # TODO: Allow user to specify? e.g. custom builder
-            build_params=None,  # TODO: Allow user to specify? e.g. Imblearn pipeline
             on_error=on_error,
         )
 

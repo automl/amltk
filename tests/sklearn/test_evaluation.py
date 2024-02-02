@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import sklearn.datasets
+import sklearn.pipeline
 from pytest_cases import case, parametrize, parametrize_with_cases
 from sklearn import config_context as sklearn_config_context
 from sklearn.cluster import KMeans
@@ -30,6 +31,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from amltk.exceptions import TaskTypeWarning, TrialError
 from amltk.optimization.trial import Metric, Trial
 from amltk.pipeline import Component, request
+from amltk.pipeline.builders.sklearn import build as sklearn_pipeline_builder
 from amltk.sklearn.evaluation import (
     CVEvaluation,
     ImplicitMetricConversionWarning,
@@ -681,3 +683,124 @@ def test_evaluator_with_clustering(tmp_path: Path) -> None:
     # make sklearn changes something
     assert "adjusted_rand_score" in report.values
     assert report.values["adjusted_rand_score"] == pytest.approx(1.0)
+
+
+def test_custom_configure_gets_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        # Pipeline requests a max_depth, defaulting to 1
+        pipeline = Component(
+            DecisionTreeClassifier,
+            config={
+                "max_depth": request("max_depth", default=1),
+            },
+        )
+
+        # We pass in explicitly to configure with 2
+        # This can be useful for estimators that require explicit information
+        # about the dataset
+        configure_params = {"max_depth": 2}
+
+        x, y = data_for_task_type("binary")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"configure": configure_params},
+            working_dir=tmp_path,
+            splitter="holdout",
+            holdout_size=0.3,
+            store_models=True,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric("accuracy"),
+        )
+        report = evaluator.fn(trial, pipeline)
+        model = report.retrieve("model_0.pkl")[0]
+        assert model.max_depth == 2
+
+
+# Used in the test below
+class _MyPipeline(sklearn.pipeline.Pipeline):
+    # Have to explcitiyl list out all parameters by sklearn API
+    def __init__(
+        self,
+        steps: Any,
+        *,
+        memory: None = None,
+        verbose: bool = False,
+        bamboozled: str = "no",
+    ):
+        super().__init__(steps, memory=memory, verbose=verbose)
+        self.bamboozled = bamboozled
+
+
+def test_custom_build_params_gets_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+
+        build_params = {"pipeline_type": _MyPipeline, "bamboozled": "yes"}
+
+        x, y = data_for_task_type("binary")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"build": build_params},
+            working_dir=tmp_path,
+            store_models=True,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric("accuracy"),
+        )
+
+        report = evaluator.fn(trial, pipeline)
+        model = report.retrieve("model_0.pkl")
+        assert isinstance(model, _MyPipeline)
+        assert hasattr(model, "bamboozled")
+        assert model.bamboozled == "yes"
+
+
+# Used in test below, builds one of the
+# _MyPipeline with a custom parameter that
+# will also get passed in
+def _my_custom_builder(
+    *args: Any,
+    bamboozled: str = "no",
+    **kwargs: Any,
+) -> _MyPipeline:
+    return sklearn_pipeline_builder(
+        *args,
+        pipeline_type=_MyPipeline,
+        bamboozled=bamboozled,
+        **kwargs,
+    )
+
+
+def test_custom_builder_can_be_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+
+        x, y = data_for_task_type("binary")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"builder": _my_custom_builder, "build": {"bamboozled": "yes"}},
+            working_dir=tmp_path,
+            store_models=True,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric("accuracy"),
+        )
+
+        report = evaluator.fn(trial, pipeline)
+        model = report.retrieve("model_0.pkl")
+        assert isinstance(model, _MyPipeline)
+        assert hasattr(model, "bamboozled")
+        assert model.bamboozled == "yes"
