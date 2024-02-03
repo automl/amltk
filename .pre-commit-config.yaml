@@ -38,7 +38,7 @@ repos:
           - "--ignore-missing-imports"
           - "--show-traceback"
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.27.3
+    rev: 0.27.4
     hooks:
       - id: check-github-workflows
         files: '^github/workflows/.*\.ya?ml$'
@@ -46,11 +46,11 @@ repos:
       - id: check-dependabot
         files: '^\.github/dependabot\.ya?ml$'
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.13.0
+    rev: v3.14.0
     hooks:
       - id: commitizen
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.1.14
+    rev: v0.2.0
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --no-cache]
