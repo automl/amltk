@@ -704,7 +704,7 @@ class CVEvaluation(EvaluationProtocol):
         target=evaluator,
         metric=Metric("accuracy"),
         working_dir=working_dir,
-        n_trials=1,
+        max_trials=1,
     )
     print(history.df())
     evaluator.bucket.rmdir()  # Cleanup
