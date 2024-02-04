@@ -657,6 +657,7 @@ class CVEvaluation(EvaluationProtocol):
         target=evaluator,
         metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
         working_dir=working_dir,
+        max_trials=1,
     )
     print(history.df())
     evaluator.bucket.rmdir()  # Cleanup
