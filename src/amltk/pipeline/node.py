@@ -906,7 +906,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         *,
         optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
         seed: Seed | None = None,
-        max_trials: int | None = 3,
+        max_trials: int | None = None,
         n_workers: int = 1,
         working_dir: str | Path | PathBucket | None = None,
         scheduler: Scheduler | None = None,
@@ -1301,7 +1301,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         *,
         optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
         seed: Seed | None = None,
-        max_trials: int | None = 3,
+        max_trials: int | None = None,
         n_workers: int = 1,
         timeout: float | None = None,
         working_dir: str | Path | PathBucket | None = None,
@@ -1485,6 +1485,12 @@ class Node(RichRenderable, Generic[Item, Space]):
                 refer to the
                 [plugins reference](../../../reference/scheduling/plugins.md) for more.
         """  # noqa: E501
+        if timeout is None and max_trials is None:
+            raise ValueError(
+                "You must one or both of `timeout` or `max_trials` to"
+                " limit the optimization process.",
+            )
+
         match history:
             case None:
                 history = History()
