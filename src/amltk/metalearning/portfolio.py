@@ -210,8 +210,9 @@ def portfolio_selection(
         The final portfolio
         The trajectory, where the entry is the value once added to the portfolio.
     """
-    if not (1 <= k < len(items)):
-        raise ValueError(f"k must be in [1, {len(items)=})")
+    n_items = len(items) if isinstance(items, dict) else items.shape[1]
+    if not (1 <= k < n_items):
+        raise ValueError(f"k must be in [1, {n_items=})")
 
     all_portfolio = pd.DataFrame(items)
 
