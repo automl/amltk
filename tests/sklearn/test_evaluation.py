@@ -685,14 +685,6 @@ def test_evaluator_with_clustering(tmp_path: Path) -> None:
     assert report.values["adjusted_rand_score"] == pytest.approx(1.0)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "This was a bug introduced by sklearn. If this fails, "
-        " it can be safely ignored for now. If it starts to work"
-        " on the action runners, please remove this xfail."
-        " See https://github.com/scikit-learn/scikit-learn/pull/28371"
-    ),
-)
 def test_custom_configure_gets_forwarded(tmp_path: Path) -> None:
     with sklearn_config_context(enable_metadata_routing=True):
         # Pipeline requests a max_depth, defaulting to 1
@@ -760,14 +752,6 @@ def _my_custom_builder(
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "This was a bug introduced by sklearn. If this fails, "
-        " it can be safely ignored for now. If it starts to work"
-        " on the action runners, please remove this xfail."
-        " See https://github.com/scikit-learn/scikit-learn/pull/28371"
-    ),
-)
 def test_custom_builder_can_be_forwarded(tmp_path: Path) -> None:
     with sklearn_config_context(enable_metadata_routing=True):
         pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
@@ -820,6 +804,7 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
         working_dir=tmp_path,
         plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
         max_trials=1,
+        on_trial_exception="continue",
     )
     assert len(history) == 1
     report = history.reports[0]
