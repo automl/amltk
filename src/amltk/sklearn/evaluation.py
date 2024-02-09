@@ -47,6 +47,8 @@ from sklearn.model_selection import (
     StratifiedShuffleSplit,
 )
 from sklearn.model_selection._validation import _score
+from sklearn.utils import Bunch
+from sklearn.utils._metadata_requests import _routing_enabled
 from sklearn.utils.metadata_routing import (
     MetadataRouter,
     MethodMapping,
@@ -78,7 +80,6 @@ if TYPE_CHECKING:
         BaseCrossValidator,
         BaseShuffleSplit,
     )
-    from sklearn.utils import Bunch
 
     from amltk.optimization import Trial
     from amltk.pipeline import Node
@@ -123,47 +124,54 @@ def _route_params(
     _scorer: _Scorer | _MultimetricScorer,
     **params: Any,
 ) -> Bunch:
-    # NOTE: This is basically copied out of sklearns 1.4 cross_validate
+    if _routing_enabled():
+        # NOTE: This is basically copied out of sklearns 1.4 cross_validate
 
-    # For estimators, a MetadataRouter is created in get_metadata_routing
-    # methods. For these router methods, we create the router to use
-    # `process_routing` on it.
-    router = (
-        MetadataRouter(owner="cross_validate")
-        .add(
-            splitter=splitter,
-            method_mapping=MethodMapping().add(caller="fit", callee="split"),
+        # For estimators, a MetadataRouter is created in get_metadata_routing
+        # methods. For these router methods, we create the router to use
+        # `process_routing` on it.
+        router = (
+            MetadataRouter(owner="cross_validate")
+            .add(
+                splitter=splitter,
+                method_mapping=MethodMapping().add(caller="fit", callee="split"),
+            )
+            .add(
+                estimator=estimator,
+                # TODO(SLEP6): also pass metadata to the predict method for
+                # scoring?
+                # ^ Taken from cross_validate source code in sklearn
+                method_mapping=MethodMapping().add(caller="fit", callee="fit"),
+            )
+            .add(
+                scorer=_scorer,
+                method_mapping=MethodMapping().add(caller="fit", callee="score"),
+            )
         )
-        .add(
-            estimator=estimator,
-            # TODO(SLEP6): also pass metadata to the predict method for
-            # scoring?
-            # ^ Taken from cross_validate source code in sklearn
-            method_mapping=MethodMapping().add(caller="fit", callee="fit"),
-        )
-        .add(
-            scorer=_scorer,
-            method_mapping=MethodMapping().add(caller="fit", callee="score"),
-        )
-    )
-    try:
-        return process_routing(router, "fit", **params)  # type: ignore
-    except UnsetMetadataPassedError as e:
-        # The default exception would mention `fit` since in the above
-        # `process_routing` code, we pass `fit` as the caller. However,
-        # the user is not calling `fit` directly, so we change the message
-        # to make it more suitable for this case.
-        raise UnsetMetadataPassedError(
-            message=(
-                f"{sorted(e.unrequested_params.keys())} are passed to cross"
-                " validation but are not explicitly requested or unrequested. See"
-                " the Metadata Routing User guide"
-                " <https://scikit-learn.org/stable/metadata_routing.html> for more"
-                " information."
-            ),
-            unrequested_params=e.unrequested_params,
-            routed_params=e.routed_params,
-        ) from e
+        try:
+            return process_routing(router, "fit", **params)  # type: ignore
+        except UnsetMetadataPassedError as e:
+            # The default exception would mention `fit` since in the above
+            # `process_routing` code, we pass `fit` as the caller. However,
+            # the user is not calling `fit` directly, so we change the message
+            # to make it more suitable for this case.
+            raise UnsetMetadataPassedError(
+                message=(
+                    f"{sorted(e.unrequested_params.keys())} are passed to cross"
+                    " validation but are not explicitly requested or unrequested. See"
+                    " the Metadata Routing User guide"
+                    " <https://scikit-learn.org/stable/metadata_routing.html> for more"
+                    " information."
+                ),
+                unrequested_params=e.unrequested_params,
+                routed_params=e.routed_params,
+            ) from e
+    else:
+        routed_params = Bunch()
+        routed_params.splitter = Bunch(split={"groups": None})
+        routed_params.estimator = Bunch(fit=params)
+        routed_params.scorer = Bunch(score={})
+        return routed_params
 
 
 def _default_holdout(
@@ -907,6 +915,7 @@ class CVEvaluation(Emitter, EvaluationProtocol):
                 parameter_name="comm",
             )
 
+        @override
         def pre_submit(
             self,
             fn: Callable[P, R],
@@ -945,11 +954,11 @@ class CVEvaluation(Emitter, EvaluationProtocol):
 
             non_null_responses = [
                 r
-                for _, r in self.evaluator.emit(CVEvaluation.FOLD_EVALUATED, msg.data)
+                for _, r in self.task.emit(self.evaluator.FOLD_EVALUATED, msg.data)
                 if r is not None
             ]
             logger.debug(
-                f"Received responses for {CVEvaluation.FOLD_EVALUATED}:"
+                f"Received responses for {self.evaluator.FOLD_EVALUATED}:"
                 f" {non_null_responses}",
             )
             match len(non_null_responses):
@@ -1159,6 +1168,7 @@ class CVEvaluation(Emitter, EvaluationProtocol):
     def cv_early_stopping_plugin(
         self,
         strategy: _CVEarlyStopper | None = None,  # TODO: Can provide some defaults...
+        *,
         create_comms: Callable[[], tuple[Comm, Comm]] | None = None,
     ) -> CVEvaluation._CVEarlyStoppingPlugin:
         """Create a plugin for a task allow for early stopping.
