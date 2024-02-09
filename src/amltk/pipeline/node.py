@@ -1157,7 +1157,7 @@ class Node(RichRenderable, Generic[Item, Space]):
             case int() if max_trials > 0:
                 from amltk.scheduling.plugins import Limiter
 
-                _plugins = (*_plugins, Limiter(max_calls=max_trials))
+                _plugins = (*_plugins, Limiter(max_calls=max_trials - 1))
             case _:
                 raise ValueError(f"{max_trials=} must be a positive int")
 
