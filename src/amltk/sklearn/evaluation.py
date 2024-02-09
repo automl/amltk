@@ -1181,13 +1181,62 @@ class CVEvaluation(Emitter):
 
         !!! example
 
-            ```python
-            evaluator = CVEvaluation(...)
-            task = scheduler.task(
-                evaluator.fn,
-                plugins=[evaluator.cv_early_stopping_plugin(my_strategy)]
+            ```python exec="true" source="material-block" result="python"
+            from dataclasses import dataclass
+
+            import sklearn.datasets
+            from sklearn.tree import DecisionTreeClassifier
+
+            from amltk.sklearn import CVEvaluation
+            from amltk.pipeline import Component
+            from amltk.optimization import Metric
+
+            working_dir = Path("./some-path")
+            pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})
+            x, y = sklearn.datasets.load_iris(return_X_y=True)
+            evaluator = CVEvaluation(x, y, n_splits=3, working_dir=working_dir)
+
+            # Our early stopping strategy, with an `update()` and `should_stop()`
+            # signature match what's expected.
+
+            @dataclass
+            class CVEarlyStopper:
+                def update(self, report: Trial.Report) -> None:
+                    # Normally you would update w.r.t. a finished trial, such
+                    # as updating a moving average of the scores.
+                    pass
+
+                def should_stop(self, info: CVEvaluation.FoldInfo) -> bool | Exception:
+                    # Return True to stop, False to continue. Alternatively, return a
+                    # specific exception to attach to the report instead
+                    return True
+
+            history = pipeline.optimize(
+                target=evaluator.fn,
+                metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
+                max_trials=1,
+                working_dir=working_dir,
+
+                # Here we insert the plugin to the task that will get created
+                plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
+
+                # Notably, we set `on_trial_exception="continue"` to not stop as
+                # we expect trials to fail given the early stopping strategy
+                on_trial_exception="continue",
             )
+
+            from rich import print
+            print(history.reports[0])
+            evaluator.bucket.rmdir()  # markdown-exec: hide
             ```
+
+        !!! warning "Recommended settings for `CVEvaluation`
+
+            When a trial is early stopped, it will be counted as a failed trial.
+            This can conflict with the behaviour of `pipeline.optimize` which
+            by default sets `on_trial_exception="raise"`, causing the optimization
+            to end. If using [`pipeline.optimize`][amltk.pipeline.Node.optimize],
+            to set `on_trial_exception="continue"` to continue optimization.
 
         This will also add a new event to the task which you can subscribe to
         with [`task.on("fold-evaluated")`][amltk.scheduler.Task.on]. It will
