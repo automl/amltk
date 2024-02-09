@@ -792,3 +792,43 @@ def test_custom_builder_can_be_forwarded(tmp_path: Path) -> None:
         assert isinstance(model, _MyPipeline)
         assert hasattr(model, "bamboozled")
         assert model.bamboozled == "yes"
+
+
+def test_early_stopping_plugin(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})
+    x, y = data_for_task_type("binary")
+    evaluator = CVEvaluation(
+        x,
+        y,
+        splitter="cv",
+        n_splits=2,  # Notably 2 folds
+        working_dir=tmp_path,
+    )
+
+    @dataclass
+    class CVEarlyStopper:
+        def update(self, report: Trial.Report) -> None:
+            pass  # Normally you would update w.r.t. a finished trial
+
+        def should_stop(self, info: CVEvaluation.FoldInfo) -> bool:  # noqa: ARG002
+            # Just say yes, should stop
+            return True
+
+    history = pipeline.optimize(
+        target=evaluator.fn,
+        metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
+        working_dir=tmp_path,
+        plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
+        max_trials=1,
+    )
+    assert len(history) == 1
+    report = history.reports[0]
+
+    assert report.status is Trial.Status.FAIL
+    assert not any(report.values)
+    assert report.exception is not None
+    assert "Early stop" in str(report.exception)
+
+    # Only the first fold should have been run and put in summary
+    assert "fold_0:accuracy" in report.summary
+    assert "fold_1:accuracy" not in report.summary

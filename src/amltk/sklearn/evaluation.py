@@ -67,7 +67,6 @@ from amltk.exceptions import (
     MismatchedTaskTypeWarning,
     TrialError,
 )
-from amltk.optimization.evaluation import EvaluationProtocol
 from amltk.profiling.profiler import Profiler
 from amltk.scheduling import Plugin, Task
 from amltk.scheduling.events import Emitter, Event
@@ -692,7 +691,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
             return trial.success(**metrics_to_report)
 
 
-class CVEvaluation(Emitter, EvaluationProtocol):
+class CVEvaluation(Emitter):
     """Cross-validation evaluation protocol.
 
     This protocol will create a cross-validation task to be used in parallel and
@@ -736,7 +735,7 @@ class CVEvaluation(Emitter, EvaluationProtocol):
     )
 
     history = pipeline.optimize(
-        target=evaluator,
+        target=evaluator.fn,
         metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
         working_dir=working_dir,
         max_trials=1,
@@ -784,7 +783,7 @@ class CVEvaluation(Emitter, EvaluationProtocol):
         params={"configure": {"n_jobs": 2}}
     )
     history = pipeline.optimize(
-        target=evaluator,
+        target=evaluator.fn,
         metric=Metric("accuracy"),
         working_dir=working_dir,
         max_trials=1,
@@ -792,6 +791,12 @@ class CVEvaluation(Emitter, EvaluationProtocol):
     print(history.df())
     evaluator.bucket.rmdir()  # Cleanup
     ```
+
+    !!! tip "CV Early Stopping"
+
+        To see more about early stopping, please see
+        [`CVEvaluation.cv_early_stopping_plugin()`][amltk.sklearn.evaluation.CVEvaluation.cv_early_stopping_plugin].
+
     """
 
     FOLD_EVALUATED: Event[[FoldInfo], bool | Exception] = Event("fold-evaluated")

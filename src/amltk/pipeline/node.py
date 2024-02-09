@@ -86,7 +86,6 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
     from rich.panel import Panel
 
-    from amltk.optimization.evaluation import EvaluationProtocol
     from amltk.optimization.metric import Metric
     from amltk.optimization.trial import Trial
     from amltk.pipeline.components import Choice, Join, Sequential
@@ -898,9 +897,7 @@ class Node(RichRenderable, Generic[Item, Space]):
     def register_optimization_loop(  # noqa: C901, PLR0915, PLR0912
         self,
         target: (
-            EvaluationProtocol
-            | Task[[Trial, Node], Trial.Report]
-            | Callable[[Trial, Node], Trial.Report]
+            Task[[Trial, Node], Trial.Report] | Callable[[Trial, Node], Trial.Report]
         ),
         metric: Metric | Sequence[Metric],
         *,
@@ -926,10 +923,6 @@ class Node(RichRenderable, Generic[Item, Space]):
             target:
                 The function against which to optimize.
 
-                * If `target` is an
-                [`EvaluationProtocol`][amltk.optimization.evaluation.EvaluationProtocol],
-                then it will be used to evaluate the pipeline.
-
                 * If `target` is a function, then it must take in a
                 [`Trial`][amltk.optimization.trial.Trial] as the first argument
                 and a [`Node`][amltk.pipeline.node.Node] second argument, returning a
@@ -937,7 +930,8 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the [optimization guide](../../../guides/optimization.md) for more.
 
                 * If `target` is a [`Task`][amltk.scheduling.task.Task], then
-                this is not implemeneted yet. Sorry
+                this will be used instead, updating the plugins with any additional
+                plugins specified.
             metric:
                 The metric(s) that will be passed to `optimizer=`. These metrics
                 should align with what is being computed in `target=`.
@@ -1171,22 +1165,15 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"Invalid scheduler {scheduler}. Must be a Scheduler")
 
-        from amltk.optimization.evaluation import EvaluationProtocol
-
         match target:
             case Task():  # type: ignore # NOTE not sure why pyright complains here
                 for _p in _plugins:
                     target.attach_plugin(_p)
                 task = target
-            case EvaluationProtocol():
-                task = scheduler.task(target.fn, plugins=_plugins)
             case _ if callable(target):
                 task = scheduler.task(target, plugins=_plugins)
             case _:
-                raise ValueError(
-                    f"Invalid target {target}. Must be a function or an"
-                    " EvaluationProtocol",
-                )
+                raise ValueError(f"Invalid {target=}. Must be a function or Task.")
 
         # NOTE: I'm not particularly fond of this hack but I assume most people
         # when prototyping don't care for the actual underlying optimizer and
@@ -1293,9 +1280,7 @@ class Node(RichRenderable, Generic[Item, Space]):
     def optimize(
         self,
         target: (
-            EvaluationProtocol
-            | Callable[[Trial, Node], Trial.Report]
-            | Task[[Trial, Node], Trial.Report]
+            Callable[[Trial, Node], Trial.Report] | Task[[Trial, Node], Trial.Report]
         ),
         metric: Metric | Sequence[Metric],
         *,
@@ -1326,10 +1311,6 @@ class Node(RichRenderable, Generic[Item, Space]):
             target:
                 The function against which to optimize.
 
-                * If `target` is an
-                [`EvaluationProtocol`][amltk.optimization.evaluation.EvaluationProtocol],
-                then it will be used to evaluate the pipeline.
-
                 * If `target` is a function, then it must take in a
                 [`Trial`][amltk.optimization.trial.Trial] as the first argument
                 and a [`Node`][amltk.pipeline.node.Node] second argument, returning a
@@ -1337,7 +1318,8 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the [optimization guide](../../../guides/optimization.md) for more.
 
                 * If `target` is a [`Task`][amltk.scheduling.task.Task], then
-                this is not implemeneted yet. Sorry
+                this will be used instead, updating the plugins with any additional
+                plugins specified.
             metric:
                 The metric(s) that will be passed to `optimizer=`. These metrics
                 should align with what is being computed in `target=`.
