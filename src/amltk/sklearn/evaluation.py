@@ -651,7 +651,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                             raise CVEarlyStoppedError("Early stopped!")
                         case False:
                             pass
-                        case np.bool_ if bool(response) is True:
+                        case np.bool_() if bool(response) is True:
                             raise CVEarlyStoppedError("Early stopped!")
                         case Exception():
                             raise response
