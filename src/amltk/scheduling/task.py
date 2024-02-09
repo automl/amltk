@@ -275,9 +275,6 @@ class Task(Emitter, RichRenderable, Generic[P, R]):
         msg = f"Submitted {callstring(self.function, *args, **kwargs)} from {self}."
         logger.debug(msg)
 
-        # NOTE: Not sure I like this approach but I don't see any direct harm.
-        # It should just provide more information to those listening to the callback
-        # which is mostly internal tooling such as the Comm Plugin
         self.on_submitted.emit(future, *args, **kwargs)
 
         # Process the task once it's completed
