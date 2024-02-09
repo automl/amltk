@@ -243,19 +243,22 @@ import logging
 import math
 import time
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypeVar, overload
 from typing_extensions import ParamSpec, override
-from uuid import uuid4
 
-from amltk._functional import callstring, funcname
+from more_itertools import first_true
+
+from amltk._functional import funcname
 from amltk._richutil.renderers.function import Function
+from amltk.exceptions import EventNotKnownError
+from amltk.randomness import randuid
 
 if TYPE_CHECKING:
+    from rich.console import RenderableType
     from rich.text import Text
-    from rich.tree import Tree
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -273,12 +276,12 @@ class RegisteredTimeCallOrderStrategy:
         cls,
         events: Iterable[
             tuple[
-                Iterable[Handler[P]],
+                Iterable[Handler[P, R]],
                 tuple[Any, ...] | None,
                 dict[str, Any] | None,
             ]
         ],
-    ) -> None:
+    ) -> list[tuple[Handler[P, R], R | None]]:
         """Call all events in the scheduler."""
         all_handlers = []
         for handlers, args, kwargs in events:
@@ -287,12 +290,14 @@ class RegisteredTimeCallOrderStrategy:
             ]
 
         sorted_handlers = sorted(all_handlers, key=lambda item: item[0].registered_at)
-        for handler, args, kwargs in sorted_handlers:
-            handler(*args, **kwargs)
+        return [
+            (handler, handler(*args, **kwargs))
+            for handler, args, kwargs in sorted_handlers
+        ]
 
 
 @dataclass(frozen=True)
-class Event(Generic[P]):
+class Event(Generic[P, R]):
     """An event that can be emitted.
 
     Attributes:
@@ -321,7 +326,7 @@ class Event(Generic[P]):
 
 
 @dataclass
-class Subscriber(Generic[P]):
+class Subscriber(Generic[P, R]):
     """An object that can be used to easily subscribe to a certain event.
 
     ```python
@@ -353,53 +358,24 @@ class Subscriber(Generic[P]):
     """
 
     emitter: Emitter
-    event: Event[P]
-    when: Callable[[], bool] | None = None
-    max_calls: int | None = None
-    repeat: int = 1
-    every: int = 1
+    event: Event[P, R]
 
     @property
     def event_counts(self) -> int:
         """The number of times this event has been emitted."""
         return self.emitter.event_counts[self.event]
 
-    @overload
-    def __call__(
+    def register(
         self,
-        callback: None = None,
-        *,
-        when: Callable[[], bool] | None = ...,
-        max_calls: int | None = ...,
-        repeat: int = ...,
-        every: int = ...,
-    ) -> partial[Callable[P, Any]]:
-        ...
-
-    @overload
-    def __call__(
-        self,
-        callback: Callable[P, Any],
-        *,
-        when: Callable[[], bool] | None = ...,
-        max_calls: int | None = ...,
-        repeat: int = ...,
-        every: int = ...,
-        hidden: bool = ...,
-    ) -> Callable[P, Any]:
-        ...
-
-    def __call__(
-        self,
-        callback: Callable[P, Any] | None = None,
+        callback: Callable[P, R],
         *,
         when: Callable[[], bool] | None = None,
         max_calls: int | None = None,
         repeat: int = 1,
         every: int = 1,
         hidden: bool = False,
-    ) -> Callable[P, Any] | partial[Callable[P, Any]]:
-        """Subscribe to the event associated with this object.
+    ) -> None:
+        """Register a callback for this subscriber.
 
         Args:
             callback: The callback to register.
@@ -411,22 +387,80 @@ class Subscriber(Generic[P]):
                 This is mainly used to facilitate Plugins who
                 act upon events but don't want to be seen, primarily
                 as they are just book-keeping callbacks.
+        """
+        self.emitter.register(
+            event=self.event,
+            callback=callback,
+            when=when,
+            max_calls=max_calls,
+            repeat=repeat,
+            every=every,
+            hidden=hidden,
+        )
 
-        Returns:
-            The callback if it was provided, otherwise it acts
-                as a decorator.
+    @overload
+    def __call__(
+        self,
+        callback: None = None,
+        *,
+        when: Callable[[], bool] | None = ...,
+        max_calls: int | None = ...,
+        repeat: int = ...,
+        every: int = ...,
+        hidden: bool = ...,
+    ) -> Callable[[Callable[P, R]], None]:
+        ...
+
+    @overload
+    def __call__(
+        self,
+        callback: Callable[P, R],
+        *,
+        when: Callable[[], bool] | None = ...,
+        max_calls: int | None = ...,
+        repeat: int = ...,
+        every: int = ...,
+        hidden: bool = ...,
+    ) -> None:
+        ...
+
+    def __call__(
+        self,
+        callback: Callable[P, R] | None = None,
+        *,
+        when: Callable[[], bool] | None = None,
+        max_calls: int | None = None,
+        repeat: int = 1,
+        every: int = 1,
+        hidden: bool = False,
+    ) -> Callable[[Callable[P, R]], None] | None:
+        """A decorator to register a callback for this subscriber.
+
+        Args:
+            callback: The callback to register. If `None`, then this
+                acts as a decorator, as you would normally use it. Prefer
+                to leave this as `None` and use
+                [`register()`][amltk.scheduling.events.Subscriber.register] if
+                you have a direct reference to the function and are not decorating it.
+            when: A predicate that must be satisfied for the callback to be called.
+            every: The callback will be called every `every` times the event is emitted.
+            repeat: The callback will be called `repeat` times successively.
+            max_calls: The maximum number of times the callback can be called.
+            hidden: Whether to hide the callback in visual output.
+                This is mainly used to facilitate Plugins who
+                act upon events but don't want to be seen, primarily
+                as they are just book-keeping callbacks.
         """
         if callback is None:
             return partial(
-                self.__call__,
+                self.register,
                 when=when,
                 max_calls=max_calls,
                 repeat=repeat,
                 every=every,
-            )  # type: ignore
-
-        self.emitter.on(
-            self.event,
+                hidden=hidden,
+            )
+        self.register(
             callback,
             when=when,
             max_calls=max_calls,
@@ -434,22 +468,26 @@ class Subscriber(Generic[P]):
             every=every,
             hidden=hidden,
         )
-        return callback
+        return None
 
-    def emit(self, *args: P.args, **kwargs: P.kwargs) -> None:
+    def emit(
+        self,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> list[tuple[Handler[P, R], R | None]]:
         """Emit this subscribers event."""
-        self.emitter.emit(self.event, *args, **kwargs)
+        return self.emitter.emit(self.event, *args, **kwargs)
 
 
 @dataclass
-class Handler(Generic[P]):
+class Handler(Generic[P, R]):
     """A handler for an event.
 
     This is a simple class that holds a callback and any predicate
     that must be satisfied for it to be triggered.
     """
 
-    callback: Callable[P, Any]
+    callback: Callable[P, R]
     when: Callable[[], bool] | None = None
     every: int = 1
     n_calls_to_handler: int = 0
@@ -459,26 +497,39 @@ class Handler(Generic[P]):
     registered_at: int = field(default_factory=time.time_ns)
     hidden: bool = False
 
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R | None:
         """Call the callback if the predicate is satisfied.
 
         If the predicate is not satisfied, then `None` is returned.
         """
         self.n_calls_to_handler += 1
         if self.every > 1 and self.n_calls_to_handler % self.every != 0:
-            return
+            return None
 
         if self.when is not None and not self.when():
-            return
+            return None
 
         max_calls = self.max_calls if self.max_calls is not None else math.inf
-        for _ in range(self.repeat):
-            if self.n_calls_to_callback >= max_calls:
-                return
 
-            logger.debug(f"Calling: {callstring(self.callback)}")
-            self.callback(*args, **kwargs)
+        if self.repeat == 1:
+            if self.n_calls_to_callback >= max_calls:
+                return None
+
             self.n_calls_to_callback += 1
+            return self.callback(*args, **kwargs)
+
+        if self.n_calls_to_callback >= max_calls:
+            return None
+
+        responses = iter(self.callback(*args, **kwargs) for _ in range(self.repeat))
+        self.n_calls_to_callback += 1
+        first_response = next(responses)
+        if first_response is not None:
+            raise ValueError("A callback with a response cannot have `repeat` > 1.")
+
+        # Otherwise just exhaust the iterator
+        list(responses)
+        return None
 
     def __rich__(self) -> Text:
         from rich.text import Text
@@ -495,7 +546,7 @@ class Handler(Generic[P]):
         )
 
 
-class Emitter(Mapping[Event, list[Handler]]):
+class Emitter:
     """An event emitter.
 
     This class is used to emit events and register callbacks for those events.
@@ -504,6 +555,9 @@ class Emitter(Mapping[Event, list[Handler]]):
     that objects using an `Emitter` can easily create access points for users
     to directly subscribe to their [`Events`][amltk.scheduling.events.Event].
     """
+
+    HandlerResponses: TypeAlias = Iterable[tuple[Handler[P, R], R | None]]
+    """The stream of responses from handlers when an event is triggered."""
 
     name: str | None
     """The name of the emitter."""
@@ -522,14 +576,19 @@ class Emitter(Mapping[Event, list[Handler]]):
                 will be used.
         """
         super().__init__()
-        self.unique_ref = f"{name}-{uuid4()}"
+        self.unique_ref = f"{name}-{randuid()}"
         self.emitted_events: set[Event] = set()
 
         self.name = name
         self.handlers = defaultdict(list)
         self.event_counts = Counter()
 
-    def emit(self, event: Event[P], *args: Any, **kwargs: Any) -> None:
+    def emit(
+        self,
+        event: Event[P, R],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> list[tuple[Handler[P, R], R | None]]:
         """Emit an event.
 
         This will call all the handlers for the event.
@@ -547,88 +606,87 @@ class Emitter(Mapping[Event, list[Handler]]):
         logger.debug(f"{self.name}: Emitting {event}")
 
         self.event_counts[event] += 1
-        for handler in self.handlers[event]:
-            handler(*args, **kwargs)
-
-    def emit_many(
-        self,
-        events: dict[Event, tuple[tuple[Any, ...] | None, dict[str, Any] | None]],
-    ) -> None:
-        """Emit multiple events.
-
-        This is useful for cases where you don't want to favour one callback
-        over another, and so uses the time a callback was registered to call
-        the callback instead.
-
-        Args:
-            events: A mapping of event keys to a tuple of positional
-                arguments and keyword arguments to pass to the handlers.
-        """
-        for event in events:
-            self.event_counts[event] += 1
-
-        items = [
-            (handlers, args, kwargs)
-            for event, (args, kwargs) in events.items()
-            if (handlers := self.get(event)) is not None
-        ]
-
-        header = f"{self.name}: Emitting many events"
-        logger.debug(header)
-        logger.debug(",".join(str(event) for event in events))
-        RegisteredTimeCallOrderStrategy.execute(items)
-
-    @override
-    def __getitem__(self, event: Event) -> list[Handler]:
-        return self.handlers[event]
-
-    @override
-    def __iter__(self) -> Iterator[Event]:
-        return iter(self.handlers)
-
-    @override
-    def __len__(self) -> int:
-        return len(self.handlers)
+        return [(handler, handler(*args, **kwargs)) for handler in self.handlers[event]]
 
     @property
     def events(self) -> list[Event]:
         """Return a list of the events."""
         return list(self.handlers.keys())
 
-    def subscriber(
+    def subscriber(self, event: Event[P, R]) -> Subscriber[P, R]:
+        """Create a subscriber for an event.
+
+        Args:
+            event: The event to register the callback for.
+        """
+        if event not in self.handlers:
+            self.handlers[event] = []
+
+        return Subscriber(self, event)
+
+    @overload
+    def on(
         self,
-        event: Event[P],
+        event: str,
+        *,
+        when: Callable[[], bool] | None = ...,
+        every: int = ...,
+        repeat: int = ...,
+        max_calls: int | None = ...,
+        hidden: bool = ...,
+    ) -> Callable[[Callable[..., Any | None]], None]:
+        ...
+
+    @overload
+    def on(
+        self,
+        event: Event[P, R],
+        *,
+        when: Callable[[], bool] | None = ...,
+        every: int = ...,
+        repeat: int = ...,
+        max_calls: int | None = ...,
+        hidden: bool = ...,
+    ) -> Callable[[Callable[P, R | None]], None]:
+        ...
+
+    def on(
+        self,
+        event: Event[P, R] | str,
         *,
         when: Callable[[], bool] | None = None,
         every: int = 1,
         repeat: int = 1,
         max_calls: int | None = None,
-    ) -> Subscriber[P]:
-        """Create a subscriber for an event.
+        hidden: bool = False,
+    ) -> Callable[[Callable[P, R | None]], None]:
+        """Register a callback for an event as a decorator.
 
         Args:
             event: The event to register the callback for.
+            callback: The callback to register.
             when: A predicate that must be satisfied for the callback to be called.
             every: The callback will be called every `every` times the event is emitted.
             repeat: The callback will be called `repeat` times successively.
             max_calls: The maximum number of times the callback can be called.
+            hidden: Whether to hide the callback in visual output.
+                This is mainly used to facilitate Plugins who
+                act upon events but don't want to be seen, primarily
+                as they are just book-keeping callbacks.
         """
-        if event not in self.handlers:
-            self.handlers[event] = []
-
-        return Subscriber(
-            self,
-            event,  # type: ignore
+        return partial(
+            self.subscriber(event=self.as_event(event)),  # type: ignore
             when=when,
             every=every,
             repeat=repeat,
             max_calls=max_calls,
+            hidden=hidden,
         )
 
-    def on(
+    def register(
         self,
-        event: Event[P],
-        callback: Callable,
+        event: Event[P, R] | str,
+        callback: Callable[P, R],
         *,
         when: Callable[[], bool] | None = None,
         every: int = 1,
@@ -650,6 +708,8 @@ class Emitter(Mapping[Event, list[Handler]]):
                 act upon events but don't want to be seen, primarily
                 as they are just book-keeping callbacks.
         """
+        event = self.as_event(event)
+
         if repeat <= 0:
             raise ValueError(f"{repeat=} must be a positive integer.")
 
@@ -659,9 +719,6 @@ class Emitter(Mapping[Event, list[Handler]]):
         # Make sure it shows up in the event counts, setting it to 0 if it
         # doesn't exist
         self.event_counts.setdefault(event, 0)
-
-        # This hackery is just to get down to a flat list of events that need
-        # to be set up
         self.handlers[event].append(
             Handler(
                 callback,
@@ -695,7 +752,7 @@ class Emitter(Mapping[Event, list[Handler]]):
             if e not in self.handlers:
                 self.handlers[e] = []
 
-    def __rich__(self) -> Tree:
+    def __rich__(self) -> RenderableType:
         from rich.tree import Tree
 
         tree = Tree(self.name or "", hide_root=self.name is None)
@@ -718,3 +775,27 @@ class Emitter(Mapping[Event, list[Handler]]):
                     event_tree.add(handler)
 
         return tree
+
+    @overload
+    def as_event(self, key: str) -> Event:
+        ...
+
+    @overload
+    def as_event(self, key: Event[P, R]) -> Event[P, R]:
+        ...
+
+    def as_event(self, key: str | Event) -> Event:
+        """Return the event associated with the key."""
+        match key:
+            case Event():
+                return key
+            case str():
+                match = first_true(self.events, None, lambda e: e.name == key)
+                if match is None:
+                    raise EventNotKnownError(
+                        f"{key=} is not a valid event for {self.name}."
+                        f"\nKnown events are: {[e.name for e in self.events]}",
+                    )
+                return match
+            case _:
+                raise TypeError(f"{key=} must be a string or an Event.")

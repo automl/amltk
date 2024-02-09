@@ -130,6 +130,10 @@ class MismatchedTaskTypeWarning(TaskTypeWarning):
 
 
 class TrialError(RuntimeError):
-    """An exception raised when a trial and it meant to be raised directly
+    """An exception raised from a trial and it is meant to be raised directly
     to the user.
     """
+
+
+class CVEarlyStoppedError(RuntimeError):
+    """An exception raised when a CV evaluation is early stopped."""

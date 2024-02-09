@@ -32,7 +32,7 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
 
     In this example, we create a scheduler that uses local processes as
     workers. We then create a task that will run a function `fn` and submit it
-    to the scheduler. Lastly, a callback is registered to `@on_future_result` to print the
+    to the scheduler. Lastly, a callback is registered to `@future-result` to print the
     result when the compute is done.
 
     ```python exec="true" source="material-block" html="true"
@@ -58,12 +58,12 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
 
     The last line in the previous example called
     [`scheduler.run()`][amltk.scheduling.Scheduler.run] is what starts the scheduler
-    running, in which it will first emit the `@on_start` event. This triggered the
+    running, in which it will first emit the `@start` event. This triggered the
     callback `launch_the_compute()` which submitted the function `fn` with the
     arguments `#!python 1`.
 
     The scheduler then ran the compute and waited for it to complete, emitting the
-    `@on_future_result` event when it was done successfully. This triggered the callback
+    `@future-result` event when it was done successfully. This triggered the callback
     `callback()` which printed the result.
 
     At this point, there is no more compute happening and no more events to respond to
@@ -76,27 +76,27 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
         When the scheduler enters some important state, it will emit an event
         to let you know.
 
-        === "`@on_start`"
+        === "`@start`"
 
             ::: amltk.scheduling.Scheduler.on_start
 
-        === "`@on_finishing`"
+        === "`@finishing`"
 
             ::: amltk.scheduling.Scheduler.on_finishing
 
-        === "`@on_finished`"
+        === "`@finished`"
 
             ::: amltk.scheduling.Scheduler.on_finished
 
-        === "`@on_stop`"
+        === "`@stop`"
 
             ::: amltk.scheduling.Scheduler.on_stop
 
-        === "`@on_timeout`"
+        === "`@timeout`"
 
             ::: amltk.scheduling.Scheduler.on_timeout
 
-        === "`@on_empty`"
+        === "`@empty`"
 
             ::: amltk.scheduling.Scheduler.on_empty
 
@@ -107,23 +107,23 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
         [`Task`][amltk.scheduling.Task] as it will emit specific events
         for the task at hand, and not all compute.
 
-        === "`@on_future_submitted`"
+        === "`@future-submitted`"
 
             ::: amltk.scheduling.Scheduler.on_future_submitted
 
-        === "`@on_future_result`"
+        === "`@future-result`"
 
             ::: amltk.scheduling.Scheduler.on_future_result
 
-        === "`@on_future_exception`"
+        === "`@future-exception`"
 
             ::: amltk.scheduling.Scheduler.on_future_exception
 
-        === "`@on_future_done`"
+        === "`@future-done`"
 
             ::: amltk.scheduling.Scheduler.on_future_done
 
-        === "`@on_future_cancelled`"
+        === "`@future-cancelled`"
 
             ::: amltk.scheduling.Scheduler.on_future_cancelled
 
@@ -149,7 +149,7 @@ responding to computed functions, but rather use a [`Task`][amltk.scheduling.Tas
         You can tell the `Scheduler` to stop after a certain amount of time
         with the `timeout=` argument to [`run()`][amltk.scheduling.Scheduler.run].
 
-        This will also trigger the `@on_timeout` event as seen in the `Scheduler` output.
+        This will also trigger the `@timeout` event as seen in the `Scheduler` output.
 
         ```python exec="true" source="material-block" html="True" hl_lines="19"
         import time
@@ -312,7 +312,7 @@ class Scheduler(RichRenderable):
     queue: dict[Future, tuple[Callable, tuple, dict]]
     """The queue of tasks running."""
 
-    on_start: Subscriber[[]]
+    on_start: Subscriber[[], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
     scheduler starts. This is the first event emitted by the scheduler and
     one of the only ways to submit the initial compute to the scheduler.
@@ -323,7 +323,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_future_submitted: Subscriber[Future]
+    on_future_submitted: Subscriber[[Future], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     some compute is submitted.
 
@@ -333,7 +333,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_future_done: Subscriber[Future]
+    on_future_done: Subscriber[[Future], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     some compute is done, regardless of whether it was successful or not.
 
@@ -343,7 +343,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_future_result: Subscriber[Future, Any]
+    on_future_result: Subscriber[[Future, Any], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     a future returned with a result, no exception raise.
 
@@ -353,7 +353,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_future_exception: Subscriber[Future, BaseException]
+    on_future_exception: Subscriber[[Future, BaseException], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     some compute raised an uncaught exception.
 
@@ -363,7 +363,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_future_cancelled: Subscriber[Future]
+    on_future_cancelled: Subscriber[[Future], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called
     when a future is cancelled. This usually occurs due to the underlying Scheduler,
     and is not something we do directly, other than when shutting down the scheduler.
@@ -374,7 +374,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_finishing: Subscriber[[]]
+    on_finishing: Subscriber[[], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
     scheduler is finishing up. This occurs right before the scheduler shuts down
     the executor.
@@ -385,7 +385,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_finished: Subscriber[[]]
+    on_finished: Subscriber[[], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     the scheduler is finished, has shutdown the executor and possibly
     terminated any remaining compute.
@@ -396,7 +396,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_stop: Subscriber[str, BaseException | None]
+    on_stop: Subscriber[[str, BaseException | None], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
     scheduler is has been stopped due to the [`stop()`][amltk.scheduling.Scheduler.stop]
     method being called.
@@ -407,7 +407,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_timeout: Subscriber[[]]
+    on_timeout: Subscriber[[], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when
     the scheduler reaches the timeout.
 
@@ -417,7 +417,7 @@ class Scheduler(RichRenderable):
         ...
     ```
     """
-    on_empty: Subscriber[[]]
+    on_empty: Subscriber[[], Any]
     """A [`Subscriber`][amltk.scheduling.events.Subscriber] which is called when the
     queue is empty. This can be useful to re-fill the queue and prevent the
     scheduler from exiting.
@@ -429,17 +429,19 @@ class Scheduler(RichRenderable):
     ```
     """
 
-    STARTED: Event[[]] = Event("on_start")
-    FINISHING: Event[[]] = Event("on_finishing")
-    FINISHED: Event[[]] = Event("on_finished")
-    STOP: Event[str, BaseException | None] = Event("on_stop")
-    TIMEOUT: Event[[]] = Event("on_timeout")
-    EMPTY: Event[[]] = Event("on_empty")
-    FUTURE_SUBMITTED: Event[Future] = Event("on_future_submitted")
-    FUTURE_DONE: Event[Future] = Event("on_future_done")
-    FUTURE_CANCELLED: Event[Future] = Event("on_future_cancelled")
-    FUTURE_RESULT: Event[Future, Any] = Event("on_future_result")
-    FUTURE_EXCEPTION: Event[Future, BaseException] = Event("on_future_exception")
+    STARTED: Event[[], Any] = Event("on_start")
+    FINISHING: Event[[], Any] = Event("on_finishing")
+    FINISHED: Event[[], Any] = Event("on_finished")
+    STOP: Event[[str, BaseException | None], Any] = Event("on_stop")
+    TIMEOUT: Event[[], Any] = Event("on_timeout")
+    EMPTY: Event[[], Any] = Event("on_empty")
+    FUTURE_SUBMITTED: Event[[Future], Any] = Event("on_future_submitted")
+    FUTURE_DONE: Event[[Future], Any] = Event("on_future_done")
+    FUTURE_CANCELLED: Event[[Future], Any] = Event("on_future_cancelled")
+    FUTURE_RESULT: Event[[Future, Any], Any] = Event("on_future_result")
+    FUTURE_EXCEPTION: Event[[Future, BaseException], Any] = Event(
+        "on_future_exception",
+    )
 
     def __init__(
         self,
@@ -1205,7 +1207,7 @@ class Scheduler(RichRenderable):
                 # Monitor for the queue being empty
                 monitor_empty = asyncio.create_task(self._monitor_queue_empty())
                 if end_on_empty:
-                    self.on_empty(lambda: monitor_empty.cancel(), hidden=True)
+                    self.on_empty.register(lambda: monitor_empty.cancel(), hidden=True)
 
                 # The timeout criterion is satisfied by the `timeout` arg
                 await asyncio.wait(

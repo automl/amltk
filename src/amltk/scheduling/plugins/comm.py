@@ -8,13 +8,14 @@ messages between the main process and the `Task`.
 ??? tip "Usage"
 
     To setup a `Task` to work with a `Comm`, the `Task` **must accept a `comm` as
-    it's first argument**.
+    a keyword argument**. This is to prevent it conflicting with any args passed
+    through during the call to `submit()`.
 
     ```python exec="true" source="material-block" result="python" hl_lines="4-7 10 17-19 21-23"
     from amltk.scheduling import Scheduler
     from amltk.scheduling.plugins import Comm
 
-    def powers_of_two(comm: Comm, start: int, n: int) -> None:
+    def powers_of_two(start: int, n: int, *, comm: Comm) -> None:
         with comm.open():
             for i in range(n):
                 comm.send(start ** (i+1))
@@ -208,7 +209,7 @@ class Comm:
         id: The id of the comm.
     """
 
-    MESSAGE: Event[Comm.Msg] = Event("comm-message")
+    MESSAGE: Event[[Comm.Msg], Any] = Event("comm-message")
     """A Task has sent a message to the main process.
 
     ```python exec="true" source="material-block" html="true" hl_lines="6 11-13"
@@ -229,7 +230,7 @@ class Comm:
     ```
     """
 
-    REQUEST: Event[Comm.Msg] = Event("comm-request")
+    REQUEST: Event[[Comm.Msg], Any] = Event("comm-request")
     """A Task has sent a request.
 
     ```python exec="true" source="material-block" html="true" hl_lines="6 16-18"
@@ -262,7 +263,7 @@ class Comm:
     ```
     """  # noqa: E501
 
-    OPEN: Event[Comm.Msg] = Event("comm-open")
+    OPEN: Event[[Comm.Msg], Any] = Event("comm-open")
     """The task has signalled it's open.
 
     ```python exec="true" source="material-block" html="true" hl_lines="5 15-17"
@@ -290,7 +291,7 @@ class Comm:
     ```
     """
 
-    CLOSE: Event[Comm.Msg] = Event("comm-close")
+    CLOSE: Event[[Comm.Msg], Any] = Event("comm-close")
     """The task has signalled it's close.
 
     ```python exec="true" source="material-block" html="true" hl_lines="7 17-19"
@@ -487,11 +488,13 @@ class Comm:
 
         def __init__(
             self,
+            parameter_name: str = "comm",
             create_comms: Callable[[], tuple[Comm, Comm]] | None = None,
         ) -> None:
             """Initialize the plugin.
 
             Args:
+                parameter_name: The name of the parameter to inject the comm into.
                 create_comms: A function that creates a pair of communication
                     channels. Defaults to `Comm.create`.
             """
@@ -499,6 +502,7 @@ class Comm:
             if create_comms is None:
                 create_comms = Comm.create
 
+            self.parameter_name = parameter_name
             self.create_comms = create_comms
             self.comms: dict[CommID, tuple[Comm, Comm]] = {}
             self.communication_tasks: list[asyncio.Task] = []
@@ -517,7 +521,7 @@ class Comm:
                 task: The task the plugin is being attached to.
             """
             self.task = task
-            task.emitter.add_event(Comm.MESSAGE, Comm.REQUEST, Comm.OPEN, Comm.CLOSE)
+            task.add_event(Comm.MESSAGE, Comm.REQUEST, Comm.OPEN, Comm.CLOSE)
             task.on_submitted(self._begin_listening, hidden=True)
 
         @override
@@ -542,28 +546,28 @@ class Comm:
                 not be submitted.
             """
             host_comm, worker_comm = self.create_comms()
+            if self.parameter_name in kwargs:
+                raise ValueError(
+                    f"Parameter {self.parameter_name} already exists in kwargs!",
+                )
+
+            kwargs[self.parameter_name] = worker_comm
 
             # We don't necessarily know if the future will be submitted. If so,
             # we will use this index later to retrieve the host_comm
             self.comms[worker_comm.id] = (host_comm, worker_comm)
 
             # Make sure to include the Comm
-            return fn, (worker_comm, *args), kwargs
+            return fn, args, kwargs
 
-        @override
-        def copy(self) -> Self:
-            """Return a copy of the plugin.
-
-            Please see [`Plugin.copy()`][amltk.scheduling.Plugin.copy].
-            """
-            return self.__class__(create_comms=self.create_comms)
-
-        def _begin_listening(self, f: asyncio.Future, *args: Any, **_: Any) -> Any:
-            match args:
-                case (worker_comm, *_) if isinstance(worker_comm, Comm):
-                    worker_comm = args[0]
-                case _:
-                    raise ValueError(f"Expected first arg to be a Comm, got {args[0]}")
+        def _begin_listening(self, f: asyncio.Future, *args: Any, **kwargs: Any) -> Any:
+            worker_comm = kwargs.get(self.parameter_name)
+            if worker_comm is None:
+                raise ValueError(
+                    f"Expected Comm in `{self.parameter_name}` but it didn't exist."
+                    f" This is likely a bug in the plugin."
+                    f"\nargs: {args} kwargs: {kwargs}",
+                )
 
             host_comm, worker_comm = self.comms[worker_comm.id]
 
@@ -627,7 +631,7 @@ class Comm:
                         future=future,
                         task=self.task,
                     )
-                    self.task.emitter.emit(event, msg)
+                    self.task.emit(event, msg)
 
             except EOFError:
                 # This means the connection dropped to the worker, however this is not

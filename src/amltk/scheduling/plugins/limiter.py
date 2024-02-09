@@ -42,15 +42,15 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
-from typing_extensions import ParamSpec, Self, override
+from typing_extensions import ParamSpec, override
 
 from amltk.scheduling.events import Event
 from amltk.scheduling.plugins.plugin import Plugin
+from amltk.scheduling.task import Task
 
 if TYPE_CHECKING:
     from rich.panel import Panel
 
-    from amltk.scheduling.task import Task
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -70,7 +70,7 @@ class Limiter(Plugin):
     name: ClassVar = "limiter"
     """The name of the plugin."""
 
-    CALL_LIMIT_REACHED: Event[...] = Event("call-limit-reached")
+    CALL_LIMIT_REACHED: Event[..., Any] = Event("call-limit-reached")
     """The event emitted when the task has reached its call limit.
 
     Will call any subscribers with the task as the first argument,
@@ -94,7 +94,7 @@ class Limiter(Plugin):
     ```
     """
 
-    CONCURRENT_LIMIT_REACHED: Event[...] = Event("concurrent-limit-reached")
+    CONCURRENT_LIMIT_REACHED: Event[..., Any] = Event("concurrent-limit-reached")
     """The event emitted when the task has reached its concurrent call limit.
 
     Will call any subscribers with the task as the first argument, followed by the
@@ -118,7 +118,9 @@ class Limiter(Plugin):
     ```
     """
 
-    DISABLED_DUE_TO_RUNNING_TASK: Event[...] = Event("disabled-due-to-running-task")
+    DISABLED_DUE_TO_RUNNING_TASK: Event[..., Any] = Event(
+        "disabled-due-to-running-task",
+    )
     """The event emitter when the task was not submitted due to some other
     running task.
 
@@ -162,12 +164,13 @@ class Limiter(Plugin):
         """
         super().__init__()
 
-        if not_while_running is None:
-            not_while_running = []
-        elif isinstance(not_while_running, Iterable):
-            not_while_running = list(not_while_running)
-        else:
-            not_while_running = [not_while_running]
+        match not_while_running:
+            case None:
+                not_while_running = []
+            case Task():
+                not_while_running = [not_while_running]
+            case _:
+                not_while_running = list(not_while_running)
 
         self.max_calls = max_calls
         self.max_concurrent = max_concurrent
@@ -194,7 +197,7 @@ class Limiter(Plugin):
                 " has sufficient use case.",
             )
 
-        task.emitter.add_event(
+        task.add_event(
             self.CALL_LIMIT_REACHED,
             self.CONCURRENT_LIMIT_REACHED,
             self.DISABLED_DUE_TO_RUNNING_TASK,
@@ -223,21 +226,16 @@ class Limiter(Plugin):
         assert self.task is not None
 
         if self.max_calls is not None and self._calls >= self.max_calls:
-            self.task.emitter.emit(self.CALL_LIMIT_REACHED, self.task, *args, **kwargs)
+            self.task.emit(self.CALL_LIMIT_REACHED, self.task, *args, **kwargs)
             return None
 
         if self.max_concurrent is not None and self.n_running >= self.max_concurrent:
-            self.task.emitter.emit(
-                self.CONCURRENT_LIMIT_REACHED,
-                self.task,
-                *args,
-                **kwargs,
-            )
+            self.task.emit(self.CONCURRENT_LIMIT_REACHED, self.task, *args, **kwargs)
             return None
 
         for other_task in self.not_while_running:
             if other_task.running():
-                self.task.emitter.emit(
+                self.task.emit(
                     self.DISABLED_DUE_TO_RUNNING_TASK,
                     other_task,
                     self.task,
@@ -247,14 +245,6 @@ class Limiter(Plugin):
                 return None
 
         return fn, args, kwargs
-
-    @override
-    def copy(self) -> Self:
-        """Return a copy of the plugin."""
-        return self.__class__(
-            max_calls=self.max_calls,
-            max_concurrent=self.max_concurrent,
-        )
 
     def _increment_call_count(self, *_: Any, **__: Any) -> None:
         self._calls += 1

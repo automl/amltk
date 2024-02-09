@@ -13,16 +13,29 @@ from __future__ import annotations
 import logging
 import tempfile
 import warnings
+from asyncio import Future
 from collections import defaultdict
-from collections.abc import Iterable, Iterator, Mapping, MutableMapping, Sized
+from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sized
+from contextlib import nullcontext
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeAlias, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Literal,
+    NamedTuple,
+    ParamSpec,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+)
 from typing_extensions import override
 
 import numpy as np
 import pandas as pd
+from more_itertools import all_equal
 from sklearn.base import BaseEstimator, clone
 from sklearn.exceptions import UnsetMetadataPassedError
 from sklearn.metrics import get_scorer
@@ -47,12 +60,16 @@ import amltk.randomness
 from amltk._functional import subclass_map
 from amltk.exceptions import (
     AutomaticTaskTypeInferredWarning,
+    CVEarlyStoppedError,
     ImplicitMetricConversionWarning,
     MismatchedTaskTypeWarning,
     TrialError,
 )
 from amltk.optimization.evaluation import EvaluationProtocol
 from amltk.profiling.profiler import Profiler
+from amltk.scheduling import Plugin, Task
+from amltk.scheduling.events import Emitter, Event
+from amltk.scheduling.plugins.comm import Comm
 from amltk.store import Stored
 from amltk.store.paths.path_bucket import PathBucket
 
@@ -66,7 +83,17 @@ if TYPE_CHECKING:
     from amltk.optimization import Trial
     from amltk.pipeline import Node
     from amltk.randomness import Seed
-    from amltk.scheduling import Plugin, Scheduler, Task
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+class _CVEarlyStopper(Protocol):
+    def update(self, report: Trial.Report) -> None:
+        ...
+
+    def should_stop(self, info: CVEvaluation.FoldInfo) -> bool | Exception:
+        ...
 
 
 logger = logging.getLogger(__name__)
@@ -302,7 +329,7 @@ def _fit(
     profiler: Profiler,
     fit_params: Mapping[str, Any],
     scorer_params: Mapping[str, Any],
-    scorers: Mapping[str, _Scorer] | None = None,
+    scorers: _MultimetricScorer | None = None,
 ) -> tuple[BaseEstimatorT, Mapping[str, float] | None]:
     _fit_params = _check_method_params(X, params=fit_params, indices=i_train)
     _scorer_params_train = _check_method_params(X, scorer_params, indices=i_train)
@@ -348,10 +375,10 @@ def _score_val_fold(
     i_train: np.ndarray,
     i_val: np.ndarray,
     scorer_params: Mapping[str, Any],
-    scorers: Mapping[str, _Scorer],
+    scorers: _MultimetricScorer,
     profiler: Profiler,
 ) -> Mapping[str, float]:
-    _scorer_params_test = _check_method_params(X, scorer_params, indices=i_val)
+    _scorer_params_test = _check_method_params(X, params=scorer_params, indices=i_val)
     X_t, y_t = _safe_split(estimator, X, y, indices=i_val, train_indices=i_train)
 
     with profiler("score"):
@@ -389,7 +416,7 @@ def _evaluate_fold(
     i_train: np.ndarray,
     i_val: np.ndarray,
     profiler: Profiler,
-    scorers: Mapping[str, _Scorer],
+    scorers: _MultimetricScorer,
     fit_params: Mapping[str, Any],
     scorer_params: Mapping[str, Any],
     train_score: bool,
@@ -397,7 +424,7 @@ def _evaluate_fold(
     # These return new dictionaries
 
     fitted_estimator, train_scores = _fit(
-        estimator=clone(estimator),
+        estimator=clone(estimator),  # type: ignore
         X=X,
         y=y,
         i_train=i_train,
@@ -439,8 +466,15 @@ def _iter_cross_validate(
     }
 
     # NOTE: This flow adapted from sklearns 1.4 cross_validate
-    _scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
-    routed_params = _route_params(splitter, estimator, _scorer, **loaded_params)
+    # This scorer is only created for routing purposes
+    multimetric_scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
+    routed_params = _route_params(
+        splitter=splitter,
+        estimator=estimator,
+        _scorer=multimetric_scorer,
+        **loaded_params,
+    )
+
     fit_params = routed_params["estimator"]["fit"]
     scorer_params = routed_params["scorer"]["score"]
 
@@ -461,14 +495,14 @@ def _iter_cross_validate(
             i_train=i_train,
             i_val=i_test,
             profiler=profiler,
-            scorers=scorers,
+            scorers=multimetric_scorer,
             fit_params=fit_params,
             scorer_params=scorer_params,
             train_score=train_score,
         )
 
 
-def cross_validate_task(  # noqa: D103, C901, PLR0912, PLR0915
+def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
     trial: Trial,
     pipeline: Node,
     *,
@@ -480,6 +514,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0912, PLR0915
     store_models: bool = True,
     params: MutableMapping[str, Stored[Any] | Any] | None = None,
     on_error: Literal["fail", "raise"] = "fail",
+    comm: Comm | None = None,
 ) -> Trial.Report:
     params = {} if params is None else params
     # Make sure to load all the stored values
@@ -506,13 +541,12 @@ def cross_validate_task(  # noqa: D103, C901, PLR0912, PLR0915
 
     transform_context = params.pop("transform_context", None)  # type: ignore
 
-    estimator = pipeline.configure(
+    configured_pipeline = pipeline.configure(
         trial.config,
         transform_context=transform_context,
         params=configure_params,
-    ).build(
-        **build_params,
     )
+    estimator = configured_pipeline.build(**build_params)
 
     scorers: dict[str, _Scorer] = {}
     for metric_name, metric in trial.metrics.items():
@@ -557,60 +591,99 @@ def cross_validate_task(  # noqa: D103, C901, PLR0912, PLR0915
         profiler=trial.profiler,
         train_score=train_score,
     )
+    n_splits = splitter.get_n_splits()
+    if n_splits is None:
+        raise NotImplementedError("Needs to be handled")
     all_train_scores: dict[str, list[float]] = defaultdict(list)
     all_val_scores: dict[str, list[float]] = defaultdict(list)
 
-    try:
-        # Main cv loop
-        for i, (_trained_estimator, _val_scores, _train_scores) in trial.profiler.each(
-            enumerate(cv_iter),
-            name="cv",
-            itr_name="fold",
-        ):
-            if store_models:
-                trial.store({f"model_{i}.pkl": _trained_estimator})
+    with comm.open() if comm is not None else nullcontext():
+        try:
+            # Open up comms if passed in, allowing for the cv early stopping mechanism
+            # to communicate back to the main process
+            # Main cv loop
+            for i, (_trained_est, _val_scores, _train_scores) in trial.profiler.each(
+                enumerate(cv_iter),
+                name="cv",
+                itr_name="fold",
+            ):
+                # Update the report
+                if store_models:
+                    trial.store({f"model_{i}.pkl": _trained_est})
 
-            trial.summary.update({f"fold_{i}:{k}": v for k, v in _val_scores.items()})
-            for k, v in _val_scores.items():
-                all_val_scores[k].append(v)
+                fold_scores = {f"fold_{i}:{k}": v for k, v in _val_scores.items()}
 
-            if _train_scores is not None:
+                trial.summary.update(fold_scores)
+                for k, v in _val_scores.items():
+                    all_val_scores[k].append(v)
+
+                if _train_scores is not None:
+                    train_scores = {
+                        f"fold_{i}:train_{k}": v for k, v in _train_scores.items()
+                    }
+                    trial.summary.update(train_scores)
+                    for k, v in _train_scores.items():
+                        all_train_scores[k].append(v)
+                else:
+                    train_scores = None
+
+                # If there was a comm passed, we are operating under cv early stopping
+                # mode, in which case we request information from the main process,
+                # should we continue or stop?
+                if comm is not None and i < n_splits:
+                    rqst_info = CVEvaluation.FoldInfo(
+                        trial=trial,
+                        pipeline=configured_pipeline,
+                        fold=i,
+                        scores=all_val_scores,
+                        train_scores=all_train_scores,
+                    )
+                    match response := comm.request(rqst_info, timeout=10):
+                        case True:
+                            raise CVEarlyStoppedError("Early stopped!")
+                        case False:
+                            pass
+                        case np.bool_ if bool(response) is True:
+                            raise CVEarlyStoppedError("Early stopped!")
+                        case Exception():
+                            raise response
+                        case _:
+                            raise RuntimeError(
+                                f"Recieved {response=} which we can't handle."
+                                " Please return `True`, `False` or an `Exception`"
+                                f" and not a type {type(response)=}",
+                            )
+
+        except Exception as e:  # noqa: BLE001
+            trial.dump_exception(e)
+            report = trial.fail(e)
+            if on_error == "raise":
+                raise TrialError(f"Trial failed: {report}") from e
+
+            return report
+        else:
+            mean_val_scores = {k: np.mean(v) for k, v in all_val_scores.items()}
+            std_val_scores = {k: np.std(v) for k, v in all_val_scores.items()}
+            trial.summary.update({f"mean_{k}": v for k, v in mean_val_scores.items()})
+            trial.summary.update({f"std_{k}": v for k, v in std_val_scores.items()})
+
+            if any(all_train_scores):
+                mean_train_scores = {k: np.mean(v) for k, v in all_train_scores.items()}
+                std_train_scores = {k: np.std(v) for k, v in all_train_scores.items()}
                 trial.summary.update(
-                    {f"fold_{i}:train_{k}": v for k, v in _train_scores.items()},
+                    {f"train_mean_{k}": v for k, v in mean_train_scores.items()},
                 )
-                for k, v in _train_scores.items():
-                    all_train_scores[k].append(v)
+                trial.summary.update(
+                    {f"train_std_{k}": v for k, v in std_train_scores.items()},
+                )
 
-    except Exception as e:  # noqa: BLE001
-        trial.dump_exception(e)
-        report = trial.fail(e)
-        if on_error == "raise":
-            raise TrialError(f"Trial failed: {report}") from e
-
-        return report
-    else:
-        mean_val_scores = {k: np.mean(v) for k, v in all_val_scores.items()}
-        std_val_scores = {k: np.std(v) for k, v in all_val_scores.items()}
-        trial.summary.update({f"mean_{k}": v for k, v in mean_val_scores.items()})
-        trial.summary.update({f"std_{k}": v for k, v in std_val_scores.items()})
-
-        if any(all_train_scores):
-            mean_train_scores = {k: np.mean(v) for k, v in all_train_scores.items()}
-            std_train_scores = {k: np.std(v) for k, v in all_train_scores.items()}
-            trial.summary.update(
-                {f"train_mean_{k}": v for k, v in mean_train_scores.items()},
-            )
-            trial.summary.update(
-                {f"train_std_{k}": v for k, v in std_train_scores.items()},
-            )
-
-        metrics_to_report = {
-            k: float(v) for k, v in mean_val_scores.items() if k in trial.metrics
-        }
-        return trial.success(**metrics_to_report)
+            metrics_to_report = {
+                k: float(v) for k, v in mean_val_scores.items() if k in trial.metrics
+            }
+            return trial.success(**metrics_to_report)
 
 
-class CVEvaluation(EvaluationProtocol):
+class CVEvaluation(Emitter, EvaluationProtocol):
     """Cross-validation evaluation protocol.
 
     This protocol will create a cross-validation task to be used in parallel and
@@ -712,6 +785,12 @@ class CVEvaluation(EvaluationProtocol):
     ```
     """
 
+    FOLD_EVALUATED: Event[[FoldInfo], bool | Exception] = Event("fold-evaluated")
+    """Event that is emitted when a fold has been evaluated.
+
+    Only emitted if the evaluator plugin is being used.
+    """
+
     TMP_DIR_PREFIX: ClassVar[str] = "amltk-sklearn-cv-evaluation-data-"
     """Prefix for temporary directory names.
 
@@ -792,6 +871,101 @@ class CVEvaluation(EvaluationProtocol):
     You can call [`.load()`][amltk.store.stored.Stored.load] to load the
     data.
     """
+
+    class FoldInfo(NamedTuple):
+        """Information about a fold.
+
+        Args:
+            trial: The trial that is being evaluated.
+            pipeline: The pipeline being evaluated.
+            fold: The fold number that was just evaluated
+            scores: The scores up to and including that fold.
+            train_scores: The train scores, if requested.
+        """
+
+        trial: Trial
+        pipeline: Node
+        fold: int
+        scores: Mapping[str, list[float]]
+        train_scores: Mapping[str, list[float]] | None
+
+    class _CVEarlyStoppingPlugin(Plugin):
+        name: ClassVar[str] = "cv-early-stopping-plugin"
+
+        def __init__(
+            self,
+            evaluator: CVEvaluation,
+            *,
+            strategy: _CVEarlyStopper | None = None,
+            create_comms: Callable[[], tuple[Comm, Comm]] | None = None,
+        ) -> None:
+            super().__init__()
+            self.evaluator = evaluator
+            self.strategy = strategy
+            self.comm_plugin = Comm.Plugin(
+                create_comms=create_comms,
+                parameter_name="comm",
+            )
+
+        def pre_submit(
+            self,
+            fn: Callable[P, R],
+            *args: P.args,
+            **kwargs: P.kwargs,
+        ) -> tuple[Callable[P, R], tuple, dict] | None:
+            return self.comm_plugin.pre_submit(fn, *args, **kwargs)
+
+        @override
+        def attach_task(self, task: Task) -> None:
+            """Attach the plugin to a task.
+
+            This method is called when the plugin is attached to a task. This
+            is the place to subscribe to events on the task, create new subscribers
+            for people to use or even store a reference to the task for later use.
+
+            Args:
+                task: The task the plugin is being attached to.
+            """
+            self.task = task
+            self.comm_plugin.attach_task(task)
+            task.add_event(CVEvaluation.FOLD_EVALUATED)
+            task.register(Comm.REQUEST, self._on_comm_request_ask_whether_to_continue)
+            if self.strategy is not None:
+                task.register(self.evaluator.FOLD_EVALUATED, self.strategy.should_stop)
+                task.register(task.RESULT, self._call_strategy_update)
+
+        def _call_strategy_update(self, _: Future, report: Trial.Report) -> None:
+            if self.strategy is not None:
+                self.strategy.update(report)
+
+        def _on_comm_request_ask_whether_to_continue(self, msg: Comm.Msg) -> None:
+            if not isinstance(msg.data, CVEvaluation.FoldInfo):
+                # Not intended for us to handle
+                return
+
+            non_null_responses = [
+                r
+                for _, r in self.evaluator.emit(CVEvaluation.FOLD_EVALUATED, msg.data)
+                if r is not None
+            ]
+            logger.debug(
+                f"Received responses for {CVEvaluation.FOLD_EVALUATED}:"
+                f" {non_null_responses}",
+            )
+            match len(non_null_responses):
+                case 0:
+                    msg.respond(response=False)
+                case 1:
+                    msg.respond(response=non_null_responses[0])
+                case _ if all_equal(non_null_responses):
+                    msg.respond(response=non_null_responses[0])
+                case _:
+                    raise NotImplementedError(
+                        "Multiple callbacks returned different values."
+                        " Behaviour is undefined. Please aggregate behaviour"
+                        " into one callback. Also please raise an issue to"
+                        " discuss use cases and how to handle this.",
+                    )
 
     def __init__(  # noqa: PLR0913
         self,
@@ -982,10 +1156,77 @@ class CVEvaluation(EvaluationProtocol):
             on_error=on_error,
         )
 
-    @override
-    def task(
+    def cv_early_stopping_plugin(
         self,
-        scheduler: Scheduler,
-        plugins: Plugin | Iterable[Plugin] | None = None,
-    ) -> Task[[Trial, Node], Trial.Report]:
-        return scheduler.task(self.fn, plugins=plugins if plugins is not None else ())
+        strategy: _CVEarlyStopper | None = None,  # TODO: Can provide some defaults...
+        create_comms: Callable[[], tuple[Comm, Comm]] | None = None,
+    ) -> CVEvaluation._CVEarlyStoppingPlugin:
+        """Create a plugin for a task allow for early stopping.
+
+        !!! example
+
+            ```python
+            evaluator = CVEvaluation(...)
+            task = scheduler.task(
+                evaluator.fn,
+                plugins=[evaluator.cv_early_stopping_plugin(my_strategy)]
+            )
+            ```
+
+        This will also add a new event to the task which you can subscribe to
+        with [`task.on("fold-evaluated")`][amltk.scheduler.Task.on]. It will
+        be passed a
+        [`CVEvaluation.FoldInfo`][amltk.sklearn.evaluation.CVEvaluation.FoldInfo]
+        that you can use to make a decision on whether to continue or stop. The
+        passed in `strategy=` simply sets up listening to these events for you.
+        You can also do this manually.
+
+        ```python
+        scores = []
+        evaluator = CVEvaluation(...)
+        task = scheduler.task(
+            evaluator.fn,
+            plugins=[evaluator.cv_early_stopping_plugin()]
+        )
+
+        @task.on("fold-evaluated")
+        def should_stop(info: CVEvaluation.FoldInfo) -> bool | Execption:
+            # Make a decision on whether to stop or continue
+            return info.scores["accuracy"] < np.mean(scores)
+
+        @task.on("result")
+        def update_scores(_, report: Trial.Report) -> bool | Execption:
+            if report.status is Trial.Status.SUCCESS:
+                return scores.append(report.values["accuracy"])
+        ```
+
+        Please see [`CVEarlyStopper`][amltk.sklearn.evaluation.CVEarlyStopper]
+        for more.
+
+        Args:
+            strategy: The strategy to use for early stopping. Please
+                see [`CVEarlyStopper`][amltk.sklearn.evaluation.CVEarlyStopper]
+                on how to implement a custom strategy. By default, this is `None`
+                and this will simply create the [`Comm`][amltk.comm.Comm] and
+                events necessary to listen to the fold evaluated events.
+            create_comms: A function that creates a pair of comms for the
+                plugin to use. This is useful if you want to create a
+                custom communication channel. If not provided, the default
+                communication channel will be used.
+
+                !!! note "Default communication channel"
+
+                    By default we use a simple `multiprocessing.Pipe` which works
+                    for parallel processses from
+                    [`ProcessPoolExecutor`][concurrent.futures.ProcessPoolExecutor].
+                    This may not work if the tasks is being executed in a different
+                    filesystem or depending on the executor which executes the task.
+
+        Returns:
+            The plugin to use for the task.
+        """
+        return CVEvaluation._CVEarlyStoppingPlugin(
+            self,
+            strategy=strategy,
+            create_comms=create_comms,
+        )
