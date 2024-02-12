@@ -386,21 +386,21 @@ def test_evaluator(
     ]
     for metric_name in expected_summary_scorers:
         for i in range(n_splits):
-            assert f"fold_{i}:{metric_name}" in report.summary
+            assert f"split_{i}:{metric_name}" in report.summary
         assert f"mean_{metric_name}" in report.summary
         assert f"std_{metric_name}" in report.summary
 
     if train_score:
         for metric_name in expected_summary_scorers:
             for i in range(n_splits):
-                assert f"fold_{i}:train_{metric_name}" in report.summary
+                assert f"split_{i}:train_{metric_name}" in report.summary
             assert f"train_mean_{metric_name}" in report.summary
             assert f"train_std_{metric_name}" in report.summary
 
     # All folds are profiled
     assert "cv" in report.profiles
     for i in range(n_splits):
-        assert f"cv:fold_{i}" in report.profiles
+        assert f"cv:split_{i}" in report.profiles
 
 
 @parametrize(
@@ -815,5 +815,5 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
     assert "Early stop" in str(report.exception)
 
     # Only the first fold should have been run and put in summary
-    assert "fold_0:accuracy" in report.summary
-    assert "fold_1:accuracy" not in report.summary
+    assert "split_0:accuracy" in report.summary
+    assert "split_1:accuracy" not in report.summary
