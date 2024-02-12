@@ -588,7 +588,11 @@ class Comm:
             else:
                 logger.warning(f"Communication coroutine {coroutine} not found!")
 
-            if (exception := coroutine.exception()) is not None:
+            if coroutine.cancelled():
+                logger.debug(
+                    f"Coroutine {coroutine} was cancelled. Not treated as an error.",
+                )
+            elif (exception := coroutine.exception()) is not None:
                 raise exception
 
         async def _communicate(
