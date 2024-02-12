@@ -386,21 +386,21 @@ def test_evaluator(
     ]
     for metric_name in expected_summary_scorers:
         for i in range(n_splits):
-            assert f"fold_{i}:{metric_name}" in report.summary
+            assert f"split_{i}:{metric_name}" in report.summary
         assert f"mean_{metric_name}" in report.summary
         assert f"std_{metric_name}" in report.summary
 
     if train_score:
         for metric_name in expected_summary_scorers:
             for i in range(n_splits):
-                assert f"fold_{i}:train_{metric_name}" in report.summary
+                assert f"split_{i}:train_{metric_name}" in report.summary
             assert f"train_mean_{metric_name}" in report.summary
             assert f"train_std_{metric_name}" in report.summary
 
     # All folds are profiled
     assert "cv" in report.profiles
     for i in range(n_splits):
-        assert f"cv:fold_{i}" in report.profiles
+        assert f"cv:split_{i}" in report.profiles
 
 
 @parametrize(
@@ -776,3 +776,44 @@ def test_custom_builder_can_be_forwarded(tmp_path: Path) -> None:
         assert isinstance(model, _MyPipeline)
         assert hasattr(model, "bamboozled")
         assert model.bamboozled == "yes"
+
+
+def test_early_stopping_plugin(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})
+    x, y = data_for_task_type("binary")
+    evaluator = CVEvaluation(
+        x,
+        y,
+        splitter="cv",
+        n_splits=2,  # Notably 2 folds
+        working_dir=tmp_path,
+    )
+
+    @dataclass
+    class CVEarlyStopper:
+        def update(self, report: Trial.Report) -> None:
+            pass  # Normally you would update w.r.t. a finished trial
+
+        def should_stop(self, info: CVEvaluation.SplitInfo) -> bool:  # noqa: ARG002
+            # Just say yes, should stop
+            return True
+
+    history = pipeline.optimize(
+        target=evaluator.fn,
+        metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
+        working_dir=tmp_path,
+        plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
+        max_trials=1,
+        on_trial_exception="continue",
+    )
+    assert len(history) == 1
+    report = history.reports[0]
+
+    assert report.status is Trial.Status.FAIL
+    assert not any(report.values)
+    assert report.exception is not None
+    assert "Early stop" in str(report.exception)
+
+    # Only the first fold should have been run and put in summary
+    assert "split_0:accuracy" in report.summary
+    assert "split_1:accuracy" not in report.summary

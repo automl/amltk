@@ -41,7 +41,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, ClassVar, Generic, TypeVar
-from typing_extensions import ParamSpec, Self, override
+from typing_extensions import ParamSpec, override
 
 from amltk.scheduling.plugins.plugin import Plugin
 
@@ -136,14 +136,6 @@ class ThreadPoolCTLPlugin(Plugin):
             user_api=self.user_api,
         )
         return fn, args, kwargs
-
-    @override
-    def copy(self) -> Self:
-        """Return a copy of the plugin.
-
-        Please see [`Plugin.copy()`][amltk.Plugin.copy].
-        """
-        return self.__class__(max_threads=self.max_threads, user_api=self.user_api)
 
     @override
     def __rich__(self) -> Panel:

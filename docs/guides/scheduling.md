@@ -107,8 +107,8 @@ from amltk._doc import doc_print; doc_print(print, scheduler)  # markdown-exec: 
 ### Running the Scheduler
 
 You may have noticed from the above example that there are many events the scheduler will emit,
-such as `@on_start` or `@on_future_done`. One particularly important one is
-[`@on_start`][amltk.scheduling.Scheduler.on_start], an event to signal
+such as `@start` or `@future-done`. One particularly important one is
+[`@start`][amltk.scheduling.Scheduler.on_start], an event to signal
 the scheduler has started and is ready to accept tasks.
 
 ```python exec="true" source="material-block" html="True"
@@ -123,7 +123,7 @@ from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fon
 ```
 
 From the output, we can see that the `print_hello()` function was registered
-to the event `@on_start`, but it was never called and no `#!python "hello"` was printed.
+to the event `@start`, but it was never called and no `#!python "hello"` was printed.
 
 For this to happen, we actually have to [`run()`][amltk.scheduling.Scheduler.run] the scheduler.
 
@@ -140,7 +140,7 @@ scheduler.run()
 from amltk._doc import doc_print; doc_print(print, scheduler, output="html", fontsize="small")  # markdown-exec: hide
 ```
 
-Now the output will show a little yellow number next to the `@on_start`
+Now the output will show a little yellow number next to the `@start`
 and the `print_hello()`, indicating that event was triggered and the callback
 was called.
 
@@ -181,7 +181,7 @@ defining these units of compute, it is beneficial to see how the `Scheduler`
 operates directly with `submit()`, without abstractions.
 
 In the below example, we will use the
-[`@on_future_result`][amltk.scheduling.Scheduler.on_future_result]
+[`@future-result`][amltk.scheduling.Scheduler.on_future_result]
 event to submit more compute once the previous computation has returned a result.
 
 ```python exec="true" source="material-block" html="True" hl_lines="10 13 17"
@@ -221,47 +221,47 @@ for a complete list.
 
 !!! example "`@events`"
 
-    === "`@on_start`"
+    === "`@start`"
 
         ::: amltk.scheduling.Scheduler.on_start
 
-    === "`@on_future_result`"
+    === "`@future-result`"
 
         ::: amltk.scheduling.Scheduler.on_future_result
 
-    === "`@on_future_exception`"
+    === "`@future-exception`"
 
         ::: amltk.scheduling.Scheduler.on_future_exception
 
-    === "`@on_future_submitted`"
+    === "`@future-submitted`"
 
         ::: amltk.scheduling.Scheduler.on_future_submitted
 
-    === "`@on_future_done`"
+    === "`@future-done`"
 
         ::: amltk.scheduling.Scheduler.on_future_done
 
-    === "`@on_future_cancelled`"
+    === "`@future-cancelled`"
 
         ::: amltk.scheduling.Scheduler.on_future_cancelled
 
-    === "`@on_timeout`"
+    === "`@timeout`"
 
         ::: amltk.scheduling.Scheduler.on_timeout
 
-    === "`@on_stop`"
+    === "`@stop`"
 
         ::: amltk.scheduling.Scheduler.on_stop
 
-    === "`@on_finishing`"
+    === "`@finishing`"
 
         ::: amltk.scheduling.Scheduler.on_finishing
 
-    === "`@on_finished`"
+    === "`@finished`"
 
         ::: amltk.scheduling.Scheduler.on_finished
 
-    === "`@on_empty`"
+    === "`@empty`"
 
         ::: amltk.scheduling.Scheduler.on_empty
 
@@ -272,7 +272,7 @@ it was emitted as the values.
 
 ### Controlling Callbacks
 There's a few parameters you can pass to any event subscriber
-such as `@on_start` or `@on_future_result`.
+such as `@start` or `@future-result`.
 These control the behavior of what happens when its event is fired and can
 be used to control the flow of your system.
 
@@ -391,7 +391,7 @@ However, there are more explicit methods.
     scheduler to stop immediately with [`run(wait=False)`][amltk.scheduling.Scheduler.run].
 
     You'll notice this in the event count of the Scheduler where the event
-    `@on_future_cancelled` was fired.
+    `@future-cancelled` was fired.
 
     ```python exec="true" source="material-block" html="True" hl_lines="13-15"
     import time
@@ -420,7 +420,7 @@ However, there are more explicit methods.
     You can also tell the `Scheduler` to stop after a certain amount of time
     with the `timeout=` argument to [`run()`][amltk.scheduling.Scheduler.run].
 
-    This will also trigger the `@on_timeout` event as seen in the `Scheduler` output.
+    This will also trigger the `@timeout` event as seen in the `Scheduler` output.
 
     ```python exec="true" source="material-block" html="True" hl_lines="20"
     import time
@@ -453,7 +453,7 @@ to clarify that there are two kinds of exceptions that can occur within the Sche
 
 The 1st kind that can happen is within some function submitted with
 [`submit()`][amltk.scheduling.Scheduler.submit]. When this happens,
-the `@on_future_exception` will be emitted, passing the exception to the callback.
+the `@future-exception` will be emitted, passing the exception to the callback.
 
 By default, the `Scheduler` will then raise the exception that occurred up to your program
 and end its computations. This is done by setting

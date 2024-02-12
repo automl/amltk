@@ -86,8 +86,8 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from multiprocessing.context import BaseContext
-from typing import TYPE_CHECKING, ClassVar, Generic, Literal, TypeAlias, TypeVar
-from typing_extensions import ParamSpec, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Literal, TypeAlias, TypeVar
+from typing_extensions import ParamSpec, override
 
 import pynisher
 import pynisher.exceptions
@@ -178,7 +178,7 @@ class PynisherPlugin(Plugin):
     name: ClassVar = "pynisher-plugin"
     """The name of the plugin."""
 
-    TIMEOUT: Event[PynisherPlugin.TimeoutException] = Event("pynisher-timeout")
+    TIMEOUT: Event[[PynisherPlugin.TimeoutException], Any] = Event("pynisher-timeout")
     """A Task timed out, either due to the wall time or cpu time limit.
 
     Will call any subscribers with the exception as the argument.
@@ -202,7 +202,10 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    MEMORY_LIMIT_REACHED: Event[pynisher.exceptions.MemoryLimitException] = Event(
+    MEMORY_LIMIT_REACHED: Event[
+        [pynisher.exceptions.MemoryLimitException],
+        Any,
+    ] = Event(
         "pynisher-memory-limit",
     )
     """A Task was submitted but reached it's memory limit.
@@ -230,7 +233,10 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    CPU_TIME_LIMIT_REACHED: Event[pynisher.exceptions.CpuTimeoutException] = Event(
+    CPU_TIME_LIMIT_REACHED: Event[
+        [pynisher.exceptions.CpuTimeoutException],
+        Any,
+    ] = Event(
         "pynisher-cputime-limit",
     )
     """A Task was submitted but reached it's cpu time limit.
@@ -261,7 +267,10 @@ class PynisherPlugin(Plugin):
     ```
     """
 
-    WALL_TIME_LIMIT_REACHED: Event[pynisher.exceptions.WallTimeoutException] = Event(
+    WALL_TIME_LIMIT_REACHED: Event[
+        [pynisher.exceptions.WallTimeoutException],
+        Any,
+    ] = Event(
         "pynisher-walltime-limit",
     )
     """A Task was submitted but reached it's wall time limit.
@@ -420,7 +429,7 @@ class PynisherPlugin(Plugin):
     def attach_task(self, task: Task) -> None:
         """Attach the plugin to a task."""
         self.task = task
-        task.emitter.add_event(
+        task.add_event(
             self.TIMEOUT,
             self.MEMORY_LIMIT_REACHED,
             self.CPU_TIME_LIMIT_REACHED,
@@ -430,18 +439,6 @@ class PynisherPlugin(Plugin):
         # Check the exception and emit pynisher specific ones too
         task.on_exception(self._check_to_emit_pynisher_exception, hidden=True)
 
-    @override
-    def copy(self) -> Self:
-        """Return a copy of the plugin.
-
-        Please see [`Plugin.copy()`][amltk.Plugin.copy].
-        """
-        return self.__class__(
-            memory_limit=self.memory_limit,
-            cputime_limit=self.cputime_limit,
-            walltime_limit=self.walltime_limit,
-        )
-
     def _check_to_emit_pynisher_exception(
         self,
         _: asyncio.Future,
@@ -449,13 +446,13 @@ class PynisherPlugin(Plugin):
     ) -> None:
         """Check if the exception is a pynisher exception and emit it."""
         if isinstance(exception, pynisher.CpuTimeoutException):
-            self.task.emitter.emit(self.TIMEOUT, exception)
-            self.task.emitter.emit(self.CPU_TIME_LIMIT_REACHED, exception)
+            self.task.emit(self.TIMEOUT, exception)
+            self.task.emit(self.CPU_TIME_LIMIT_REACHED, exception)
         elif isinstance(exception, pynisher.WallTimeoutException):
-            self.task.emitter.emit(self.TIMEOUT)
-            self.task.emitter.emit(self.WALL_TIME_LIMIT_REACHED, exception)
+            self.task.emit(self.TIMEOUT, exception)
+            self.task.emit(self.WALL_TIME_LIMIT_REACHED, exception)
         elif isinstance(exception, pynisher.MemoryLimitException):
-            self.task.emitter.emit(self.MEMORY_LIMIT_REACHED, exception)
+            self.task.emit(self.MEMORY_LIMIT_REACHED, exception)
 
     @classmethod
     def supports(cls, kind: Literal["wall_time", "cpu_time", "memory"]) -> bool:

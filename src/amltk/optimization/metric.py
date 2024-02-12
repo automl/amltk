@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Generic, Literal, ParamSpec
 from typing_extensions import Self, override
 
@@ -63,6 +64,13 @@ class Metric(Generic[P]):
 
     fn: Callable[P, float] | None = field(kw_only=True, default=None, compare=False)
     """A function to attach to this metric to be used within a trial."""
+
+    class Comparison(str, Enum):
+        """The comparison between two values."""
+
+        BETTER = "better"
+        WORSE = "worse"
+        EQUAL = "equal"
 
     def __post_init__(self) -> None:
         if self.bounds is not None:
@@ -233,6 +241,17 @@ class Metric(Generic[P]):
     def score(self, v: float, /) -> float:
         """Convert a value to a score."""
         return -float(v) if self.minimize else float(v)
+
+    def compare(self, v1: float, v2: float) -> Metric.Comparison:
+        """Check if `v1` is better than `v2`."""
+        minimize = self.minimize
+        if v1 == v2:
+            return Metric.Comparison.EQUAL
+        if v1 > v2:
+            return Metric.Comparison.WORSE if minimize else Metric.Comparison.BETTER
+
+        # v1 < v2
+        return Metric.Comparison.BETTER if minimize else Metric.Comparison.WORSE
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -18,19 +18,20 @@ from amltk.scheduling.plugins import Comm
 logger = logging.getLogger(__name__)
 
 
-def sending_worker(comm: Comm, replies: list[Any]) -> None:
+def sending_worker(replies: list[Any], *, comm: Comm | None = None) -> None:
     """A worker that responds to messages.
 
     Args:
         comm: The communication channel to use.
         replies: A list of replies to send to the client.
     """
+    assert comm is not None
     with comm.open():
         for reply in replies:
             comm.send(reply)
 
 
-def requesting_worker(comm: Comm, requests: list[Any]) -> None:
+def requesting_worker(requests: list[Any], *, comm: Comm | None = None) -> None:
     """A worker that waits for messages.
 
     This will send a request, waiting for a response, finally
@@ -41,6 +42,7 @@ def requesting_worker(comm: Comm, requests: list[Any]) -> None:
         comm: The communication channel to use.
         requests: A list of requests to receive from the client.
     """
+    assert comm is not None
     with comm.open():
         for request in requests:
             response = comm.request(request)

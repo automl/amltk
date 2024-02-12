@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
-from typing_extensions import ParamSpec, Self
+from typing_extensions import ParamSpec
 
 from codecarbon import EmissionsTracker
 
@@ -127,10 +127,6 @@ class EmissionsTrackerPlugin(Plugin):
             **self.codecarbon_kwargs,
         )
         return wrapped_f, args, kwargs
-
-    def copy(self) -> Self:
-        """Return a copy of the plugin."""
-        return self.__class__(*self.codecarbon_args, **self.codecarbon_kwargs)
 
     def __rich__(self) -> Panel:
         """Return a rich panel."""

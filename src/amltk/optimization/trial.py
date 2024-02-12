@@ -343,7 +343,25 @@ class Trial(RichRenderable, Generic[I]):
 
     @property
     def profiles(self) -> Mapping[str, Profile.Interval]:
-        """The profiles of the trial."""
+        """The profiles of the trial.
+
+        These are indexed by the name of the profile indicated by:
+
+        ```python
+        with trial.profile("key_to_index"):
+            # ...
+
+        profile = trial.profiles["key_to_index"]
+        ```
+
+        The values are a
+        [`Profile.Interval`][amltk.profiling.profiler.Profile.Interval],
+        which contain a
+        [`Memory.Interval`][amltk.profiling.memory.Memory.Interval]
+        and a
+        [`Timer.Interval`][amltk.profiling.timing.Timer.Interval].
+        Please see the respective documentation for more.
+        """
         return self.profiler.profiles
 
     def dump_exception(
