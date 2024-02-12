@@ -92,7 +92,7 @@ class _CVEarlyStopper(Protocol):
     def update(self, report: Trial.Report) -> None:
         ...
 
-    def should_stop(self, info: CVEvaluation.FoldInfo) -> bool | Exception:
+    def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
         ...
 
 
@@ -638,10 +638,11 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                 # mode, in which case we request information from the main process,
                 # should we continue or stop?
                 if comm is not None and i < n_splits:
-                    rqst_info = CVEvaluation.FoldInfo(
+                    rqst_info = CVEvaluation.SplitInfo(
                         trial=trial,
                         pipeline=configured_pipeline,
-                        fold=i,
+                        current_split=i,
+                        max_splits=n_splits,
                         scores=all_val_scores,
                         train_scores=all_train_scores,
                     )
@@ -799,7 +800,7 @@ class CVEvaluation(Emitter):
 
     """
 
-    FOLD_EVALUATED: Event[[FoldInfo], bool | Exception] = Event("fold-evaluated")
+    FOLD_EVALUATED: Event[[SplitInfo], bool | Exception] = Event("fold-evaluated")
     """Event that is emitted when a fold has been evaluated.
 
     Only emitted if the evaluator plugin is being used.
@@ -886,20 +887,31 @@ class CVEvaluation(Emitter):
     data.
     """
 
-    class FoldInfo(NamedTuple):
-        """Information about a fold.
+    class SplitInfo(NamedTuple):
+        """Information about a split.
+
+        It contains the current trial, the pipeline that was made from it,
+        the current split that was just evaluated, the scores up to that split
+        and any train scores if requested.
+
+        Also included are the maxmimum number of splits incase that is needed.
+
+        If you need to access information about timing, all of this can be accessed
+        through [`trial.profiles`][amltk.trial.Trial.profiler].
 
         Args:
             trial: The trial that is being evaluated.
             pipeline: The pipeline being evaluated.
-            fold: The fold number that was just evaluated
-            scores: The scores up to and including that fold.
+            current_split: The split number that was just evaluated
+            max_splits: The maximum number of splits that will be performed.
+            scores: The scores up to and including that split.
             train_scores: The train scores, if requested.
         """
 
         trial: Trial
         pipeline: Node
-        fold: int
+        current_split: int
+        max_splits: int
         scores: Mapping[str, list[float]]
         train_scores: Mapping[str, list[float]] | None
 
@@ -954,7 +966,7 @@ class CVEvaluation(Emitter):
                 self.strategy.update(report)
 
         def _on_comm_request_ask_whether_to_continue(self, msg: Comm.Msg) -> None:
-            if not isinstance(msg.data, CVEvaluation.FoldInfo):
+            if not isinstance(msg.data, CVEvaluation.SplitInfo):
                 # Not intended for us to handle
                 return
 

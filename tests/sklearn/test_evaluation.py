@@ -794,7 +794,7 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
         def update(self, report: Trial.Report) -> None:
             pass  # Normally you would update w.r.t. a finished trial
 
-        def should_stop(self, info: CVEvaluation.FoldInfo) -> bool:  # noqa: ARG002
+        def should_stop(self, info: CVEvaluation.SplitInfo) -> bool:  # noqa: ARG002
             # Just say yes, should stop
             return True
 

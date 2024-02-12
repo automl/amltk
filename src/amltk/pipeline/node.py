@@ -1231,6 +1231,7 @@ class Node(RichRenderable, Generic[Item, Space]):
             bucket=working_dir,
             seed=seed,
         )
+        assert _optimizer is not None
 
         if on_begin is not None:
             hook = partial(on_begin, task, scheduler, history)
