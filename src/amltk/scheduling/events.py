@@ -664,7 +664,6 @@ class Emitter:
 
         Args:
             event: The event to register the callback for.
-            callback: The callback to register.
             when: A predicate that must be satisfied for the callback to be called.
             every: The callback will be called every `every` times the event is emitted.
             repeat: The callback will be called `repeat` times successively.

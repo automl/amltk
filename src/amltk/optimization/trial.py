@@ -354,10 +354,13 @@ class Trial(RichRenderable, Generic[I]):
         profile = trial.profiles["key_to_index"]
         ```
 
-        The values are a [`Profile.Interval`][amltk.profiling.profile.Interval],
-        which contain a [`Memory.Interval`][amltk.profiling.memory.Interval] and
-        a [`Timer.Interval`][amltk.profiling.timer.Interval]. Please see the
-        respective documentation for more.
+        The values are a
+        [`Profile.Interval`][amltk.profiling.profiler.Profile.Interval],
+        which contain a
+        [`Memory.Interval`][amltk.profiling.memory.Memory.Interval]
+        and a
+        [`Timer.Interval`][amltk.profiling.timing.Timer.Interval].
+        Please see the respective documentation for more.
         """
         return self.profiler.profiles
 

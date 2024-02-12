@@ -216,7 +216,8 @@ class Comm:
     from amltk.scheduling import Scheduler
     from amltk.scheduling.plugins import Comm
 
-    def fn(comm: Comm, x: int) -> int:
+    def fn(x: int, comm: Comm | None = None) -> int:
+        assert comm is not None
         with comm.open():
             comm.send(x + 1)
 
@@ -237,7 +238,8 @@ class Comm:
     from amltk.scheduling import Scheduler
     from amltk.scheduling.plugins import Comm
 
-    def greeter(comm: Comm, greeting: str) -> None:
+    def greeter(greeting: str, comm: Comm | None = None) -> None:
+        assert comm is not None
         with comm.open():
             name = comm.request()
             comm.send(f"{greeting} {name}!")

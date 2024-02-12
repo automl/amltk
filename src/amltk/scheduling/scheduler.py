@@ -1120,8 +1120,8 @@ class Scheduler(RichRenderable):
                         self.stop(
                             stop_msg=(
                                 f"raising on exception '{type(exception)}'"
-                                f" as {err_type} is 'raise' as specified from"
-                                f"`on_exception={self._on_exc_method_map.value}"
+                                f" as scheduler was run with"
+                                f" `on_exception={self._on_exc_method_map.value}"
                             ),
                             exception=exception,
                         )

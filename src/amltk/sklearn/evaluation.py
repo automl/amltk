@@ -88,17 +88,10 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-class _CVEarlyStopper(Protocol):
-    def update(self, report: Trial.Report) -> None:
-        ...
-
-    def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
-        ...
-
-
 logger = logging.getLogger(__name__)
 
 BaseEstimatorT = TypeVar("BaseEstimatorT", bound=BaseEstimator)
+
 TaskTypeName: TypeAlias = Literal[
     "binary",
     "multiclass",
@@ -107,6 +100,8 @@ TaskTypeName: TypeAlias = Literal[
     "continuous",
     "continuous-multioutput",
 ]
+"""A type alias for the task type name as defined by sklearn."""
+
 _valid_task_types: tuple[TaskTypeName, ...] = (
     "binary",
     "multiclass",
@@ -367,14 +362,14 @@ def _fit(
             # God I feel like I'm doing javascript
             if np.isfinite(v) != True:  # noqa: E712
                 raise ValueError(
-                    f"Scorer {k} returned {v} for train fold. The scorer should"
+                    f"Scorer {k} returned {v} for train split. The scorer should"
                     " should return a finite float",
                 )
 
     return estimator, train_scores
 
 
-def _score_val_fold(
+def _score_val_split(
     estimator: BaseEstimator,
     X: pd.DataFrame | np.ndarray,  # noqa: N803
     y: pd.Series | pd.DataFrame | np.ndarray,
@@ -408,14 +403,14 @@ def _score_val_fold(
             # God I feel like I'm doing javascript
             if np.isfinite(v) != True:  # noqa: E712
                 raise ValueError(
-                    f"Scorer {k} returned {v} for validation fold. The scorer"
+                    f"Scorer {k} returned {v} for validation split. The scorer"
                     " should return a finite float",
                 )
 
         return scores
 
 
-def _evaluate_fold(
+def _evaluate_split(
     estimator: BaseEstimatorT,
     X: pd.DataFrame | np.ndarray,  # noqa: N803
     y: pd.Series | pd.DataFrame | np.ndarray,
@@ -441,7 +436,7 @@ def _evaluate_fold(
         scorers=scorers if train_score else None,
     )
 
-    val_scores = _score_val_fold(
+    val_scores = _score_val_split(
         estimator=fitted_estimator,
         X=X,
         y=y,
@@ -495,7 +490,7 @@ def _iter_cross_validate(
 
     for i_train, i_test in indicies:
         # Sadly this function needs the full X and y due to its internal checks
-        yield _evaluate_fold(
+        yield _evaluate_split(
             estimator=estimator,
             X=X_loaded,
             y=y_loaded,
@@ -612,21 +607,21 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
             for i, (_trained_est, _val_scores, _train_scores) in trial.profiler.each(
                 enumerate(cv_iter),
                 name="cv",
-                itr_name="fold",
+                itr_name="split",
             ):
                 # Update the report
                 if store_models:
                     trial.store({f"model_{i}.pkl": _trained_est})
 
-                fold_scores = {f"fold_{i}:{k}": v for k, v in _val_scores.items()}
+                split_scores = {f"split_{i}:{k}": v for k, v in _val_scores.items()}
 
-                trial.summary.update(fold_scores)
+                trial.summary.update(split_scores)
                 for k, v in _val_scores.items():
                     all_val_scores[k].append(v)
 
                 if _train_scores is not None:
                     train_scores = {
-                        f"fold_{i}:train_{k}": v for k, v in _train_scores.items()
+                        f"split_{i}:train_{k}": v for k, v in _train_scores.items()
                     }
                     trial.summary.update(train_scores)
                     for k, v in _train_scores.items():
@@ -800,8 +795,8 @@ class CVEvaluation(Emitter):
 
     """
 
-    FOLD_EVALUATED: Event[[SplitInfo], bool | Exception] = Event("fold-evaluated")
-    """Event that is emitted when a fold has been evaluated.
+    SPLIT_EVALUATED: Event[[SplitInfo], bool | Exception] = Event("split-evaluated")
+    """Event that is emitted when a split has been evaluated.
 
     Only emitted if the evaluator plugin is being used.
     """
@@ -823,7 +818,7 @@ class CVEvaluation(Emitter):
     _Y_FILENAME: ClassVar[str] = "y.pkl"
     """The name of the file to store the target in."""
 
-    _PARAM_EXTENSION_MAPPING: ClassVar[dict[type[Sized], str]] = {
+    PARAM_EXTENSION_MAPPING: ClassVar[dict[type[Sized], str]] = {
         np.ndarray: "npy",
         pd.DataFrame: "pdpickle",
         pd.Series: "pdpickle",
@@ -834,14 +829,19 @@ class CVEvaluation(Emitter):
     If the parameter is an instance of one of these types, and is larger than
     [`LARGE_PARAM_HEURISTIC`][amltk.sklearn.evaluation.CVEvaluation.LARGE_PARAM_HEURISTIC],
     then it will be stored to disk and loaded back up in the task.
+
+    Please feel free to overwrite this class variable as needed.
     """
 
     LARGE_PARAM_HEURISTIC: ClassVar[int] = 100
-    """The number of parameters that is considered large and will be stored to disk.
+    """Any item in `params=` which is greater will be stored to disk when sent to the
+    worker.
 
     When launching tasks, pickling and streaming large data to tasks can be expensive.
     This parameter checks if the object is large and if so, stores it to disk and
-    gives it to the task as a [`Stored`][amltk.store.stored.Stored] object instead
+    gives it to the task as a [`Stored`][amltk.store.stored.Stored] object instead.
+
+    Please feel free to overwrite this class variable as needed.
     """
 
     task_type: TaskTypeName
@@ -897,9 +897,9 @@ class CVEvaluation(Emitter):
         Also included are the maxmimum number of splits incase that is needed.
 
         If you need to access information about timing, all of this can be accessed
-        through [`trial.profiles`][amltk.trial.Trial.profiler].
+        through [`trial.profiles`][amltk.optimization.trial.Trial.profiler].
 
-        Args:
+        Attributes:
             trial: The trial that is being evaluated.
             pipeline: The pipeline being evaluated.
             current_split: The split number that was just evaluated
@@ -922,7 +922,7 @@ class CVEvaluation(Emitter):
             self,
             evaluator: CVEvaluation,
             *,
-            strategy: _CVEarlyStopper | None = None,
+            strategy: CVEarlyStoppingProtocol | None = None,
             create_comms: Callable[[], tuple[Comm, Comm]] | None = None,
         ) -> None:
             super().__init__()
@@ -955,10 +955,10 @@ class CVEvaluation(Emitter):
             """
             self.task = task
             self.comm_plugin.attach_task(task)
-            task.add_event(CVEvaluation.FOLD_EVALUATED)
+            task.add_event(CVEvaluation.SPLIT_EVALUATED)
             task.register(Comm.REQUEST, self._on_comm_request_ask_whether_to_continue)
             if self.strategy is not None:
-                task.register(self.evaluator.FOLD_EVALUATED, self.strategy.should_stop)
+                task.register(self.evaluator.SPLIT_EVALUATED, self.strategy.should_stop)
                 task.register(task.RESULT, self._call_strategy_update)
 
         def _call_strategy_update(self, _: Future, report: Trial.Report) -> None:
@@ -972,11 +972,11 @@ class CVEvaluation(Emitter):
 
             non_null_responses = [
                 r
-                for _, r in self.task.emit(self.evaluator.FOLD_EVALUATED, msg.data)
+                for _, r in self.task.emit(self.evaluator.SPLIT_EVALUATED, msg.data)
                 if r is not None
             ]
             logger.debug(
-                f"Received responses for {self.evaluator.FOLD_EVALUATED}:"
+                f"Received responses for {self.evaluator.SPLIT_EVALUATED}:"
                 f" {non_null_responses}",
             )
             match len(non_null_responses):
@@ -1162,7 +1162,7 @@ class CVEvaluation(Emitter):
             if hasattr(v, "__len__") and len(v) > self.LARGE_PARAM_HEURISTIC  # type: ignore
         }
         for k, v in storable_params.items():
-            match subclass_map(v, self._PARAM_EXTENSION_MAPPING, default=None):  # type: ignore
+            match subclass_map(v, self.PARAM_EXTENSION_MAPPING, default=None):  # type: ignore
                 case (_, extension_to_save_as):
                     ext = extension_to_save_as
                 case _:
@@ -1185,62 +1185,60 @@ class CVEvaluation(Emitter):
 
     def cv_early_stopping_plugin(
         self,
-        strategy: _CVEarlyStopper | None = None,  # TODO: Can provide some defaults...
+        strategy: CVEarlyStoppingProtocol
+        | None = None,  # TODO: Can provide some defaults...
         *,
         create_comms: Callable[[], tuple[Comm, Comm]] | None = None,
     ) -> CVEvaluation._CVEarlyStoppingPlugin:
         """Create a plugin for a task allow for early stopping.
 
-        !!! example
+        ```python exec="true" source="material-block" result="python" html="true"
+        from dataclasses import dataclass
+        from pathlib import Path
 
-            ```python exec="true" source="material-block" result="python"
-            from dataclasses import dataclass
+        import sklearn.datasets
+        from sklearn.tree import DecisionTreeClassifier
 
-            import sklearn.datasets
-            from sklearn.tree import DecisionTreeClassifier
+        from amltk.sklearn import CVEvaluation
+        from amltk.pipeline import Component
+        from amltk.optimization import Metric
 
-            from amltk.sklearn import CVEvaluation
-            from amltk.pipeline import Component
-            from amltk.optimization import Metric
+        working_dir = Path("./some-path")
+        pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})
+        x, y = sklearn.datasets.load_iris(return_X_y=True)
+        evaluator = CVEvaluation(x, y, n_splits=3, working_dir=working_dir)
 
-            working_dir = Path("./some-path")
-            pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})
-            x, y = sklearn.datasets.load_iris(return_X_y=True)
-            evaluator = CVEvaluation(x, y, n_splits=3, working_dir=working_dir)
+        # Our early stopping strategy, with an `update()` and `should_stop()`
+        # signature match what's expected.
 
-            # Our early stopping strategy, with an `update()` and `should_stop()`
-            # signature match what's expected.
+        @dataclass
+        class CVEarlyStopper:
+            def update(self, report: Trial.Report) -> None:
+                # Normally you would update w.r.t. a finished trial, such
+                # as updating a moving average of the scores.
+                pass
 
-            @dataclass
-            class CVEarlyStopper:
-                def update(self, report: Trial.Report) -> None:
-                    # Normally you would update w.r.t. a finished trial, such
-                    # as updating a moving average of the scores.
-                    pass
+            def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
+                # Return True to stop, False to continue. Alternatively, return a
+                # specific exception to attach to the report instead
+                return True
 
-                def should_stop(self, info: CVEvaluation.FoldInfo) -> bool | Exception:
-                    # Return True to stop, False to continue. Alternatively, return a
-                    # specific exception to attach to the report instead
-                    return True
+        history = pipeline.optimize(
+            target=evaluator.fn,
+            metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
+            max_trials=1,
+            working_dir=working_dir,
 
-            history = pipeline.optimize(
-                target=evaluator.fn,
-                metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
-                max_trials=1,
-                working_dir=working_dir,
+            # Here we insert the plugin to the task that will get created
+            plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
 
-                # Here we insert the plugin to the task that will get created
-                plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
-
-                # Notably, we set `on_trial_exception="continue"` to not stop as
-                # we expect trials to fail given the early stopping strategy
-                on_trial_exception="continue",
-            )
-
-            from rich import print
-            print(history.reports[0])
-            evaluator.bucket.rmdir()  # markdown-exec: hide
-            ```
+            # Notably, we set `on_trial_exception="continue"` to not stop as
+            # we expect trials to fail given the early stopping strategy
+            on_trial_exception="continue",
+        )
+        from amltk._doc import doc_print; doc_print(print, history[0])  # markdown-exec: hide
+        evaluator.bucket.rmdir()  # markdown-exec: hide
+        ```
 
         !!! warning "Recommended settings for `CVEvaluation`
 
@@ -1250,10 +1248,10 @@ class CVEvaluation(Emitter):
             to end. If using [`pipeline.optimize`][amltk.pipeline.Node.optimize],
             to set `on_trial_exception="continue"` to continue optimization.
 
-        This will also add a new event to the task which you can subscribe to
-        with [`task.on("fold-evaluated")`][amltk.scheduler.Task.on]. It will
-        be passed a
-        [`CVEvaluation.FoldInfo`][amltk.sklearn.evaluation.CVEvaluation.FoldInfo]
+        This will also add a new event to the task which you can subscribe to with
+        [`task.on("split-evaluated")`][amltk.sklearn.evaluation.CVEvaluation.SPLIT_EVALUATED].
+        It will be passed a
+        [`CVEvaluation.SplitInfo`][amltk.sklearn.evaluation.CVEvaluation.SplitInfo]
         that you can use to make a decision on whether to continue or stop. The
         passed in `strategy=` simply sets up listening to these events for you.
         You can also do this manually.
@@ -1266,8 +1264,8 @@ class CVEvaluation(Emitter):
             plugins=[evaluator.cv_early_stopping_plugin()]
         )
 
-        @task.on("fold-evaluated")
-        def should_stop(info: CVEvaluation.FoldInfo) -> bool | Execption:
+        @task.on("split-evaluated")
+        def should_stop(info: CVEvaluation.SplitInfo) -> bool | Execption:
             # Make a decision on whether to stop or continue
             return info.scores["accuracy"] < np.mean(scores)
 
@@ -1277,15 +1275,19 @@ class CVEvaluation(Emitter):
                 return scores.append(report.values["accuracy"])
         ```
 
-        Please see [`CVEarlyStopper`][amltk.sklearn.evaluation.CVEarlyStopper]
-        for more.
-
         Args:
-            strategy: The strategy to use for early stopping. Please
-                see [`CVEarlyStopper`][amltk.sklearn.evaluation.CVEarlyStopper]
-                on how to implement a custom strategy. By default, this is `None`
-                and this will simply create the [`Comm`][amltk.comm.Comm] and
-                events necessary to listen to the fold evaluated events.
+            strategy: The strategy to use for early stopping. Must implement the
+                `update()` and `should_stop()` methods of
+                [`CVEarlyStoppingProtocol`][amltk.sklearn.evaluation.CVEarlyStoppingProtocol].
+                Please follow the documentation link to find out more.
+
+                By default, when no `strategy=` is passedj this is `None` and
+                this will create a [`Comm`][amltk.scheduling.plugins.comm.Comm] object,
+                allowing communication between the worker running the task and the main
+                process. This adds a new event to the task that you can subscribe
+                to with
+                [`task.on("split-evaluated")`][amltk.sklearn.evaluation.CVEvaluation.SPLIT_EVALUATED].
+                This is how a passed in strategy will be called and updated.
             create_comms: A function that creates a pair of comms for the
                 plugin to use. This is useful if you want to create a
                 custom communication channel. If not provided, the default
@@ -1301,9 +1303,59 @@ class CVEvaluation(Emitter):
 
         Returns:
             The plugin to use for the task.
-        """
+        """  # noqa: E501
         return CVEvaluation._CVEarlyStoppingPlugin(
             self,
             strategy=strategy,
             create_comms=create_comms,
         )
+
+
+class CVEarlyStoppingProtocol(Protocol):
+    """Protocol for early stopping in cross-validation.
+
+    You class should implement the
+    [`update()`][amltk.sklearn.evaluation.CVEarlyStoppingProtocol.update]
+    and [`should_stop()`][amltk.sklearn.evaluation.CVEarlyStoppingProtocol.should_stop]
+    methods. You can optionally inherit from this class but it is not required.
+
+    ```python
+    class MyStopper:
+
+        def update(self, report: Trial.Report) -> None:
+            if report.status is Trial.Status.SUCCESS:
+                # ... do some update logic
+
+        def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
+            mean_scores_up_to_current_split = np.mean(info.scores["accuracy"])
+            if mean_scores_up_to_current_split > 0.9:
+                return False  # Keep going
+            else:
+                return True  # Stop evaluating
+    ```
+    """
+
+    def update(self, report: Trial.Report) -> None:
+        """Update the protocol with a new report.
+
+        This will be called when a trial has been completed, either successfully
+        or failed. You can check for successful trials by using
+        [`report.status`][amltk.optimization.Trial.Report.status].
+
+        Args:
+            report: The report from the trial.
+        """
+        ...
+
+    def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
+        """Determines whether the cross-validation should stop early.
+
+        Args:
+            info: The information about the current split.
+
+        Returns:
+            `True` if the cross-validation should stop, `False` if it should
+            continue, or an `Exception` if it should stop and you'd like a custom
+            error to be registered with the trial.
+        """
+        ...
