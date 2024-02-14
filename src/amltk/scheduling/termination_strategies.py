@@ -23,6 +23,29 @@ import psutil
 _Executor = TypeVar("_Executor", bound=Executor)
 
 
+def polite_kill(process: psutil.Process, timeout: int | None = None) -> None:
+    """Politely kill a process.
+
+    This works by first sending a SIGTERM to the process, and then if it
+    doesn't respond to that, sending a SIGKILL.
+
+    On Windows, SIGTERM is not available, so `terminate()` will
+    send a `SIGKILL` directly.
+
+    Args:
+        process: The process to kill.
+        timeout: The time to wait for the process after sending SIGTERM.
+            before resorting to SIGKILL. If None, wait indefinitely.
+    """
+    with suppress(psutil.NoSuchProcess):
+        process.terminate()
+        process.wait(timeout=timeout)
+
+        # Forcibly kill it if it's not responding to the SIGTERM
+        if process.is_running():
+            process.kill()
+
+
 def _terminate_with_psutil(executor: ProcessPoolExecutor) -> None:
     """Terminate all processes in the given executor using psutil.
 
@@ -35,19 +58,19 @@ def _terminate_with_psutil(executor: ProcessPoolExecutor) -> None:
     if not executor._processes:
         return
 
-    worker_processes = [psutil.Process(p.pid) for p in executor._processes.values()]
-    for worker_process in worker_processes:
+    for process in executor._processes.values():
         try:
-            child_preocesses = worker_process.children(recursive=True)
+            worker_process = psutil.Process(process.pid)
+            # We reverse here to start from leaf processes first, giving parents
+            # time to cleanup after their terminated subprocesses.
+            child_processes = reversed(worker_process.children(recursive=True))
         except psutil.NoSuchProcess:
             continue
 
-        for child_process in child_preocesses:
-            with suppress(psutil.NoSuchProcess):
-                child_process.terminate()
+        for child_process in child_processes:
+            polite_kill(child_process, timeout=5)
 
-        with suppress(psutil.NoSuchProcess):
-            worker_process.terminate()
+        polite_kill(worker_process, timeout=5)
 
 
 def termination_strategy(executor: _Executor) -> Callable[[_Executor], None] | None:
