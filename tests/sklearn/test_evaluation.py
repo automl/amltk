@@ -836,3 +836,84 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
     # Only the first fold should have been run and put in summary
     assert "split_0:accuracy" in report.summary
     assert "split_1:accuracy" not in report.summary
+
+
+def test_that_test_scorer_params_can_be_forwarded(tmp_path: Path) -> None:
+    """Not the biggest fan of this test, apologies.
+
+    Main concerns are just to ensure that the correct parameters get forwarded
+    to `custom_metric` and that the data used in the test remains to be in the assumed
+    state.
+    """
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+
+        x, y = data_for_task_type("binary")
+
+        # We do some sanity checking that this test is doing what's
+        # intended and doesn't silently break, namely we want to ensure that
+        # the scorer gets two different sized inputs, one for the splits
+        # themselves and one for th test data. This assumption is required
+        # for the test to work
+        N_SPLITS = 2
+        assert len(x) % N_SPLITS == 0, "Need to have equal sized splits"
+
+        EXPECTED_FOLD_SIZE = len(x) // N_SPLITS
+        TEST_SIZE = 2
+        assert EXPECTED_FOLD_SIZE != TEST_SIZE, "Test size and fold size matched"
+
+        x_test, y_test = x[:TEST_SIZE], y[:TEST_SIZE]
+
+        def custom_metric(
+            y_true: np.ndarray,
+            y_pred: np.ndarray,
+            *,
+            data_independant: float,  # e.g. pos_label
+            data_dependant: np.ndarray,  # e.g. sample_weight
+        ):
+            assert len(data_dependant) in (EXPECTED_FOLD_SIZE, TEST_SIZE)
+
+            # Just ensure shapes match
+            if len(data_dependant) == EXPECTED_FOLD_SIZE:
+                assert all(len(p) == EXPECTED_FOLD_SIZE for p in (y_pred, y_true))
+
+            if len(data_dependant) == TEST_SIZE:
+                assert all(len(p) == TEST_SIZE for p in (y_pred, y_true))
+
+            # Return the fake score, i.e. the injected data_independant value
+            return data_independant
+
+        custom_scorer = (
+            make_scorer(custom_metric, response_method="predict")
+            # Here we specify that it needs this parameter routed to it
+            # NOTE: We don't specify that we need the test variations, that
+            # will be handled by the evaluator by prefixing the test_ to the
+            # parameters
+            .set_score_request(data_independant=True, data_dependant=True)
+        )
+
+        evaluator = CVEvaluation(
+            x,
+            y,
+            X_test=x_test,
+            y_test=y_test,
+            n_splits=N_SPLITS,
+            params={
+                "data_independant": 1,
+                "data_dependant": np.ones(len(x)),
+                # Here we provide the test specific scorer params
+                "test_data_independant": 2,
+                "test_data_dependant": np.ones(len(x_test)),
+            },
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric(name="custom_metric", fn=custom_scorer),
+        )
+        report = evaluator.fn(trial, pipeline)
+
+        assert report.values["custom_metric"] == 1
+        assert report.summary["test_mean_custom_metric"] == 2

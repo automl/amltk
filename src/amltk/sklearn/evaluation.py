@@ -519,19 +519,6 @@ def _iter_cross_validate(
         k: v.load() if isinstance(v, Stored) else v for k, v in params.items()
     }
 
-    # NOTE: This flow adapted from sklearns 1.4 cross_validate
-    # This scorer is only created for routing purposes
-    multimetric_scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
-    routed_params = _route_params(
-        splitter=splitter,
-        estimator=estimator,
-        _scorer=multimetric_scorer,
-        **loaded_params,
-    )
-
-    fit_params = routed_params["estimator"]["fit"]
-    scorer_params = routed_params["scorer"]["score"]
-
     # Unfortunatly there's two things that can happen here.
     # 1. The scorer requires some params agnostic to data (e.g. pos_label)
     # 2. The scorer requires some params specific to data (e.g. sample_weight)
@@ -551,11 +538,31 @@ def _iter_cross_validate(
     # As an important caveat, this also means things like `pos_label` which are
     # data agnostic needs to be provided twice, once as `pos_label` and once as
     # `test_pos_label`, such that the scores in test recieve th params.
+    #
+    # Here we remove all the `test_{key}` from params for `key` in `params`
+    # We assume these are scorer params and this may need to be changed in the future
+    # if we have a better idea.
     test_scorer_params = {
-        k: test_v
-        for k in scorer_params
-        if (test_v := params.get(f"test_{k}", None)) is not None
+        k: v
+        for k in list(loaded_params)
+        if (v := loaded_params.pop(f"test_{k}", None)) is not None
     }
+
+    # We've now popped out all the test params, so we can safely call
+    # to `_route_params` without it complaining that nothing has requested `test_{key}`
+
+    # NOTE: This flow adapted from sklearns 1.4 cross_validate
+    # This scorer is only created for routing purposes
+    multimetric_scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
+    routed_params = _route_params(
+        splitter=splitter,
+        estimator=estimator,
+        _scorer=multimetric_scorer,
+        **loaded_params,
+    )
+
+    fit_params = routed_params["estimator"]["fit"]
+    scorer_params = routed_params["scorer"]["score"]
 
     # Notably, this is an iterator
     X_loaded = X.load()
