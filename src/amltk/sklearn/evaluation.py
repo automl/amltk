@@ -521,27 +521,31 @@ def _iter_cross_validate(
 
     # Unfortunatly there's two things that can happen here.
     # 1. The scorer requires does not require split specific param data (e.g. pos_label)
+    #    * In this case, the param['pos_label'] can be used for train/val and test
     # 2. The scorer requires required split specific param data (e.g. sample_weight)
+    #    * In this case, we use the split indices to select the part of
+    #    `params['sample_weight']` that is required for the repsective train/val split.
+    #   * This means we can not use `params['sample_weight']` for the test split, as
+    #     this would require some odd hack of concatenating them and having seperate
+    #     test indices passed in by the user, a pretty dumb idea.
     #
-    # Case 1 is non problematic by itself
-    # Case 2 is problematic because our `sample_weight` is listed as something
-    # such as `"test_sample_weight"` and disjointed from the actual params.
+    # The easy workaround is to have the user provide `test_{key}` for something
+    # like `params['test_sample_weight']`, which we can then use for the test split.
+    # However this breaks the metadata routing, which introspects the objects as
+    # sees that yes, indeed something has requested `sample_weight` but nothing
+    # has requested `test_sample_weight`. Worse still, we would need to pass
+    # `params['test_sample_weight']` to the `sample_weight=` parameter of scorer.
     #
-    # While `sample_weight` is not the best example, some fairness metrics may
-    # require some grouping or other parameter that must match 1-to-1 with the X
-    # data.
+    # Our workaround is to have users provide `test_{key}` for all the scorer params
+    # which we pop into a new dict with just `{key}`, where the `test_` prefix has been
+    # removed. The router will never see this dict.
     #
-    # To counteract this, whatever params we selected for the scorer, we lookup
-    # if `test_{key}` exists and if it does, we add it to the test_scorer_params.
-    # These is documented in the class docstring.
-    #
-    # As an important caveat, this also means things like `pos_label` which are
-    # data agnostic needs to be provided twice, once as `pos_label` and once as
-    # `test_pos_label`, such that the scores in test recieve th params.
-    #
-    # Here we remove all the `test_{key}` from params for `key` in `params`
-    # We assume these are scorer params and this may need to be changed in the future
-    # if we have a better idea.
+    # As an important caveats:
+    # * We assume all keys prefixed with `test_` are scorer params.
+    # * Things like `pos_label` which are split agnostic needs to be
+    #   provided twice, once as `pos_label` and once as `test_pos_label`, such that
+    #   the scores in test recieve th params.
+
     test_scorer_params = {
         k: v
         for k in list(loaded_params)
