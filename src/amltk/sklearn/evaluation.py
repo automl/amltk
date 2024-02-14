@@ -345,26 +345,27 @@ def _fit(
 
     train_scores = None
     if scorers is not None:
-        train_scores = _score(
-            estimator=estimator,
-            X_test=X_train,
-            y_test=y_train,
-            scorer=scorers,
-            score_params=_scorer_params_train,
-            error_score="raise",
-        )
-        assert isinstance(train_scores, dict)
-        for k, v in train_scores.items():
-            # Can return list or np.bool_
-            # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
-            # Also, we can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
-            # Hence we have to use equality checking
-            # God I feel like I'm doing javascript
-            if np.isfinite(v) != True:  # noqa: E712
-                raise ValueError(
-                    f"Scorer {k} returned {v} for train split. The scorer should"
-                    " should return a finite float",
-                )
+        with profiler("train_score"):
+            train_scores = _score(
+                estimator=estimator,
+                X_test=X_train,
+                y_test=y_train,
+                scorer=scorers,
+                score_params=_scorer_params_train,
+                error_score="raise",
+            )
+            assert isinstance(train_scores, dict)
+            for k, v in train_scores.items():
+                # Can return list or np.bool_
+                # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
+                # We can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
+                # Hence we have to use equality checking
+                # God I feel like I'm doing javascript
+                if np.isfinite(v) != True:  # noqa: E712
+                    raise ValueError(
+                        f"Scorer {k} returned {v} for train split. The scorer should"
+                        " should return a finite float",
+                    )
 
     return estimator, train_scores
 
@@ -410,19 +411,27 @@ def _score_val_split(
         return scores
 
 
-def _evaluate_split(
+def _evaluate_split(  # noqa: PLR0913
     estimator: BaseEstimatorT,
     X: pd.DataFrame | np.ndarray,  # noqa: N803
     y: pd.Series | pd.DataFrame | np.ndarray,
     *,
+    X_test: np.ndarray | pd.DataFrame | None = None,  # noqa: N803
+    y_test: np.ndarray | pd.Series | pd.DataFrame | None = None,
     i_train: np.ndarray,
     i_val: np.ndarray,
     profiler: Profiler,
     scorers: _MultimetricScorer,
     fit_params: Mapping[str, Any],
     scorer_params: Mapping[str, Any],
+    test_scorer_params: Mapping[str, Any],
     train_score: bool,
-) -> tuple[BaseEstimatorT, Mapping[str, float], Mapping[str, float] | None]:
+) -> tuple[
+    BaseEstimatorT,
+    Mapping[str, float],
+    Mapping[str, float] | None,
+    Mapping[str, float] | None,
+]:
     # These return new dictionaries
 
     fitted_estimator, train_scores = _fit(
@@ -447,7 +456,34 @@ def _evaluate_split(
         profiler=profiler,
     )
 
-    return fitted_estimator, val_scores, train_scores
+    test_scores = None
+    if X_test is not None and y_test is not None:
+        with profiler("test_score"):
+            test_scores = _score(
+                estimator=fitted_estimator,
+                X_test=X_test,
+                y_test=y_test,
+                scorer=scorers,
+                score_params=test_scorer_params,
+                error_score="raise",
+            )
+
+            # NOTE: Despite `error_score="raise"`, this will not raise
+            # for `inf` or `nan` values.
+            assert isinstance(test_scores, dict)
+            for k, v in test_scores.items():
+                # Can return list or np.bool_
+                # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
+                # We can't use `np.bool_` is `True` as `np.bool_(True) is not True`
+                # Hence we have to use equality checking
+                # God I feel like I'm doing javascript
+                if np.isfinite(v) != True:  # noqa: E712
+                    raise ValueError(
+                        f"Scorer {k} returned {v} for validation split. The scorer"
+                        " should return a finite float",
+                    )
+
+    return fitted_estimator, val_scores, train_scores, test_scores
 
 
 def _iter_cross_validate(
@@ -457,10 +493,26 @@ def _iter_cross_validate(
     splitter: BaseShuffleSplit | BaseCrossValidator,
     scorers: Mapping[str, _Scorer],
     *,
+    X_test: Stored[np.ndarray | pd.DataFrame] | None = None,  # noqa: N803
+    y_test: Stored[np.ndarray | pd.Series | pd.DataFrame] | None = None,
     params: Mapping[str, Any | Stored[Any]] | None = None,
     profiler: Profiler | None = None,
     train_score: bool = False,
-) -> Iterator[tuple[BaseEstimatorT, Mapping[str, float], Mapping[str, float] | None]]:
+) -> Iterator[
+    tuple[
+        BaseEstimatorT,
+        Mapping[str, float],
+        Mapping[str, float] | None,
+        Mapping[str, float] | None,
+    ]
+]:
+    if (X_test is not None and y_test is None) or (
+        y_test is not None and X_test is None
+    ):
+        raise ValueError(
+            "Both `X_test`, `y_test` must be provided together if one is provided.",
+        )
+
     profiler = Profiler(disabled=True) if profiler is None else profiler
     params = {} if params is None else params
     loaded_params: dict[str, Any] = {
@@ -480,26 +532,56 @@ def _iter_cross_validate(
     fit_params = routed_params["estimator"]["fit"]
     scorer_params = routed_params["scorer"]["score"]
 
+    # Unfortunatly there's two things that can happen here.
+    # 1. The scorer requires some params agnostic to data (e.g. pos_label)
+    # 2. The scorer requires some params specific to data (e.g. sample_weight)
+    #
+    # Case 1 is non problematic by itself
+    # Case 2 is problematic because our `sample_weight` is listed as something
+    # such as `"test_sample_weight"` and disjointed from the actual params.
+    #
+    # While `sample_weight` is not the best example, some fairness metrics may
+    # require some grouping or other parameter that must match 1-to-1 with the X
+    # data.
+    #
+    # To counteract this, whatever params we selected for the scorer, we lookup
+    # if `test_{key}` exists and if it does, we add it to the test_scorer_params.
+    # These is documented in the class docstring.
+    #
+    # As an important caveat, this also means things like `pos_label` which are
+    # data agnostic needs to be provided twice, once as `pos_label` and once as
+    # `test_pos_label`, such that the scores in test recieve th params.
+    test_scorer_params = {
+        k: test_v
+        for k in scorer_params
+        if (test_v := params.get(f"test_{k}", None)) is not None
+    }
+
     # Notably, this is an iterator
     X_loaded = X.load()
     y_loaded = y.load()
+    X_test_loaded = X_test.load() if X_test is not None else None
+    y_test_loaded = y_test.load() if y_test is not None else None
     indicies = splitter.split(X_loaded, y_loaded, **routed_params["splitter"]["split"])
 
     fit_params = fit_params if fit_params is not None else {}
     scorer_params = scorer_params if scorer_params is not None else {}
 
-    for i_train, i_test in indicies:
+    for i_train, i_val in indicies:
         # Sadly this function needs the full X and y due to its internal checks
         yield _evaluate_split(
             estimator=estimator,
             X=X_loaded,
             y=y_loaded,
+            X_test=X_test_loaded,
+            y_test=y_test_loaded,
             i_train=i_train,
-            i_val=i_test,
+            i_val=i_val,
             profiler=profiler,
             scorers=multimetric_scorer,
             fit_params=fit_params,
             scorer_params=scorer_params,
+            test_scorer_params=test_scorer_params,
             train_score=train_score,
         )
 
@@ -510,6 +592,8 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
     *,
     X: Stored[np.ndarray | pd.DataFrame],  # noqa: N803
     y: Stored[np.ndarray | pd.Series | pd.DataFrame],
+    X_test: Stored[np.ndarray | pd.DataFrame] | None = None,  # noqa: N803
+    y_test: Stored[np.ndarray | pd.Series | pd.DataFrame] | None = None,
     splitter: BaseShuffleSplit | BaseCrossValidator,
     additional_scorers: Mapping[str, _Scorer] | None,
     train_score: bool = False,
@@ -587,6 +671,8 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
         estimator=estimator,
         X=X,
         y=y,
+        X_test=X_test,
+        y_test=y_test,
         splitter=splitter,
         scorers=scorers,
         params=params,
@@ -596,7 +682,9 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
     n_splits = splitter.get_n_splits()
     if n_splits is None:
         raise NotImplementedError("Needs to be handled")
+
     all_train_scores: dict[str, list[float]] = defaultdict(list)
+    all_test_scores: dict[str, list[float]] = defaultdict(list)
     all_val_scores: dict[str, list[float]] = defaultdict(list)
 
     with comm.open() if comm is not None else nullcontext():
@@ -604,11 +692,12 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
             # Open up comms if passed in, allowing for the cv early stopping mechanism
             # to communicate back to the main process
             # Main cv loop
-            for i, (_trained_est, _val_scores, _train_scores) in trial.profiler.each(
-                enumerate(cv_iter),
-                name="cv",
-                itr_name="split",
-            ):
+            for i, (
+                _trained_est,
+                _val_scores,
+                _train_scores,
+                _test_scores,
+            ) in trial.profiler.each(enumerate(cv_iter), name="cv", itr_name="split"):
                 # Update the report
                 if store_models:
                     trial.store({f"model_{i}.pkl": _trained_est})
@@ -626,8 +715,14 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                     trial.summary.update(train_scores)
                     for k, v in _train_scores.items():
                         all_train_scores[k].append(v)
-                else:
-                    train_scores = None
+
+                if _test_scores is not None:
+                    test_scores = {
+                        f"split_{i}:test_{k}": v for k, v in _test_scores.items()
+                    }
+                    trial.summary.update(test_scores)
+                    for k, v in _test_scores.items():
+                        all_test_scores[k].append(v)
 
                 # If there was a comm passed, we are operating under cv early stopping
                 # mode, in which case we request information from the main process,
@@ -640,6 +735,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                         max_splits=n_splits,
                         scores=all_val_scores,
                         train_scores=all_train_scores,
+                        test_scores=all_test_scores,
                     )
                     match response := comm.request(rqst_info, timeout=10):
                         case True:
@@ -679,6 +775,16 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                 )
                 trial.summary.update(
                     {f"train_std_{k}": v for k, v in std_train_scores.items()},
+                )
+
+            if any(all_test_scores):
+                mean_test_scores = {k: np.mean(v) for k, v in all_test_scores.items()}
+                std_test_scores = {k: np.std(v) for k, v in all_test_scores.items()}
+                trial.summary.update(
+                    {f"test_mean_{k}": v for k, v in mean_test_scores.items()},
+                )
+                trial.summary.update(
+                    {f"test_std_{k}": v for k, v in std_test_scores.items()},
                 )
 
             metrics_to_report = {
@@ -815,8 +921,14 @@ class CVEvaluation(Emitter):
     _X_FILENAME: ClassVar[str] = "X.pkl"
     """The name of the file to store the features in."""
 
+    _X_TEST_FILENAME: ClassVar[str] = "X_test.pkl"
+    """The name of the file to store the test features in."""
+
     _Y_FILENAME: ClassVar[str] = "y.pkl"
-    """The name of the file to store the target in."""
+    """The name of the file to store the targets in."""
+
+    _Y_TEST_FILENAME: ClassVar[str] = "y_test.pkl"
+    """The name of the file to store the test targets in."""
 
     PARAM_EXTENSION_MAPPING: ClassVar[dict[type[Sized], str]] = {
         np.ndarray: "npy",
@@ -906,6 +1018,7 @@ class CVEvaluation(Emitter):
             max_splits: The maximum number of splits that will be performed.
             scores: The scores up to and including that split.
             train_scores: The train scores, if requested.
+            test_scores: The test scores, if requested.
         """
 
         trial: Trial
@@ -914,6 +1027,7 @@ class CVEvaluation(Emitter):
         max_splits: int
         scores: Mapping[str, list[float]]
         train_scores: Mapping[str, list[float]] | None
+        test_scores: Mapping[str, list[float]] | None
 
     class _CVEarlyStoppingPlugin(Plugin):
         name: ClassVar[str] = "cv-early-stopping-plugin"
@@ -999,6 +1113,8 @@ class CVEvaluation(Emitter):
         X: pd.DataFrame | np.ndarray,  # noqa: N803
         y: pd.Series | pd.DataFrame | np.ndarray,
         *,
+        X_test: pd.DataFrame | np.ndarray | None = None,  # noqa: N803
+        y_test: pd.Series | pd.DataFrame | np.ndarray | None = None,
         splitter: (
             Literal["holdout", "cv"] | BaseShuffleSplit | BaseCrossValidator
         ) = "cv",
@@ -1020,6 +1136,21 @@ class CVEvaluation(Emitter):
         Args:
             X: The features to use for training.
             y: The target to use for training.
+            X_test: The features to use for testing. If provided, all
+                scorers will be calculated on this data as well.
+                Must be provided with `y_test=`.
+
+                !!! tip "Scorer params for test scoring"
+
+                    Due to nuances of sklearn's metadata routing, if you need to provide
+                    parameters to the scorer for the test data, you can prefix these
+                    with `#!python "test_"`. For example, if you need to provide
+                    `pos_label` to the scorer for the test data, you must provide
+                    `test_pos_label` in the `params` argument.
+
+            y_test: The target to use for testing. If provided, all
+                scorers will be calculated on this data as well.
+                Must be provided with `X_test=`.
             splitter: The cross-validation splitter to use. This can be either
                 `#!python "holdout"` or `#!python "cv"`. Please see the related
                 arguments below. If a scikit-learn cross-validator is provided,
@@ -1066,6 +1197,14 @@ class CVEvaluation(Emitter):
                 * `#!python "transform_context"`: The transform context to use
                     for [`configure()`][amltk.pipeline.Node.configure].
 
+                !!! tip "Scorer params for test scoring"
+
+                    Due to nuances of sklearn's metadata routing, if you need to provide
+                    parameters to the scorer for the test data, you must prefix these
+                    with `#!python "test_"`. For example, if you need to provide
+                    `pos_label` to the scorer for the test data, you can provide
+                    `test_pos_label` in the `params` argument.
+
             task_hint: A string indicating the task type matching those
                 use by sklearn's `type_of_target`. This can be either
                 `#!python "binary"`, `#!python "multiclass"`,
@@ -1092,6 +1231,13 @@ class CVEvaluation(Emitter):
                 even if some trials fail.
         """
         super().__init__()
+        if (X_test is not None and y_test is None) or (
+            y_test is not None and X_test is None
+        ):
+            raise ValueError(
+                "Both `X_test`, `y_test` must be provided together if one is provided.",
+            )
+
         match working_dir:
             case None:
                 tmpdir = Path(
@@ -1120,7 +1266,8 @@ class CVEvaluation(Emitter):
                 task_type = task_hint
             case _:
                 raise ValueError(
-                    f"Invalid {task_hint=} provided. Must be in {_valid_task_types}",
+                    f"Invalid {task_hint=} provided. Must be in {_valid_task_types}"
+                    f"\n{type(task_hint)=}",
                 )
 
         match splitter:
@@ -1150,6 +1297,12 @@ class CVEvaluation(Emitter):
         self.X_stored = self.bucket[self._X_FILENAME].put(X)
         self.y_stored = self.bucket[self._Y_FILENAME].put(y)
 
+        self.X_test_stored = None
+        self.y_test_stored = None
+        if X_test is not None and y_test is not None:
+            self.X_test_stored = self.bucket[self._X_TEST_FILENAME].put(X_test)
+            self.y_test_stored = self.bucket[self._Y_TEST_FILENAME].put(y_test)
+
         # We apply a heuristic that "large" parameters, such as sample_weights
         # should be stored to disk as transferring them directly to subprocess as
         # parameters is quite expensive (they must be non-optimally pickled and
@@ -1175,6 +1328,8 @@ class CVEvaluation(Emitter):
             cross_validate_task,
             X=self.X_stored,
             y=self.y_stored,
+            X_test=self.X_test_stored,
+            y_test=self.y_test_stored,
             splitter=self.splitter,
             additional_scorers=self.additional_scorers,
             params=self.params,

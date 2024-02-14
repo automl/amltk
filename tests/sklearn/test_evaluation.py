@@ -324,13 +324,15 @@ def case_regression(
 @parametrize("as_pd", [True, False])
 @parametrize("store_models", [True, False])
 @parametrize("train_score", [True, False])
+@parametrize("test_data", [True, False])
 @parametrize_with_cases("item", cases=".", prefix="case_")
 @parametrize("cv_value, splitter", [(2, "cv"), (0.3, "holdout")])
-def test_evaluator(
+def test_evaluator(  # noqa: PLR0912
     as_pd: bool,
     store_models: bool,
     train_score: bool,
     item: _EvalKwargs,
+    test_data: bool,
     cv_value: int | float,
     splitter: str,
 ) -> None:
@@ -346,9 +348,17 @@ def test_evaluator(
     else:
         cv_kwargs = {"holdout_size": cv_value, "splitter": "holdout"}
 
+    x_test = None
+    y_test = None
+    if test_data:
+        x_test = x.iloc[:20] if isinstance(x, pd.DataFrame) else x[:20]
+        y_test = y.iloc[:20] if isinstance(y, pd.DataFrame | pd.Series) else y[:20]
+
     evaluator = CVEvaluation(
         X=x,
         y=y,
+        X_test=x_test,
+        y_test=y_test,
         working_dir=item.working_dir,
         train_score=train_score,
         store_models=store_models,
@@ -391,11 +401,20 @@ def test_evaluator(
         assert f"std_{metric_name}" in report.summary
 
     if train_score:
+        assert "cv:train_score" in report.profiles
         for metric_name in expected_summary_scorers:
             for i in range(n_splits):
                 assert f"split_{i}:train_{metric_name}" in report.summary
             assert f"train_mean_{metric_name}" in report.summary
             assert f"train_std_{metric_name}" in report.summary
+
+    if test_data:
+        assert "cv:test_score" in report.profiles
+        for metric_name in expected_summary_scorers:
+            for i in range(n_splits):
+                assert f"split_{i}:test_{metric_name}" in report.summary
+            assert f"test_mean_{metric_name}" in report.summary
+            assert f"test_std_{metric_name}" in report.summary
 
     # All folds are profiled
     assert "cv" in report.profiles
