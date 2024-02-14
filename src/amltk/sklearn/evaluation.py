@@ -520,8 +520,8 @@ def _iter_cross_validate(
     }
 
     # Unfortunatly there's two things that can happen here.
-    # 1. The scorer requires some params agnostic to data (e.g. pos_label)
-    # 2. The scorer requires some params specific to data (e.g. sample_weight)
+    # 1. The scorer requires does not require split specific param data (e.g. pos_label)
+    # 2. The scorer requires required split specific param data (e.g. sample_weight)
     #
     # Case 1 is non problematic by itself
     # Case 2 is problematic because our `sample_weight` is listed as something
