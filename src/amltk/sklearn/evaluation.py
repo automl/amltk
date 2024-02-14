@@ -479,7 +479,7 @@ def _evaluate_split(  # noqa: PLR0913
                 # God I feel like I'm doing javascript
                 if np.isfinite(v) != True:  # noqa: E712
                     raise ValueError(
-                        f"Scorer {k} returned {v} for validation split. The scorer"
+                        f"Scorer {k} returned {v} for test data. The scorer"
                         " should return a finite float",
                     )
 
