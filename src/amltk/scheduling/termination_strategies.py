@@ -23,7 +23,7 @@ import psutil
 _Executor = TypeVar("_Executor", bound=Executor)
 
 
-def polite_kill(process: psutil.Process, timeout: int | None = 1) -> None:
+def polite_kill(process: psutil.Process, timeout: int | None = None) -> None:
     """Politely kill a process.
 
     This works by first sending a SIGTERM to the process, and then if it
@@ -68,9 +68,9 @@ def _terminate_with_psutil(executor: ProcessPoolExecutor) -> None:
             continue
 
         for child_process in child_processes:
-            polite_kill(child_process)
+            polite_kill(child_process, timeout=5)
 
-        polite_kill(worker_process)
+        polite_kill(worker_process, timeout=5)
 
 
 def termination_strategy(executor: _Executor) -> Callable[[_Executor], None] | None:
