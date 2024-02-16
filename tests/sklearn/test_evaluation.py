@@ -396,9 +396,9 @@ def test_evaluator(  # noqa: PLR0912
     ]
     for metric_name in expected_summary_scorers:
         for i in range(n_splits):
-            assert f"split_{i}:{metric_name}" in report.summary
-        assert f"mean_{metric_name}" in report.summary
-        assert f"std_{metric_name}" in report.summary
+            assert f"split_{i}:val_{metric_name}" in report.summary
+        assert f"val_mean_{metric_name}" in report.summary
+        assert f"val_std_{metric_name}" in report.summary
 
     if train_score:
         assert "cv:train_score" in report.profiles
@@ -813,7 +813,7 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
         def update(self, report: Trial.Report) -> None:
             pass  # Normally you would update w.r.t. a finished trial
 
-        def should_stop(self, info: CVEvaluation.SplitInfo) -> bool:  # noqa: ARG002
+        def should_stop(self, split_infos: list[CVEvaluation.SplitInfo]) -> bool:  # noqa: ARG002
             # Just say yes, should stop
             return True
 
@@ -834,8 +834,8 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
     assert "Early stop" in str(report.exception)
 
     # Only the first fold should have been run and put in summary
-    assert "split_0:accuracy" in report.summary
-    assert "split_1:accuracy" not in report.summary
+    assert "split_0:val_accuracy" in report.summary
+    assert "split_1:val_accuracy" not in report.summary
 
 
 def test_that_test_scorer_params_can_be_forwarded(tmp_path: Path) -> None:
