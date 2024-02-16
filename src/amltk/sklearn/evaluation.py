@@ -68,6 +68,7 @@ from amltk.exceptions import (
     MismatchedTaskTypeWarning,
     TrialError,
 )
+from amltk.optimization import Trial
 from amltk.profiling.profiler import Profiler
 from amltk.scheduling import Plugin, Task
 from amltk.scheduling.events import Emitter, Event
@@ -81,7 +82,6 @@ if TYPE_CHECKING:
         BaseShuffleSplit,
     )
 
-    from amltk.optimization import Trial
     from amltk.pipeline import Node
     from amltk.randomness import Seed
 
@@ -119,8 +119,8 @@ YLike: TypeAlias = pd.Series | pd.DataFrame | np.ndarray
 """A type alias for y input data type as defined by sklearn."""
 
 PostSplitSignature: TypeAlias = Callable[
-    ["CVEvaluation.SplitEval"],
-    "CVEvaluation.SplitEval",
+    [Trial, int, "CVEvaluation.PostSplitInfo"],
+    "CVEvaluation.PostSplitInfo",
 ]
 """A type alias for the post split callback signature.
 
@@ -128,7 +128,11 @@ Please see [`CVEvaluation.SplitEval`][amltk.sklearn.evaluation.CVEvaluation.Spli
 for more information on the information available to act upon.
 
 ```python
-def my_post_split(eval: CVEvalauation.SplitEval) -> CVEvaluation.SplitEval:
+def my_post_split(
+    trial: Trial,
+    split_number: int,
+    eval: CVEvalauation.PostSplitInfo
+) -> CVEvaluation.PostSplitInfo:
     ...
 ```
 """
@@ -452,7 +456,7 @@ def _evaluate_split(  # noqa: PLR0913
     scorer_params: Mapping[str, Any],
     test_scorer_params: Mapping[str, Any],
     train_score: bool,
-) -> CVEvaluation.SplitEval:
+) -> CVEvaluation.PostSplitInfo:
     # We shove all logic that requires indexing into X for train into `_fit`.
     # This is because it's easy to create an accidental copy, i.e. with _safe_split.
     # We want that memory to only exist inside that `_fit` function and to not persists
@@ -493,7 +497,11 @@ def _evaluate_split(  # noqa: PLR0913
             )
             test_scores = _check_valid_scores(test_scores, split="test")
 
-    return CVEvaluation.SplitEval(
+    return CVEvaluation.PostSplitInfo(
+        X=X,
+        y=y,
+        X_test=X_test,
+        y_test=y_test,
         i_train=i_train,
         i_val=i_val,
         model=fitted_estimator,
@@ -516,14 +524,13 @@ def _iter_cross_validate(  # noqa: PLR0913
     *,
     X_test: XLike | None = None,  # noqa: N803
     y_test: YLike | None = None,
-    post_split: PostSplitSignature | None = None,
     fit_params: Mapping[str, Any] | None = None,
     scorer_params: Mapping[str, Any] | None = None,
     splitter_params: Mapping[str, Any] | None = None,
     test_scorer_params: Mapping[str, Any] | None = None,
     profiler: Profiler | None = None,
     train_score: bool = False,
-) -> Iterator[CVEvaluation.SplitEval]:
+) -> Iterator[CVEvaluation.PostSplitInfo]:
     if (X_test is not None and y_test is None) or (
         y_test is not None and X_test is None
     ):
@@ -540,7 +547,7 @@ def _iter_cross_validate(  # noqa: PLR0913
 
     for i_train, i_val in splitter.split(X, y, **splitter_params):
         # Sadly this function needs the full X and y due to its internal checks
-        split_eval = _evaluate_split(
+        yield _evaluate_split(
             estimator=estimator,
             X=X,
             y=y,
@@ -555,10 +562,6 @@ def _iter_cross_validate(  # noqa: PLR0913
             test_scorer_params=test_scorer_params,
             train_score=train_score,
         )
-        if post_split is not None:
-            yield post_split(split_eval)
-        else:
-            yield split_eval
 
 
 def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
@@ -719,7 +722,6 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
         splitter=splitter,
         scorers=scorers,
         profiler=trial.profiler,
-        post_split=post_split,
         train_score=train_score,
         fit_params=fit_params,
         scorer_params=scorer_params,
@@ -727,7 +729,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
         test_scorer_params=test_scorer_params,
     )
 
-    split_infos: list[CVEvaluation.SplitInfo] = []
+    split_infos: list[CVEvaluation.SplitScores] = []
     models: list[BaseEstimator] | None = (
         None if not post_processing_requires_models else []
     )
@@ -737,11 +739,16 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
             # Open up comms if passed in, allowing for the cv early stopping mechanism
             # to communicate back to the main process
             # Main cv loop
-            for i, split_eval in trial.profiler.each(
+            for i, _split_eval in trial.profiler.each(
                 enumerate(cv_iter),
                 name="cv",
                 itr_name="split",
             ):
+                if post_split is not None:
+                    split_eval = post_split(trial, i, _split_eval)
+                else:
+                    split_eval = _split_eval
+
                 # Update the report
                 if store_models:
                     trial.store({f"model_{i}.pkl": split_eval.model})
@@ -767,7 +774,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                     )
 
                 split_infos.append(
-                    CVEvaluation.SplitInfo(
+                    CVEvaluation.SplitScores(
                         val_scores=split_eval.val_scores,
                         train_scores=split_eval.train_scores,
                         test_scores=split_eval.test_scores,
@@ -787,7 +794,10 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                 # mode, in which case we request information from the main process,
                 # should we continue or stop?
                 if comm is not None and i < n_splits:
-                    match response := comm.request(list(split_infos), timeout=10):
+                    match response := comm.request(
+                        (trial, list(split_infos)),
+                        timeout=10,
+                    ):
                         case True:
                             raise CVEarlyStoppedError("Early stopped!")
                         case False:
@@ -992,7 +1002,7 @@ class CVEvaluation(Emitter):
 
     """
 
-    SPLIT_EVALUATED: Event[[list[SplitInfo]], bool | Exception] = Event(
+    SPLIT_EVALUATED: Event[[Trial, list[SplitScores]], bool | Exception] = Event(
         "split-evaluated",
     )
     """Event that is emitted when a split has been evaluated.
@@ -1092,10 +1102,14 @@ class CVEvaluation(Emitter):
     data.
     """
 
-    class SplitEval(NamedTuple):
+    class PostSplitInfo(NamedTuple):
         """Information about the evaluation of a split.
 
         Args:
+            X: The features to used for training.
+            y: The targets used for training.
+            X_test: The features used for testing if it was passed in.
+            y_test: The targets used for testing if it was passed in.
             i_train: The train indices for this split.
             i_val: The validation indices for this split.
             model: The model that was trained in this split.
@@ -1111,6 +1125,10 @@ class CVEvaluation(Emitter):
                 scorers on training set.
         """
 
+        X: XLike
+        y: YLike
+        X_test: XLike | None
+        y_test: YLike | None
         i_train: np.ndarray
         i_val: np.ndarray
         model: BaseEstimator
@@ -1122,8 +1140,8 @@ class CVEvaluation(Emitter):
         val_scorer_params: Mapping[str, Any]
         test_scorer_params: Mapping[str, Any]
 
-    class SplitInfo(NamedTuple):
-        """Information provided to methods implementing early stopping.
+    class SplitScores(NamedTuple):
+        """The scores for a split.
 
         Attributes:
             val_scores: The validation scores for this split.
@@ -1161,7 +1179,7 @@ class CVEvaluation(Emitter):
         max_splits: int
         """The maximum number of splits that were (or could have been) evaluated."""
 
-        split_info: list[CVEvaluation.SplitInfo]
+        split_info: list[CVEvaluation.SplitScores]
         """The information about the splits that were evaluated."""
 
         scorers: dict[str, _Scorer]
@@ -1262,15 +1280,20 @@ class CVEvaluation(Emitter):
                 self.strategy.update(report)
 
         def _on_comm_request_ask_whether_to_continue(self, msg: Comm.Msg) -> None:
-            if not isinstance(msg.data, list) or not all(
-                isinstance(x, CVEvaluation.SplitInfo) for x in msg.data
-            ):
-                # Not intended for us to handle
+            if not (isinstance(msg.data, tuple) and len(msg.data) == 2):  # noqa: PLR2004
+                return
+
+            trial, split_infos = msg.data
+            if not (isinstance(trial, Trial) and isinstance(split_infos, list)):
                 return
 
             non_null_responses = [
                 r
-                for _, r in self.task.emit(self.evaluator.SPLIT_EVALUATED, msg.data)
+                for _, r in self.task.emit(
+                    self.evaluator.SPLIT_EVALUATED,
+                    trial,
+                    split_infos,
+                )
                 if r is not None
             ]
             logger.debug(
@@ -1420,26 +1443,22 @@ class CVEvaluation(Emitter):
                 Set this to `#!python "fail"` if you want to continue optimization
                 even if some trials fail.
             post_split: If provided, this callable will be called with a
-                [`SplitInfo`][amltk.sklearn.evaluation.CVEvaluation.SplitInfo]
-                the estimator that was just trained and the X/y_train, X/y_val that
-                was used to train and evaluate the model.
+                [`PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo].
 
                 For example, this could be useful if you'd like to save out-of-fold
                 predictions for later use.
 
                 ```python
                 def my_post_split(
-                    info: SplitInfo,
-                    fitted_model: BaseEstimator,
-                    train: tuple,
-                    val: tuple,
-                    test: tuple | None,
+                    split_number: int,
+                    info: CVEvaluator.PostSplitInfo,
                 ) -> None:
-                    X_val, y_val = val
+                    X_val, y_val = info.val
                     oof_preds = fitted_model.predict(X_val)
 
                     split = info.current_split
                     info.trial.store({f"oof_predictions_{split}.npy": oof_preds})
+                    return info
                 ```
 
                 !!! warning "Run in the worker"
@@ -1452,19 +1471,24 @@ class CVEvaluation(Emitter):
                     sending the callable to a worker, it is no longer updatable from the
                     main process.
 
+                    You should also avoid holding on to references to either the model
+                    or large data that is passed in
+                    [`PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo]
+                    to the function.
+
                     This parameter should primarily be used for callables that rely
                     solely on the output of the current trial and wish to store/add
-                    additional information to the trial.
+                    additional information to the trial itself.
 
             post_processing: If provided, this callable will be called with all of the
                 evaluated splits and the final report that will be returned.
                 This can be used to do things such as augment the final scores
-                if required, cleanup any resources or any other tasks that
-                should be run after the evaluation has completed. This will
-                be handed a [`Report`][amltk.optimization.trial.Trial.Report] and
-                a [`FinalEvalInfo`][amltk.sklearn.evaluation.FinalEvalInfo], which
-                contains all the information about the evaluation. If your function
-                requires the individual models, you can set
+                if required, cleanup any resources or any other tasks that should be
+                run after the evaluation has completed. This will be handed a
+                [`Report`][amltk.optimization.trial.Trial.Report] and a
+                [`FinalEvalInfo`][amltk.sklearn.evaluation.FinalEvalInfo],
+                which contains all the information about the evaluation. If your
+                function requires the individual models, you can set
                 `post_processing_requires_models=True`. By default this is `False`
                 as this requires having all models in memory at once.
 
@@ -1787,11 +1811,13 @@ class CVEarlyStoppingProtocol(Protocol):
 
     def should_stop(
         self,
-        split_infos: list[CVEvaluation.SplitInfo],
+        trial: Trial,
+        split_infos: list[CVEvaluation.SplitScores],
     ) -> bool | Exception:
         """Determines whether the cross-validation should stop early.
 
         Args:
+            trial: The trial that is currently being evaluated.
             split_infos: The information about the evlauated splits.
 
         Returns:
