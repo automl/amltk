@@ -124,8 +124,8 @@ PostSplitSignature: TypeAlias = Callable[
 ]
 """A type alias for the post split callback signature.
 
-Please see [`CVEvaluation.SplitEval`][amltk.sklearn.evaluation.CVEvaluation.SplitEval]
-for more information on the information available to act upon.
+Please see [`PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo]
+for more information on the information available to this callback.
 
 ```python
 def my_post_split(
