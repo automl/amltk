@@ -676,7 +676,7 @@ def test_estimator_params_get_forward(tmp_path: Path) -> None:
 
 
 def test_evaluator_with_clustering(tmp_path: Path) -> None:
-    x, y = sklearn.datasets.make_blobs(
+    x, y = sklearn.datasets.make_blobs(  # type: ignore
         n_samples=20,
         centers=2,
         n_features=2,
@@ -817,7 +817,7 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
         def should_stop(
             self,
             trial: Trial,  # noqa: ARG002
-            split_infos: list[CVEvaluation.SplitScores],  # noqa: ARG002
+            scores: CVEvaluation.SplitScores,  # noqa: ARG002
         ) -> bool:
             # Just say yes, should stop
             return True

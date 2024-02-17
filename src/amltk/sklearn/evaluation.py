@@ -14,6 +14,7 @@ import logging
 import tempfile
 import warnings
 from asyncio import Future
+from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sized
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -729,7 +730,11 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
         test_scorer_params=test_scorer_params,
     )
 
-    split_infos: list[CVEvaluation.SplitScores] = []
+    split_scores = CVEvaluation.SplitScores(
+        val=defaultdict(list),
+        train=defaultdict(list) if train_score else None,
+        test=defaultdict(list) if X_test is not None else None,
+    )
     models: list[BaseEstimator] | None = (
         None if not post_processing_requires_models else []
     )
@@ -756,6 +761,8 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                 trial.summary.update(
                     {f"split_{i}:val_{k}": v for k, v in split_eval.val_scores.items()},
                 )
+                for k, v in split_eval.val_scores.items():
+                    split_scores.val[k].append(v)
 
                 if split_eval.train_scores is not None:
                     trial.summary.update(
@@ -764,6 +771,8 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                             for k, v in split_eval.train_scores.items()
                         },
                     )
+                    for k, v in split_eval.train_scores.items():
+                        split_scores.train[k].append(v)  # type: ignore
 
                 if split_eval.test_scores is not None:
                     trial.summary.update(
@@ -772,14 +781,8 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                             for k, v in split_eval.test_scores.items()
                         },
                     )
-
-                split_infos.append(
-                    CVEvaluation.SplitScores(
-                        val_scores=split_eval.val_scores,
-                        train_scores=split_eval.train_scores,
-                        test_scores=split_eval.test_scores,
-                    ),
-                )
+                    for k, v in split_eval.test_scores.items():
+                        split_scores.test[k].append(v)  # type: ignore
 
                 if post_processing_requires_models:
                     assert models is not None
@@ -795,7 +798,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                 # should we continue or stop?
                 if comm is not None and i < n_splits:
                     match response := comm.request(
-                        (trial, list(split_infos)),
+                        (trial, split_scores),
                         timeout=10,
                     ):
                         case True:
@@ -828,7 +831,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                     y_test=_y_test,
                     splitter=splitter,
                     max_splits=n_splits,
-                    split_info=split_infos,
+                    scores=split_scores,
                     scorers=scorers,
                     models=models,
                     splitter_params=splitter_params,
@@ -840,37 +843,21 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
 
             return report
         else:
+            for mname, fold_scores in split_scores.val.items():
+                trial.summary[f"val_mean_{mname}"] = float(np.mean(fold_scores))
+                trial.summary[f"val_std_{mname}"] = float(np.std(fold_scores))
 
-            def _process_scores(
-                _scores: dict[str, list[float]],
-                _name: Literal["train", "val", "test"],
-            ) -> dict[str, float]:
-                _means = {k: float(np.mean(scores)) for k, scores in _scores.items()}
-                _stds = {k: float(np.std(scores)) for k, scores in _scores.items()}
-                trial.summary.update(
-                    {f"{_name}_mean_{k}": v for k, v in _means.items()},
-                )
-                trial.summary.update({f"{_name}_std_{k}": v for k, v in _stds.items()})
-                return _means
+            if split_scores.train is not None:
+                for mname, fold_scores in split_scores.train.items():
+                    trial.summary[f"train_mean_{mname}"] = float(np.mean(fold_scores))
+                    trial.summary[f"train_std_{mname}"] = float(np.std(fold_scores))
 
-            val_scores = {k: [si.val_scores[k] for si in split_infos] for k in scorers}
-            val_means = _process_scores(val_scores, "val")
+            if split_scores.test is not None:
+                for mname, fold_scores in split_scores.test.items():
+                    trial.summary[f"test_mean_{mname}"] = float(np.mean(fold_scores))
+                    trial.summary[f"test_std_{mname}"] = float(np.std(fold_scores))
 
-            if train_score:
-                train_scores = {
-                    k: [float(si.train_scores[k]) for si in split_infos]  # type: ignore
-                    for k in scorers
-                }
-                _process_scores(train_scores, "train")
-
-            if X_test is not None and y_test is not None:
-                test_scores = {
-                    k: [si.test_scores[k] for si in split_infos]  # type: ignore
-                    for k in scorers
-                }
-                _process_scores(test_scores, "test")
-
-            means_to_report = {k: v for k, v in val_means.items() if k in trial.metrics}
+            means_to_report = {k: trial.summary[f"val_mean_{k}"] for k in trial.metrics}
             report = trial.success(**means_to_report)
 
             if post_processing is not None:
@@ -881,7 +868,7 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
                     y_test=_y_test,
                     splitter=splitter,
                     max_splits=n_splits,
-                    split_info=split_infos,
+                    scores=split_scores,
                     scorers=scorers,
                     models=models,
                     splitter_params=splitter_params,
@@ -1002,7 +989,7 @@ class CVEvaluation(Emitter):
 
     """
 
-    SPLIT_EVALUATED: Event[[Trial, list[SplitScores]], bool | Exception] = Event(
+    SPLIT_EVALUATED: Event[[Trial, SplitScores], bool | Exception] = Event(
         "split-evaluated",
     )
     """Event that is emitted when a split has been evaluated.
@@ -1105,7 +1092,7 @@ class CVEvaluation(Emitter):
     class PostSplitInfo(NamedTuple):
         """Information about the evaluation of a split.
 
-        Args:
+        Attributes:
             X: The features to used for training.
             y: The targets used for training.
             X_test: The features used for testing if it was passed in.
@@ -1144,14 +1131,14 @@ class CVEvaluation(Emitter):
         """The scores for a split.
 
         Attributes:
-            val_scores: The validation scores for this split.
-            train_scores: The training scores for this split if requested.
-            test_scores: The test scores for this split if requested.
+            val: The validation scores for all evaluated split.
+            train: The training scores for all evaluated splits if requested.
+            test: The test scores for all evaluated splits if requested.
         """
 
-        val_scores: Mapping[str, float]
-        train_scores: Mapping[str, float] | None
-        test_scores: Mapping[str, float] | None
+        val: Mapping[str, list[float]]
+        train: Mapping[str, list[float]] | None
+        test: Mapping[str, list[float]] | None
 
     @dataclass
     class CompleteEvalInfo:
@@ -1179,8 +1166,8 @@ class CVEvaluation(Emitter):
         max_splits: int
         """The maximum number of splits that were (or could have been) evaluated."""
 
-        split_info: list[CVEvaluation.SplitScores]
-        """The information about the splits that were evaluated."""
+        scores: CVEvaluation.SplitScores
+        """The scores for the splits that were evaluated."""
 
         scorers: dict[str, _Scorer]
         """The scorers that were used."""
@@ -1283,8 +1270,11 @@ class CVEvaluation(Emitter):
             if not (isinstance(msg.data, tuple) and len(msg.data) == 2):  # noqa: PLR2004
                 return
 
-            trial, split_infos = msg.data
-            if not (isinstance(trial, Trial) and isinstance(split_infos, list)):
+            trial, scores = msg.data
+            if not (
+                isinstance(trial, Trial)
+                and isinstance(scores, CVEvaluation.SplitScores)
+            ):
                 return
 
             non_null_responses = [
@@ -1292,7 +1282,7 @@ class CVEvaluation(Emitter):
                 for _, r in self.task.emit(
                     self.evaluator.SPLIT_EVALUATED,
                     trial,
-                    split_infos,
+                    scores,
                 )
                 if r is not None
             ]
@@ -1486,7 +1476,7 @@ class CVEvaluation(Emitter):
                 if required, cleanup any resources or any other tasks that should be
                 run after the evaluation has completed. This will be handed a
                 [`Report`][amltk.optimization.trial.Trial.Report] and a
-                [`FinalEvalInfo`][amltk.sklearn.evaluation.FinalEvalInfo],
+                [`CompleteEvalInfo`][amltk.sklearn.evaluation.CVEValuation.CompleteEvalInfo],
                 which contains all the information about the evaluation. If your
                 function requires the individual models, you can set
                 `post_processing_requires_models=True`. By default this is `False`
@@ -1504,7 +1494,7 @@ class CVEvaluation(Emitter):
                 def my_post_processing(
                     report: Trial.Report,
                     pipeline: Node,
-                    info: FinalEvalInfo,
+                    info: CVEvaluator.CompleteEvalInfo,
                 ) -> Trial.Report:
                     bagged_model = voting_with_prefitted_estimators(info.models)
                     acc = info.scorers["accuracy"]
@@ -1529,7 +1519,7 @@ class CVEvaluation(Emitter):
 
             post_processing_requires_models: Whether the `post_processing` function
                 requires the models to be passed to it. If `True`, the models will
-                be passed to the function in the `FinalEvalInfo` object. If `False`,
+                be passed to the function in the `CompleteEvalInfo` object. If `False`,
                 the models will not be passed to the function. By default this is
                 `False` as this requires having all models in memory at once.
 
@@ -1680,7 +1670,7 @@ class CVEvaluation(Emitter):
                 # as updating a moving average of the scores.
                 pass
 
-            def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
+            def should_stop(self, trial: Trial, scores: CVEvaluation.SplitScores) -> bool | Exception:
                 # Return True to stop, False to continue. Alternatively, return a
                 # specific exception to attach to the report instead
                 return True
@@ -1713,7 +1703,7 @@ class CVEvaluation(Emitter):
         This will also add a new event to the task which you can subscribe to with
         [`task.on("split-evaluated")`][amltk.sklearn.evaluation.CVEvaluation.SPLIT_EVALUATED].
         It will be passed a
-        [`CVEvaluation.SplitInfo`][amltk.sklearn.evaluation.CVEvaluation.SplitInfo]
+        [`CVEvaluation.PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo]
         that you can use to make a decision on whether to continue or stop. The
         passed in `strategy=` simply sets up listening to these events for you.
         You can also do this manually.
@@ -1727,9 +1717,9 @@ class CVEvaluation(Emitter):
         )
 
         @task.on("split-evaluated")
-        def should_stop(info: CVEvaluation.SplitInfo) -> bool | Execption:
+        def should_stop(trial: Trial, scores: CVEvaluation.SplitScores) -> bool | Execption:
             # Make a decision on whether to stop or continue
-            return info.scores["accuracy"] < np.mean(scores)
+            return info.scores["accuracy"] < np.mean(scores.val["accuracy"])
 
         @task.on("result")
         def update_scores(_, report: Trial.Report) -> bool | Execption:
@@ -1788,8 +1778,8 @@ class CVEarlyStoppingProtocol(Protocol):
             if report.status is Trial.Status.SUCCESS:
                 # ... do some update logic
 
-        def should_stop(self, split_infos: list[CVEvaluation.SplitInfo]) -> bool | Exception:
-            mean_scores_up_to_current_split = np.mean([i.scores["accuracy"] for i in split_infos])
+        def should_stop(self, trial: Trial, split_infos: list[CVEvaluation.PostSplitInfo]) -> bool | Exception:
+            mean_scores_up_to_current_split = np.mean([i.val_scores["accuracy"] for i in split_infos])
             if mean_scores_up_to_current_split > 0.9:
                 return False  # Keep going
             else:
@@ -1812,13 +1802,13 @@ class CVEarlyStoppingProtocol(Protocol):
     def should_stop(
         self,
         trial: Trial,
-        split_infos: list[CVEvaluation.SplitScores],
+        scores: CVEvaluation.SplitScores,
     ) -> bool | Exception:
         """Determines whether the cross-validation should stop early.
 
         Args:
             trial: The trial that is currently being evaluated.
-            split_infos: The information about the evlauated splits.
+            scores: The scores from the evlauated splits.
 
         Returns:
             `True` if the cross-validation should stop, `False` if it should
