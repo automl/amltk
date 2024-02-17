@@ -17,8 +17,10 @@ from asyncio import Future
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sized
 from contextlib import nullcontext
+from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
+from numbers import Number
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -67,6 +69,7 @@ from amltk.exceptions import (
     MismatchedTaskTypeWarning,
     TrialError,
 )
+from amltk.optimization import Trial
 from amltk.profiling.profiler import Profiler
 from amltk.scheduling import Plugin, Task
 from amltk.scheduling.events import Emitter, Event
@@ -80,7 +83,6 @@ if TYPE_CHECKING:
         BaseShuffleSplit,
     )
 
-    from amltk.optimization import Trial
     from amltk.pipeline import Node
     from amltk.randomness import Seed
 
@@ -110,6 +112,51 @@ _valid_task_types: tuple[TaskTypeName, ...] = (
     "continuous",
     "continuous-multioutput",
 )
+
+XLike: TypeAlias = pd.DataFrame | np.ndarray
+"""A type alias for X input data type as defined by sklearn."""
+
+YLike: TypeAlias = pd.Series | pd.DataFrame | np.ndarray
+"""A type alias for y input data type as defined by sklearn."""
+
+PostSplitSignature: TypeAlias = Callable[
+    [Trial, int, "CVEvaluation.PostSplitInfo"],
+    "CVEvaluation.PostSplitInfo",
+]
+"""A type alias for the post split callback signature.
+
+Please see [`PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo]
+for more information on the information available to this callback.
+
+```python
+def my_post_split(
+    trial: Trial,
+    split_number: int,
+    eval: CVEvalauation.PostSplitInfo
+) -> CVEvaluation.PostSplitInfo:
+    ...
+```
+"""
+
+
+def _check_valid_scores(
+    scores: Mapping[str, float] | Number,
+    split: str,
+) -> Mapping[str, float]:
+    assert isinstance(scores, Mapping)
+    for k, v in scores.items():
+        # Can return list or np.bool_
+        # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
+        # We can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
+        # Hence we have to use equality checking
+        # God I feel like I'm doing javascript
+        if np.isfinite(v) != True:  # noqa: E712
+            raise ValueError(
+                f"Scorer {k} returned {v} for {split} split. The scorer should"
+                " should return a finite float",
+            )
+
+    return scores
 
 
 def _route_params(
@@ -213,7 +260,7 @@ def _default_cv_resampler(
 
 
 def identify_task_type(  # noqa: PLR0911
-    y: np.ndarray | pd.Series | pd.DataFrame,
+    y: YLike,
     *,
     task_hint: Literal["classification", "regression", "auto"] = "auto",
 ) -> TaskTypeName:
@@ -324,19 +371,19 @@ def identify_task_type(  # noqa: PLR0911
 
 def _fit(
     estimator: BaseEstimatorT,
-    X: pd.DataFrame | np.ndarray,  # noqa: N803
-    y: pd.Series | pd.DataFrame | np.ndarray,
-    *,
+    X: XLike,  # noqa: N803
+    y: YLike,
     i_train: np.ndarray,
+    *,
     profiler: Profiler,
     fit_params: Mapping[str, Any],
+    train_score: bool,
+    scorers: dict[str, _Scorer] | _MultimetricScorer,
     scorer_params: Mapping[str, Any],
-    scorers: _MultimetricScorer | None = None,
-) -> tuple[BaseEstimatorT, Mapping[str, float] | None]:
+) -> tuple[BaseEstimatorT, dict[str, Any], Mapping[str, float] | None, dict[str, Any]]:
     _fit_params = _check_method_params(X, params=fit_params, indices=i_train)
-    _scorer_params_train = _check_method_params(X, scorer_params, indices=i_train)
-
     X_train, y_train = _safe_split(estimator, X, y, indices=i_train)
+
     with profiler("fit"):
         if y_train is None:
             estimator.fit(X_train, **_fit_params)  # type: ignore
@@ -344,80 +391,64 @@ def _fit(
             estimator.fit(X_train, y_train, **_fit_params)  # type: ignore
 
     train_scores = None
-    if scorers is not None:
+    train_scorer_params: dict[str, Any] = {}
+    if train_score is True:
+        scorer_params_train = _check_method_params(X, scorer_params, indices=i_train)
+
         with profiler("train_score"):
             train_scores = _score(
                 estimator=estimator,
                 X_test=X_train,
                 y_test=y_train,
                 scorer=scorers,
-                score_params=_scorer_params_train,
+                score_params=scorer_params_train,
                 error_score="raise",
             )
-            assert isinstance(train_scores, dict)
-            for k, v in train_scores.items():
-                # Can return list or np.bool_
-                # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
-                # We can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
-                # Hence we have to use equality checking
-                # God I feel like I'm doing javascript
-                if np.isfinite(v) != True:  # noqa: E712
-                    raise ValueError(
-                        f"Scorer {k} returned {v} for train split. The scorer should"
-                        " should return a finite float",
-                    )
+            train_scores = _check_valid_scores(train_scores, split="train")
 
-    return estimator, train_scores
+    return estimator, _fit_params, train_scores, train_scorer_params
 
 
-def _score_val_split(
-    estimator: BaseEstimator,
-    X: pd.DataFrame | np.ndarray,  # noqa: N803
-    y: pd.Series | pd.DataFrame | np.ndarray,
-    *,
+def _val_score(
+    fitted_estimator: BaseEstimator,
+    X: XLike,  # noqa: N803
+    y: YLike,
     i_train: np.ndarray,
     i_val: np.ndarray,
-    scorer_params: Mapping[str, Any],
-    scorers: _MultimetricScorer,
+    *,
     profiler: Profiler,
-) -> Mapping[str, float]:
-    _scorer_params_test = _check_method_params(X, params=scorer_params, indices=i_val)
-    X_t, y_t = _safe_split(estimator, X, y, indices=i_val, train_indices=i_train)
-
+    scorers: dict[str, _Scorer] | _MultimetricScorer,
+    scorer_params: Mapping[str, Any],
+) -> tuple[Mapping[str, float], dict[str, Any]]:
+    scorer_params_val = _check_method_params(X, scorer_params, indices=i_val)
+    X_val, y_val = _safe_split(
+        fitted_estimator,
+        X,
+        y,
+        indices=i_val,
+        train_indices=i_train,
+    )
     with profiler("score"):
-        scores = _score(
-            estimator=estimator,
-            X_test=X_t,
-            y_test=y_t,
+        val_scores = _score(
+            estimator=fitted_estimator,
+            X_test=X_val,
+            y_test=y_val,
             scorer=scorers,
-            score_params=_scorer_params_test,
+            score_params=scorer_params_val,
             error_score="raise",
         )
-        # NOTE: Despite `error_score="raise"`, this will not raise
-        # for `inf` or `nan` values.
-        assert isinstance(scores, dict)
-        for k, v in scores.items():
-            # Can return list or np.bool_
-            # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
-            # Also, we can't use `np.bool_` is `True` as `np.bool_(True) is not True`.
-            # Hence we have to use equality checking
-            # God I feel like I'm doing javascript
-            if np.isfinite(v) != True:  # noqa: E712
-                raise ValueError(
-                    f"Scorer {k} returned {v} for validation split. The scorer"
-                    " should return a finite float",
-                )
+        val_scores = _check_valid_scores(val_scores, split="val")
 
-        return scores
+    return val_scores, scorer_params_val
 
 
 def _evaluate_split(  # noqa: PLR0913
-    estimator: BaseEstimatorT,
-    X: pd.DataFrame | np.ndarray,  # noqa: N803
-    y: pd.Series | pd.DataFrame | np.ndarray,
+    estimator: BaseEstimator,
+    X: XLike,  # noqa: N803
+    y: YLike,
     *,
-    X_test: np.ndarray | pd.DataFrame | None = None,  # noqa: N803
-    y_test: np.ndarray | pd.Series | pd.DataFrame | None = None,
+    X_test: XLike | None = None,  # noqa: N803
+    y_test: YLike | None = None,
     i_train: np.ndarray,
     i_val: np.ndarray,
     profiler: Profiler,
@@ -426,34 +457,32 @@ def _evaluate_split(  # noqa: PLR0913
     scorer_params: Mapping[str, Any],
     test_scorer_params: Mapping[str, Any],
     train_score: bool,
-) -> tuple[
-    BaseEstimatorT,
-    Mapping[str, float],
-    Mapping[str, float] | None,
-    Mapping[str, float] | None,
-]:
-    # These return new dictionaries
-
-    fitted_estimator, train_scores = _fit(
+) -> CVEvaluation.PostSplitInfo:
+    # We shove all logic that requires indexing into X for train into `_fit`.
+    # This is because it's easy to create an accidental copy, i.e. with _safe_split.
+    # We want that memory to only exist inside that `_fit` function and to not persists
+    # throughout the body here.
+    fitted_estimator, fitting_params, train_scores, train_scorer_params = _fit(
         estimator=clone(estimator),  # type: ignore
         X=X,
         y=y,
         i_train=i_train,
         profiler=profiler,
+        scorers=scorers,
         fit_params=fit_params,
+        train_score=train_score,
         scorer_params=scorer_params,
-        scorers=scorers if train_score else None,
     )
 
-    val_scores = _score_val_split(
-        estimator=fitted_estimator,
+    val_scores, val_scorer_params = _val_score(
+        fitted_estimator=fitted_estimator,
         X=X,
         y=y,
         i_train=i_train,
         i_val=i_val,
+        profiler=profiler,
         scorers=scorers,
         scorer_params=scorer_params,
-        profiler=profiler,
     )
 
     test_scores = None
@@ -467,45 +496,42 @@ def _evaluate_split(  # noqa: PLR0913
                 score_params=test_scorer_params,
                 error_score="raise",
             )
+            test_scores = _check_valid_scores(test_scores, split="test")
 
-            # NOTE: Despite `error_score="raise"`, this will not raise
-            # for `inf` or `nan` values.
-            assert isinstance(test_scores, dict)
-            for k, v in test_scores.items():
-                # Can return list or np.bool_
-                # We do not want a list to pass (i.e. if [x] shouldn't pass if check)
-                # We can't use `np.bool_` is `True` as `np.bool_(True) is not True`
-                # Hence we have to use equality checking
-                # God I feel like I'm doing javascript
-                if np.isfinite(v) != True:  # noqa: E712
-                    raise ValueError(
-                        f"Scorer {k} returned {v} for test data. The scorer"
-                        " should return a finite float",
-                    )
+    return CVEvaluation.PostSplitInfo(
+        X=X,
+        y=y,
+        X_test=X_test,
+        y_test=y_test,
+        i_train=i_train,
+        i_val=i_val,
+        model=fitted_estimator,
+        train_scores=train_scores,
+        val_scores=val_scores,
+        test_scores=test_scores,
+        fitting_params=fitting_params,
+        train_scorer_params=train_scorer_params,
+        val_scorer_params=val_scorer_params,
+        test_scorer_params=test_scorer_params,
+    )
 
-    return fitted_estimator, val_scores, train_scores, test_scores
 
-
-def _iter_cross_validate(
-    estimator: BaseEstimatorT,
-    X: Stored[pd.DataFrame | np.ndarray],  # noqa: N803
-    y: Stored[pd.Series | pd.DataFrame | np.ndarray],
+def _iter_cross_validate(  # noqa: PLR0913
+    estimator: BaseEstimator,
+    X: XLike,  # noqa: N803
+    y: YLike,
     splitter: BaseShuffleSplit | BaseCrossValidator,
     scorers: Mapping[str, _Scorer],
     *,
-    X_test: Stored[np.ndarray | pd.DataFrame] | None = None,  # noqa: N803
-    y_test: Stored[np.ndarray | pd.Series | pd.DataFrame] | None = None,
-    params: Mapping[str, Any | Stored[Any]] | None = None,
+    X_test: XLike | None = None,  # noqa: N803
+    y_test: YLike | None = None,
+    fit_params: Mapping[str, Any] | None = None,
+    scorer_params: Mapping[str, Any] | None = None,
+    splitter_params: Mapping[str, Any] | None = None,
+    test_scorer_params: Mapping[str, Any] | None = None,
     profiler: Profiler | None = None,
     train_score: bool = False,
-) -> Iterator[
-    tuple[
-        BaseEstimatorT,
-        Mapping[str, float],
-        Mapping[str, float] | None,
-        Mapping[str, float] | None,
-    ]
-]:
+) -> Iterator[CVEvaluation.PostSplitInfo]:
     if (X_test is not None and y_test is None) or (
         y_test is not None and X_test is None
     ):
@@ -514,82 +540,24 @@ def _iter_cross_validate(
         )
 
     profiler = Profiler(disabled=True) if profiler is None else profiler
-    params = {} if params is None else params
-    loaded_params: dict[str, Any] = {
-        k: v.load() if isinstance(v, Stored) else v for k, v in params.items()
-    }
-
-    # Unfortunatly there's two things that can happen here.
-    # 1. The scorer requires does not require split specific param data (e.g. pos_label)
-    #    * In this case, the param['pos_label'] can be used for train/val and test
-    # 2. The scorer requires required split specific param data (e.g. sample_weight)
-    #    * In this case, we use the split indices to select the part of
-    #    `params['sample_weight']` that is required for the repsective train/val split.
-    #   * This means we can not use `params['sample_weight']` for the test split, as
-    #     this would require some odd hack of concatenating them and having seperate
-    #     test indices passed in by the user, a pretty dumb idea.
-    #
-    # The easy workaround is to have the user provide `test_{key}` for something
-    # like `params['test_sample_weight']`, which we can then use for the test split.
-    # However this breaks the metadata routing, which introspects the objects as
-    # sees that yes, indeed something has requested `sample_weight` but nothing
-    # has requested `test_sample_weight`. Worse still, we would need to pass
-    # `params['test_sample_weight']` to the `sample_weight=` parameter of scorer.
-    #
-    # Our workaround is to have users provide `test_{key}` for all the scorer params
-    # which we pop into a new dict with just `{key}`, where the `test_` prefix has been
-    # removed. The router will never see this dict.
-    #
-    # As an important caveats:
-    # * We assume all keys prefixed with `test_` are scorer params.
-    # * Things like `pos_label` which are split agnostic needs to be
-    #   provided twice, once as `pos_label` and once as `test_pos_label`, such that
-    #   the scores in test recieve th params.
-
-    test_scorer_params = {
-        k: v
-        for k in list(loaded_params)
-        if (v := loaded_params.pop(f"test_{k}", None)) is not None
-    }
-
-    # We've now popped out all the test params, so we can safely call
-    # to `_route_params` without it complaining that nothing has requested `test_{key}`
-
-    # NOTE: This flow adapted from sklearns 1.4 cross_validate
-    # This scorer is only created for routing purposes
-    multimetric_scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
-    routed_params = _route_params(
-        splitter=splitter,
-        estimator=estimator,
-        _scorer=multimetric_scorer,
-        **loaded_params,
-    )
-
-    fit_params = routed_params["estimator"]["fit"]
-    scorer_params = routed_params["scorer"]["score"]
-
-    # Notably, this is an iterator
-    X_loaded = X.load()
-    y_loaded = y.load()
-    X_test_loaded = X_test.load() if X_test is not None else None
-    y_test_loaded = y_test.load() if y_test is not None else None
-    indicies = splitter.split(X_loaded, y_loaded, **routed_params["splitter"]["split"])
 
     fit_params = fit_params if fit_params is not None else {}
     scorer_params = scorer_params if scorer_params is not None else {}
+    splitter_params = splitter_params if splitter_params is not None else {}
+    test_scorer_params = test_scorer_params if test_scorer_params is not None else {}
 
-    for i_train, i_val in indicies:
+    for i_train, i_val in splitter.split(X, y, **splitter_params):
         # Sadly this function needs the full X and y due to its internal checks
         yield _evaluate_split(
             estimator=estimator,
-            X=X_loaded,
-            y=y_loaded,
-            X_test=X_test_loaded,
-            y_test=y_test_loaded,
+            X=X,
+            y=y,
+            X_test=X_test,
+            y_test=y_test,
             i_train=i_train,
             i_val=i_val,
             profiler=profiler,
-            scorers=multimetric_scorer,
+            scorers=_MultimetricScorer(scorers=scorers, raise_exc=True),
             fit_params=fit_params,
             scorer_params=scorer_params,
             test_scorer_params=test_scorer_params,
@@ -601,10 +569,10 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
     trial: Trial,
     pipeline: Node,
     *,
-    X: Stored[np.ndarray | pd.DataFrame],  # noqa: N803
-    y: Stored[np.ndarray | pd.Series | pd.DataFrame],
-    X_test: Stored[np.ndarray | pd.DataFrame] | None = None,  # noqa: N803
-    y_test: Stored[np.ndarray | pd.Series | pd.DataFrame] | None = None,
+    X: Stored[XLike],  # noqa: N803
+    y: Stored[YLike],
+    X_test: Stored[XLike] | None = None,  # noqa: N803
+    y_test: Stored[YLike] | None = None,
     splitter: BaseShuffleSplit | BaseCrossValidator,
     additional_scorers: Mapping[str, _Scorer] | None,
     train_score: bool = False,
@@ -612,6 +580,12 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
     params: MutableMapping[str, Stored[Any] | Any] | None = None,
     on_error: Literal["fail", "raise"] = "fail",
     comm: Comm | None = None,
+    post_split: PostSplitSignature | None = None,
+    post_processing: (
+        Callable[[Trial.Report, Node, CVEvaluation.CompleteEvalInfo], Trial.Report]
+        | None
+    ) = None,
+    post_processing_requires_models: bool = False,
 ) -> Trial.Report:
     params = {} if params is None else params
     # Make sure to load all the stored values
@@ -678,77 +652,155 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
     if additional_scorers is not None:
         scorers.update(additional_scorers)
 
-    cv_iter = _iter_cross_validate(
-        estimator=estimator,
-        X=X,
-        y=y,
-        X_test=X_test,
-        y_test=y_test,
-        splitter=splitter,
-        scorers=scorers,
-        params=params,
-        profiler=trial.profiler,
-        train_score=train_score,
-    )
+    _X = X.load()
+    _y = y.load()
+    _X_test = X_test.load() if X_test is not None else None
+    _y_test = y_test.load() if y_test is not None else None
+
     n_splits = splitter.get_n_splits()
     if n_splits is None:
         raise NotImplementedError("Needs to be handled")
 
-    all_train_scores: dict[str, list[float]] = defaultdict(list)
-    all_test_scores: dict[str, list[float]] = defaultdict(list)
-    all_val_scores: dict[str, list[float]] = defaultdict(list)
+    loaded_params: dict[str, Any] = {
+        k: v.load() if isinstance(v, Stored) else v for k, v in params.items()
+    }
+
+    # Unfortunatly there's two things that can happen here.
+    # 1. The scorer requires does not require split specific param data (e.g. pos_label)
+    #    * In this case, the param['pos_label'] can be used for train/val and test
+    # 2. The scorer requires required split specific param data (e.g. sample_weight)
+    #    * In this case, we use the split indices to select the part of
+    #    `params['sample_weight']` that is required for the repsective train/val split.
+    #   * This means we can not use `params['sample_weight']` for the test split, as
+    #     this would require some odd hack of concatenating them and having seperate
+    #     test indices passed in by the user, a pretty dumb idea.
+    #
+    # The easy workaround is to have the user provide `test_{key}` for something
+    # like `params['test_sample_weight']`, which we can then use for the test split.
+    # However this breaks the metadata routing, which introspects the objects as
+    # sees that yes, indeed something has requested `sample_weight` but nothing
+    # has requested `test_sample_weight`. Worse still, we would need to pass
+    # `params['test_sample_weight']` to the `sample_weight=` parameter of scorer.
+    #
+    # Our workaround is to have users provide `test_{key}` for all the scorer params
+    # which we pop into a new dict with just `{key}`, where the `test_` prefix has been
+    # removed. The router will never see this dict.
+    #
+    # As an important caveats:
+    # * We assume all keys prefixed with `test_` are scorer params.
+    # * Things like `pos_label` which are split agnostic needs to be
+    #   provided twice, once as `pos_label` and once as `test_pos_label`, such that
+    #   the scores in test recieve th params.
+    test_scorer_params = {
+        k: v
+        for k in list(loaded_params)
+        if (v := loaded_params.pop(f"test_{k}", None)) is not None
+    }
+
+    # We've now popped out all the test params, so we can safely call
+    # to `_route_params` without it complaining that nothing has requested `test_{key}`
+
+    # NOTE: This flow adapted from sklearns 1.4 cross_validate
+    # This scorer is only created for routing purposes
+    multimetric_scorer = _MultimetricScorer(scorers=scorers, raise_exc=True)
+    routed_params = _route_params(
+        splitter=splitter,
+        estimator=estimator,
+        _scorer=multimetric_scorer,
+        **loaded_params,
+    )
+
+    fit_params = routed_params["estimator"]["fit"]
+    scorer_params = routed_params["scorer"]["score"]
+    splitter_params = routed_params["splitter"]["split"]
+
+    cv_iter = _iter_cross_validate(
+        estimator=estimator,
+        X=_X,
+        y=_y,
+        X_test=_X_test,
+        y_test=_y_test,
+        splitter=splitter,
+        scorers=scorers,
+        profiler=trial.profiler,
+        train_score=train_score,
+        fit_params=fit_params,
+        scorer_params=scorer_params,
+        splitter_params=splitter_params,
+        test_scorer_params=test_scorer_params,
+    )
+
+    split_scores = CVEvaluation.SplitScores(
+        val=defaultdict(list),
+        train=defaultdict(list) if train_score else None,
+        test=defaultdict(list) if X_test is not None else None,
+    )
+    models: list[BaseEstimator] | None = (
+        None if not post_processing_requires_models else []
+    )
 
     with comm.open() if comm is not None else nullcontext():
         try:
             # Open up comms if passed in, allowing for the cv early stopping mechanism
             # to communicate back to the main process
             # Main cv loop
-            for i, (
-                _trained_est,
-                _val_scores,
-                _train_scores,
-                _test_scores,
-            ) in trial.profiler.each(enumerate(cv_iter), name="cv", itr_name="split"):
+            for i, _split_eval in trial.profiler.each(
+                enumerate(cv_iter),
+                name="cv",
+                itr_name="split",
+            ):
+                if post_split is not None:
+                    split_eval = post_split(trial, i, _split_eval)
+                else:
+                    split_eval = _split_eval
+
                 # Update the report
                 if store_models:
-                    trial.store({f"model_{i}.pkl": _trained_est})
+                    trial.store({f"model_{i}.pkl": split_eval.model})
 
-                split_scores = {f"split_{i}:{k}": v for k, v in _val_scores.items()}
+                trial.summary.update(
+                    {f"split_{i}:val_{k}": v for k, v in split_eval.val_scores.items()},
+                )
+                for k, v in split_eval.val_scores.items():
+                    split_scores.val[k].append(v)
 
-                trial.summary.update(split_scores)
-                for k, v in _val_scores.items():
-                    all_val_scores[k].append(v)
+                if split_eval.train_scores is not None:
+                    trial.summary.update(
+                        {
+                            f"split_{i}:train_{k}": v
+                            for k, v in split_eval.train_scores.items()
+                        },
+                    )
+                    for k, v in split_eval.train_scores.items():
+                        split_scores.train[k].append(v)  # type: ignore
 
-                if _train_scores is not None:
-                    train_scores = {
-                        f"split_{i}:train_{k}": v for k, v in _train_scores.items()
-                    }
-                    trial.summary.update(train_scores)
-                    for k, v in _train_scores.items():
-                        all_train_scores[k].append(v)
+                if split_eval.test_scores is not None:
+                    trial.summary.update(
+                        {
+                            f"split_{i}:test_{k}": v
+                            for k, v in split_eval.test_scores.items()
+                        },
+                    )
+                    for k, v in split_eval.test_scores.items():
+                        split_scores.test[k].append(v)  # type: ignore
 
-                if _test_scores is not None:
-                    test_scores = {
-                        f"split_{i}:test_{k}": v for k, v in _test_scores.items()
-                    }
-                    trial.summary.update(test_scores)
-                    for k, v in _test_scores.items():
-                        all_test_scores[k].append(v)
+                if post_processing_requires_models:
+                    assert models is not None
+                    models.append(split_eval.model)
+
+                # At this point, we wish to remove the split_eval object from memory
+                # if possible. This doesn't actually clean up memory but marks it
+                # as being viable for garbage collection.
+                del split_eval
 
                 # If there was a comm passed, we are operating under cv early stopping
                 # mode, in which case we request information from the main process,
                 # should we continue or stop?
                 if comm is not None and i < n_splits:
-                    rqst_info = CVEvaluation.SplitInfo(
-                        trial=trial,
-                        pipeline=configured_pipeline,
-                        current_split=i,
-                        max_splits=n_splits,
-                        scores=all_val_scores,
-                        train_scores=all_train_scores,
-                        test_scores=all_test_scores,
-                    )
-                    match response := comm.request(rqst_info, timeout=10):
+                    match response := comm.request(
+                        (trial, split_scores),
+                        timeout=10,
+                    ):
                         case True:
                             raise CVEarlyStoppedError("Early stopped!")
                         case False:
@@ -771,37 +823,62 @@ def cross_validate_task(  # noqa: D103, C901, PLR0915, PLR0913
             if on_error == "raise":
                 raise TrialError(f"Trial failed: {report}") from e
 
+            if post_processing is not None:
+                final_eval_info = CVEvaluation.CompleteEvalInfo(
+                    X=_X,
+                    y=_y,
+                    X_test=_X_test,
+                    y_test=_y_test,
+                    splitter=splitter,
+                    max_splits=n_splits,
+                    scores=split_scores,
+                    scorers=scorers,
+                    models=models,
+                    splitter_params=splitter_params,
+                    fit_params=fit_params,
+                    scorer_params=scorer_params,
+                    test_scorer_params=test_scorer_params,
+                )
+                report = post_processing(report, pipeline, final_eval_info)
+
             return report
         else:
-            mean_val_scores = {k: np.mean(v) for k, v in all_val_scores.items()}
-            std_val_scores = {k: np.std(v) for k, v in all_val_scores.items()}
-            trial.summary.update({f"mean_{k}": v for k, v in mean_val_scores.items()})
-            trial.summary.update({f"std_{k}": v for k, v in std_val_scores.items()})
+            for mname, fold_scores in split_scores.val.items():
+                trial.summary[f"val_mean_{mname}"] = float(np.mean(fold_scores))
+                trial.summary[f"val_std_{mname}"] = float(np.std(fold_scores))
 
-            if any(all_train_scores):
-                mean_train_scores = {k: np.mean(v) for k, v in all_train_scores.items()}
-                std_train_scores = {k: np.std(v) for k, v in all_train_scores.items()}
-                trial.summary.update(
-                    {f"train_mean_{k}": v for k, v in mean_train_scores.items()},
-                )
-                trial.summary.update(
-                    {f"train_std_{k}": v for k, v in std_train_scores.items()},
-                )
+            if split_scores.train is not None:
+                for mname, fold_scores in split_scores.train.items():
+                    trial.summary[f"train_mean_{mname}"] = float(np.mean(fold_scores))
+                    trial.summary[f"train_std_{mname}"] = float(np.std(fold_scores))
 
-            if any(all_test_scores):
-                mean_test_scores = {k: np.mean(v) for k, v in all_test_scores.items()}
-                std_test_scores = {k: np.std(v) for k, v in all_test_scores.items()}
-                trial.summary.update(
-                    {f"test_mean_{k}": v for k, v in mean_test_scores.items()},
-                )
-                trial.summary.update(
-                    {f"test_std_{k}": v for k, v in std_test_scores.items()},
-                )
+            if split_scores.test is not None:
+                for mname, fold_scores in split_scores.test.items():
+                    trial.summary[f"test_mean_{mname}"] = float(np.mean(fold_scores))
+                    trial.summary[f"test_std_{mname}"] = float(np.std(fold_scores))
 
-            metrics_to_report = {
-                k: float(v) for k, v in mean_val_scores.items() if k in trial.metrics
-            }
-            return trial.success(**metrics_to_report)
+            means_to_report = {k: trial.summary[f"val_mean_{k}"] for k in trial.metrics}
+            report = trial.success(**means_to_report)
+
+            if post_processing is not None:
+                final_eval_info = CVEvaluation.CompleteEvalInfo(
+                    X=_X,
+                    y=_y,
+                    X_test=_X_test,
+                    y_test=_y_test,
+                    splitter=splitter,
+                    max_splits=n_splits,
+                    scores=split_scores,
+                    scorers=scorers,
+                    models=models,
+                    splitter_params=splitter_params,
+                    fit_params=fit_params,
+                    scorer_params=scorer_params,
+                    test_scorer_params=test_scorer_params,
+                )
+                report = post_processing(report, pipeline, final_eval_info)
+
+            return report
 
 
 class CVEvaluation(Emitter):
@@ -912,7 +989,9 @@ class CVEvaluation(Emitter):
 
     """
 
-    SPLIT_EVALUATED: Event[[SplitInfo], bool | Exception] = Event("split-evaluated")
+    SPLIT_EVALUATED: Event[[Trial, SplitScores], bool | Exception] = Event(
+        "split-evaluated",
+    )
     """Event that is emitted when a split has been evaluated.
 
     Only emitted if the evaluator plugin is being used.
@@ -996,49 +1075,146 @@ class CVEvaluation(Emitter):
     train_score: bool
     """Whether scores will be calculated on the training data as well."""
 
-    X_stored: Stored[np.ndarray | pd.DataFrame]
+    X_stored: Stored[XLike]
     """The stored features.
 
     You can call [`.load()`][amltk.store.stored.Stored.load] to load the
     data.
     """
 
-    y_stored: Stored[np.ndarray | pd.Series | pd.DataFrame]
+    y_stored: Stored[YLike]
     """The stored target.
 
     You can call [`.load()`][amltk.store.stored.Stored.load] to load the
     data.
     """
 
-    class SplitInfo(NamedTuple):
-        """Information about a split.
-
-        It contains the current trial, the pipeline that was made from it,
-        the current split that was just evaluated, the scores up to that split
-        and any train scores if requested.
-
-        Also included are the maxmimum number of splits incase that is needed.
-
-        If you need to access information about timing, all of this can be accessed
-        through [`trial.profiles`][amltk.optimization.trial.Trial.profiler].
+    class PostSplitInfo(NamedTuple):
+        """Information about the evaluation of a split.
 
         Attributes:
-            trial: The trial that is being evaluated.
-            pipeline: The pipeline being evaluated.
-            current_split: The split number that was just evaluated
-            max_splits: The maximum number of splits that will be performed.
-            scores: The scores up to and including that split.
-            train_scores: The train scores, if requested.
-            test_scores: The test scores, if requested.
+            X: The features to used for training.
+            y: The targets used for training.
+            X_test: The features used for testing if it was passed in.
+            y_test: The targets used for testing if it was passed in.
+            i_train: The train indices for this split.
+            i_val: The validation indices for this split.
+            model: The model that was trained in this split.
+            train_scores: The training scores for this split if requested.
+            val_scores: The validation scores for this split.
+            test_scores: The test scores for this split if requested.
+            fitting_params: Any additional fitting parameters that were used.
+            train_scorer_params: Any additional scorer parameters used for evaluating
+                scorers on training set.
+            val_scorer_params: Any additional scorer parameters used for evaluating
+                scorers on training set.
+            test_scorer_params: Any additional scorer parameters used for evaluating
+                scorers on training set.
         """
 
-        trial: Trial
-        pipeline: Node
-        current_split: int
+        X: XLike
+        y: YLike
+        X_test: XLike | None
+        y_test: YLike | None
+        i_train: np.ndarray
+        i_val: np.ndarray
+        model: BaseEstimator
+        val_scores: Mapping[str, float]
+        train_scores: Mapping[str, float] | None
+        test_scores: Mapping[str, float] | None
+        fitting_params: Mapping[str, Any]
+        train_scorer_params: Mapping[str, Any]
+        val_scorer_params: Mapping[str, Any]
+        test_scorer_params: Mapping[str, Any]
+
+    class SplitScores(NamedTuple):
+        """The scores for a split.
+
+        Attributes:
+            val: The validation scores for all evaluated split.
+            train: The training scores for all evaluated splits if requested.
+            test: The test scores for all evaluated splits if requested.
+        """
+
+        val: Mapping[str, list[float]]
+        train: Mapping[str, list[float]] | None
+        test: Mapping[str, list[float]] | None
+
+    @dataclass
+    class CompleteEvalInfo:
+        """Information about the final evaluation of a cross-validation task.
+
+        This class contains information about the final evaluation of a cross-validation
+        that will be passed to the post-processing function.
+        """
+
+        X: XLike
+        """The features to used for training."""
+
+        y: YLike
+        """The targets used for training."""
+
+        X_test: XLike | None
+        """The features used for testing."""
+
+        y_test: YLike | None
+        """The targets used for testing."""
+
+        splitter: BaseShuffleSplit | BaseCrossValidator
+        """The splitter that was used."""
+
         max_splits: int
-        scores: Mapping[str, list[float]]
-        train_scores: Mapping[str, list[float]] | None
-        test_scores: Mapping[str, list[float]] | None
+        """The maximum number of splits that were (or could have been) evaluated."""
+
+        scores: CVEvaluation.SplitScores
+        """The scores for the splits that were evaluated."""
+
+        scorers: dict[str, _Scorer]
+        """The scorers that were used."""
+
+        models: list[BaseEstimator] | None
+        """The models that were trained in each split.
+
+        This will be `None` if `post_processing_requires_models=False`.
+        """
+
+        splitter_params: Mapping[str, Any]
+        """The parameters that were used for the splitter."""
+
+        fit_params: Mapping[str, Any]
+        """The parameters that were used for fitting the estimator.
+
+        Please use
+        [`select_params()`][amltk.sklearn.evaluation.CVEvaluation.CompleteEvalInfo.select_params]
+        if you need to select the params specific to a split, i.e. for `sample_weights`.
+        """
+
+        scorer_params: Mapping[str, Any]
+        """The parameters that were used for scoring the estimator.
+
+        Please use
+        [`select_params()`][amltk.sklearn.evaluation.CVEvaluation.CompleteEvalInfo.select_params]
+        if you need to select the params specific to a split, i.e. for `sample_weights`.
+        """
+
+        test_scorer_params: Mapping[str, Any]
+        """The parameters that were used for scoring the test data.
+
+        Please use
+        [`select_params()`][amltk.sklearn.evaluation.CVEvaluation.CompleteEvalInfo.select_params]
+        if you need to select the params specific to a split, i.e. for `sample_weights`.
+        """
+
+        # TODO: We don't use `test_fit_params` in our evaluator but someone could
+        # potentially need it here. Fix if it becomes a problem...
+
+        def select_params(
+            self,
+            params: Mapping[str, Any],
+            indices: np.ndarray,
+        ) -> dict[str, Any]:
+            """Convinience method to select parameters for a specific split."""
+            return _check_method_params(self.X, params, indices=indices)
 
     class _CVEarlyStoppingPlugin(Plugin):
         name: ClassVar[str] = "cv-early-stopping-plugin"
@@ -1091,13 +1267,23 @@ class CVEvaluation(Emitter):
                 self.strategy.update(report)
 
         def _on_comm_request_ask_whether_to_continue(self, msg: Comm.Msg) -> None:
-            if not isinstance(msg.data, CVEvaluation.SplitInfo):
-                # Not intended for us to handle
+            if not (isinstance(msg.data, tuple) and len(msg.data) == 2):  # noqa: PLR2004
+                return
+
+            trial, scores = msg.data
+            if not (
+                isinstance(trial, Trial)
+                and isinstance(scores, CVEvaluation.SplitScores)
+            ):
                 return
 
             non_null_responses = [
                 r
-                for _, r in self.task.emit(self.evaluator.SPLIT_EVALUATED, msg.data)
+                for _, r in self.task.emit(
+                    self.evaluator.SPLIT_EVALUATED,
+                    trial,
+                    scores,
+                )
                 if r is not None
             ]
             logger.debug(
@@ -1121,11 +1307,11 @@ class CVEvaluation(Emitter):
 
     def __init__(  # noqa: PLR0913
         self,
-        X: pd.DataFrame | np.ndarray,  # noqa: N803
-        y: pd.Series | pd.DataFrame | np.ndarray,
+        X: XLike,  # noqa: N803
+        y: YLike,
         *,
-        X_test: pd.DataFrame | np.ndarray | None = None,  # noqa: N803
-        y_test: pd.Series | pd.DataFrame | np.ndarray | None = None,
+        X_test: XLike | None = None,  # noqa: N803
+        y_test: YLike | None = None,
         splitter: (
             Literal["holdout", "cv"] | BaseShuffleSplit | BaseCrossValidator
         ) = "cv",
@@ -1141,6 +1327,12 @@ class CVEvaluation(Emitter):
         ) = "auto",
         working_dir: str | Path | PathBucket | None = None,
         on_error: Literal["raise", "fail"] = "fail",
+        post_split: PostSplitSignature | None = None,
+        post_processing: (
+            Callable[[Trial.Report, Node, CVEvaluation.CompleteEvalInfo], Trial.Report]
+            | None
+        ) = None,
+        post_processing_requires_models: bool = False,
     ) -> None:
         """Initialize the evaluation protocol.
 
@@ -1240,6 +1432,97 @@ class CVEvaluation(Emitter):
                 with the error message stored inside.
                 Set this to `#!python "fail"` if you want to continue optimization
                 even if some trials fail.
+            post_split: If provided, this callable will be called with a
+                [`PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo].
+
+                For example, this could be useful if you'd like to save out-of-fold
+                predictions for later use.
+
+                ```python
+                def my_post_split(
+                    split_number: int,
+                    info: CVEvaluator.PostSplitInfo,
+                ) -> None:
+                    X_val, y_val = info.val
+                    oof_preds = fitted_model.predict(X_val)
+
+                    split = info.current_split
+                    info.trial.store({f"oof_predictions_{split}.npy": oof_preds})
+                    return info
+                ```
+
+                !!! warning "Run in the worker"
+
+                    This callable will be pickled and sent to the worker that is
+                    executing an evaluation. This means that you should mitigate
+                    relying on any large objects if your callalbe is an object, as
+                    the object will get pickled and sent to the worker. This also means
+                    you can not rely on information obtained from other trials as when
+                    sending the callable to a worker, it is no longer updatable from the
+                    main process.
+
+                    You should also avoid holding on to references to either the model
+                    or large data that is passed in
+                    [`PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo]
+                    to the function.
+
+                    This parameter should primarily be used for callables that rely
+                    solely on the output of the current trial and wish to store/add
+                    additional information to the trial itself.
+
+            post_processing: If provided, this callable will be called with all of the
+                evaluated splits and the final report that will be returned.
+                This can be used to do things such as augment the final scores
+                if required, cleanup any resources or any other tasks that should be
+                run after the evaluation has completed. This will be handed a
+                [`Report`][amltk.optimization.trial.Trial.Report] and a
+                [`CompleteEvalInfo`][amltk.sklearn.evaluation.CVEvaluation.CompleteEvalInfo],
+                which contains all the information about the evaluation. If your
+                function requires the individual models, you can set
+                `post_processing_requires_models=True`. By default this is `False`
+                as this requires having all models in memory at once.
+
+                This can be useful when you'd like to report the score of a bagged
+                model, i.e. an ensemble of all validation models. Another example
+                is if you'd like to add to the summary, the score of what the model
+                would be if refit on all the data.
+
+                ```python
+                from amltk.sklearn.voting import voting_with_prefitted_estimators
+
+                # Compute the test score of all fold models bagged together
+                def my_post_processing(
+                    report: Trial.Report,
+                    pipeline: Node,
+                    info: CVEvaluator.CompleteEvalInfo,
+                ) -> Trial.Report:
+                    bagged_model = voting_with_prefitted_estimators(info.models)
+                    acc = info.scorers["accuracy"]
+                    bagged_score = acc(bagged_model, info.X_test, info.y_test)
+                    report.summary["bagged_test_score"] = bagged_score
+                    return report
+                ```
+
+                !!! warning "Run in the worker"
+
+                    This callable will be pickled and sent to the worker that is
+                    executing an evaluation. This means that you should mitigate
+                    relying on any large objects if your callalbe is an object, as
+                    the object will get pickled and sent to the worker. This also means
+                    you can not rely on information obtained from other trials as when
+                    sending the callable to a worker, it is no longer updatable from the
+                    main process.
+
+                    This parameter should primarily be used for callables that will
+                    augment the report or what is stored with the trial. It should
+                    rely solely on the current trial to prevent unexpected issues.
+
+            post_processing_requires_models: Whether the `post_processing` function
+                requires the models to be passed to it. If `True`, the models will
+                be passed to the function in the `CompleteEvalInfo` object. If `False`,
+                the models will not be passed to the function. By default this is
+                `False` as this requires having all models in memory at once.
+
         """
         super().__init__()
         if (X_test is not None and y_test is None) or (
@@ -1272,7 +1555,7 @@ class CVEvaluation(Emitter):
                 | "multilabel-indicator"
                 | "continuous"
                 | "continuous-multioutput"
-                | "multiclass-multioutput"
+                | "multiclass-multioutput"  #
             ):
                 task_type = task_hint
             case _:
@@ -1347,6 +1630,9 @@ class CVEvaluation(Emitter):
             store_models=self.store_models,
             train_score=self.train_score,
             on_error=on_error,
+            post_split=post_split,
+            post_processing=post_processing,
+            post_processing_requires_models=post_processing_requires_models,
         )
 
     def cv_early_stopping_plugin(
@@ -1384,7 +1670,7 @@ class CVEvaluation(Emitter):
                 # as updating a moving average of the scores.
                 pass
 
-            def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
+            def should_stop(self, trial: Trial, scores: CVEvaluation.SplitScores) -> bool | Exception:
                 # Return True to stop, False to continue. Alternatively, return a
                 # specific exception to attach to the report instead
                 return True
@@ -1417,7 +1703,7 @@ class CVEvaluation(Emitter):
         This will also add a new event to the task which you can subscribe to with
         [`task.on("split-evaluated")`][amltk.sklearn.evaluation.CVEvaluation.SPLIT_EVALUATED].
         It will be passed a
-        [`CVEvaluation.SplitInfo`][amltk.sklearn.evaluation.CVEvaluation.SplitInfo]
+        [`CVEvaluation.PostSplitInfo`][amltk.sklearn.evaluation.CVEvaluation.PostSplitInfo]
         that you can use to make a decision on whether to continue or stop. The
         passed in `strategy=` simply sets up listening to these events for you.
         You can also do this manually.
@@ -1431,9 +1717,9 @@ class CVEvaluation(Emitter):
         )
 
         @task.on("split-evaluated")
-        def should_stop(info: CVEvaluation.SplitInfo) -> bool | Execption:
+        def should_stop(trial: Trial, scores: CVEvaluation.SplitScores) -> bool | Execption:
             # Make a decision on whether to stop or continue
-            return info.scores["accuracy"] < np.mean(scores)
+            return info.scores["accuracy"] < np.mean(scores.val["accuracy"])
 
         @task.on("result")
         def update_scores(_, report: Trial.Report) -> bool | Execption:
@@ -1492,14 +1778,14 @@ class CVEarlyStoppingProtocol(Protocol):
             if report.status is Trial.Status.SUCCESS:
                 # ... do some update logic
 
-        def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
-            mean_scores_up_to_current_split = np.mean(info.scores["accuracy"])
+        def should_stop(self, trial: Trial, split_infos: list[CVEvaluation.PostSplitInfo]) -> bool | Exception:
+            mean_scores_up_to_current_split = np.mean([i.val_scores["accuracy"] for i in split_infos])
             if mean_scores_up_to_current_split > 0.9:
                 return False  # Keep going
             else:
                 return True  # Stop evaluating
     ```
-    """
+    """  # noqa: E501
 
     def update(self, report: Trial.Report) -> None:
         """Update the protocol with a new report.
@@ -1513,11 +1799,16 @@ class CVEarlyStoppingProtocol(Protocol):
         """
         ...
 
-    def should_stop(self, info: CVEvaluation.SplitInfo) -> bool | Exception:
+    def should_stop(
+        self,
+        trial: Trial,
+        scores: CVEvaluation.SplitScores,
+    ) -> bool | Exception:
         """Determines whether the cross-validation should stop early.
 
         Args:
-            info: The information about the current split.
+            trial: The trial that is currently being evaluated.
+            scores: The scores from the evlauated splits.
 
         Returns:
             `True` if the cross-validation should stop, `False` if it should

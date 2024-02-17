@@ -14,6 +14,7 @@ import sklearn.datasets
 import sklearn.pipeline
 from pytest_cases import case, parametrize, parametrize_with_cases
 from sklearn import config_context as sklearn_config_context
+from sklearn.base import check_is_fitted
 from sklearn.cluster import KMeans
 from sklearn.datasets import make_classification, make_regression
 from sklearn.dummy import DummyClassifier
@@ -30,7 +31,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 from amltk.exceptions import TaskTypeWarning, TrialError
 from amltk.optimization.trial import Metric, Trial
-from amltk.pipeline import Component, request
+from amltk.pipeline import Component, Node, request
 from amltk.pipeline.builders.sklearn import build as sklearn_pipeline_builder
 from amltk.sklearn.evaluation import (
     CVEvaluation,
@@ -396,9 +397,9 @@ def test_evaluator(  # noqa: PLR0912
     ]
     for metric_name in expected_summary_scorers:
         for i in range(n_splits):
-            assert f"split_{i}:{metric_name}" in report.summary
-        assert f"mean_{metric_name}" in report.summary
-        assert f"std_{metric_name}" in report.summary
+            assert f"split_{i}:val_{metric_name}" in report.summary
+        assert f"val_mean_{metric_name}" in report.summary
+        assert f"val_std_{metric_name}" in report.summary
 
     if train_score:
         assert "cv:train_score" in report.profiles
@@ -675,7 +676,7 @@ def test_estimator_params_get_forward(tmp_path: Path) -> None:
 
 
 def test_evaluator_with_clustering(tmp_path: Path) -> None:
-    x, y = sklearn.datasets.make_blobs(
+    x, y = sklearn.datasets.make_blobs(  # type: ignore
         n_samples=20,
         centers=2,
         n_features=2,
@@ -813,7 +814,11 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
         def update(self, report: Trial.Report) -> None:
             pass  # Normally you would update w.r.t. a finished trial
 
-        def should_stop(self, info: CVEvaluation.SplitInfo) -> bool:  # noqa: ARG002
+        def should_stop(
+            self,
+            trial: Trial,  # noqa: ARG002
+            scores: CVEvaluation.SplitScores,  # noqa: ARG002
+        ) -> bool:
             # Just say yes, should stop
             return True
 
@@ -834,8 +839,8 @@ def test_early_stopping_plugin(tmp_path: Path) -> None:
     assert "Early stop" in str(report.exception)
 
     # Only the first fold should have been run and put in summary
-    assert "split_0:accuracy" in report.summary
-    assert "split_1:accuracy" not in report.summary
+    assert "split_0:val_accuracy" in report.summary
+    assert "split_1:val_accuracy" not in report.summary
 
 
 def test_that_test_scorer_params_can_be_forwarded(tmp_path: Path) -> None:
@@ -917,3 +922,85 @@ def test_that_test_scorer_params_can_be_forwarded(tmp_path: Path) -> None:
 
         assert report.values["custom_metric"] == 1
         assert report.summary["test_mean_custom_metric"] == 2
+
+
+def record_split_number(
+    trial: Trial,
+    split_number: int,
+    info: CVEvaluation.PostSplitInfo,
+) -> CVEvaluation.PostSplitInfo:
+    # Should get the test data if it was passed in as it is in the function below
+    assert info.X_test is not None
+    assert info.y_test is not None
+    check_is_fitted(info.model)
+
+    trial.summary[f"post_split_{split_number}"] = split_number
+    return info
+
+
+def test_post_split(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+    x, y = data_for_task_type("binary")
+    TEST_SIZE = 2
+    x_test, y_test = x[:TEST_SIZE], y[:TEST_SIZE]
+
+    NSPLITS = 3
+    evaluator = CVEvaluation(
+        x,
+        y,
+        X_test=x_test,
+        y_test=y_test,
+        n_splits=NSPLITS,
+        working_dir=tmp_path,
+        on_error="raise",
+        post_split=record_split_number,
+    )
+    trial = Trial.create("test", bucket=tmp_path / "trial", metrics=Metric("accuracy"))
+    report = evaluator.fn(trial, pipeline)
+
+    for i in range(NSPLITS):
+        assert f"post_split_{i}" in report.summary
+        assert report.summary[f"post_split_{i}"] == i
+
+
+def chaotic_post_processing(
+    report: Trial.Report,
+    pipeline: Node,  # noqa: ARG001
+    eval_info: CVEvaluation.CompleteEvalInfo,
+) -> Trial.Report:
+    # We should have no models in our post processing since we didn't ask for it
+    # in the init.
+    assert eval_info.models is None
+
+    # We told it to store models, so we should have models in the storage
+    for i in range(eval_info.max_splits):
+        assert f"model_{i}.pkl" in report.storage
+
+    # Delete the models
+    trial = report.trial
+
+    trial.delete_from_storage(
+        [f"model_{i}.pkl" for i in range(eval_info.max_splits)],
+    )
+
+    # Return some bogy number as the metric value
+    return trial.success(accuracy=0.123)
+
+
+def test_post_processing_no_models(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+    x, y = data_for_task_type("binary")
+    evaluator = CVEvaluation(
+        x,
+        y,
+        working_dir=tmp_path,
+        on_error="raise",
+        post_processing=chaotic_post_processing,
+        store_models=True,
+    )
+    trial = Trial.create("test", bucket=tmp_path / "trial", metrics=Metric("accuracy"))
+    report = evaluator.fn(trial, pipeline)
+
+    # The chaotic post processing
+    assert report.values["accuracy"] == 0.123
+    assert len(report.storage) == 0
