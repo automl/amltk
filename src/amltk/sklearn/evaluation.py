@@ -1476,7 +1476,7 @@ class CVEvaluation(Emitter):
                 if required, cleanup any resources or any other tasks that should be
                 run after the evaluation has completed. This will be handed a
                 [`Report`][amltk.optimization.trial.Trial.Report] and a
-                [`CompleteEvalInfo`][amltk.sklearn.evaluation.CVEValuation.CompleteEvalInfo],
+                [`CompleteEvalInfo`][amltk.sklearn.evaluation.CVEvaluation.CompleteEvalInfo],
                 which contains all the information about the evaluation. If your
                 function requires the individual models, you can set
                 `post_processing_requires_models=True`. By default this is `False`
