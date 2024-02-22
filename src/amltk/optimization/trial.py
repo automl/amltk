@@ -1027,7 +1027,7 @@ class Trial(RichRenderable, Generic[I]):
             # on serialization to keep the order, which is not ideal either.
             # May revisit this if we need to
             raw_metrics: dict[str, float] = mapping_select(d, "metric:")
-            metrics: dict[Metric, float] = {
+            metrics: dict[Metric, float | None] = {
                 Metric.from_str(name): value for name, value in raw_metrics.items()
             }
 
@@ -1067,7 +1067,11 @@ class Trial(RichRenderable, Generic[I]):
                 storage=set(mapping_select(d, "storage:").values()),
                 extras=mapping_select(d, "extras:"),
             )
-            _values: dict[str, float] = {m.name: v for m, v in metrics.items()}
+            _values: dict[str, float] = {
+                m.name: v
+                for m, v in metrics.items()
+                if (v is not None and not pd.isna(v))
+            }
 
             status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             match status:
