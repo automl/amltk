@@ -901,7 +901,9 @@ class Node(RichRenderable, Generic[Item, Space]):
         ),
         metric: Metric | Sequence[Metric],
         *,
-        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
+        optimizer: (
+            type[Optimizer] | Optimizer.CreateSignature | Optimizer | None
+        ) = None,
         seed: Seed | None = None,
         max_trials: int | None = None,
         n_workers: int = 1,
@@ -941,12 +943,15 @@ class Node(RichRenderable, Generic[Item, Space]):
 
                 Alternatively, this can be a class inheriting from
                 [`Optimizer`][amltk.optimization.optimizer.Optimizer] or else
-                a signature match [`Optimizer.CreateSignature`][amltk.optimization.Optimizer.CreateSignature]
+                a signature match [`Optimizer.CreateSignature`][amltk.optimization.Optimizer.CreateSignature].
 
                 ??? tip "`Optimizer.CreateSignature`"
 
                     ::: amltk.optimization.Optimizer.CreateSignature
 
+                Lastly, you can also pass in your own already instantiated optimizer if you prefer, however
+                you should make sure to set it up correctly with the given metrics and search space.
+                It is recommened to just pass in the class if you are unsure how to do this properly.
             seed:
                 A [`seed`][amltk.types.Seed] for the optimizer to use.
             n_workers:
@@ -1175,63 +1180,66 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"Invalid {target=}. Must be a function or Task.")
 
-        # NOTE: I'm not particularly fond of this hack but I assume most people
-        # when prototyping don't care for the actual underlying optimizer and
-        # so we should just *pick one*.
-        create_optimizer: Optimizer.CreateSignature
-        match optimizer:
-            case None:
-                first_opt_class = next(
-                    Optimizer._get_known_importable_optimizer_classes(),
-                    None,
-                )
-                if first_opt_class is None:
+        if isinstance(optimizer, Optimizer):
+            _optimizer = optimizer
+        else:
+            # NOTE: I'm not particularly fond of this hack but I assume most people
+            # when prototyping don't care for the actual underlying optimizer and
+            # so we should just *pick one*.
+            create_optimizer: Optimizer.CreateSignature
+            match optimizer:
+                case None:
+                    first_opt_class = next(
+                        Optimizer._get_known_importable_optimizer_classes(),
+                        None,
+                    )
+                    if first_opt_class is None:
+                        raise ValueError(
+                            "No optimizer was given and no known importable optimizers "
+                            " were found. Please consider giving one explicitly or"
+                            " installing one of the following packages:\n"
+                            "\n - optuna"
+                            "\n - smac"
+                            "\n - neural-pipeline-search",
+                        )
+
+                    create_optimizer = first_opt_class.create
+                    opt_name = classname(first_opt_class)
+                case type():
+                    if not issubclass(optimizer, Optimizer):
+                        raise ValueError(
+                            f"Invalid optimizer {optimizer}. Must be a subclass of"
+                            " Optimizer or a function that returns an Optimizer",
+                        )
+                    create_optimizer = optimizer.create
+                    opt_name = classname(optimizer)
+                case _:
+                    assert not isinstance(optimizer, type)
+                    create_optimizer = optimizer
+                    opt_name = funcname(optimizer)
+
+            match working_dir:
+                case None:
+                    now = datetime.utcnow().isoformat()
+
+                    working_dir = PathBucket(f"{opt_name}-{self.name}-{now}")
+                case str() | Path():
+                    working_dir = PathBucket(working_dir)
+                case PathBucket():
+                    pass
+                case _:
                     raise ValueError(
-                        "No optimizer was given and no known importable optimizers were"
-                        " found. Please consider giving one explicitly or  installing"
-                        " one of the following packages:\n"
-                        "\n - optuna"
-                        "\n - smac"
-                        "\n - neural-pipeline-search",
+                        f"Invalid working_dir {working_dir}."
+                        " Must be a str, Path or PathBucket",
                     )
 
-                create_optimizer = first_opt_class.create
-                opt_name = classname(first_opt_class)
-            case type():
-                if not issubclass(optimizer, Optimizer):
-                    raise ValueError(
-                        f"Invalid optimizer {optimizer}. Must be a subclass of"
-                        " Optimizer or a function that returns an Optimizer",
-                    )
-                create_optimizer = optimizer.create
-                opt_name = classname(optimizer)
-            case _:
-                assert not isinstance(optimizer, type)
-                create_optimizer = optimizer
-                opt_name = funcname(optimizer)
-
-        match working_dir:
-            case None:
-                now = datetime.utcnow().isoformat()
-
-                working_dir = PathBucket(f"{opt_name}-{self.name}-{now}")
-            case str() | Path():
-                working_dir = PathBucket(working_dir)
-            case PathBucket():
-                pass
-            case _:
-                raise ValueError(
-                    f"Invalid working_dir {working_dir}."
-                    " Must be a str, Path or PathBucket",
-                )
-
-        _optimizer = create_optimizer(
-            space=self,
-            metrics=metric,
-            bucket=working_dir,
-            seed=seed,
-        )
-        assert _optimizer is not None
+            _optimizer = create_optimizer(
+                space=self,
+                metrics=metric,
+                bucket=working_dir,
+                seed=seed,
+            )
+            assert _optimizer is not None
 
         if on_begin is not None:
             hook = partial(on_begin, task, scheduler, history)
@@ -1244,6 +1252,10 @@ class Node(RichRenderable, Generic[Item, Space]):
                 task.submit(trial, self)
 
         from amltk.optimization.trial import Trial
+
+        @task.on_result
+        def tell_optimizer(_: Any, report: Trial.Report) -> None:
+            _optimizer.tell(report)
 
         @task.on_result
         def add_report_to_history(_: Any, report: Trial.Report) -> None:
@@ -1285,7 +1297,9 @@ class Node(RichRenderable, Generic[Item, Space]):
         ),
         metric: Metric | Sequence[Metric],
         *,
-        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
+        optimizer: (
+            type[Optimizer] | Optimizer.CreateSignature | Optimizer | None
+        ) = None,
         seed: Seed | None = None,
         max_trials: int | None = None,
         n_workers: int = 1,
@@ -1336,6 +1350,9 @@ class Node(RichRenderable, Generic[Item, Space]):
 
                     ::: amltk.optimization.Optimizer.CreateSignature
 
+                Lastly, you can also pass in your own already instantiated optimizer if you prefer, however
+                you should make sure to set it up correctly with the given metrics and search space.
+                It is recommened to just pass in the class if you are unsure how to do this properly.
             seed:
                 A [`seed`][amltk.types.Seed] for the optimizer to use.
             n_workers:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
+from typing_extensions import override
 
 import pytest
 import threadpoolctl
@@ -138,3 +140,36 @@ def test_no_sklearn_head_does_not_trigger_threadpoolctl(tmp_path: Path) -> None:
 
     report = history[0]
     assert report.summary["num_threads"] == num_threads
+
+
+def test_optimizer_is_reported_to(tmp_path: Path) -> None:
+    class MyOptimizer(SMACOptimizer):
+        def __init__(
+            self,
+            *args: Any,
+            **kwargs: Any,
+        ) -> None:
+            self.told_report: Trial.Report | None = None
+            super().__init__(*args, **kwargs)
+
+        @override
+        def tell(self, report: Trial.Report) -> None:
+            self.told_report = report
+            return super().tell(report)
+
+    component = Component(object, space={"a": (0.0, 1.0)})
+    optimizer = MyOptimizer.create(
+        space=component,
+        metrics=METRIC,
+        bucket=PathBucket(tmp_path),
+    )
+
+    history = component.optimize(
+        target_funtion,
+        metric=METRIC,
+        optimizer=optimizer,
+        max_trials=1,
+        working_dir=tmp_path,
+    )
+
+    assert optimizer.told_report is history[0]
