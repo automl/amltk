@@ -1042,9 +1042,12 @@ class Trial(RichRenderable, Generic[I]):
                 trial_seed = None
 
             if (_bucket := d.get("bucket")) is not None:
-                bucket = PathBucket(_bucket)
+                bucket = PathBucket(_bucket, create=False)
             else:
-                bucket = PathBucket(f"uknown_trial_bucket-{datetime.now().isoformat()}")
+                bucket = PathBucket(
+                    f"uknown_trial_bucket-{datetime.now().isoformat()}",
+                    create=False,
+                )
 
             created_at_timestamp = d.get("created_at")
             if created_at_timestamp is None:
