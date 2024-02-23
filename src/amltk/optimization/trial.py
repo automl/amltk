@@ -1045,7 +1045,7 @@ class Trial(RichRenderable, Generic[I]):
                 bucket = PathBucket(_bucket, create=False)
             else:
                 bucket = PathBucket(
-                    f"uknown_trial_bucket-{datetime.now().isoformat()}",
+                    f"unknown_trial_bucket-{datetime.now().isoformat()}",
                     create=False,
                 )
 
