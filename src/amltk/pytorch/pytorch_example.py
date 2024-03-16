@@ -16,7 +16,7 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-from amltk import Component, Metric, Sequential
+from amltk import Component, Metric, Sequential, Choice, Fixed
 
 # Change this to optuna if you prefer
 # from amltk.optimization.optimizers.optuna import OptunaParser
@@ -95,11 +95,14 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
 
     model_layers = []
 
-    # Add a Flatten layer to ensure input data is flattened
-    model_layers.append(nn.Flatten(start_dim=1))
-
     for node in pipeline.iter():
-        if isinstance(node.item, type) and issubclass(node.item, nn.Module):
+
+        # Check if node is a Flatten layer, ReLU or similar.
+        if isinstance(node, Fixed):
+            model_layers.append( node.item)
+
+        # Check if node is a Component with config parameter
+        elif isinstance(node.item, type) and issubclass(node.item, nn.Module) and node.config:
             layer_config = node.config or {}
 
             # Evaluate MatchDimensions objects
