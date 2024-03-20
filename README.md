@@ -67,8 +67,6 @@ Here's a brief overview of 3 of the core components from the toolkit:
 ### Pipelines
 Define **parametrized** machine learning pipelines using a fluid API:
 ```python
-from __future__ import annotations
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder
