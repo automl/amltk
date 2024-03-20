@@ -67,33 +67,34 @@ Here's a brief overview of 3 of the core components from the toolkit:
 ### Pipelines
 Define **parametrized** machine learning pipelines using a fluid API:
 ```python
-from amltk.pipeline import Component, Choice, Sequential
-from sklearn.ensemble import RandomForestClasifier
-from sklearn.preprocessing import OneHotEncoder
+from __future__ import annotations
+
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.svm import SVC
+
+from amltk.pipeline import Choice, Component, Sequential
 
 pipeline = (
     Sequential(name="my_pipeline")
-    >> Component(SimpleImputer, space={"strategy": ["mean", "median"]}),  # Choose either mean or median
+    >> Component(SimpleImputer, space={"strategy": ["mean", "median"]})  # Choose either mean or median
     >> OneHotEncoder(drop="first")  # No parametrization, no problem
     >> Choice(
         # Our pipeline can choose between two different estimators
         Component(
             RandomForestClassifier,
-            space={
-                "n_estimators": (10, 100),
-                "criterion": ["gini", "log_loss"]
-            },
-            config={"max_depth":3}
+            space={"n_estimators": (10, 100), "criterion": ["gini", "log_loss"]},
+            config={"max_depth": 3},
         ),
         Component(SVC, space={"kernel": ["linear", "rbf", "poly"]}),
-        name="estimator"
+        name="estimator",
     )
 )
 
 # Parser the search space with implemented or you custom parser
-search_space = pipeline.search_space(parser=...)
+search_space = pipeline.search_space(parser="configspace")
+config = search_space.sample_configuration()
 
 # Configure a pipeline
 configured_pipeline = pipeline.configure(config)
