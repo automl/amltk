@@ -78,9 +78,7 @@ from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, Concatenate, Generic, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
-from dask.utils import funcname
-
-from amltk._functional import callstring
+from amltk._functional import callstring, funcname
 from amltk._richutil.renderable import RichRenderable
 from amltk.exceptions import SchedulerNotRunningError
 from amltk.scheduling.events import Emitter, Event, Subscriber
