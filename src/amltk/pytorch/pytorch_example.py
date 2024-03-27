@@ -16,12 +16,16 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-from amltk import Component, Metric, Sequential, Choice
+from amltk import Choice, Component, Metric, Sequential
 
 # Change this to optuna if you prefer
 # from amltk.optimization.optimizers.optuna import OptunaParser
 from amltk.optimization.optimizers.smac import SMACOptimizer
-from amltk.pytorch.builders import build_model_from_pipeline, MatchDimensions
+from amltk.pytorch.builders import (
+    MatchChosenDimensions,
+    MatchDimensions,
+    build_model_from_pipeline,
+)
 
 if TYPE_CHECKING:
     from amltk import Node, Trial
@@ -173,18 +177,15 @@ def main() -> None:
     # Define the pipeline with search space for hyperparameter optimization
     pipeline = Sequential(
         Choice(
-
             Sequential(
                 nn.Flatten(start_dim=1),
                 Component(
                     nn.Linear,
                     config={"in_features": 784, "out_features": 100},
-                    # space={"out_features": (100, 500)},
                     name="choice1-fc1",
                 ),
                 name="choice1",
             ),
-
             Sequential(
                 Component(
                     nn.Conv2d,
@@ -195,27 +196,29 @@ def main() -> None:
                         "stride": (1, 1),  # Stride of the convolution
                         "padding": (1, 1),  # Padding to add to the input
                     },
-                    name="choice2-conv1",
+                    name="choice2",
                 ),
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=(2, 2)),
                 nn.Flatten(start_dim=1),
                 name="choice2",
             ),
-
             name="layer1",
         ),
 
         Component(
             nn.Linear,
             config={
-                "in_features": 32 * 14 * 14,  # Calculate the input size based on previous layers if Conv2d is chosen
+                "in_features": MatchChosenDimensions(
+                    choice_name="layer1",
+                    choices={"choice1": 100, "choice2": 32 * 14 * 14},
+                ),
                 "out_features": MatchDimensions("fc2", param="in_features"),
             },
             name="fc1",
         ),
 
-        nn.ReLU(),
+        Choice(nn.ReLU(), nn.Sigmoid(), name="activation"),
 
         Component(
             nn.Linear,
