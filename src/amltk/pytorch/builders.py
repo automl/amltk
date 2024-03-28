@@ -1,3 +1,8 @@
+"""This module contains functionality to construct a pytorch model from a pipeline.
+
+It also includes classes for handling dimension matching between layers.
+"""
+
 from __future__ import annotations
 
 from rich import print
@@ -14,11 +19,18 @@ class MatchDimensions:
     during HPO optimization. It takes the layer name and parameter name
     and stores them for later reference.
 
-    When called, it retrieves the corresponding configuration value from
-    another layer based on the provided information.
+    Attributes:
+        layer_name (str): The name of the layer.
+        param (str | None): The name of the parameter.
     """
 
     def __init__(self, layer_name: str, param: str | None):
+        """Initializes the MatchDimensions object.
+
+        Args:
+           layer_name (str): The name of the layer.
+           param (str | None): The name of the parameter.
+        """
         self.layer_name = layer_name
         self.param = param
 
@@ -42,22 +54,32 @@ class MatchDimensions:
 
 
 class MatchChosenDimensions:
-    """Handles matching dimensions for chosen nodes (children of Choice class) in a pipeline.
+    """Handles matching dimensions for chosen nodes in a pipeline.
 
     This class helps ensure compatibility between layers with search spaces
     during HPO optimization. It takes the choice name and the corresponding
     dimensions for that choice and stores them for later reference.
 
-    When called, it retrieves the corresponding dimension based on the name
-    of the chosen node.
+    Attributes:
+        choice_name (str): The name of the choice.
+        choices (dict): A dictionary containing dimensions for choices.
     """
 
     def __init__(self, choice_name: str, choices: dict):
+        """Initializes the MatchChosenDimensions object.
+
+        Args:
+            choice_name (str): The name of the choice.
+            choices (dict): A dictionary containing dimensions for choices.
+        """
         self.choice_name = choice_name
         self.choices = choices
 
     def evaluate(self, chosen_nodes) -> int:
         """Retrieves the corresponding dimension for the chosen node.
+
+        Args:
+            chosen_nodes: The chosen nodes.
 
         Returns:
             The value of the matching dimension for a chosen node.

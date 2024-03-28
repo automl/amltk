@@ -135,7 +135,7 @@ class MatchDimensionsError(Exception):
 
 
 class MatchChosenDimensionsError(Exception):
-    """An exception raised for errors related to matching dimensions for chosen nodes."""
+    """An exception raised related to matching dimensions for chosen nodes."""
 
     def __init__(self, choice_name: str, chosen_node_name: str | None = None) -> None:
         """Initialize the exception.
@@ -146,12 +146,14 @@ class MatchChosenDimensionsError(Exception):
         """
         if chosen_node_name:
             message = (
-                f"Error in matching dimensions for chosen node '{chosen_node_name}' of Choice '{choice_name}'. "
-                f"Make sure that the names for Choice and MatchChosenDimensions 'choices' param match."
+                f"Error in matching dimensions for chosen node '{chosen_node_name}' "
+                f"of Choice '{choice_name}'. Make sure that the names for "
+                f"Choice and MatchChosenDimensions 'choices' parameters match."
             )
         else:
             message = (
                 f"Choice name '{choice_name}' is not found in the chosen nodes."
-                f"Make sure that the names for Choice and MatchChosenDimensions 'choice_name' param match."
+                f"Make sure that the names for Choice and "
+                f"MatchChosenDimensions 'choice_name' parameters match."
             )
         super().__init__(message)

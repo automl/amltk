@@ -1,6 +1,6 @@
 """Script for building and evaluating an example of PyTorch MLP model on MNIST dataset.
-The script defines functions for constructing a neural network model from a pipeline, training the model,
-and evaluating its performance.
+The script defines functions for constructing a neural network model from a pipeline,
+training the model, and evaluating its performance.
 
 References:
 - PyTorch MNIST example: https://github.com/pytorch/examples/blob/main/mnist/main.py
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import torch.nn.functional as F  # noqa: N812
+import torch.nn.functional as F
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
@@ -34,10 +34,20 @@ from rich import print
 
 
 def test(
-        model: nn.Module,
-        device: torch.device,
-        test_loader: torch.utils.data.DataLoader,
+    model: nn.Module,
+    device: torch.device,
+    test_loader: torch.utils.data.DataLoader,
 ) -> tuple[float, float]:
+    """Evaluate the performance of the model on the test dataset.
+
+    Args:
+        model (nn.Module): The model to be evaluated.
+        device (torch.device): The device to use for evaluation.
+        test_loader (torch.utils.data.DataLoader): DataLoader for the test dataset.
+
+    Returns:
+        tuple[float, float]: Test loss and accuracy.
+    """
     model.eval()
     test_loss = 0
     correct = 0
@@ -55,14 +65,14 @@ def test(
 
 
 def eval_configuration(
-        trial: Trial,
-        pipeline: Node,
-        device: str = "cpu",  # Change if you have a GPU
-        epochs: int = 1,  # Fixed for now
-        lr: float = 0.1,  # Fixed for now
-        gamma: float = 0.7,  # Fixed for now
-        batch_size: int = 64,  # Fixed for now
-        log_interval: int = 10,  # Fixed for now
+    trial: Trial,
+    pipeline: Node,
+    device: str = "cpu",  # Change if you have a GPU
+    epochs: int = 1,  # Fixed for now
+    lr: float = 0.1,  # Fixed for now
+    gamma: float = 0.7,  # Fixed for now
+    batch_size: int = 64,  # Fixed for now
+    log_interval: int = 10,  # Fixed for now
 ) -> Trial.Report:
     """Evaluates a configuration within the given trial.
 
@@ -80,7 +90,7 @@ def eval_configuration(
         log_interval: The interval for logging training progress (default is 10).
 
     Returns:
-        A Trial.Report object containing the evaluation results.
+        Trial.Report: A report containing the evaluation results.
     """
     trial.store({"config.json": pipeline.config})
     torch.manual_seed(trial.seed)
@@ -190,7 +200,7 @@ def main() -> None:
                 Component(
                     nn.Conv2d,
                     config={
-                        "in_channels": 1,  # MNIST images are grayscale, so input channels is 1
+                        "in_channels": 1,  # MNIST images are grayscale
                         "out_channels": 32,  # Number of output channels (filters)
                         "kernel_size": (3, 3),  # Size of the convolutional kernel
                         "stride": (1, 1),  # Stride of the convolution
