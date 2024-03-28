@@ -205,7 +205,6 @@ def main() -> None:
             ),
             name="layer1",
         ),
-
         Component(
             nn.Linear,
             config={
@@ -217,15 +216,12 @@ def main() -> None:
             },
             name="fc1",
         ),
-
         Choice(nn.ReLU(), nn.Sigmoid(), name="activation"),
-
         Component(
             nn.Linear,
             space={"in_features": (10, 50), "out_features": (10, 30)},
             name="fc2",
         ),
-
         Component(
             nn.Linear,
             config={
@@ -234,9 +230,7 @@ def main() -> None:
             },
             name="fc3",
         ),
-
         Component(nn.LogSoftmax, config={"dim": 1}),
-
         name="my-mlp-pipeline",
     )
 

@@ -4,6 +4,7 @@ from rich import print
 from torch import nn
 
 from amltk import Choice, Fixed, Sequential
+from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
 class MatchDimensions:
@@ -33,12 +34,10 @@ class MatchDimensions:
         layer = pipeline[self.layer_name]
         layer_config = layer.config
         if layer_config is None:
-            raise ValueError(f"Configuration not found for layer {self.layer_name}")
+            raise MatchDimensionsError(self.layer_name)
         value = layer_config.get(self.param)
         if value is None:
-            raise ValueError(
-                f"Parameter {self.param} not found in config of layer {self.layer_name}",
-            )
+            raise MatchDimensionsError(self.layer_name, self.param)
         return value
 
 
@@ -53,40 +52,45 @@ class MatchChosenDimensions:
     of the chosen node.
     """
 
-    chosen_nodes = {}  # Class variable to store chosen node names
-
     def __init__(self, choice_name: str, choices: dict):
         self.choice_name = choice_name
         self.choices = choices
 
-    @staticmethod
-    def collect_chosen_nodes(pipeline: Sequential) -> None:
-        """Collects the names of chosen nodes in the pipeline.
-
-        Args:
-            pipeline: The pipeline containing the model architecture.
-        """
-        for node in pipeline.iter():
-            if isinstance(node, Choice):
-                chosen_node = node.chosen()
-                if chosen_node:
-                    MatchChosenDimensions.chosen_nodes[node.name] = chosen_node.name
-
-    def evaluate(self) -> int:
+    def evaluate(self, chosen_nodes) -> int:
         """Retrieves the corresponding dimension for the chosen node.
 
         Returns:
             The value of the matching dimension for a chosen node.
         """
-        chosen_node_name = MatchChosenDimensions.chosen_nodes[self.choice_name]
+        chosen_node_name = chosen_nodes.get(self.choice_name)
 
         try:
             return self.choices[chosen_node_name]
         except KeyError:
-            raise ValueError(
-                "Failed to find matching dimension for the chosen node. "
-                "Ensure matching names are provided for the Choice.",
-            )
+            raise MatchChosenDimensionsError(self.choice_name, chosen_node_name)
+
+    @staticmethod
+    def collect_chosen_nodes_names(pipeline: Sequential) -> dict:
+        """Collects the names of chosen nodes in the pipeline.
+
+        Each pipeline has a unique set of chosen nodes, which we collect separately
+        to handle dimension matching between layers with search spaces.
+
+        Args:
+            pipeline: The pipeline containing the model architecture.
+
+        Returns:
+            The names of the chosen nodes in the pipeline.
+        """
+        chosen_nodes_names = {}  # Class variable to store chosen node names
+
+        for node in pipeline.iter():
+            if isinstance(node, Choice):
+                chosen_node = node.chosen()
+                if chosen_node:
+                    chosen_nodes_names[node.name] = chosen_node.name
+
+        return chosen_nodes_names
 
 
 def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
@@ -103,9 +107,13 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
     Returns:
         The constructed PyTorch model.
     """
+    print("Building model for the given pipeline...")
+    print(pipeline)
+
     model_layers = []
 
-    MatchChosenDimensions.collect_chosen_nodes(pipeline)
+    # Collect the names of chosen nodes for the given pipeline
+    chosen_nodes_names = MatchChosenDimensions.collect_chosen_nodes_names(pipeline)
 
     for node in pipeline.iter(skip_unchosen=True):
         # Check if node is a Fixed layer (e.g., Flatten, ReLU)
@@ -126,7 +134,7 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
                     layer_config[key] = instance.evaluate(pipeline)
 
                 if isinstance(instance, MatchChosenDimensions):
-                    layer_config[key] = instance.evaluate()
+                    layer_config[key] = instance.evaluate(chosen_nodes_names)
 
             # Build the layer using the updated configuration
             layer = node.build_item(**layer_config)
@@ -134,9 +142,7 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
 
     model = nn.Sequential(*model_layers)
 
-    print("-" * 80)
     print("Model built")
     print(model)
-    print("-" * 80)
 
     return model

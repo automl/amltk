@@ -110,3 +110,48 @@ class DuplicateNamesError(ValueError):
             f"Duplicate names found in {self.node.name} and can't be handled."
             f"\nnodes: {[n.name for n in self.node.nodes]}."
         )
+
+
+class MatchDimensionsError(Exception):
+    """An exception raised for errors related to matching dimensions in a pipeline."""
+
+    def __init__(self, layer_name: str, param: str | None) -> None:
+        """Initialize the exception.
+
+        Args:
+            layer_name: The name of the layer.
+            param: The parameter causing the error, if any.
+        """
+        if param:
+            super().__init__(
+                f"Error in matching dimensions for layer '{layer_name}'. "
+                f"Parameter '{param}' not found in the configuration.",
+            )
+        else:
+            super().__init__(
+                f"Error in matching dimensions for layer '{layer_name}'."
+                f" Configuration not found.",
+            )
+
+
+class MatchChosenDimensionsError(Exception):
+    """An exception raised for errors related to matching dimensions for chosen nodes."""
+
+    def __init__(self, choice_name: str, chosen_node_name: str | None = None) -> None:
+        """Initialize the exception.
+
+        Args:
+            choice_name: The name of the choice that caused the error.
+            chosen_node_name: The name of the chosen node if available.
+        """
+        if chosen_node_name:
+            message = (
+                f"Error in matching dimensions for chosen node '{chosen_node_name}' of Choice '{choice_name}'. "
+                f"Make sure that the names for Choice and MatchChosenDimensions 'choices' param match."
+            )
+        else:
+            message = (
+                f"Choice name '{choice_name}' is not found in the chosen nodes."
+                f"Make sure that the names for Choice and MatchChosenDimensions 'choice_name' param match."
+            )
+        super().__init__(message)
