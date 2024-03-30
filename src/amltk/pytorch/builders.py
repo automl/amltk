@@ -5,7 +5,6 @@ It also includes classes for handling dimension matching between layers.
 
 from __future__ import annotations
 
-from rich import print
 from torch import nn
 
 from amltk import Choice, Fixed, Sequential
@@ -18,6 +17,8 @@ class MatchDimensions:
     This class helps ensure compatibility between layers with search spaces
     during HPO optimization. It takes the layer name and parameter name
     and stores them for later reference.
+
+    Not intended to be used inside a Choice node.
 
     Attributes:
         layer_name (str): The name of the layer.
@@ -129,9 +130,6 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
     Returns:
         The constructed PyTorch model.
     """
-    print("Building model for the given pipeline...")
-    print(pipeline)
-
     model_layers = []
 
     # Collect the names of chosen nodes for the given pipeline
@@ -162,9 +160,4 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
             layer = node.build_item(**layer_config)
             model_layers.append(layer)
 
-    model = nn.Sequential(*model_layers)
-
-    print("Model built")
-    print(model)
-
-    return model
+    return nn.Sequential(*model_layers)
