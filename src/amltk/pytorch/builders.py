@@ -79,6 +79,10 @@ class MatchChosenDimensions:
     def evaluate(self, chosen_nodes) -> int:
         """Retrieves the corresponding dimension for the chosen node.
 
+        If the chosen node is not found in the choices dictionary, an error is raised.
+        If the dimensions provided are not valid, an error is not raised.
+        It is up to the user to ensure that the dimensions are valid.
+
         Args:
             chosen_nodes: The chosen nodes.
 
