@@ -8,7 +8,7 @@ from __future__ import annotations
 from torch import nn
 
 from amltk import Choice, Fixed, Sequential
-from amltk.exceptions import MatchDimensionsError, MatchChosenDimensionsError
+from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
 class MatchDimensions:
