@@ -16,16 +16,19 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-from amltk import Choice, Component, Metric, Sequential
+from amltk import (
+    Choice,
+    Component,
+    MatchChosenDimensions,
+    MatchDimensions,
+    Metric,
+    Sequential,
+    build_model_from_pipeline,
+)
 
 # Change this to optuna if you prefer
 # from amltk.optimization.optimizers.optuna import OptunaParser
 from amltk.optimization.optimizers.smac import SMACOptimizer
-from amltk.pytorch.builders import (
-    MatchChosenDimensions,
-    MatchDimensions,
-    build_model_from_pipeline,
-)
 
 if TYPE_CHECKING:
     from amltk import Node, Trial
