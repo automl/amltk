@@ -67,11 +67,8 @@ class TestMatchChosenDimensions:
         # Verify that the model is constructed correctly
         assert isinstance(model, torch.nn.Sequential)
 
-        # Conditional check for the second layer's in_features
-        if model[0].out_features == 20:
-            assert model[1].in_features == 20
-        elif model[0].out_features == 10:
-            assert model[1].in_features == 10
+        # Conditional check for the Choice node
+        assert model[0].out_features == model[1].in_features
 
         assert model[1].out_features == 30
 

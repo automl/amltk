@@ -93,11 +93,11 @@ class MatchChosenDimensions:
 
         try:
             return self.choices[chosen_node_name]
-        except KeyError:
-            raise MatchChosenDimensionsError(self.choice_name, chosen_node_name)
+        except KeyError as e:
+            raise MatchChosenDimensionsError(self.choice_name, chosen_node_name) from e
 
     @staticmethod
-    def collect_chosen_nodes_names(pipeline: Sequential) -> dict:
+    def collect_chosen_nodes_names(pipeline: Sequential) -> dict[str, str]:
         """Collects the names of chosen nodes in the pipeline.
 
         Each pipeline has a unique set of chosen nodes, which we collect separately
@@ -150,7 +150,7 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
             and issubclass(node.item, nn.Module)
             and node.config
         ):
-            layer_config = node.config or {}
+            layer_config = dict(node.config) if node.config else {}
 
             # Evaluate MatchDimensions objects
             for key, instance in layer_config.items():

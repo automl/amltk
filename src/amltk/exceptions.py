@@ -112,7 +112,7 @@ class DuplicateNamesError(ValueError):
         )
 
 
-class MatchDimensionsError(Exception):
+class MatchDimensionsError(KeyError):
     """An exception raised for errors related to matching dimensions in a pipeline."""
 
     def __init__(self, layer_name: str, param: str | None) -> None:
@@ -134,7 +134,7 @@ class MatchDimensionsError(Exception):
             )
 
 
-class MatchChosenDimensionsError(Exception):
+class MatchChosenDimensionsError(KeyError):
     """An exception raised related to matching dimensions for chosen nodes."""
 
     def __init__(self, choice_name: str, chosen_node_name: str | None = None) -> None:
