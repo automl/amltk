@@ -40,11 +40,6 @@ from amltk.store import (
     TxtLoader,
     YAMLLoader,
 )
-from amltk.pytorch import (
-    MatchDimensions,
-    MatchChosenDimensions,
-    build_model_from_pipeline,
-)
 
 __all__ = [
     "Bucket",
@@ -82,7 +77,4 @@ __all__ = [
     "Trial",
     "TxtLoader",
     "YAMLLoader",
-    "MatchDimensions",
-    "MatchChosenDimensions",
-    "build_model_from_pipeline",
 ]

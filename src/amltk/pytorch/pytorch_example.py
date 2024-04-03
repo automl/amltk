@@ -19,12 +19,10 @@ from torchvision import datasets, transforms
 from amltk import (
     Choice,
     Component,
-    MatchChosenDimensions,
-    MatchDimensions,
     Metric,
     Sequential,
-    build_model_from_pipeline,
 )
+from amltk.pytorch import MatchChosenDimensions, MatchDimensions, build_model_from_pipeline
 
 # Change this to optuna if you prefer
 # from amltk.optimization.optimizers.optuna import OptunaParser

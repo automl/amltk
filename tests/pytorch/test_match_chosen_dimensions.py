@@ -7,10 +7,9 @@ from amltk import (
     Choice,
     Component,
     Fixed,
-    MatchChosenDimensions,
     Sequential,
-    build_model_from_pipeline,
 )
+from amltk.pytorch import MatchChosenDimensions, build_model_from_pipeline
 from amltk.exceptions import MatchChosenDimensionsError
 from tests.pytorch.common import create_optimizer
 

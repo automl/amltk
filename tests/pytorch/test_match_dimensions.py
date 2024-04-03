@@ -6,11 +6,10 @@ import torch
 from amltk import (
     Component,
     Fixed,
-    MatchDimensions,
     Node,
     Sequential,
-    build_model_from_pipeline,
 )
+from amltk.pytorch import MatchDimensions, build_model_from_pipeline
 from amltk.exceptions import MatchDimensionsError
 from tests.pytorch.common import create_optimizer
 
