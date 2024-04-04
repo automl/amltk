@@ -148,6 +148,7 @@ class MatchDimensionsError(KeyError):
         Args:
             layer_name: The name of the layer.
             param: The parameter causing the error, if any.
+            *args: Additional arguments to pass to the exception.
         """
         if param:
             super().__init__(
@@ -177,6 +178,7 @@ class MatchChosenDimensionsError(KeyError):
         Args:
             choice_name: The name of the choice that caused the error.
             chosen_node_name: The name of the chosen node if available.
+            *args: Additional arguments to pass to the exception.
         """
         if chosen_node_name:
             message = (

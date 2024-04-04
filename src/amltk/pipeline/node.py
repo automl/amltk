@@ -508,7 +508,8 @@ class Node(RichRenderable, Generic[Item, Space]):
                 chosen_node = node.chosen()
                 if chosen_node is None:
                     raise RuntimeError(
-                        f"No Node chosen in Choice node {node.name}. Did you call configure?",
+                        f"No Node chosen in Choice node {node.name}. "
+                        f"Did you call configure?",
                     )
                 yield from chosen_node.iter(skip_unchosen)
             else:
