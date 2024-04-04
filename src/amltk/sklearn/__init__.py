@@ -3,6 +3,7 @@ from amltk.sklearn.estimators import (
     StoredPredictionClassifier,
     StoredPredictionRegressor,
 )
+from amltk.sklearn.evaluation import CVEvaluation
 from amltk.sklearn.voting import voting_with_preffited_estimators
 
 __all__ = [
@@ -11,4 +12,5 @@ __all__ = [
     "StoredPredictionRegressor",
     "StoredPredictionClassifier",
     "voting_with_preffited_estimators",
+    "CVEvaluation",
 ]

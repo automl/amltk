@@ -1,3 +1,29 @@
+## 1.11.0 (2024-02-29)
+
+### Feat
+
+- **CVEvaluator**: Add feature for post_split and post_processing (#260)
+- **sklearn**: `X_test`, `y_test` to CVEvaluator (#258)
+- CVEarlyStopping (#254)
+- **sklearn**: CVEvaluator allows `configure` and `build` params (#250)
+- **sklearn**: Provide a standard CVEvaluator (#244)
+
+### Fix
+
+- **trial**: Don't record metric values for deserialized NaN's or None (#263)
+- **pipeline**: Ensure optimizer is updated with report (#261)
+- **scheduling**: Safe termination of processes, avoiding lifetime race condition (#256)
+- **metalearning**: Portfolio Check for Dataframe as Input (#253)
+- **CVEvaluator**: `clone` the estimator before use (#249)
+- **Node**: Ensure that parent name does not conflict with children (#248)
+- **CVEvaluator**: When on_error="raise", inform of which trial failed (#247)
+- **Trial**: Give trials a created_at stamp (#246)
+
+### Refactor
+
+- **pipeline**: `optimize` now requires one of `timeout` or (#252)
+- **Metric, Trial**: Cleanup of metrics and `Trial` (#242)
+
 ## 1.10.1 (2024-01-28)
 
 ### Fix

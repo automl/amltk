@@ -41,7 +41,7 @@ that a `Task` emits.
             self.task = task
             # Register an event with the task, this lets the task know valid events
             # people can subscribe to and helps it show up in visuals
-            task.emitter.add_event(self.PRINTED)
+            task.add_event(self.PRINTED)
             task.on_submitted(self._print_submitted, hidden=True)  # You can hide this callback from visuals
 
         def pre_submit(self, fn, *args, **kwargs) -> tuple[Callable, tuple, dict]:
@@ -51,11 +51,7 @@ that a `Task` emits.
 
         def _print_submitted(self, future, *args, **kwargs) -> None:
             msg = f"Task was submitted {self.task} {args} {kwargs}"
-            self.task.emitter.emit(self.PRINTED, msg)  # Emit the event with a msg
-
-        def copy(self) -> Printer:
-            # Plugins need to be able to copy themselves as if fresh
-            return self.__class__(self.greeting)
+            self.task.emit(self.PRINTED, msg)  # Emit the event with a msg
 
         def __rich__(self):
             # Custome how the plugin is displayed in rich (Optional)
@@ -102,11 +98,11 @@ that a `Task` emits.
 from __future__ import annotations
 
 import logging
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Callable
 from itertools import chain
 from typing import TYPE_CHECKING, ClassVar, TypeVar
-from typing_extensions import ParamSpec, Self, override
+from typing_extensions import ParamSpec, override
 
 from amltk._richutil.renderable import RichRenderable
 from amltk.scheduling.events import Event
@@ -179,17 +175,6 @@ class Plugin(RichRenderable, ABC):
             vars(cls).values() for cls in self.__class__.__mro__
         )
         return [attr for attr in inherited_attrs if isinstance(attr, Event)]
-
-    @abstractmethod
-    def copy(self) -> Self:
-        """Return a copy of the plugin.
-
-        This method is used to create a copy of the plugin when a task is
-        copied. This is useful if the plugin stores a reference to the task
-        it is attached to, as the copy will need to store a reference to the
-        copy of the task.
-        """
-        ...
 
     @override
     def __rich__(self) -> Panel:

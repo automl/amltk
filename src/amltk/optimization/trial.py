@@ -121,6 +121,7 @@ class Trial(RichRenderable, Generic[I]):
 
         report = target_function(trial)
         print(report.df())
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
 
@@ -178,6 +179,7 @@ class Trial(RichRenderable, Generic[I]):
 
             # Correct usage
             report = trial.success(accuracy=0.95)
+            trial.bucket.rmdir()  # markdown-exec: hide
             ```
 
     If using [`Plugins`][amltk.scheduling.plugins.Plugin], they may insert
@@ -206,6 +208,7 @@ class Trial(RichRenderable, Generic[I]):
                 pass
 
         print(trial.profiler.df())
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
     You can also record anything you'd like into the
@@ -247,6 +250,9 @@ class Trial(RichRenderable, Generic[I]):
     You can access the metrics by name, e.g. `#!python trial.metrics["loss"]`.
     """
 
+    created_at: datetime
+    """When the trial was created."""
+
     seed: int | None = None
     """The seed to use if suggested by the optimizer."""
 
@@ -278,6 +284,7 @@ class Trial(RichRenderable, Generic[I]):
         info: I | None = None,
         seed: int | None = None,
         fidelities: Mapping[str, Any] | None = None,
+        created_at: datetime | None = None,
         profiler: Profiler | None = None,
         bucket: str | Path | PathBucket | None = None,
         summary: MutableMapping[str, Any] | None = None,
@@ -294,6 +301,7 @@ class Trial(RichRenderable, Generic[I]):
             seed: The seed of the trial.
             fidelities: The fidelities of the trial.
             bucket: The bucket of the trial.
+            created_at: When the trial was created.
             profiler: The profiler of the trial.
             summary: The summary of the trial.
             storage: The storage of the trial.
@@ -317,6 +325,7 @@ class Trial(RichRenderable, Generic[I]):
             config=config if config is not None else {},
             info=info,
             seed=seed,
+            created_at=created_at if created_at is not None else datetime.now(),
             fidelities=fidelities if fidelities is not None else {},
             bucket=(
                 bucket
@@ -334,8 +343,43 @@ class Trial(RichRenderable, Generic[I]):
 
     @property
     def profiles(self) -> Mapping[str, Profile.Interval]:
-        """The profiles of the trial."""
+        """The profiles of the trial.
+
+        These are indexed by the name of the profile indicated by:
+
+        ```python
+        with trial.profile("key_to_index"):
+            # ...
+
+        profile = trial.profiles["key_to_index"]
+        ```
+
+        The values are a
+        [`Profile.Interval`][amltk.profiling.profiler.Profile.Interval],
+        which contain a
+        [`Memory.Interval`][amltk.profiling.memory.Memory.Interval]
+        and a
+        [`Timer.Interval`][amltk.profiling.timing.Timer.Interval].
+        Please see the respective documentation for more.
+        """
         return self.profiler.profiles
+
+    def dump_exception(
+        self,
+        exception: BaseException,
+        *,
+        name: str | None = None,
+    ) -> None:
+        """Dump an exception to the trial.
+
+        Args:
+            exception: The exception to dump.
+            name: The name of the file to dump to. If `None`, will be `"exception"`.
+        """
+        fname = name if name is not None else "exception"
+        traceback = "".join(traceback_module.format_tb(exception.__traceback__))
+        msg = f"{traceback}\n{exception.__class__.__name__}: {exception}"
+        self.store({f"{fname}.txt": msg})
 
     @contextmanager
     def profile(
@@ -362,6 +406,7 @@ class Trial(RichRenderable, Generic[I]):
             time.sleep(1)
 
         print(trial.profiler["some_interval"].time)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -394,6 +439,7 @@ class Trial(RichRenderable, Generic[I]):
         report = trial.success(loss=1)
 
         print(report)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -456,6 +502,7 @@ class Trial(RichRenderable, Generic[I]):
 
         print(report.values)
         print(report)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Returns:
@@ -531,6 +578,7 @@ class Trial(RichRenderable, Generic[I]):
         trial = Trial.create(name="trial", config={"x": 1}, bucket=PathBucket("my-trial"))
         trial.store({"config.json": trial.config})
         print(trial.storage)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -557,21 +605,7 @@ class Trial(RichRenderable, Generic[I]):
         trial.delete_from_storage(items=["config.json"])
 
         print(trial.storage)
-        ```
-
-        You could also create a Bucket and use that instead.
-
-        ```python exec="true" source="material-block" result="python" title="delete-storage-bucket" hl_lines="9"
-        from amltk.optimization import Trial
-        from amltk.store import PathBucket
-
-        bucket = PathBucket("results")
-        trial = Trial.create(name="trial", config={"x": 1}, bucket=bucket)
-
-        trial.store({"config.json": trial.config})
-        trial.delete_from_storage(items=["config.json"])
-
-        print(trial.storage)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -617,6 +651,7 @@ class Trial(RichRenderable, Generic[I]):
         config = trial.retrieve("config.json")
 
         print(config)
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         Args:
@@ -758,6 +793,7 @@ class Trial(RichRenderable, Generic[I]):
             report = trial.success(loss=1)
 
         print(report.df())
+        trial.bucket.rmdir()  # markdown-exec: hide
         ```
 
         These reports are used to report back metrics to an
@@ -872,6 +908,7 @@ class Trial(RichRenderable, Generic[I]):
                 "exception": str(self.exception) if self.exception else "NA",
                 "traceback": str(self.traceback) if self.traceback else "NA",
                 "bucket": str(self.bucket.path),
+                "created_at": self.trial.created_at,
                 "reported_at": self.reported_at,
             }
             if metrics:
@@ -913,6 +950,7 @@ class Trial(RichRenderable, Generic[I]):
 
             config = report.retrieve("config.json")
             print(config)
+            trial.bucket.rmdir()  # markdown-exec: hide
             ```
 
             Args:
@@ -989,7 +1027,7 @@ class Trial(RichRenderable, Generic[I]):
             # on serialization to keep the order, which is not ideal either.
             # May revisit this if we need to
             raw_metrics: dict[str, float] = mapping_select(d, "metric:")
-            metrics: dict[Metric, float] = {
+            metrics: dict[Metric, float | None] = {
                 Metric.from_str(name): value for name, value in raw_metrics.items()
             }
 
@@ -1008,6 +1046,13 @@ class Trial(RichRenderable, Generic[I]):
             else:
                 bucket = PathBucket(f"uknown_trial_bucket-{datetime.now().isoformat()}")
 
+            created_at_timestamp = d.get("created_at")
+            if created_at_timestamp is None:
+                raise ValueError(
+                    "Cannot load report from dict without a 'created_at' field.",
+                )
+            created_at = parse_timestamp_object(created_at_timestamp)
+
             trial: Trial = Trial.create(
                 name=d["name"],
                 config=mapping_select(d, "config:"),
@@ -1017,11 +1062,16 @@ class Trial(RichRenderable, Generic[I]):
                 fidelities=mapping_select(d, "fidelities:"),
                 profiler=Profiler(profiles=profiles),
                 metrics=metrics.keys(),
+                created_at=created_at,
                 summary=mapping_select(d, "summary:"),
                 storage=set(mapping_select(d, "storage:").values()),
                 extras=mapping_select(d, "extras:"),
             )
-            _values: dict[str, float] = {m.name: v for m, v in metrics.items()}
+            _values: dict[str, float] = {
+                m.name: v
+                for m, v in metrics.items()
+                if (v is not None and not pd.isna(v))
+            }
 
             status = Trial.Status(dict_get_not_none(d, "status", "unknown"))
             match status:
@@ -1044,6 +1094,7 @@ class Trial(RichRenderable, Generic[I]):
                     "Cannot load report from dict without a 'reported_at' field.",
                 )
             report.reported_at = parse_timestamp_object(timestamp)
+
             return report
 
         def rich_renderables(self) -> Iterable[RenderableType]:

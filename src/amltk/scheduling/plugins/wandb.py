@@ -22,7 +22,7 @@ from typing import (
     TypeAlias,
     TypeVar,
 )
-from typing_extensions import ParamSpec, Self, override
+from typing_extensions import ParamSpec, override
 
 import numpy as np
 import wandb
@@ -231,11 +231,6 @@ class WandbTrialTracker(Plugin):
         """
         fn = WandbLiveRunWrap(self.params, fn, modify=self.modify)  # type: ignore
         return fn, args, kwargs
-
-    @override
-    def copy(self) -> Self:
-        """Copy the plugin."""
-        return self.__class__(modify=self.modify, params=replace(self.params))
 
     def _check_explicit_reinit_arg_with_executor(
         self,

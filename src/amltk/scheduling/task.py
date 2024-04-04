@@ -16,23 +16,23 @@ with callbacks and act accordingly.
     for more on how to customize these callbacks. You can also take a look
     at the API of [`on()`][amltk.scheduling.task.Task.on] for more information.
 
-    === "`@on_result`"
+    === "`@on-result`"
 
         ::: amltk.scheduling.task.Task.on_result
 
-    === "`@on_exception`"
+    === "`@on-exception`"
 
         ::: amltk.scheduling.task.Task.on_exception
 
-    === "`@on_done`"
+    === "`@on-done`"
 
         ::: amltk.scheduling.task.Task.on_done
 
-    === "`@on_submitted`"
+    === "`@on-submitted`"
 
         ::: amltk.scheduling.task.Task.on_submitted
 
-    === "`@on_cancelled`"
+    === "`@on-cancelled`"
 
         ::: amltk.scheduling.task.Task.on_cancelled
 
@@ -75,15 +75,14 @@ from __future__ import annotations
 import logging
 from asyncio import Future
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any, Concatenate, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Concatenate, Generic, TypeVar
 from typing_extensions import ParamSpec, Self, override
 
-from more_itertools import first_true
+from dask.utils import funcname
 
 from amltk._functional import callstring
 from amltk._richutil.renderable import RichRenderable
-from amltk.exceptions import EventNotKnownError, SchedulerNotRunningError
-from amltk.randomness import randuid
+from amltk.exceptions import SchedulerNotRunningError
 from amltk.scheduling.events import Emitter, Event, Subscriber
 from amltk.scheduling.plugins.plugin import Plugin
 
@@ -103,7 +102,7 @@ R2 = TypeVar("R2")
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
-class Task(RichRenderable, Generic[P, R]):
+class Task(Emitter, RichRenderable, Generic[P, R]):
     """The task class."""
 
     unique_ref: str
@@ -121,7 +120,7 @@ class Task(RichRenderable, Generic[P, R]):
     emitter: Emitter
     """The emitter for events of this task."""
 
-    on_submitted: Subscriber[Concatenate[Future[R], P]]
+    on_submitted: Subscriber[Concatenate[Future[R], P], Any]
     """An event that is emitted when a future is submitted to the
     scheduler. It will pass the future as the first argument with args and
     kwargs following.
@@ -133,7 +132,7 @@ class Task(RichRenderable, Generic[P, R]):
         print(f"Future {future} was submitted with {args=} and {kwargs=}")
     ```
     """
-    on_done: Subscriber[Future[R]]
+    on_done: Subscriber[[Future[R]], Any]
     """Called when a task is done running with a result or exception.
     ```python
     @task.on_done
@@ -141,7 +140,7 @@ class Task(RichRenderable, Generic[P, R]):
         print(f"Future {future} is done")
     ```
     """
-    on_cancelled: Subscriber[Future[R]]
+    on_cancelled: Subscriber[[Future[R]], Any]
     """Called when a task is cancelled.
     ```python
     @task.on_cancelled
@@ -149,7 +148,7 @@ class Task(RichRenderable, Generic[P, R]):
         print(f"Future {future} was cancelled")
     ```
     """
-    on_result: Subscriber[Future[R], R]
+    on_result: Subscriber[[Future[R], R], Any]
     """Called when a task has successfully returned a value.
     Comes with Future
     ```python
@@ -158,7 +157,7 @@ class Task(RichRenderable, Generic[P, R]):
         print(f"Future {future} returned {result}")
     ```
     """
-    on_exception: Subscriber[Future[R], BaseException]
+    on_exception: Subscriber[[Future[R], BaseException], Any]
     """Called when a task failed to return anything but an exception.
     Comes with Future
     ```python
@@ -168,12 +167,12 @@ class Task(RichRenderable, Generic[P, R]):
     ```
     """
 
-    SUBMITTED: Event[Concatenate[Future[R], P]] = Event("on_submitted")
-    DONE: Event[Future[R]] = Event("on_done")
+    SUBMITTED: Event[Concatenate[Future[R], P], Any] = Event("on-submitted")
+    DONE: Event[[Future[R]], Any] = Event("on-done")
 
-    CANCELLED: Event[Future[R]] = Event("on_cancelled")
-    RESULT: Event[Future[R], R] = Event("on_result")
-    EXCEPTION: Event[Future[R], BaseException] = Event("on_exception")
+    CANCELLED: Event[[Future[R]], Any] = Event("on-cancelled")
+    RESULT: Event[[Future[R], R], Any] = Event("on-result")
+    EXCEPTION: Event[[Future[R], BaseException], Any] = Event("on-exception")
 
     def __init__(
         self: Self,
@@ -191,11 +190,7 @@ class Task(RichRenderable, Generic[P, R]):
             plugins: The plugins to use for this task.
             init_plugins: Whether to initialize the plugins or not.
         """
-        super().__init__()
-        self.unique_ref = randuid(8)
-
-        self.emitter = Emitter()
-        self.event_counts = self.emitter.event_counts
+        super().__init__(name=f"Task-{funcname(function)}")
         self.plugins: list[Plugin] = (
             [plugins] if isinstance(plugins, Plugin) else list(plugins)
         )
@@ -205,11 +200,11 @@ class Task(RichRenderable, Generic[P, R]):
         self.queue: list[Future[R]] = []
 
         # Set up subscription methods to events
-        self.on_submitted = self.emitter.subscriber(self.SUBMITTED)
-        self.on_done = self.emitter.subscriber(self.DONE)
-        self.on_result = self.emitter.subscriber(self.RESULT)
-        self.on_exception = self.emitter.subscriber(self.EXCEPTION)
-        self.on_cancelled = self.emitter.subscriber(self.CANCELLED)
+        self.on_submitted = self.subscriber(self.SUBMITTED)
+        self.on_done = self.subscriber(self.DONE)
+        self.on_result = self.subscriber(self.RESULT)
+        self.on_exception = self.subscriber(self.EXCEPTION)
+        self.on_cancelled = self.subscriber(self.CANCELLED)
 
         if init_plugins:
             for plugin in self.plugins:
@@ -222,97 +217,6 @@ class Task(RichRenderable, Generic[P, R]):
             A list of futures for this task.
         """
         return self.queue
-
-    @overload
-    def on(
-        self,
-        event: Event[P2],
-        callback: None = None,
-        *,
-        when: Callable[[], bool] | None = ...,
-        max_calls: int | None = ...,
-        repeat: int = ...,
-        every: int = ...,
-    ) -> Subscriber[P2]:
-        ...
-
-    @overload
-    def on(
-        self,
-        event: str,
-        callback: None = None,
-        *,
-        when: Callable[[], bool] | None = ...,
-        max_calls: int | None = ...,
-        repeat: int = ...,
-        every: int = ...,
-    ) -> Subscriber[...]:
-        ...
-
-    @overload
-    def on(
-        self,
-        event: str,
-        callback: Callable,
-        *,
-        when: Callable[[], bool] | None = ...,
-        max_calls: int | None = ...,
-        repeat: int = ...,
-        every: int = ...,
-    ) -> None:
-        ...
-
-    def on(
-        self,
-        event: Event[P2] | str,
-        callback: Callable[P2, Any] | None = None,
-        *,
-        when: Callable[[], bool] | None = None,
-        max_calls: int | None = None,
-        repeat: int = 1,
-        every: int = 1,
-        hidden: bool = False,
-    ) -> Subscriber[P2] | Subscriber[...] | None:
-        """Subscribe to an event.
-
-        Args:
-            event: The event to subscribe to.
-            callback: The callback to call when the event is emitted.
-                If not specified, what is returned can be used as a decorator.
-            when: A predicate to determine whether to call the callback.
-            max_calls: The maximum number of times to call the callback.
-            repeat: The number of times to repeat the subscription.
-            every: The number of times to wait between repeats.
-            hidden: Whether to hide the callback in visual output.
-                This is mainly used to facilitate Plugins who
-                act upon events but don't want to be seen, primarily
-                as they are just book-keeping callbacks.
-
-        Returns:
-            The subscriber if no callback was provided, otherwise `None`.
-        """
-        if isinstance(event, str):
-            _e = first_true(self.emitter.events, None, lambda e: e.name == event)
-            if _e is None:
-                raise EventNotKnownError(
-                    f"{event=} is not a valid event."
-                    f"\nKnown events are: {[e.name for e in self.emitter.events]}",
-                )
-        else:
-            _e = event
-
-        subscriber = self.emitter.subscriber(
-            _e,  # type: ignore
-            when=when,
-            max_calls=max_calls,
-            repeat=repeat,
-            every=every,
-        )
-        if callback is None:
-            return subscriber
-
-        subscriber(callback, hidden=hidden)
-        return None
 
     @property
     def n_running(self) -> int:
@@ -370,6 +274,7 @@ class Task(RichRenderable, Generic[P, R]):
         # original function name.
         msg = f"Submitted {callstring(self.function, *args, **kwargs)} from {self}."
         logger.debug(msg)
+
         self.on_submitted.emit(future, *args, **kwargs)
 
         # Process the task once it's completed
@@ -377,27 +282,6 @@ class Task(RichRenderable, Generic[P, R]):
         # this will immediatly call `self._process_future`.
         future.add_done_callback(self._process_future)
         return future
-
-    def copy(self, *, init_plugins: bool = True) -> Self:
-        """Create a copy of this task.
-
-        Will use the same scheduler and function, but will have a different
-        event manager such that any events listend to on the old task will
-        **not** trigger with the copied task.
-
-        Args:
-            init_plugins: Whether to initialize the copied plugins on the copied
-                task. Usually you will want to leave this as `True`.
-
-        Returns:
-            A copy of this task.
-        """
-        return self.__class__(
-            self.function,
-            self.scheduler,
-            plugins=tuple(p.copy() for p in self.plugins),
-            init_plugins=init_plugins,
-        )
 
     def _process_future(self, future: Future[R]) -> None:
         try:
@@ -464,7 +348,7 @@ class Task(RichRenderable, Generic[P, R]):
                 items.append(plugin)
 
         tree = Tree(label="", hide_root=True)
-        tree.add(self.emitter)
+        tree.add(self)
         items.append(tree)
 
         return Panel(

@@ -62,12 +62,16 @@ from typing import (
 )
 from typing_extensions import override
 
-from more_itertools import first_true
+from more_itertools import all_unique, first_true
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
 from amltk._functional import classname, funcname, mapping_select, prefix_keys
 from amltk._richutil import RichRenderable
-from amltk.exceptions import RequestNotMetError
+from amltk.exceptions import (
+    AutomaticThreadPoolCTLWarning,
+    DuplicateNamesError,
+    RequestNotMetError,
+)
 from amltk.optimization.history import History
 from amltk.optimization.optimizer import Optimizer
 from amltk.scheduling import Task
@@ -82,7 +86,6 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
     from rich.panel import Panel
 
-    from amltk.evalutors.evaluation_protocol import EvaluationProtocol
     from amltk.optimization.metric import Metric
     from amltk.optimization.trial import Trial
     from amltk.pipeline.components import Choice, Join, Sequential
@@ -298,6 +301,18 @@ class Node(RichRenderable, Generic[Item, Space]):
         object.__setattr__(self, "config_transform", config_transform)
         object.__setattr__(self, "meta", meta)
         object.__setattr__(self, "nodes", nodes)
+
+        if not all_unique(node.name for node in self.nodes):
+            raise DuplicateNamesError(
+                f"Duplicate node names in {self}. " "All nodes must have unique names.",
+            )
+
+        for child in self.nodes:
+            if child.name == self.name:
+                raise DuplicateNamesError(
+                    f"Cannot have a child node with the same name as its parent. "
+                    f"{self.name=} {child.name=}",
+                )
 
     def __getitem__(self, key: str) -> Node:
         """Get the first from [`.nodes`][amltk.pipeline.node.Node.nodes] with `key`."""
@@ -904,15 +919,15 @@ class Node(RichRenderable, Generic[Item, Space]):
     def register_optimization_loop(  # noqa: C901, PLR0915, PLR0912
         self,
         target: (
-            EvaluationProtocol
-            | Callable[[Trial, Node], Trial.Report]
-            | Task[[Trial, Node], Trial.Report]
+            Task[[Trial, Node], Trial.Report] | Callable[[Trial, Node], Trial.Report]
         ),
         metric: Metric | Sequence[Metric],
         *,
-        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
+        optimizer: (
+            type[Optimizer] | Optimizer.CreateSignature | Optimizer | None
+        ) = None,
         seed: Seed | None = None,
-        max_trials: int | None = 3,
+        max_trials: int | None = None,
         n_workers: int = 1,
         working_dir: str | Path | PathBucket | None = None,
         scheduler: Scheduler | None = None,
@@ -925,16 +940,12 @@ class Node(RichRenderable, Generic[Item, Space]):
         process_walltime_limit: int | tuple[float, str] | None = None,
         process_cputime_limit: int | tuple[float, str] | None = None,
         threadpool_limit_ctl: bool | int | None = None,
-    ) -> Scheduler:
+    ) -> tuple[Scheduler, Task[[Trial, Node], Trial.Report], History]:
         """Setup a pipeline to be optimized in a loop.
 
         Args:
             target:
                 The function against which to optimize.
-
-                * If `target` is an
-                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
-                then it will be used to evaluate the pipeline.
 
                 * If `target` is a function, then it must take in a
                 [`Trial`][amltk.optimization.trial.Trial] as the first argument
@@ -943,7 +954,8 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the [optimization guide](../../../guides/optimization.md) for more.
 
                 * If `target` is a [`Task`][amltk.scheduling.task.Task], then
-                this is not implemeneted yet. Sorry
+                this will be used instead, updating the plugins with any additional
+                plugins specified.
             metric:
                 The metric(s) that will be passed to `optimizer=`. These metrics
                 should align with what is being computed in `target=`.
@@ -953,12 +965,15 @@ class Node(RichRenderable, Generic[Item, Space]):
 
                 Alternatively, this can be a class inheriting from
                 [`Optimizer`][amltk.optimization.optimizer.Optimizer] or else
-                a signature match [`Optimizer.CreateSignature`][amltk.optimization.Optimizer.CreateSignature]
+                a signature match [`Optimizer.CreateSignature`][amltk.optimization.Optimizer.CreateSignature].
 
                 ??? tip "`Optimizer.CreateSignature`"
 
                     ::: amltk.optimization.Optimizer.CreateSignature
 
+                Lastly, you can also pass in your own already instantiated optimizer if you prefer, however
+                you should make sure to set it up correctly with the given metrics and search space.
+                It is recommened to just pass in the class if you are unsure how to do this properly.
             seed:
                 A [`seed`][amltk.types.Seed] for the optimizer to use.
             n_workers:
@@ -1063,6 +1078,11 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the [`Scheduler`][amltk.scheduling.Scheduler]. Please
                 refer to the
                 [plugins reference](../../../reference/scheduling/plugins.md) for more.
+
+        Returns:
+            A tuple of the [`Scheduler`][amltk.scheduling.Scheduler], the
+            [`Task`][amltk.scheduling.task.Task] and the
+            [`History`][amltk.optimization.history.History] that reports will be put into.
         """  # noqa: E501
         match history:
             case None:
@@ -1132,6 +1152,7 @@ class Node(RichRenderable, Generic[Item, Space]):
                         " the CPU and cause the system to slow down."
                         "\nPlease set `threadpool_limit_ctl=False` if you do not want"
                         " this behaviour and set it to `True` to silence this warning.",
+                        AutomaticThreadPoolCTLWarning,
                         stacklevel=2,
                     )
             case True:
@@ -1161,26 +1182,6 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"{max_trials=} must be a positive int")
 
-        from amltk.evalutors.evaluation_protocol import EvaluationProtocol
-
-        match target:
-            case EvaluationProtocol():
-                pass
-            case Task():  # type: ignore # NOTE not sure why pyright complains here
-                # TODO: When updating this, please update the docstring too
-                raise NotImplementedError(
-                    "Not sure how to handle an already created task yet",
-                )
-            case _ if callable(target):
-                from amltk.evalutors.evaluation_protocol import CustomProtocol
-
-                target = CustomProtocol(target)
-            case _:
-                raise ValueError(
-                    f"Invalid target {target}. Must be a function or an"
-                    " EvaluationProtocol",
-                )
-
         from amltk.scheduling.scheduler import Scheduler
 
         match scheduler:
@@ -1191,64 +1192,76 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"Invalid scheduler {scheduler}. Must be a Scheduler")
 
-        # NOTE: I'm not particularly fond of this hack but I assume most people
-        # when prototyping don't care for the actual underlying optimizer and
-        # so we should just *pick one*.
-        create_optimizer: Optimizer.CreateSignature
-        match optimizer:
-            case None:
-                first_opt_class = next(
-                    Optimizer._get_known_importable_optimizer_classes(),
-                    None,
-                )
-                if first_opt_class is None:
+        match target:
+            case Task():  # type: ignore # NOTE not sure why pyright complains here
+                for _p in _plugins:
+                    target.attach_plugin(_p)
+                task = target
+            case _ if callable(target):
+                task = scheduler.task(target, plugins=_plugins)
+            case _:
+                raise ValueError(f"Invalid {target=}. Must be a function or Task.")
+
+        if isinstance(optimizer, Optimizer):
+            _optimizer = optimizer
+        else:
+            # NOTE: I'm not particularly fond of this hack but I assume most people
+            # when prototyping don't care for the actual underlying optimizer and
+            # so we should just *pick one*.
+            create_optimizer: Optimizer.CreateSignature
+            match optimizer:
+                case None:
+                    first_opt_class = next(
+                        Optimizer._get_known_importable_optimizer_classes(),
+                        None,
+                    )
+                    if first_opt_class is None:
+                        raise ValueError(
+                            "No optimizer was given and no known importable optimizers "
+                            " were found. Please consider giving one explicitly or"
+                            " installing one of the following packages:\n"
+                            "\n - optuna"
+                            "\n - smac"
+                            "\n - neural-pipeline-search",
+                        )
+
+                    create_optimizer = first_opt_class.create
+                    opt_name = classname(first_opt_class)
+                case type():
+                    if not issubclass(optimizer, Optimizer):
+                        raise ValueError(
+                            f"Invalid optimizer {optimizer}. Must be a subclass of"
+                            " Optimizer or a function that returns an Optimizer",
+                        )
+                    create_optimizer = optimizer.create
+                    opt_name = classname(optimizer)
+                case _:
+                    assert not isinstance(optimizer, type)
+                    create_optimizer = optimizer
+                    opt_name = funcname(optimizer)
+
+            match working_dir:
+                case None:
+                    now = datetime.utcnow().isoformat()
+
+                    working_dir = PathBucket(f"{opt_name}-{self.name}-{now}")
+                case str() | Path():
+                    working_dir = PathBucket(working_dir)
+                case PathBucket():
+                    pass
+                case _:
                     raise ValueError(
-                        "No optimizer was given and no known importable optimizers were"
-                        " found. Please consider giving one explicitly or  installing"
-                        " one of the following packages:\n"
-                        "\n - optuna"
-                        "\n - smac"
-                        "\n - neural-pipeline-search",
+                        f"Invalid working_dir {working_dir}."
+                        " Must be a str, Path or PathBucket",
                     )
 
-                create_optimizer = first_opt_class.create
-                opt_name = classname(first_opt_class)
-            case type():
-                if not issubclass(optimizer, Optimizer):
-                    raise ValueError(
-                        f"Invalid optimizer {optimizer}. Must be a subclass of"
-                        " Optimizer or a function that returns an Optimizer",
-                    )
-                create_optimizer = optimizer.create
-                opt_name = classname(optimizer)
-            case _:
-                assert not isinstance(optimizer, type)
-                create_optimizer = optimizer
-                opt_name = funcname(optimizer)
-
-        match working_dir:
-            case None:
-                now = datetime.utcnow().isoformat()
-
-                working_dir = PathBucket(f"{opt_name}-{self.name}-{now}")
-            case str() | Path():
-                working_dir = PathBucket(working_dir)
-            case PathBucket():
-                pass
-            case _:
-                raise ValueError(
-                    f"Invalid working_dir {working_dir}."
-                    " Must be a str, Path or PathBucket",
-                )
-
-        _optimizer = create_optimizer(
-            space=self,
-            metrics=metric,
-            bucket=working_dir,
-            seed=seed,
-        )
-
-        task = target.task(scheduler=scheduler, plugins=_plugins)
+            _optimizer = create_optimizer(
+                space=self,
+                metrics=metric,
+                bucket=working_dir,
+                seed=seed,
+            )
+            assert _optimizer is not None
 
         if on_begin is not None:
             hook = partial(on_begin, task, scheduler, history)
@@ -1261,6 +1274,10 @@ class Node(RichRenderable, Generic[Item, Space]):
                 task.submit(trial, self)
 
         from amltk.optimization.trial import Trial
+
+        @task.on_result
+        def tell_optimizer(_: Any, report: Trial.Report) -> None:
+            _optimizer.tell(report)
 
         @task.on_result
         def add_report_to_history(_: Any, report: Trial.Report) -> None:
@@ -1293,20 +1310,20 @@ class Node(RichRenderable, Generic[Item, Space]):
                 trial = _optimizer.ask()
                 task.submit(trial, self)
 
-        return scheduler
+        return scheduler, task, history
 
     def optimize(
         self,
         target: (
-            EvaluationProtocol
-            | Callable[[Trial, Node], Trial.Report]
-            | Task[[Trial, Node], Trial.Report]
+            Callable[[Trial, Node], Trial.Report] | Task[[Trial, Node], Trial.Report]
         ),
         metric: Metric | Sequence[Metric],
         *,
-        optimizer: type[Optimizer] | Optimizer.CreateSignature | None = None,
+        optimizer: (
+            type[Optimizer] | Optimizer.CreateSignature | Optimizer | None
+        ) = None,
         seed: Seed | None = None,
-        max_trials: int | None = 3,
+        max_trials: int | None = None,
         n_workers: int = 1,
         timeout: float | None = None,
         working_dir: str | Path | PathBucket | None = None,
@@ -1331,10 +1348,6 @@ class Node(RichRenderable, Generic[Item, Space]):
             target:
                 The function against which to optimize.
 
-                * If `target` is an
-                [`EvaluationProtocol`][amltk.evalutors.evaluation_protocol.EvaluationProtocol],
-                then it will be used to evaluate the pipeline.
-
                 * If `target` is a function, then it must take in a
                 [`Trial`][amltk.optimization.trial.Trial] as the first argument
                 and a [`Node`][amltk.pipeline.node.Node] second argument, returning a
@@ -1342,7 +1355,8 @@ class Node(RichRenderable, Generic[Item, Space]):
                 the [optimization guide](../../../guides/optimization.md) for more.
 
                 * If `target` is a [`Task`][amltk.scheduling.task.Task], then
-                this is not implemeneted yet. Sorry
+                this will be used instead, updating the plugins with any additional
+                plugins specified.
             metric:
                 The metric(s) that will be passed to `optimizer=`. These metrics
                 should align with what is being computed in `target=`.
@@ -1358,6 +1372,9 @@ class Node(RichRenderable, Generic[Item, Space]):
 
                     ::: amltk.optimization.Optimizer.CreateSignature
 
+                Lastly, you can also pass in your own already instantiated optimizer if you prefer, however
+                you should make sure to set it up correctly with the given metrics and search space.
+                It is recommened to just pass in the class if you are unsure how to do this properly.
             seed:
                 A [`seed`][amltk.types.Seed] for the optimizer to use.
             n_workers:
@@ -1490,6 +1507,12 @@ class Node(RichRenderable, Generic[Item, Space]):
                 refer to the
                 [plugins reference](../../../reference/scheduling/plugins.md) for more.
         """  # noqa: E501
+        if timeout is None and max_trials is None:
+            raise ValueError(
+                "You must one or both of `timeout` or `max_trials` to"
+                " limit the optimization process.",
+            )
+
         match history:
             case None:
                 history = History()
@@ -1498,7 +1521,7 @@ class Node(RichRenderable, Generic[Item, Space]):
             case _:
                 raise ValueError(f"Invalid history {history}. Must be a History")
 
-        scheduler = self.register_optimization_loop(
+        scheduler, _, _ = self.register_optimization_loop(
             target=target,
             metric=metric,
             optimizer=optimizer,

@@ -28,7 +28,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
-from typing_extensions import ParamSpec, Self, override
+from typing_extensions import ParamSpec, override
 
 from amltk.scheduling.plugins.plugin import Plugin
 
@@ -109,11 +109,6 @@ class WarningFilter(Plugin):
         """
         wrapped_f = _IgnoreWarningWrapper(fn, *self.warning_args, **self.warning_kwargs)
         return wrapped_f, args, kwargs
-
-    @override
-    def copy(self) -> Self:
-        """Return a copy of the plugin."""
-        return self.__class__(*self.warning_args, **self.warning_kwargs)
 
     @override
     def __rich__(self) -> Panel:

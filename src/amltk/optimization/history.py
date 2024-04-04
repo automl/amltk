@@ -52,7 +52,7 @@ your reports and load them back in later:
     a `pd.DataFrame`.
 
 You can also retrieve individual reports from the history by using their
-name, e.g. `#!python history["some-unique-name"]` or iterate through
+name, e.g. `#!python history.reports["some-unique-name"]` or iterate through
 the history with `#!python for report in history: ...`.
 """  # noqa: E501
 from __future__ import annotations
@@ -108,6 +108,7 @@ class History(RichRenderable):
         x = trial.config["x"]
         report = trial.success(cost=x**2 - x*2 + 4)
         history.add(report)
+        trial.bucket.rmdir()  # markdown-exec: hide
 
     for report in history:
         print(f"{report.name=}, {report}")
@@ -247,6 +248,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         print(history.df())
         ```
@@ -310,6 +312,7 @@ class History(RichRenderable):
         for trial in trials:
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
+            trial.bucket.rmdir() # markdown-exec: hide
             history.add(report)
 
         filtered_history = history.filter(lambda report: report.values["cost"] < 10)
@@ -345,6 +348,7 @@ class History(RichRenderable):
                 report = trial.fail(cost=1_000)
             else:
                 report = trial.success(cost=x**2 - x*2 + 4)
+            trial.bucket.rmdir() # markdown-exec: hide
             history.add(report)
 
         for status, history in history.groupby("status").items():
@@ -364,6 +368,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.fail(cost=x)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         for below_5, history in history.groupby(lambda r: r.values["cost"] < 5).items():
             print(f"{below_5=}, {len(history)=}")
@@ -393,7 +398,7 @@ class History(RichRenderable):
         sortby: Callable[[Trial.Report], Comparable] | str = lambda r: r.reported_at,
         reverse: bool | None = None,
         ffill: bool = False,
-    ) -> list[Trial.Report]:
+    ) -> History:
         """Returns a trace of the incumbents, where only the report that is better than the previous
         best report is kept.
 
@@ -408,6 +413,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         incumbents = (
             history
@@ -452,14 +458,16 @@ class History(RichRenderable):
                 op = key
 
         sorted_reports = self.sortby(sortby, reverse=reverse)
-        return list(compare_accumulate(sorted_reports, op=op, ffill=ffill))
+        return History.from_reports(
+            compare_accumulate(sorted_reports, op=op, ffill=ffill),
+        )
 
     def sortby(
         self,
         key: Callable[[Trial.Report], Comparable] | str,
         *,
         reverse: bool | None = None,
-    ) -> list[Trial.Report]:
+    ) -> History:
         """Sorts the history by a key and returns a sorted History.
 
         ```python exec="true" source="material-block" result="python" title="sortby" hl_lines="15"
@@ -473,6 +481,7 @@ class History(RichRenderable):
             x = trial.config["x"]
             report = trial.success(cost=x**2 - x*2 + 4)
             history.add(report)
+            trial.bucket.rmdir() # markdown-exec: hide
 
         trace = (
             history
@@ -510,7 +519,9 @@ class History(RichRenderable):
             # Default is False
             reverse = False if reverse is None else reverse
 
-        return sorted(history.reports, key=sort_key, reverse=reverse)
+        return History.from_reports(
+            sorted(history.reports, key=sort_key, reverse=reverse),
+        )
 
     @overload
     def __getitem__(self, key: int | str) -> Trial.Report:

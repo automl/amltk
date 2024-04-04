@@ -271,7 +271,7 @@ def launch_initial_tasks() -> None:
 When a [`Task`][amltk.Trial] returns and we get a report, i.e.
 with [`task.success()`][amltk.optimization.Trial.success] or
 [`task.fail()`][amltk.optimization.Trial.fail], the `task` will fire off the
-callbacks registered with [`@on_result`][amltk.Task.on_result].
+callbacks registered with [`@result`][amltk.Task.on_result].
 We can use these to add callbacks that get called when these events happen.
 
 Here we use it to update the optimizer with the report we got.

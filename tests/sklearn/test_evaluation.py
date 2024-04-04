@@ -1,0 +1,1006 @@
+from __future__ import annotations
+
+import warnings
+from collections.abc import Mapping
+from dataclasses import dataclass
+from functools import cache
+from pathlib import Path
+from typing import Any, Literal
+
+import numpy as np
+import pandas as pd
+import pytest
+import sklearn.datasets
+import sklearn.pipeline
+from pytest_cases import case, parametrize, parametrize_with_cases
+from sklearn import config_context as sklearn_config_context
+from sklearn.base import check_is_fitted
+from sklearn.cluster import KMeans
+from sklearn.datasets import make_classification, make_regression
+from sklearn.dummy import DummyClassifier
+from sklearn.metrics import get_scorer, make_scorer
+from sklearn.metrics._scorer import _Scorer
+from sklearn.model_selection import (
+    GroupKFold,
+    KFold,
+    ShuffleSplit,
+    StratifiedKFold,
+    StratifiedShuffleSplit,
+)
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+from amltk.exceptions import TaskTypeWarning, TrialError
+from amltk.optimization.trial import Metric, Trial
+from amltk.pipeline import Component, Node, request
+from amltk.pipeline.builders.sklearn import build as sklearn_pipeline_builder
+from amltk.sklearn.evaluation import (
+    CVEvaluation,
+    ImplicitMetricConversionWarning,
+    TaskTypeName,
+    _default_cv_resampler,
+    _default_holdout,
+    identify_task_type,
+)
+
+
+# NOTE: We can cache this as it doesn't get changed
+@cache
+def data_for_task_type(task_type: TaskTypeName) -> tuple[np.ndarray, np.ndarray]:
+    match task_type:
+        case "binary":
+            return make_classification(
+                random_state=42,
+                n_samples=20,
+                n_classes=2,
+                n_informative=3,
+            )  # type: ignore
+        case "multiclass":
+            return make_classification(
+                random_state=42,
+                n_samples=20,
+                n_classes=4,
+                n_informative=3,
+            )  # type: ignore
+        case "multilabel-indicator":
+            x, y = make_classification(
+                random_state=42,
+                n_samples=20,
+                n_classes=2,
+                n_informative=3,
+            )
+            y = np.vstack([y, y]).T
+            return x, y  # type: ignore
+        case "multiclass-multioutput":
+            x, y = make_classification(
+                random_state=42,
+                n_samples=20,
+                n_classes=4,
+                n_informative=3,
+            )
+            y = np.vstack([y, y, y]).T
+            return x, y  # type: ignore
+        case "continuous":
+            return make_regression(random_state=42, n_samples=20, n_targets=1)  # type: ignore
+        case "continuous-multioutput":
+            return make_regression(random_state=42, n_samples=20, n_targets=2)  # type: ignore
+
+    raise ValueError(f"Unknown task type {task_type}")
+
+
+def _sample_y(task_type: TaskTypeName) -> np.ndarray:
+    return data_for_task_type(task_type)[1]
+
+
+@parametrize(
+    "real, task_hint, expected",
+    [
+        ("binary", "auto", "binary"),
+        ("binary", "classification", "binary"),
+        ("binary", "regression", "continuous"),
+        #
+        ("multiclass", "auto", "multiclass"),
+        ("multiclass", "classification", "multiclass"),
+        ("multiclass", "regression", "continuous"),
+        #
+        ("multilabel-indicator", "auto", "multilabel-indicator"),
+        ("multilabel-indicator", "classification", "multilabel-indicator"),
+        ("multilabel-indicator", "regression", "continuous-multioutput"),
+        #
+        ("multiclass-multioutput", "auto", "multiclass-multioutput"),
+        ("multiclass-multioutput", "classification", "multiclass-multioutput"),
+        ("multiclass-multioutput", "regression", "continuous-multioutput"),
+        #
+        ("continuous", "auto", "continuous"),
+        ("continuous", "classification", "multiclass"),
+        ("continuous", "regression", "continuous"),
+        #
+        ("continuous-multioutput", "auto", "continuous-multioutput"),
+        ("continuous-multioutput", "classification", "multiclass-multioutput"),
+        ("continuous-multioutput", "regression", "continuous-multioutput"),
+    ],
+)
+def test_identify_task_type(
+    real: TaskTypeName,
+    task_hint: Literal["classification", "regression", "auto"],
+    expected: TaskTypeName,
+) -> None:
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=TaskTypeWarning)
+
+        if real == "continuous-multioutput" and task_hint == "classification":
+            # Special case since we have to check when the y with multiple values.
+            A, B, C = 0.1, 2.1, 3.1
+
+            # <=2 unique values per column
+            y = np.array(
+                [
+                    [A, B],
+                    [A, B],
+                    [A, C],
+                ],
+            )
+
+            identified = identify_task_type(y, task_hint=task_hint)
+            assert identified == "multilabel-indicator"
+
+            # >2 unique values per column
+            y = np.array(
+                [
+                    [A, A],
+                    [B, B],
+                    [C, C],
+                ],
+            )
+            identified = identify_task_type(y, task_hint=task_hint)
+            assert identified == "multiclass-multioutput"
+
+        elif real == "continuous" and task_hint == "classification":
+            # Special case since we have to check when the y with multiple values.
+            A, B, C = 0.1, 2.1, 3.1
+
+            y = np.array([A, A, B, B])
+            identified = identify_task_type(y, task_hint=task_hint)
+            assert identified == "binary"
+
+            y = np.array([A, B, C])
+            identified = identify_task_type(y, task_hint=task_hint)
+            assert identified == "multiclass"
+        else:
+            y = _sample_y(expected)
+            identified = identify_task_type(y, task_hint=task_hint)
+
+            assert identified == expected
+
+
+@parametrize(
+    "task_type, expected",
+    [
+        # Holdout
+        ("binary", StratifiedShuffleSplit),
+        ("multiclass", StratifiedShuffleSplit),
+        ("multilabel-indicator", ShuffleSplit),
+        ("multiclass-multioutput", ShuffleSplit),
+        ("continuous", ShuffleSplit),
+        ("continuous-multioutput", ShuffleSplit),
+    ],
+)
+def test_default_holdout(task_type: TaskTypeName, expected: type) -> None:
+    sampler = _default_holdout(task_type, holdout_size=0.387, random_state=42)
+    assert isinstance(sampler, expected)
+    assert sampler.n_splits == 1  # type: ignore
+    assert sampler.random_state == 42  # type: ignore
+    assert sampler.test_size == 0.387  # type: ignore
+
+
+@parametrize(
+    "task_type, expected",
+    [
+        # CV - Notable, only binary and multiclass can be stratified
+        ("binary", StratifiedKFold),
+        ("multiclass", StratifiedKFold),
+        ("multilabel-indicator", KFold),
+        ("multiclass-multioutput", KFold),
+        ("continuous", KFold),
+        ("continuous-multioutput", KFold),
+    ],
+)
+def test_default_resampling(task_type: TaskTypeName, expected: type) -> None:
+    sampler = _default_cv_resampler(task_type, n_splits=2, random_state=42)
+    assert isinstance(sampler, expected)
+    assert sampler.n_splits == 2  # type: ignore
+    assert sampler.random_state == 42  # type: ignore
+
+
+@dataclass
+class _EvalKwargs:
+    trial: Trial
+    pipeline: Component
+    additional_scorers: Mapping[str, _Scorer] | None
+    params: Mapping[str, Any] | None
+    task_type: TaskTypeName
+    working_dir: Path
+    X: pd.DataFrame | np.ndarray
+    y: pd.Series | np.ndarray | pd.DataFrame
+
+
+@case
+@parametrize(
+    "metric",
+    [
+        # Single ob
+        Metric("accuracy", minimize=False, bounds=(0, 1)),
+        # Mutli obj
+        [
+            Metric("custom", minimize=False, bounds=(0, 1), fn=get_scorer("accuracy")),
+            Metric("roc_auc_ovr", minimize=False, bounds=(0, 1)),
+        ],
+    ],
+)
+@parametrize(
+    "additional_scorers",
+    [
+        None,
+        {"acc": get_scorer("accuracy"), "roc": get_scorer("roc_auc_ovr")},
+    ],
+)
+@parametrize(
+    "task_type",
+    ["binary", "multiclass", "multilabel-indicator"],
+)
+def case_classification(
+    tmp_path: Path,
+    metric: Metric | list[Metric],
+    additional_scorers: Mapping[str, _Scorer] | None,
+    task_type: TaskTypeName,
+) -> _EvalKwargs:
+    x, y = data_for_task_type(task_type)
+    return _EvalKwargs(
+        trial=Trial.create(
+            name="test",
+            config={},
+            seed=42,
+            bucket=tmp_path / "trial",
+            metrics=metric,
+        ),
+        task_type=task_type,
+        pipeline=Component(DecisionTreeClassifier, config={"max_depth": 1}),
+        additional_scorers=additional_scorers,
+        params=None,
+        working_dir=tmp_path / "data",
+        X=x,
+        y=y,
+    )
+
+
+@case
+@parametrize(
+    "metric",
+    [
+        # Single ob
+        Metric("neg_mean_absolute_error", minimize=True, bounds=(-np.inf, 0)),
+        # Mutli obj
+        [
+            Metric("custom", minimize=False, bounds=(-np.inf, 1), fn=get_scorer("r2")),
+            Metric("neg_mean_squared_error", minimize=False, bounds=(-np.inf, 0)),
+        ],
+    ],
+)
+@parametrize(
+    "additional_scorers",
+    [
+        None,
+        {
+            "rmse": get_scorer("neg_root_mean_squared_error"),
+            "err": get_scorer("neg_mean_absolute_error"),
+        },
+    ],
+)
+@parametrize("task_type", ["continuous", "continuous-multioutput"])
+def case_regression(
+    tmp_path: Path,
+    metric: Metric | list[Metric],
+    additional_scorers: Mapping[str, _Scorer] | None,
+    task_type: TaskTypeName,
+) -> _EvalKwargs:
+    x, y = data_for_task_type(task_type)
+
+    return _EvalKwargs(
+        trial=Trial.create(
+            name="test",
+            config={},
+            seed=42,
+            bucket=tmp_path / "trial",
+            metrics=metric,
+        ),
+        pipeline=Component(DecisionTreeRegressor, config={"max_depth": 1}),
+        additional_scorers=additional_scorers,
+        task_type=task_type,
+        params=None,
+        working_dir=tmp_path / "data",
+        X=x,
+        y=y,
+    )
+
+
+@parametrize("as_pd", [True, False])
+@parametrize("store_models", [True, False])
+@parametrize("train_score", [True, False])
+@parametrize("test_data", [True, False])
+@parametrize_with_cases("item", cases=".", prefix="case_")
+@parametrize("cv_value, splitter", [(2, "cv"), (0.3, "holdout")])
+def test_evaluator(  # noqa: PLR0912
+    as_pd: bool,
+    store_models: bool,
+    train_score: bool,
+    item: _EvalKwargs,
+    test_data: bool,
+    cv_value: int | float,
+    splitter: str,
+) -> None:
+    x = pd.DataFrame(item.X) if as_pd else item.X
+    y = (
+        item.y
+        if not as_pd
+        else (pd.DataFrame(item.y) if np.ndim(item.y) > 1 else pd.Series(item.y))
+    )
+    trial = item.trial
+    if splitter == "cv":
+        cv_kwargs = {"n_splits": cv_value, "splitter": "cv"}
+    else:
+        cv_kwargs = {"holdout_size": cv_value, "splitter": "holdout"}
+
+    x_test = None
+    y_test = None
+    if test_data:
+        x_test = x.iloc[:20] if isinstance(x, pd.DataFrame) else x[:20]
+        y_test = y.iloc[:20] if isinstance(y, pd.DataFrame | pd.Series) else y[:20]
+
+    evaluator = CVEvaluation(
+        X=x,
+        y=y,
+        X_test=x_test,
+        y_test=y_test,
+        working_dir=item.working_dir,
+        train_score=train_score,
+        store_models=store_models,
+        params=item.params,
+        additional_scorers=item.additional_scorers,
+        task_hint=item.task_type,
+        random_state=42,
+        on_error="raise",
+        **cv_kwargs,  # type: ignore
+    )
+    n_splits = evaluator.splitter.get_n_splits(x, y)
+    assert n_splits is not None
+
+    report = evaluator.fn(trial, item.pipeline)
+
+    # ------- Property testing
+
+    # Model should be stored
+    if store_models:
+        for i in range(n_splits):
+            assert f"model_{i}.pkl" in report.storage
+
+    # All metrics should be recorded and valid
+    for metric_name, metric in trial.metrics.items():
+        assert metric_name in report.values
+        value = report.values[metric_name]
+        # ... in correct bounds
+        if metric.bounds is not None:
+            assert metric.bounds[0] <= value <= metric.bounds[1]
+
+    # Summary should contain all optimization metrics
+    expected_summary_scorers = [
+        *trial.metrics.keys(),
+        *(item.additional_scorers.keys() if item.additional_scorers else []),
+    ]
+    for metric_name in expected_summary_scorers:
+        for i in range(n_splits):
+            assert f"split_{i}:val_{metric_name}" in report.summary
+        assert f"val_mean_{metric_name}" in report.summary
+        assert f"val_std_{metric_name}" in report.summary
+
+    if train_score:
+        assert "cv:train_score" in report.profiles
+        for metric_name in expected_summary_scorers:
+            for i in range(n_splits):
+                assert f"split_{i}:train_{metric_name}" in report.summary
+            assert f"train_mean_{metric_name}" in report.summary
+            assert f"train_std_{metric_name}" in report.summary
+
+    if test_data:
+        assert "cv:test_score" in report.profiles
+        for metric_name in expected_summary_scorers:
+            for i in range(n_splits):
+                assert f"split_{i}:test_{metric_name}" in report.summary
+            assert f"test_mean_{metric_name}" in report.summary
+            assert f"test_std_{metric_name}" in report.summary
+
+    # All folds are profiled
+    assert "cv" in report.profiles
+    for i in range(n_splits):
+        assert f"cv:split_{i}" in report.profiles
+
+
+@parametrize(
+    "task_type",
+    [
+        "binary",
+        "multiclass",
+        "multilabel-indicator",
+        "multiclass-multioutput",
+        "continuous",
+        "continuous-multioutput",
+    ],
+)
+@parametrize("cv_value, splitter", [(2, "cv"), (0.3, "holdout")])
+def test_consistent_results_across_seeds(
+    tmp_path: Path,
+    cv_value: int | float,
+    splitter: Literal["cv", "holdout"],
+    task_type: TaskTypeName,
+) -> None:
+    x, y = data_for_task_type(task_type)
+    match task_type:
+        case "binary" | "multiclass" | "multilabel-indicator":
+            pipeline = Component(
+                DecisionTreeClassifier,
+                config={"max_depth": 1, "random_state": request("random_state")},
+            )
+            metric = Metric("accuracy", minimize=False, bounds=(0, 1))
+        case "continuous" | "continuous-multioutput":
+            pipeline = Component(
+                DecisionTreeRegressor,
+                config={"max_depth": 1, "random_state": request("random_state")},
+            )
+            metric = Metric("r2", minimize=True, bounds=(-np.inf, 1))
+        case "multiclass-multioutput":
+            pipeline = Component(
+                DecisionTreeClassifier,
+                config={"max_depth": 1, "random_state": request("random_state")},
+            )
+            # Sklearn doesn't have any multiclass-multioutput metrics
+            metric = Metric(
+                "custom",
+                minimize=False,
+                bounds=(0, 1),
+                fn=lambda y_true, y_pred: (y_pred == y_true).mean().mean(),
+            )
+
+    if splitter == "cv":
+        cv_kwargs = {"n_splits": cv_value, "splitter": "cv"}
+    else:
+        cv_kwargs = {"holdout_size": cv_value, "splitter": "holdout"}
+
+    evaluator_1 = CVEvaluation(
+        X=x,
+        y=y,
+        working_dir=tmp_path,
+        random_state=42,
+        train_score=True,
+        store_models=False,
+        task_hint=task_type,
+        params=None,
+        on_error="raise",
+        **cv_kwargs,  # type: ignore
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ImplicitMetricConversionWarning)
+
+        report_1 = evaluator_1.fn(
+            Trial.create(
+                name="trial-name",
+                config={},
+                seed=50,
+                bucket=tmp_path / "trial-name",
+                metrics=metric,
+            ),
+            pipeline,
+        )
+
+    # Make sure to clean up the bucket for the second
+    # trial as it will have the same name
+    report_1.bucket.rmdir()
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ImplicitMetricConversionWarning)
+
+        report_2 = evaluator_1.fn(
+            Trial.create(
+                name="trial-name",
+                config={},
+                seed=50,
+                bucket=tmp_path / "trial-name",  # We give a different dir
+                metrics=metric,
+            ),
+            pipeline,
+        )
+
+    # We ignore profiles because they will be different timings
+    # We ignore trial.created_at and report.reported_at as they will naturally
+    # be different
+    df_1 = report_1.df(profiles=False).drop(columns=["reported_at", "created_at"])
+    df_2 = report_2.df(profiles=False).drop(columns=["reported_at", "created_at"])
+    pd.testing.assert_frame_equal(df_1, df_2)
+
+
+def test_scoring_params_get_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+        x, y = data_for_task_type("binary")
+
+        # This custom metrics requires a custom parameter
+        def custom_metric(
+            y_true: np.ndarray,  # noqa: ARG001
+            y_pred: np.ndarray,  # noqa: ARG001
+            *,
+            scorer_param_required: float,
+        ):
+            return scorer_param_required
+
+        custom_scorer = (
+            make_scorer(custom_metric, response_method="predict")
+            # Here we specify that it needs this parameter routed to it
+            .set_score_request(scorer_param_required=True)
+        )
+
+        value = 0.123
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"scorer_param_required": value},  # Pass it in here
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric(name="custom_metric", fn=custom_scorer),
+        )
+        report = evaluator.fn(trial, pipeline)
+
+        assert report.values["custom_metric"] == value
+
+
+def test_splitter_params_get_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        # A DecisionTreeClassifier by default allows for sample_weight as a parameter
+        # request
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+        x, y = data_for_task_type("binary")
+
+        # Make a group which is half 0 and half 1
+        _half = len(x) // 2
+        fake_groups = np.asarray([0] * _half + [1] * (len(x) - _half))
+
+        trial = Trial.create(name="test", bucket=tmp_path / "trial")
+
+        # First make sure it errors if groups is not provided to the splitter
+        evaluator = CVEvaluation(
+            x,
+            y,
+            # params={"groups": fake_groups},  # noqa: ERA001
+            splitter=GroupKFold(n_splits=2),
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        with pytest.raises(
+            TrialError,
+            match=r"The 'groups' parameter should not be None.",
+        ):
+            evaluator.fn(trial, pipeline)
+
+        # Now make sure it works
+        evaluator = CVEvaluation(
+            x,
+            y,
+            splitter=GroupKFold(n_splits=2),  # We specify a group splitter
+            params={"groups": fake_groups},  # Pass it in here
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        evaluator.fn(trial, pipeline)
+
+
+def test_estimator_params_get_forward(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        # NOTE: There is no way to explcitly check that metadata was indeed
+        # routed to the estimator, e.g. through an error. Please see this
+        # issue
+        # https://github.com/scikit-learn/scikit-learn/issues/23920
+
+        # We'll test this using the DummyClassifier with a Prior config.
+        # Thankfully this is deterministic so it's attributes_ should
+        # only get modified based on it's input.
+        # One attribute_ that gets modified depending on sample_weight
+        # is estimator.class_prior_ which we can check pretty easily.
+        x, y = data_for_task_type("binary")
+        sample_weight = np.random.rand(len(x))  # noqa: NPY002
+
+        def create_dummy_classifier_with_sample_weight_request(
+            *args: Any,
+            **kwargs: Any,
+        ) -> DummyClassifier:
+            est = DummyClassifier(*args, **kwargs)
+            # https://scikit-learn.org/stable/metadata_routing.html#api-interface
+            est.set_fit_request(sample_weight=True)
+            return est
+
+        pipeline = Component(
+            create_dummy_classifier_with_sample_weight_request,
+            config={"strategy": "prior"},
+        )
+
+        # First we use an evaluator without sample_weight
+        trial = Trial.create(name="test", bucket=tmp_path / "trial_1")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            holdout_size=0.3,
+            working_dir=tmp_path,
+            store_models=True,
+            # params={"sample_weight": sample_weight},  # noqa: ERA001
+            on_error="raise",
+        )
+        report = evaluator.fn(trial, pipeline)
+
+        # load pipeline, get 0th model, get it's class_prior_
+        class_weights_1 = report.retrieve("model_0.pkl")[0].class_prior_
+
+        # To make sure that our tests are correct, we repeat this without
+        # sample weights, should remain the same
+        trial = Trial.create(name="test", bucket=tmp_path / "trial_2")
+        report = evaluator.fn(trial, pipeline)
+        class_weights_2 = report.retrieve("model_0.pkl")[0].class_prior_
+
+        np.testing.assert_array_equal(class_weights_1, class_weights_2)
+
+        # Now with the sample weights, the class_prior_ should be different
+        trial = Trial.create(name="test", bucket=tmp_path / "trial_3")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            holdout_size=0.3,
+            working_dir=tmp_path,
+            store_models=True,
+            params={"sample_weight": sample_weight},  # Passed in this time
+            on_error="raise",
+        )
+        report = evaluator.fn(trial, pipeline)
+        class_weights_3 = report.retrieve("model_0.pkl")[0].class_prior_
+
+        with pytest.raises(AssertionError):
+            np.testing.assert_array_equal(class_weights_1, class_weights_3)
+
+
+def test_evaluator_with_clustering(tmp_path: Path) -> None:
+    x, y = sklearn.datasets.make_blobs(  # type: ignore
+        n_samples=20,
+        centers=2,
+        n_features=2,
+        random_state=42,
+    )
+    pipeline = Component(KMeans, config={"n_clusters": 2, "random_state": 42})
+
+    metrics = Metric("adjusted_rand_score", minimize=False, bounds=(-0.5, 1))
+    trial = Trial.create(name="test", bucket=tmp_path / "trial", metrics=metrics)
+
+    evaluator = CVEvaluation(
+        x,  # type: ignore
+        y,  # type: ignore
+        working_dir=tmp_path,
+        on_error="raise",
+        random_state=42,
+    )
+    report = evaluator.fn(trial, pipeline)
+
+    # We are not really trying to detect the score of the algorithm, just to ensure
+    # that it did indeed train with the data and does not error.
+    # If it seems to get a slightly less score than 1.0 then that's okay,
+    # just change the value. Should not change due to the seeding but
+    # make sklearn changes something
+    assert "adjusted_rand_score" in report.values
+    assert report.values["adjusted_rand_score"] == pytest.approx(1.0)
+
+
+def test_custom_configure_gets_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        # Pipeline requests a max_depth, defaulting to 1
+        pipeline = Component(
+            DecisionTreeClassifier,
+            config={
+                "max_depth": request("max_depth", default=1),
+            },
+        )
+
+        # We pass in explicitly to configure with 2
+        # This can be useful for estimators that require explicit information
+        # about the dataset
+        configure_params = {"max_depth": 2}
+
+        x, y = data_for_task_type("binary")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"configure": configure_params},
+            working_dir=tmp_path,
+            splitter="holdout",
+            holdout_size=0.3,
+            store_models=True,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric("accuracy"),
+        )
+        report = evaluator.fn(trial, pipeline)
+        model = report.retrieve("model_0.pkl")[0]
+        assert model.max_depth == 2
+
+
+# Used in the test below
+class _MyPipeline(sklearn.pipeline.Pipeline):
+    # Have to explcitiyl list out all parameters by sklearn API
+    def __init__(
+        self,
+        steps: Any,
+        *,
+        memory: None = None,
+        verbose: bool = False,
+        bamboozled: str = "no",
+    ):
+        super().__init__(steps, memory=memory, verbose=verbose)
+        self.bamboozled = bamboozled
+
+
+# Used in test below, builds one of the
+# _MyPipeline with a custom parameter that
+# will also get passed in
+def _my_custom_builder(
+    *args: Any,
+    bamboozled: str = "no",
+    **kwargs: Any,
+) -> _MyPipeline:
+    return sklearn_pipeline_builder(
+        *args,
+        pipeline_type=_MyPipeline,
+        bamboozled=bamboozled,
+        **kwargs,
+    )
+
+
+def test_custom_builder_can_be_forwarded(tmp_path: Path) -> None:
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+
+        x, y = data_for_task_type("binary")
+        evaluator = CVEvaluation(
+            x,
+            y,
+            params={"build": {"builder": _my_custom_builder, "bamboozled": "yes"}},
+            working_dir=tmp_path,
+            store_models=True,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric("accuracy"),
+        )
+
+        report = evaluator.fn(trial, pipeline)
+        model = report.retrieve("model_0.pkl")
+        assert isinstance(model, _MyPipeline)
+        assert hasattr(model, "bamboozled")
+        assert model.bamboozled == "yes"
+
+
+def test_early_stopping_plugin(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})
+    x, y = data_for_task_type("binary")
+    evaluator = CVEvaluation(
+        x,
+        y,
+        splitter="cv",
+        n_splits=2,  # Notably 2 folds
+        working_dir=tmp_path,
+    )
+
+    @dataclass
+    class CVEarlyStopper:
+        def update(self, report: Trial.Report) -> None:
+            pass  # Normally you would update w.r.t. a finished trial
+
+        def should_stop(
+            self,
+            trial: Trial,  # noqa: ARG002
+            scores: CVEvaluation.SplitScores,  # noqa: ARG002
+        ) -> bool:
+            # Just say yes, should stop
+            return True
+
+    history = pipeline.optimize(
+        target=evaluator.fn,
+        metric=Metric("accuracy", minimize=False, bounds=(0, 1)),
+        working_dir=tmp_path,
+        plugins=[evaluator.cv_early_stopping_plugin(strategy=CVEarlyStopper())],
+        max_trials=1,
+        on_trial_exception="continue",
+    )
+    assert len(history) == 1
+    report = history.reports[0]
+
+    assert report.status is Trial.Status.FAIL
+    assert not any(report.values)
+    assert report.exception is not None
+    assert "Early stop" in str(report.exception)
+
+    # Only the first fold should have been run and put in summary
+    assert "split_0:val_accuracy" in report.summary
+    assert "split_1:val_accuracy" not in report.summary
+
+
+def test_that_test_scorer_params_can_be_forwarded(tmp_path: Path) -> None:
+    """Not the biggest fan of this test, apologies.
+
+    Main concerns are just to ensure that the correct parameters get forwarded
+    to `custom_metric` and that the data used in the test remains to be in the assumed
+    state.
+    """
+    with sklearn_config_context(enable_metadata_routing=True):
+        pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+
+        x, y = data_for_task_type("binary")
+
+        # We do some sanity checking that this test is doing what's
+        # intended and doesn't silently break, namely we want to ensure that
+        # the scorer gets two different sized inputs, one for the splits
+        # themselves and one for th test data. This assumption is required
+        # for the test to work
+        N_SPLITS = 2
+        assert len(x) % N_SPLITS == 0, "Need to have equal sized splits"
+
+        EXPECTED_FOLD_SIZE = len(x) // N_SPLITS
+        TEST_SIZE = 2
+        assert EXPECTED_FOLD_SIZE != TEST_SIZE, "Test size and fold size matched"
+
+        x_test, y_test = x[:TEST_SIZE], y[:TEST_SIZE]
+
+        def custom_metric(
+            y_true: np.ndarray,
+            y_pred: np.ndarray,
+            *,
+            data_independant: float,  # e.g. pos_label
+            data_dependant: np.ndarray,  # e.g. sample_weight
+        ):
+            assert len(data_dependant) in (EXPECTED_FOLD_SIZE, TEST_SIZE)
+
+            # Just ensure shapes match
+            if len(data_dependant) == EXPECTED_FOLD_SIZE:
+                assert all(len(p) == EXPECTED_FOLD_SIZE for p in (y_pred, y_true))
+
+            if len(data_dependant) == TEST_SIZE:
+                assert all(len(p) == TEST_SIZE for p in (y_pred, y_true))
+
+            # Return the fake score, i.e. the injected data_independant value
+            return data_independant
+
+        custom_scorer = (
+            make_scorer(custom_metric, response_method="predict")
+            # Here we specify that it needs this parameter routed to it
+            # NOTE: We don't specify that we need the test variations, that
+            # will be handled by the evaluator by prefixing the test_ to the
+            # parameters
+            .set_score_request(data_independant=True, data_dependant=True)
+        )
+
+        evaluator = CVEvaluation(
+            x,
+            y,
+            X_test=x_test,
+            y_test=y_test,
+            n_splits=N_SPLITS,
+            params={
+                "data_independant": 1,
+                "data_dependant": np.ones(len(x)),
+                # Here we provide the test specific scorer params
+                "test_data_independant": 2,
+                "test_data_dependant": np.ones(len(x_test)),
+            },
+            working_dir=tmp_path,
+            on_error="raise",
+        )
+        trial = Trial.create(
+            name="test",
+            bucket=tmp_path / "trial",
+            metrics=Metric(name="custom_metric", fn=custom_scorer),
+        )
+        report = evaluator.fn(trial, pipeline)
+
+        assert report.values["custom_metric"] == 1
+        assert report.summary["test_mean_custom_metric"] == 2
+
+
+def record_split_number(
+    trial: Trial,
+    split_number: int,
+    info: CVEvaluation.PostSplitInfo,
+) -> CVEvaluation.PostSplitInfo:
+    # Should get the test data if it was passed in as it is in the function below
+    assert info.X_test is not None
+    assert info.y_test is not None
+    check_is_fitted(info.model)
+
+    trial.summary[f"post_split_{split_number}"] = split_number
+    return info
+
+
+def test_post_split(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+    x, y = data_for_task_type("binary")
+    TEST_SIZE = 2
+    x_test, y_test = x[:TEST_SIZE], y[:TEST_SIZE]
+
+    NSPLITS = 3
+    evaluator = CVEvaluation(
+        x,
+        y,
+        X_test=x_test,
+        y_test=y_test,
+        n_splits=NSPLITS,
+        working_dir=tmp_path,
+        on_error="raise",
+        post_split=record_split_number,
+    )
+    trial = Trial.create("test", bucket=tmp_path / "trial", metrics=Metric("accuracy"))
+    report = evaluator.fn(trial, pipeline)
+
+    for i in range(NSPLITS):
+        assert f"post_split_{i}" in report.summary
+        assert report.summary[f"post_split_{i}"] == i
+
+
+def chaotic_post_processing(
+    report: Trial.Report,
+    pipeline: Node,  # noqa: ARG001
+    eval_info: CVEvaluation.CompleteEvalInfo,
+) -> Trial.Report:
+    # We should have no models in our post processing since we didn't ask for it
+    # in the init.
+    assert eval_info.models is None
+
+    # We told it to store models, so we should have models in the storage
+    for i in range(eval_info.max_splits):
+        assert f"model_{i}.pkl" in report.storage
+
+    # Delete the models
+    trial = report.trial
+
+    trial.delete_from_storage(
+        [f"model_{i}.pkl" for i in range(eval_info.max_splits)],
+    )
+
+    # Return some bogy number as the metric value
+    return trial.success(accuracy=0.123)
+
+
+def test_post_processing_no_models(tmp_path: Path) -> None:
+    pipeline = Component(DecisionTreeClassifier, config={"max_depth": 1})
+    x, y = data_for_task_type("binary")
+    evaluator = CVEvaluation(
+        x,
+        y,
+        working_dir=tmp_path,
+        on_error="raise",
+        post_processing=chaotic_post_processing,
+        store_models=True,
+    )
+    trial = Trial.create("test", bucket=tmp_path / "trial", metrics=Metric("accuracy"))
+    report = evaluator.fn(trial, pipeline)
+
+    # The chaotic post processing
+    assert report.values["accuracy"] == 0.123
+    assert len(report.storage) == 0
