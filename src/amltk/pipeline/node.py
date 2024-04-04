@@ -308,7 +308,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         )
         if found is None:
             raise KeyError(
-                f"Could not find node with name {key} in '{self.name}'."
+                f"Could not find node with name `{key}` in '{self.name}'."
                 f" Available nodes are: {', '.join(node.name for node in self.nodes)}",
             )
 
@@ -491,8 +491,11 @@ class Node(RichRenderable, Generic[Item, Space]):
             if skip_unchosen and isinstance(node, Choice):
                 # If the node is a Choice and skipping unchosen nodes is enabled
                 chosen_node = node.chosen()
-                if chosen_node:
-                    yield from chosen_node.iter(skip_unchosen)
+                if chosen_node is None:
+                    raise RuntimeError(
+                        f"No Node chosen in Choice node {node.name}. Did you call configure?"
+                    )
+                yield from chosen_node.iter(skip_unchosen)
             else:
                 # Recursively iterate through the child nodes
                 yield from node.iter(skip_unchosen)

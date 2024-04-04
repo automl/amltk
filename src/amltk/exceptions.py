@@ -115,7 +115,7 @@ class DuplicateNamesError(ValueError):
 class MatchDimensionsError(KeyError):
     """An exception raised for errors related to matching dimensions in a pipeline."""
 
-    def __init__(self, layer_name: str, param: str | None) -> None:
+    def __init__(self, layer_name: str, param: str | None, *args: Any) -> None:
         """Initialize the exception.
 
         Args:
@@ -126,18 +126,22 @@ class MatchDimensionsError(KeyError):
             super().__init__(
                 f"Error in matching dimensions for layer '{layer_name}'. "
                 f"Parameter '{param}' not found in the configuration.",
+                *args,
             )
         else:
             super().__init__(
                 f"Error in matching dimensions for layer '{layer_name}'."
                 f" Configuration not found.",
+                *args,
             )
 
 
 class MatchChosenDimensionsError(KeyError):
     """An exception raised related to matching dimensions for chosen nodes."""
 
-    def __init__(self, choice_name: str, chosen_node_name: str | None = None) -> None:
+    def __init__(
+        self, choice_name: str, chosen_node_name: str | None = None, *args: Any
+    ) -> None:
         """Initialize the exception.
 
         Args:
@@ -156,4 +160,4 @@ class MatchChosenDimensionsError(KeyError):
                 f"Make sure that the names for Choice and "
                 f"MatchChosenDimensions 'choice_name' parameters match."
             )
-        super().__init__(message)
+        super().__init__(message, *args)
