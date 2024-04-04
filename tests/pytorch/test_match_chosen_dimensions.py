@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 import torch
 
@@ -16,7 +18,7 @@ from tests.pytorch.common import create_optimizer
 
 class TestMatchChosenDimensions:
     @pytest.fixture(scope="class")
-    def common_pipeline(self) -> callable:
+    def common_pipeline(self) -> Callable[..., Sequential]:
         def _create_pipeline(choices: dict) -> Sequential:
             # Define a pipeline with a Choice class
             return Sequential(
@@ -54,7 +56,7 @@ class TestMatchChosenDimensions:
 
         return _create_pipeline
 
-    def test_valid_pipeline(self, common_pipeline: callable) -> None:
+    def test_valid_pipeline(self, common_pipeline: Callable[..., Sequential]) -> None:
         valid_pipeline = common_pipeline(choices={"choice1": 20, "choice2": 10})
 
         optimizer = create_optimizer(valid_pipeline)
@@ -76,7 +78,7 @@ class TestMatchChosenDimensions:
         assert isinstance(model[4], torch.nn.LogSoftmax)
         assert model[4].dim == 1
 
-    def test_invalid_pipeline(self, common_pipeline: callable) -> None:
+    def test_invalid_pipeline(self, common_pipeline: Callable[..., Sequential]) -> None:
         # Modify the common pipeline to create a pipeline with invalid choices
         invalid_pipeline = common_pipeline(choices={"choice123": 123, "choice321": 321})
 

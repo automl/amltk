@@ -483,7 +483,7 @@ class Node(RichRenderable, Generic[Item, Space]):
 
         return prefix_keys(d, f"{self.name}:")
 
-    def iter(self, skip_unchosen: bool = False) -> Iterator[Node]:
+    def iter(self, *, skip_unchosen: bool = False) -> Iterator[Node]:
         """Recursively iterate through the nodes starting from this node.
 
         This method traverses the nodes in a depth-first manner, including
@@ -511,10 +511,10 @@ class Node(RichRenderable, Generic[Item, Space]):
                         f"No Node chosen in Choice node {node.name}. "
                         f"Did you call configure?",
                     )
-                yield from chosen_node.iter(skip_unchosen)
+                yield from chosen_node.iter(skip_unchosen=skip_unchosen)
             else:
                 # Recursively iterate through the child nodes
-                yield from node.iter(skip_unchosen)
+                yield from node.iter(skip_unchosen=skip_unchosen)
 
     def mutate(self, **kwargs: Any) -> Self:
         """Mutate the node with the given keyword arguments.

@@ -5,6 +5,9 @@ It also includes classes for handling dimension matching between layers.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from torch import nn
 
 from amltk import Choice, Fixed, Sequential
@@ -25,12 +28,12 @@ class MatchDimensions:
         param (str | None): The name of the parameter.
     """
 
-    def __init__(self, layer_name: str, param: str | None):
+    def __init__(self, layer_name: str, param: str | None) -> None:
         """Initializes the MatchDimensions object.
 
         Args:
-           layer_name (str): The name of the layer.
-           param (str | None): The name of the parameter.
+            layer_name (str): The name of the layer.
+            param (str | None): The name of the parameter.
         """
         self.layer_name = layer_name
         self.param = param
@@ -48,7 +51,7 @@ class MatchDimensions:
         layer_config = layer.config
         if layer_config is None:
             raise MatchDimensionsError(self.layer_name)
-        value = layer_config.get(self.param)
+        value = layer_config.get(self.param, None)
         if value is None:
             raise MatchDimensionsError(self.layer_name, self.param)
         return value
@@ -66,7 +69,7 @@ class MatchChosenDimensions:
         choices (dict): A dictionary containing dimensions for choices.
     """
 
-    def __init__(self, choice_name: str, choices: dict):
+    def __init__(self, choice_name: str, choices: dict) -> None:
         """Initializes the MatchChosenDimensions object.
 
         Args:
@@ -76,7 +79,7 @@ class MatchChosenDimensions:
         self.choice_name = choice_name
         self.choices = choices
 
-    def evaluate(self, chosen_nodes) -> int:
+    def evaluate(self, chosen_nodes: dict[str, Any]) -> int:
         """Retrieves the corresponding dimension for the chosen node.
 
         If the chosen node is not found in the choices dictionary, an error is raised.
@@ -120,7 +123,7 @@ class MatchChosenDimensions:
         return chosen_nodes_names
 
 
-def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
+def build_model_from_pipeline(pipeline: Sequential, /) -> nn.Module:
     """Builds a model from the provided pipeline.
 
     This function iterates through the pipeline nodes, constructing the model
@@ -150,7 +153,7 @@ def build_model_from_pipeline(pipeline: Sequential) -> nn.Module:
             and issubclass(node.item, nn.Module)
             and node.config
         ):
-            layer_config = dict(node.config) if node.config else {}
+            layer_config: Mapping[str, Any] = dict(node.config) if node.config else {}
 
             # Evaluate MatchDimensions objects
             for key, instance in layer_config.items():

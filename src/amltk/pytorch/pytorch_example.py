@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as f
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
@@ -22,9 +22,6 @@ from amltk import (
     Metric,
     Sequential,
 )
-
-# Change this to optuna if you prefer
-# from amltk.optimization.optimizers.optuna import OptunaParser
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.pytorch import (
     MatchChosenDimensions,
@@ -60,7 +57,7 @@ def test(
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction="sum").item()
+            test_loss += f.nll_loss(output, target, reduction="sum").item()
             pred = output.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -144,7 +141,7 @@ def eval_configuration(
                 data, target = data.to(_device), target.to(_device)
 
                 output = model(data)
-                loss = F.nll_loss(output, target)
+                loss = f.nll_loss(output, target)
 
                 loss.backward()
                 optimizer.step()
@@ -190,7 +187,7 @@ def main() -> None:
     datasets.MNIST("../data", train=False, download=False)
 
     # Define the pipeline with search space for hyperparameter optimization
-    pipeline = Sequential(
+    pipeline: Sequential = Sequential(
         Choice(
             Sequential(
                 nn.Flatten(start_dim=1),
@@ -250,7 +247,7 @@ def main() -> None:
     )
 
     # Define the metric for optimization
-    metric = Metric("accuracy", minimize=False, bounds=(0, 1))
+    metric: Metric = Metric("accuracy", minimize=False, bounds=(0, 1))
 
     # Initialize the SMAC optimizer
     optimizer = SMACOptimizer.create(
