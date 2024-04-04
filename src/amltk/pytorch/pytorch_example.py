@@ -22,11 +22,15 @@ from amltk import (
     Metric,
     Sequential,
 )
-from amltk.pytorch import MatchChosenDimensions, MatchDimensions, build_model_from_pipeline
 
 # Change this to optuna if you prefer
 # from amltk.optimization.optimizers.optuna import OptunaParser
 from amltk.optimization.optimizers.smac import SMACOptimizer
+from amltk.pytorch import (
+    MatchChosenDimensions,
+    MatchDimensions,
+    build_model_from_pipeline,
+)
 
 if TYPE_CHECKING:
     from amltk import Node, Trial

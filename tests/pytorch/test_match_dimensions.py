@@ -9,8 +9,8 @@ from amltk import (
     Node,
     Sequential,
 )
-from amltk.pytorch import MatchDimensions, build_model_from_pipeline
 from amltk.exceptions import MatchDimensionsError
+from amltk.pytorch import MatchDimensions, build_model_from_pipeline
 from tests.pytorch.common import create_optimizer
 
 

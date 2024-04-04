@@ -5,6 +5,7 @@ import torch
 from amltk import Component, Fixed, Sequential
 from amltk.pytorch import build_model_from_pipeline
 
+
 def test_build_model_from_pipeline():
     # Define a simple pipeline for a multi-layer perceptron
     pipeline = Sequential(
