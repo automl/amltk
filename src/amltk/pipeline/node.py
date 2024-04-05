@@ -323,7 +323,7 @@ class Node(RichRenderable, Generic[Item, Space]):
         )
         if found is None:
             raise KeyError(
-                f"Could not find node with name {key} in '{self.name}'."
+                f"Could not find node with name `{key}` in '{self.name}'."
                 f" Available nodes are: {', '.join(node.name for node in self.nodes)}",
             )
 
@@ -483,15 +483,38 @@ class Node(RichRenderable, Generic[Item, Space]):
 
         return prefix_keys(d, f"{self.name}:")
 
-    def iter(self) -> Iterator[Node]:
-        """Iterate the the nodes, including this node.
+    def iter(self, *, skip_unchosen: bool = False) -> Iterator[Node]:
+        """Recursively iterate through the nodes starting from this node.
+
+        This method traverses the nodes in a depth-first manner, including
+        the current node and its children nodes.
+
+        Args:
+            skip_unchosen (bool): Flag to skip unchosen nodes in Choice nodes.
 
         Yields:
-            The nodes connected to this node
+            Iterator[Node]: Nodes connected to this node.
         """
+        # Import Choice node to avoid circular imports
+        from amltk.pipeline.components import Choice
+
+        # Yield the current node
         yield self
+
+        # Iterate through the child nodes
         for node in self.nodes:
-            yield from node.iter()
+            if skip_unchosen and isinstance(node, Choice):
+                # If the node is a Choice and skipping unchosen nodes is enabled
+                chosen_node = node.chosen()
+                if chosen_node is None:
+                    raise RuntimeError(
+                        f"No Node chosen in Choice node {node.name}. "
+                        f"Did you call configure?",
+                    )
+                yield from chosen_node.iter(skip_unchosen=skip_unchosen)
+            else:
+                # Recursively iterate through the child nodes
+                yield from node.iter(skip_unchosen=skip_unchosen)
 
     def mutate(self, **kwargs: Any) -> Self:
         """Mutate the node with the given keyword arguments.
