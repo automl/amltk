@@ -10,7 +10,7 @@ from typing import Any
 
 from torch import nn
 
-from amltk import Choice, Fixed, Sequential
+from amltk import Choice, Fixed, Node, Sequential
 from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
@@ -123,7 +123,7 @@ class MatchChosenDimensions:
         return chosen_nodes_names
 
 
-def build_model_from_pipeline(pipeline: Sequential, /) -> nn.Module:
+def build_model_from_pipeline(pipeline: Node, /) -> nn.Module:
     """Builds a model from the provided pipeline.
 
     This function iterates through the pipeline nodes, constructing the model
