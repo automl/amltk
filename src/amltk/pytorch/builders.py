@@ -5,12 +5,11 @@ It also includes classes for handling dimension matching between layers.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 from torch import nn
 
-from amltk import Choice, Fixed, Node, Sequential
+from amltk import Choice, Fixed, Node
 from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
@@ -38,7 +37,7 @@ class MatchDimensions:
         self.layer_name = layer_name
         self.param = param
 
-    def evaluate(self, pipeline: Sequential) -> int:
+    def evaluate(self, pipeline: Node) -> int:
         """Retrieves the corresponding configuration value from the pipeline.
 
         Args:
@@ -50,8 +49,8 @@ class MatchDimensions:
         layer = pipeline[self.layer_name]
         layer_config = layer.config
         if layer_config is None:
-            raise MatchDimensionsError(self.layer_name)
-        value = layer_config.get(self.param, None)
+            raise MatchDimensionsError(self.layer_name, None)
+        value = layer_config.get(self.param)
         if value is None:
             raise MatchDimensionsError(self.layer_name, self.param)
         return value
@@ -100,7 +99,7 @@ class MatchChosenDimensions:
             raise MatchChosenDimensionsError(self.choice_name, chosen_node_name) from e
 
     @staticmethod
-    def collect_chosen_nodes_names(pipeline: Sequential) -> dict[str, str]:
+    def collect_chosen_nodes_names(pipeline: Node) -> dict[str, str]:
         """Collects the names of chosen nodes in the pipeline.
 
         Each pipeline has a unique set of chosen nodes, which we collect separately
@@ -153,7 +152,7 @@ def build_model_from_pipeline(pipeline: Node, /) -> nn.Module:
             and issubclass(node.item, nn.Module)
             and node.config
         ):
-            layer_config: Mapping[str, Any] = dict(node.config) if node.config else {}
+            layer_config = dict(node.config) if node.config else {}
 
             # Evaluate MatchDimensions objects
             for key, instance in layer_config.items():
