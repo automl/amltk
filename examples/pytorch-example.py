@@ -16,12 +16,7 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-from amltk import (
-    Choice,
-    Component,
-    Metric,
-    Sequential,
-)
+from amltk import Choice, Component, Metric, Sequential
 from amltk.optimization.optimizers.smac import SMACOptimizer
 from amltk.pytorch import (
     MatchChosenDimensions,
@@ -54,8 +49,8 @@ def test(
     test_loss = 0.0
     correct = 0.0
     with torch.no_grad():
-        for test_data, test_target in test_loader:
-            test_data, test_target = test_data.to(device), test_target.to(device)
+        for _test_data, _test_target in test_loader:
+            test_data, test_target = _test_data.to(device), _test_target.to(device)
             output = model(test_data)
             test_loss += f.nll_loss(output, test_target, reduction="sum").item()
             pred = output.argmax(dim=1, keepdim=True)
@@ -136,9 +131,9 @@ def eval_configuration(
         lr_scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
 
         for epoch in range(epochs):
-            for batch_idx, (data, target) in enumerate(train_loader):
+            for batch_idx, (_data, _target) in enumerate(train_loader):
                 optimizer.zero_grad()
-                data, target = data.to(_device), target.to(_device)
+                data, target = _data.to(_device), _target.to(_device)
 
                 output = model(data)
                 loss = f.nll_loss(output, target)
