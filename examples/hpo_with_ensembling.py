@@ -302,8 +302,7 @@ def create_ensemble(
         return Ensemble({}, [], {})
 
     validation_predictions = {
-        report.name: report.retrieve("val_probabilities.npy")
-        for report in history
+        report.name: report.retrieve("val_probabilities.npy") for report in history
     }
     targets = bucket["y_val.npy"].load()
 
@@ -358,14 +357,14 @@ optimizer = SMACOptimizer.create(
     seed=seed,
 )  # (4)!
 
-task = scheduler.task(target_function)  # (6)!
-ensemble_task = scheduler.task(create_ensemble)  # (7)!
+task = scheduler.task(target_function)  # (5)!
+ensemble_task = scheduler.task(create_ensemble)  # (6)!
 
 trial_history = History()
 ensembles: list[Ensemble] = []
 
 
-@scheduler.on_start  # (8)!
+@scheduler.on_start  # (7)!
 def launch_initial_tasks() -> None:
     """When we start, launch `n_workers` tasks."""
     trial = optimizer.ask()
@@ -425,7 +424,7 @@ def run_last_ensemble_task() -> None:
 
 
 if __name__ == "__main__":
-    scheduler.run(timeout=5, wait=True)  # (9)!
+    scheduler.run(timeout=5, wait=True)  # (8)!
 
     print("Trial history:")
     history_df = trial_history.df()
@@ -438,22 +437,21 @@ if __name__ == "__main__":
 # 1. We use `#!python get_dataset()` defined earlier to load the
 #  dataset.
 # 2. We use [`store()`][amltk.store.Bucket.store] to store the data in the bucket, with
-# each key being the name of the file and the value being the data.
+#  each key being the name of the file and the value being the data.
 # 3. We use [`Scheduler.with_processes()`][amltk.scheduling.Scheduler.with_processes]
 #  create a [`Scheduler`][amltk.scheduling.Scheduler] that runs everything
 #  in a different process. You can of course use a different backend if you want.
 # 4. We use [`SMACOptimizer.create()`][amltk.optimization.optimizers.smac.SMACOptimizer.create] to create a
 #  [`SMACOptimizer`][amltk.optimization.optimizers.smac.SMACOptimizer] given the space from the pipeline
 #  to optimize over.
-# 6. We create a [`Task`][amltk.scheduling.Task] that will run our objective, passing
-#   in the function to run and the scheduler for where to run it
-# 7. We use [`task()`][amltk.scheduling.Task] to create a
-#   [`Task`][amltk.scheduling.Task]
-#   for the `create_ensemble` method above. This will also run in parallel with the hpo
-#   trials if using a non-sequential scheduling mode.
-# 8. We use `@scheduler.on_start()` hook to register a
+# 5. We create a [`Task`][amltk.scheduling.Task] that will run our objective, passing
+#  in the function to run and the scheduler for where to run it
+# 6. We use [`task()`][amltk.scheduling.Task] to create a
+#  [`Task`][amltk.scheduling.Task] for the `create_ensemble` method above.
+#  This will also run in parallel with the hpo trials if using a non-sequential scheduling mode.
+# 7. We use `@scheduler.on_start()` hook to register a
 #  callback that will be called when the scheduler starts. We can use the
 #  `repeat` argument to make sure it's called many times if we want.
-# 9. We use [`Scheduler.run()`][amltk.scheduling.Scheduler.run] to run the scheduler.
+# 8. We use [`Scheduler.run()`][amltk.scheduling.Scheduler.run] to run the scheduler.
 #  Here we set it to run briefly for 5 seconds and wait for remaining tasks to finish
 #  before continuing.
