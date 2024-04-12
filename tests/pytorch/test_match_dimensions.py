@@ -3,12 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from amltk import (
-    Component,
-    Fixed,
-    Node,
-    Sequential,
-)
+from amltk import Component, Fixed, Node, Sequential
 from amltk.exceptions import MatchDimensionsError
 from amltk.pytorch import MatchDimensions, build_model_from_pipeline
 from tests.pytorch.common import create_optimizer
@@ -49,11 +44,11 @@ class TestMatchDimensions:
         params=[
             MatchDimensions("non-existing-layer", param="out_features"),
             MatchDimensions("fc1", param="non-existing-param"),
-            MatchDimensions("fc1", param=None),
+            MatchDimensions("fc1", param=None),  # type: ignore
             MatchDimensions(layer_name="", param="out_features"),
         ],
     )
-    def invalid_pipeline(self, request) -> Node:
+    def invalid_pipeline(self, request: pytest.FixtureRequest) -> Node:
         """Fixture to create several invalid pipelines."""
         return Sequential(
             torch.nn.Flatten(start_dim=1),
