@@ -11,7 +11,7 @@ from typing import Any
 
 from torch import nn
 
-from amltk import Choice, Fixed, Node
+from amltk import Choice, Component, Fixed, Node, Sequential
 from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
@@ -130,32 +130,35 @@ def build_model_from_pipeline(pipeline: Node, /) -> nn.Module:
     """
     model_layers = []
 
-    # Collect the names of chosen nodes for the given pipeline
+    # Mapping of choice node names to what was chosen for that choice
     chosen_nodes_names = MatchChosenDimensions.collect_chosen_nodes_names(pipeline)
 
+    # NOTE: pipeline.iter() may not be sufficient as we relying on some implied ordering
+    # for this to work, i.e. we might not know when we're iterating through nodes of a
+    # Join or Split
     for node in pipeline.iter(skip_unchosen=True):
-        # Check if node is a Fixed layer (e.g., Flatten, ReLU)
-        if isinstance(node, Fixed):
-            model_layers.append(node.item)
+        match node:
+            case Fixed(item=built_object):
+                model_layers.append(built_object)
+            case Component(config=config):
+                layer_config = dict(config) if config else {}
 
-        # Check if node is a Component with config parameter
-        elif (
-            isinstance(node.item, type)
-            and issubclass(node.item, nn.Module)
-            and node.config
-        ):
-            layer_config = dict(node.config) if node.config else {}
+                for key, instance in layer_config.items():
+                    match instance:
+                        case MatchDimensions():
+                            layer_config[key] = instance.evaluate(pipeline)
+                        case MatchChosenDimensions():
+                            layer_config[key] = instance.evaluate(chosen_nodes_names)
+                        case _:
+                            # Just used the value directly
+                            pass
 
-            # Evaluate MatchDimensions objects
-            for key, instance in layer_config.items():
-                if isinstance(instance, MatchDimensions):
-                    layer_config[key] = instance.evaluate(pipeline)
-
-                if isinstance(instance, MatchChosenDimensions):
-                    layer_config[key] = instance.evaluate(chosen_nodes_names)
-
-            # Build the layer using the updated configuration
-            layer = node.build_item(**layer_config)
-            model_layers.append(layer)
+                layer = node.build_item(**layer_config)
+                model_layers.append(layer)
+            case Sequential() | Choice():
+                pass  # Skip these as it will come up in iteration...
+            case _:
+                # TODO: Support other node types
+                raise NotImplementedError(f"Node type {type(node)} not supported yet.")
 
     return nn.Sequential(*model_layers)
