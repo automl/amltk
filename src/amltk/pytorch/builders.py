@@ -5,6 +5,8 @@ It also includes classes for handling dimension matching between layers.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from torch import nn
@@ -13,6 +15,7 @@ from amltk import Choice, Fixed, Node
 from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
+@dataclass
 class MatchDimensions:
     """Handles matching dimensions between layers in a pipeline.
 
@@ -21,21 +24,13 @@ class MatchDimensions:
     and stores them for later reference.
 
     Not intended to be used inside a Choice node.
-
-    Attributes:
-        layer_name (str): The name of the layer.
-        param (str | None): The name of the parameter.
     """
 
-    def __init__(self, layer_name: str, param: str | None) -> None:
-        """Initializes the MatchDimensions object.
+    layer_name: str
+    """The name of the layer."""
 
-        Args:
-            layer_name (str): The name of the layer.
-            param (str | None): The name of the parameter.
-        """
-        self.layer_name = layer_name
-        self.param = param
+    param: str
+    """The name of the parameter to match."""
 
     def evaluate(self, pipeline: Node) -> int:
         """Retrieves the corresponding configuration value from the pipeline.
@@ -56,6 +51,7 @@ class MatchDimensions:
         return value
 
 
+@dataclass
 class MatchChosenDimensions:
     """Handles matching dimensions for chosen nodes in a pipeline.
 
@@ -63,22 +59,15 @@ class MatchChosenDimensions:
     during HPO optimization. It takes the choice name and the corresponding
     dimensions for that choice and stores them for later reference.
 
-    Attributes:
-        choice_name (str): The name of the choice.
-        choices (dict): A dictionary containing dimensions for choices.
     """
 
-    def __init__(self, choice_name: str, choices: dict) -> None:
-        """Initializes the MatchChosenDimensions object.
+    choice_name: str
+    """The name of the choice node."""
 
-        Args:
-            choice_name (str): The name of the choice.
-            choices (dict): A dictionary containing dimensions for choices.
-        """
-        self.choice_name = choice_name
-        self.choices = choices
+    choices: Mapping[str, Any]
+    """The mapping of choice taken to the dimension to use."""
 
-    def evaluate(self, chosen_nodes: dict[str, Any]) -> int:
+    def evaluate(self, chosen_nodes: dict[str, str]) -> int:
         """Retrieves the corresponding dimension for the chosen node.
 
         If the chosen node is not found in the choices dictionary, an error is raised.
