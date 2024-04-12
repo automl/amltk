@@ -80,7 +80,10 @@ class MatchChosenDimensions:
         Returns:
             The value of the matching dimension for a chosen node.
         """
-        chosen_node_name = chosen_nodes.get(self.choice_name)
+        chosen_node_name = chosen_nodes.get(self.choice_name, None)
+
+        if chosen_node_name is None:
+            raise MatchChosenDimensionsError(self.choice_name, chosen_node_name=None)
 
         try:
             return self.choices[chosen_node_name]
