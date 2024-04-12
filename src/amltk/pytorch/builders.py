@@ -5,14 +5,17 @@ It also includes classes for handling dimension matching between layers.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from torch import nn
 
-from amltk import Choice, Fixed, Node
+from amltk import Choice, Component, Fixed, Node, Sequential
 from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
+@dataclass
 class MatchDimensions:
     """Handles matching dimensions between layers in a pipeline.
 
@@ -21,21 +24,13 @@ class MatchDimensions:
     and stores them for later reference.
 
     Not intended to be used inside a Choice node.
-
-    Attributes:
-        layer_name (str): The name of the layer.
-        param (str | None): The name of the parameter.
     """
 
-    def __init__(self, layer_name: str, param: str | None) -> None:
-        """Initializes the MatchDimensions object.
+    layer_name: str
+    """The name of the layer."""
 
-        Args:
-            layer_name (str): The name of the layer.
-            param (str | None): The name of the parameter.
-        """
-        self.layer_name = layer_name
-        self.param = param
+    param: str
+    """The name of the parameter to match."""
 
     def evaluate(self, pipeline: Node) -> int:
         """Retrieves the corresponding configuration value from the pipeline.
@@ -56,6 +51,7 @@ class MatchDimensions:
         return value
 
 
+@dataclass
 class MatchChosenDimensions:
     """Handles matching dimensions for chosen nodes in a pipeline.
 
@@ -63,22 +59,15 @@ class MatchChosenDimensions:
     during HPO optimization. It takes the choice name and the corresponding
     dimensions for that choice and stores them for later reference.
 
-    Attributes:
-        choice_name (str): The name of the choice.
-        choices (dict): A dictionary containing dimensions for choices.
     """
 
-    def __init__(self, choice_name: str, choices: dict) -> None:
-        """Initializes the MatchChosenDimensions object.
+    choice_name: str
+    """The name of the choice node."""
 
-        Args:
-            choice_name (str): The name of the choice.
-            choices (dict): A dictionary containing dimensions for choices.
-        """
-        self.choice_name = choice_name
-        self.choices = choices
+    choices: Mapping[str, Any]
+    """The mapping of choice taken to the dimension to use."""
 
-    def evaluate(self, chosen_nodes: dict[str, Any]) -> int:
+    def evaluate(self, chosen_nodes: dict[str, str]) -> int:
         """Retrieves the corresponding dimension for the chosen node.
 
         If the chosen node is not found in the choices dictionary, an error is raised.
@@ -91,7 +80,10 @@ class MatchChosenDimensions:
         Returns:
             The value of the matching dimension for a chosen node.
         """
-        chosen_node_name = chosen_nodes.get(self.choice_name)
+        chosen_node_name = chosen_nodes.get(self.choice_name, None)
+
+        if chosen_node_name is None:
+            raise MatchChosenDimensionsError(self.choice_name, chosen_node_name=None)
 
         try:
             return self.choices[chosen_node_name]
@@ -138,32 +130,35 @@ def build_model_from_pipeline(pipeline: Node, /) -> nn.Module:
     """
     model_layers = []
 
-    # Collect the names of chosen nodes for the given pipeline
+    # Mapping of choice node names to what was chosen for that choice
     chosen_nodes_names = MatchChosenDimensions.collect_chosen_nodes_names(pipeline)
 
+    # NOTE: pipeline.iter() may not be sufficient as we relying on some implied ordering
+    # for this to work, i.e. we might not know when we're iterating through nodes of a
+    # Join or Split
     for node in pipeline.iter(skip_unchosen=True):
-        # Check if node is a Fixed layer (e.g., Flatten, ReLU)
-        if isinstance(node, Fixed):
-            model_layers.append(node.item)
+        match node:
+            case Fixed(item=built_object):
+                model_layers.append(built_object)
+            case Component(config=config):
+                layer_config = dict(config) if config else {}
 
-        # Check if node is a Component with config parameter
-        elif (
-            isinstance(node.item, type)
-            and issubclass(node.item, nn.Module)
-            and node.config
-        ):
-            layer_config = dict(node.config) if node.config else {}
+                for key, instance in layer_config.items():
+                    match instance:
+                        case MatchDimensions():
+                            layer_config[key] = instance.evaluate(pipeline)
+                        case MatchChosenDimensions():
+                            layer_config[key] = instance.evaluate(chosen_nodes_names)
+                        case _:
+                            # Just used the value directly
+                            pass
 
-            # Evaluate MatchDimensions objects
-            for key, instance in layer_config.items():
-                if isinstance(instance, MatchDimensions):
-                    layer_config[key] = instance.evaluate(pipeline)
-
-                if isinstance(instance, MatchChosenDimensions):
-                    layer_config[key] = instance.evaluate(chosen_nodes_names)
-
-            # Build the layer using the updated configuration
-            layer = node.build_item(**layer_config)
-            model_layers.append(layer)
+                layer = node.build_item(**layer_config)
+                model_layers.append(layer)
+            case Sequential() | Choice():
+                pass  # Skip these as it will come up in iteration...
+            case _:
+                # TODO: Support other node types
+                raise NotImplementedError(f"Node type {type(node)} not supported yet.")
 
     return nn.Sequential(*model_layers)
