@@ -11,7 +11,7 @@ from typing import Any
 
 from torch import nn
 
-from amltk import Choice, Component, Fixed, Node, Sequential
+from amltk import Choice, Component, Node, Sequential
 from amltk.exceptions import MatchChosenDimensionsError, MatchDimensionsError
 
 
@@ -138,8 +138,6 @@ def build_model_from_pipeline(pipeline: Node, /) -> nn.Module:
     # Join or Split
     for node in pipeline.iter(skip_unchosen=True):
         match node:
-            case Fixed(item=built_object):
-                model_layers.append(built_object)
             case Component(config=config):
                 layer_config = dict(config) if config else {}
 
@@ -155,6 +153,10 @@ def build_model_from_pipeline(pipeline: Node, /) -> nn.Module:
 
                 layer = node.build_item(**layer_config)
                 model_layers.append(layer)
+            # Check if node is a Fixed layer (e.g., Flatten, ReLU),
+            # Flatten layer or any other layer without config parameter
+            case Node(item=built_object) if built_object is not None:
+                model_layers.append(built_object)
             case Sequential() | Choice():
                 pass  # Skip these as it will come up in iteration...
             case _:

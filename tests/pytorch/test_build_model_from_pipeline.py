@@ -21,7 +21,7 @@ def test_build_model_from_pipeline():
             config={"in_features": 100, "out_features": 10},
             name="fc2",
         ),
-        Fixed(torch.nn.LogSoftmax(dim=1), name="log_softmax"),
+        torch.nn.LogSoftmax(dim=1),
         name="my-mlp-pipeline",
     )
 
