@@ -244,19 +244,6 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
             case bucket:
                 bucket = bucket  # noqa: PLW0127
 
-        match metrics:
-            case Metric(minimize=minimize):
-                direction = (
-                    StudyDirection.MINIMIZE if minimize else StudyDirection.MAXIMIZE
-                )
-                study = optuna.create_study(direction=direction, **kwargs)
-            case metrics:
-                directions = [
-                    StudyDirection.MINIMIZE if m.minimize else StudyDirection.MAXIMIZE
-                    for m in metrics
-                ]
-                study = optuna.create_study(directions=directions, **kwargs)
-
         if sampler is None:
             sampler_seed = amltk.randomness.as_int(seed)
             match metrics:
@@ -265,7 +252,24 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
                 case metrics:
                     sampler = NSGAIISampler(seed=sampler_seed)  # from `create_study()`
 
-        return cls(study=study, metrics=metrics, space=space, bucket=bucket, seed=seed)
+        match metrics:
+            case Metric(minimize=minimize):
+                direction = [
+                    StudyDirection.MINIMIZE if minimize else StudyDirection.MAXIMIZE,
+                ]
+            case metrics:
+                direction = [
+                    StudyDirection.MINIMIZE if m.minimize else StudyDirection.MAXIMIZE
+                    for m in metrics
+                ]
+
+        return cls(
+            study=optuna.create_study(directions=direction, sampler=sampler, **kwargs),
+            metrics=metrics,
+            space=space,
+            bucket=bucket,
+            seed=seed,
+        )
 
     @overload
     def ask(self, n: int) -> Iterable[Trial[OptunaTrial]]:
