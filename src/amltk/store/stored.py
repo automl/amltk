@@ -41,6 +41,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Generic, TypeVar
+from typing_extensions import override
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -63,3 +64,7 @@ class Stored(Generic[V]):
     def load(self) -> V:
         """Get the value."""
         return self.read(self.key)
+
+    @override
+    def __repr__(self) -> str:
+        return f"Stored({self.key})"
