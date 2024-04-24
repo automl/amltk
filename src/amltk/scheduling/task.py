@@ -346,7 +346,6 @@ class Task(Emitter, RichRenderable, Generic[P, R]):
                 items.append(plugin)
 
         tree = Tree(label="", hide_root=True)
-        tree.add(self)
         items.append(tree)
 
         return Panel(
