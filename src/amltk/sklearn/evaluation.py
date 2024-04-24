@@ -139,6 +139,81 @@ def my_post_split(
 """
 
 
+def resample_if_minority_class_too_few_for_n_splits(
+    X_train: pd.DataFrame,  # noqa: N803
+    y_train: pd.Series,
+    *,
+    n_splits: int,
+    seed: Seed | None = None,
+    _warning_if_occurs: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame | pd.Series]:
+    """Rebalance the training data to allow stratification.
+
+    If your data only contains something such as 3 labels for a single class, and you
+    wish to perform 5 fold cross-validation, you will need to rebalance the data to
+    allow for stratification. This function will take the training data and labels and
+    and resample the data to allow for stratification.
+
+    Args:
+        X_train: The training data.
+        y_train: The training labels.
+        n_splits: The number of splits to perform.
+        seed: Used for deciding which instances to resample.
+
+    Returns:
+        The rebalanced training data and labels.
+    """
+    if y_train.ndim != 1:
+        raise NotImplementedError(
+            "Rebalancing for multi-output classification is not yet supported.",
+        )
+
+    # If we are in binary/multilclass setting and there is not enough instances
+    # with a given label to perform stratified sampling with `n_splits`, we first
+    # find these labels, take the first N instances which have these labels and allows
+    # us to reach `n_splits` instances for each label.
+    indices_to_resample = None
+    label_counts = y_train.value_counts()
+    under_represented_labels = label_counts[label_counts < n_splits]  # type: ignore
+
+    collected_indices = []
+    if any(under_represented_labels):
+        if _warning_if_occurs is not None:
+            warnings.warn(_warning_if_occurs, UserWarning, stacklevel=2)
+        under_rep_instances = y_train[y_train.isin(under_represented_labels.index)]  # type: ignore
+
+        grouped_by_label = under_rep_instances.to_frame("label").groupby(  # type: ignore
+            "label",
+            observed=True,  # Handles categoricals
+        )
+        for _label, instances_with_label in grouped_by_label:
+            n_to_take = n_splits - len(instances_with_label)
+
+            need_to_sample_repeatedly = n_to_take > len(instances_with_label)
+            resampled_instances = instances_with_label.sample(
+                n=n_to_take,
+                random_state=seed,  # type: ignore
+                # It could be that we have to repeat sample if there are not enough
+                # instances to hit `n_splits` for a given label.
+                replace=need_to_sample_repeatedly,
+            )
+            collected_indices.append(np.asarray(resampled_instances.index))
+
+        indices_to_resample = np.concatenate(collected_indices)
+
+    if indices_to_resample is not None:
+        # Give the new samples a new index to not overlap with the original data.
+        new_start_idx = X_train.index.max() + 1  # type: ignore
+        new_end_idx = new_start_idx + len(indices_to_resample)
+        new_idx = pd.RangeIndex(start=new_start_idx, stop=new_end_idx)
+        resampled_X = X_train.loc[indices_to_resample].set_index(new_idx)
+        resampled_y = y_train.loc[indices_to_resample].set_axis(new_idx)
+        X_train = pd.concat([X_train, resampled_X])
+        y_train = pd.concat([y_train, resampled_y])
+
+    return X_train, y_train
+
+
 def _check_valid_scores(
     scores: Mapping[str, float] | Number,
     split: str,
@@ -1305,7 +1380,7 @@ class CVEvaluation(Emitter):
                         " discuss use cases and how to handle this.",
                     )
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, C901
         self,
         X: XLike,  # noqa: N803
         y: YLike,
@@ -1319,6 +1394,7 @@ class CVEvaluation(Emitter):
         holdout_size: float = 0.33,
         train_score: bool = False,
         store_models: bool = False,
+        rebalance_if_required_for_stratified_splitting: bool | None = None,
         additional_scorers: Mapping[str, _Scorer] | None = None,
         random_state: Seed | None = None,  # Only used if cv is an int/float
         params: Mapping[str, Any] | None = None,
@@ -1368,6 +1444,14 @@ class CVEvaluation(Emitter):
                 will take extra time as predictions will be made on the
                 training data as well.
             store_models: Whether to store the trained models in the trial.
+            rebalance_if_required_for_stratified_splitting: Whether the CVEvaluator
+                should rebalance the training data to allow for stratified splitting.
+                * If `True`, rebalancing will be done if required. That is when
+                    the `splitter=` is `"cv"` or a `StratifiedKFold` and
+                    there are fewer instances of a minority class than `n_splits=`.
+                * If `None`, rebalancing will be done if required it. Same
+                    as `True` but raises a warning if it occurs.
+                * If `False`, rebalancing will never be done.
             additional_scorers: Additional scorers to use.
             random_state: The random state to use for the cross-validation
                 `splitter=`. If a custom splitter is provided, this will be
@@ -1571,6 +1655,7 @@ class CVEvaluation(Emitter):
                     n_splits=n_splits,
                     random_state=random_state,
                 )
+
             case "holdout":
                 splitter = _default_holdout(
                     task_type,
@@ -1579,6 +1664,43 @@ class CVEvaluation(Emitter):
                 )
             case _:
                 splitter = splitter  # noqa: PLW0127
+
+        # This whole block is to check whether we should resample for stratified
+        # sampling, in the case of a low minority class.
+        if (
+            isinstance(splitter, StratifiedKFold)
+            and rebalance_if_required_for_stratified_splitting is not False
+            and task_type in ("binary", "multiclass")
+        ):
+            if rebalance_if_required_for_stratified_splitting is None:
+                _warning = (
+                    f"Labels have fewer than `{n_splits=}` instances. Resampling data"
+                    " to ensure it's possible to have one of each label in each fold."
+                    " Note that this may cause things to crash if you've provided extra"
+                    " `params` as the `X` data will have gotten slightly larger. Please"
+                    " set `rebalance_if_required_for_stratified_splitting=False` if you"
+                    " do not wish this to be enabled automatically, in which case, you"
+                    " may either perform resampling yourself or choose a smaller"
+                    " `n_splits=`."
+                )
+            else:
+                _warning = None
+
+            x_is_frame = isinstance(X, pd.DataFrame)
+            y_is_frame = isinstance(y, pd.Series | pd.DataFrame)
+
+            X, y = resample_if_minority_class_too_few_for_n_splits(  # type: ignore
+                X if x_is_frame else pd.DataFrame(X),
+                y if y_is_frame else pd.Series(y),  # type: ignore
+                n_splits=n_splits,
+                seed=random_state,
+                _warning_if_occurs=_warning,
+            )
+
+            if not x_is_frame:
+                X = X.to_numpy()  # type: ignore
+            if not y_is_frame:
+                y = y.to_numpy()  # type: ignore
 
         self.task_type = task_type
         self.additional_scorers = additional_scorers
