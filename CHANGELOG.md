@@ -1,3 +1,15 @@
+## 1.12.0 (2024-04-24)
+
+### Feat
+
+- **PyTorch**: Add functionality to construct a PyTorch Model from a pipeline (#276)
+
+### Fix
+
+- Pass in sampler to `create_study` (#282)
+- **Pytorch**: Fix builders.py (#280)
+- precommit issues from #276 (#277)
+
 ## 1.11.0 (2024-02-29)
 
 ### Feat
