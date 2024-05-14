@@ -183,7 +183,13 @@ BuilderOutput = TypeVar("BuilderOutput")
 P = ParamSpec("P")
 
 
-_NotSet = object()
+class _NotSetType:
+    @override
+    def __repr__(self) -> str:
+        return "<NotSet>"
+
+
+_NotSet = _NotSetType()
 
 
 class RichOptions(NamedTuple):
@@ -196,6 +202,8 @@ class RichOptions(NamedTuple):
 @dataclass(frozen=True)
 class ParamRequest(Generic[T]):
     """A parameter request for a node. This is most useful for things like seeds."""
+
+    _has_default: bool
 
     key: str
     """The key to request under."""
@@ -211,7 +219,10 @@ class ParamRequest(Generic[T]):
     @property
     def has_default(self) -> bool:
         """Whether this request has a default value."""
-        return self.default is not _NotSet
+        # NOTE(eddiebergman): We decide to calculate this on
+        # initialization as when sent to new processes, these object
+        # ids may not match
+        return self._has_default
 
 
 def request(key: str, default: T | object = _NotSet) -> ParamRequest[T]:
@@ -224,7 +235,7 @@ def request(key: str, default: T | object = _NotSet) -> ParamRequest[T]:
             config once [`configure`][amltk.pipeline.Node.configure] is called and
             nothing has been provided.
     """
-    return ParamRequest(key=key, default=default)
+    return ParamRequest(key=key, default=default, _has_default=default is not _NotSet)
 
 
 @dataclass(init=False, frozen=True, eq=True)
