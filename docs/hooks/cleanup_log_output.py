@@ -13,7 +13,7 @@ import mkdocs
 import mkdocs.plugins
 import mkdocs.structure.pages
 
-from amltk.exceptions import AutomaticParameterWarning, TaskTypeWarning
+from amltk.exceptions import AutomaticParameterWarning
 
 log = logging.getLogger("mkdocs")
 

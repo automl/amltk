@@ -1775,7 +1775,7 @@ class CVEvaluation(Emitter):
 
         from amltk.sklearn import CVEvaluation
         from amltk.pipeline import Component
-        from amltk.optimization import Metric
+        from amltk.optimization import Metric, Trial
 
         working_dir = Path("./some-path")
         pipeline = Component(DecisionTreeClassifier, space={"max_depth": (1, 10)})

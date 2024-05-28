@@ -40,29 +40,28 @@ the [`Report`][amltk.optimization.Trial.Report], as this will be different for e
         to worry that the internal state of the optimizer is updated accordingly to these
         two _"Ask"_ and _"Tell"_ events and that's it.
 
-For a reference on implementing an optimizer you can refer to any of the following:
-
-
-## SMAC
-
-::: amltk.optimization.optimizers.smac
-    options:
-        members: false
-
-## NePs
-
-::: amltk.optimization.optimizers.neps
-    options:
-        members: false
-
-## Optuna
-
-::: amltk.optimization.optimizers.optuna
-    options:
-        members: false
+For a reference on implementing an optimizer you can refer to any of the following
+API Docs:
+* [SMAC][amltk.optimization.optimizers.smac]
+* [NePs][amltk.optimization.optimizers.neps]
+* [Optuna][amltk.optimization.optimizers.optuna]
+* [Random Search][amltk.optimization.optimizers.random_search]
 
 ## Integrating your own
+The base [`Optimizer`][amltk.optimization.optimizer.Optimizer] class,
+defines the API we require optimizers to implement.
 
-::: amltk.optimization.optimizer
-    options:
-        members: false
+* [`ask()`][amltk.optimization.optimizer.Optimizer.ask] - Ask the optimizer for a
+    new [`Trial`][amltk.optimization.trial.Trial] to evaluate.
+* [`tell()`][amltk.optimization.optimizer.Optimizer.tell] - Tell the optimizer
+    the result of the sampled config. This comes in the form of a
+    [`Trial.Report`][amltk.optimization.trial.Trial.Report].
+
+Additionally, to aid users from switching between optimizers, the
+[`preferred_parser()`][amltk.optimization.optimizer.Optimizer.preferred_parser]
+method should return either a `parser` function or a string that can be used
+with [`node.search_space(parser=..._)`][amltk.pipeline.Node.search_space] to
+extract the search space for the optimizer.
+
+Please refer to the code of [Random Search][amltk.optimization.optimizers.random_search]
+on github for an example of how to implement a new optimizer.

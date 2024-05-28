@@ -32,14 +32,6 @@ from amltk._doc import doc_print; doc_print(print, c)  # markdown-exec: hide
 What follow's below is a list of supported parsers you could pass `parser=`
 to extract a search space representation.
 
-## ConfigSpace
-
-::: amltk.pipeline.parsers.configspace
-    options:
-        members: false
-
-## Optuna
-
-::: amltk.pipeline.parsers.optuna
-    options:
-        members: false
+* [`ConfigSpace`][amltk.pipeline.parsers.configspace] - A parser for the
+  [ConfigSpace](https://automl.github.io/ConfigSpace/master/) library.
+* [`Optuna`][amltk.pipeline.parsers.optuna] - A parser specifically for optuna.

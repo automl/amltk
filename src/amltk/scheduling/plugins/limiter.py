@@ -8,7 +8,7 @@ it gives some nice utility.
 ??? tip "Usage"
 
     ```python exec="true" source="material-block" html="true"
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
     from amltk.scheduling.plugins import Limiter
 
     def fn(x: int) -> int:
@@ -77,7 +77,7 @@ class Limiter(Plugin):
     followed by the arguments and keyword arguments that were passed to the task.
 
     ```python exec="true" source="material-block" html="true"
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
     from amltk.scheduling.plugins import Limiter
 
     def fn(x: int) -> int:
@@ -101,7 +101,7 @@ class Limiter(Plugin):
     arguments and keyword arguments that were passed to the task.
 
     ```python exec="true" source="material-block" html="true"
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
     from amltk.scheduling.plugins import Limiter
 
     def fn(x: int) -> int:
@@ -128,7 +128,7 @@ class Limiter(Plugin):
     the arguments and keyword arguments that were passed to the task.
 
     ```python exec="true" source="material-block" html="true"
-    from amltk.scheduling import Scheduler
+    from amltk.scheduling import Scheduler, Task
     from amltk.scheduling.plugins import Limiter
 
     def fn(x: int) -> int:
