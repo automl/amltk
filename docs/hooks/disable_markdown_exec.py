@@ -22,7 +22,7 @@ RUN_CODE_BLOCKS_ENV_VAR = "AMLTK_EXEC_DOCS"
 logger = logging.getLogger("mkdocs")
 
 
-def _print_msg(compiled_code: Any, exec_globals: dict) -> None:
+def _print_msg(compiled_code: Any, code_block_id: int, exec_globals: dict) -> None:
     _print = exec_globals["print"]
     _print(
         f"Env variable {RUN_CODE_BLOCKS_ENV_VAR}=0 - No code to display."
@@ -42,5 +42,5 @@ def on_startup(**kwargs: Any):
         )
         from markdown_exec.formatters import python
 
-        setattr(python, "exec", _print_msg)
+        setattr(python, "exec_python", _print_msg)
 

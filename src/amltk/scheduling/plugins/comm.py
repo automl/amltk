@@ -315,7 +315,7 @@ class Comm:
         task.submit()
 
     @task.on("comm-close")
-    def on_close(msg: Comm.msg):
+    def on_close(msg: Comm.Msg):
         print(f"Worker close with {msg}")
 
     scheduler.run()

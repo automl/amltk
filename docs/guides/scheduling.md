@@ -424,6 +424,8 @@ However, there are more explicit methods.
 
     ```python exec="true" source="material-block" html="True" hl_lines="20"
     import time
+    from asyncio import Future
+
     from amltk.scheduling import Scheduler
 
     scheduler = Scheduler.with_processes(1)
@@ -437,7 +439,7 @@ However, there are more explicit methods.
     def submit_calculations() -> None:
         scheduler.submit(expensive_function)
 
-    # The will endlessly loop the scheduler
+    # This will endlessly loop the scheduler
     @scheduler.on_future_done
     def submit_again(future: Future) -> None:
         if scheduler.running():
@@ -468,6 +470,7 @@ the default, but it also takes three other possibilities:
 One example is to just `stop()` the scheduler when some exception occurs.
 
 ```python exec="true" source="material-block" html="True" hl_lines="12-15"
+from asyncio import Future
 from amltk.scheduling import Scheduler
 
 scheduler = Scheduler.with_processes(1)

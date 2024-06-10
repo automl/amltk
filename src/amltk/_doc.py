@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 from collections.abc import Callable
 from functools import lru_cache
@@ -47,17 +48,17 @@ def link(obj: Any) -> str | None:
     return _try_get_link(fullname(obj))
 
 
-def make_picklable(thing: Any, name: str | None = None) -> None:
+def make_picklable(thing: Any) -> None:
     """This is hack to make the examples code with schedulers work.
 
     Scheduler uses multiprocessing and multiprocessing requires that
     all objects passed to the scheduler are picklable. This is not
     the case for the classes/functions defined in the example code.
     """
-    import __main__
+    thing_module = thing.__module__
 
-    _name = thing.__name__ if name is None else name
-    setattr(__main__, _name, thing)
+    _mod = importlib.import_module(thing_module)
+    setattr(_mod, thing.__name__, thing)
 
 
 def as_rich_svg(
