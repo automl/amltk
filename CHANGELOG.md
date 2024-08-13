@@ -1,3 +1,9 @@
+## 1.12.1 (2024-08-13)
+
+### Fix
+
+- **pipeline**: `request` now fails without default (#284)
+
 ## 1.12.0 (2024-04-24)
 
 ### Feat
