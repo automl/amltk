@@ -1,0 +1,90 @@
+cff-version: "1.2.0"
+authors:
+- family-names: Bergman
+  given-names: Edward
+  orcid: "https://orcid.org/0009-0003-4390-7614"
+- family-names: Feurer
+  given-names: Matthias
+  orcid: "https://orcid.org/0000-0001-9611-8588"
+- family-names: Bahram
+  given-names: Aron
+  orcid: "https://orcid.org/0009-0002-8896-2863"
+- family-names: Balef
+  given-names: Amir Rezaei
+  orcid: "https://orcid.org/0000-0002-6882-0051"
+- family-names: Purucker
+  given-names: Lennart
+  orcid: "https://orcid.org/0009-0001-1181-0549"
+- family-names: Segel
+  given-names: Sarah
+  orcid: "https://orcid.org/0009-0005-2966-266X"
+- family-names: Lindauer
+  given-names: Marius
+  orcid: "https://orcid.org/0000-0002-9675-3175"
+- family-names: Hutter
+  given-names: Frank
+  orcid: "https://orcid.org/0000-0002-2037-3694"
+- family-names: Eggensperger
+  given-names: Katharina
+  orcid: "https://orcid.org/0000-0002-0309-401X"
+contact:
+- family-names: Bergman
+  given-names: Edward
+  orcid: "https://orcid.org/0009-0003-4390-7614"
+- family-names: Feurer
+  given-names: Matthias
+  orcid: "https://orcid.org/0000-0001-9611-8588"
+- family-names: Lindauer
+  given-names: Marius
+  orcid: "https://orcid.org/0000-0002-9675-3175"
+- family-names: Hutter
+  given-names: Frank
+  orcid: "https://orcid.org/0000-0002-2037-3694"
+- family-names: Eggensperger
+  given-names: Katharina
+  orcid: "https://orcid.org/0000-0002-0309-401X"
+doi: 10.5281/zenodo.13309537
+message: If you use this software, please cite our article in the
+  Journal of Open Source Software.
+preferred-citation:
+  authors:
+  - family-names: Bergman
+    given-names: Edward
+    orcid: "https://orcid.org/0009-0003-4390-7614"
+  - family-names: Feurer
+    given-names: Matthias
+    orcid: "https://orcid.org/0000-0001-9611-8588"
+  - family-names: Bahram
+    given-names: Aron
+    orcid: "https://orcid.org/0009-0002-8896-2863"
+  - family-names: Balef
+    given-names: Amir Rezaei
+    orcid: "https://orcid.org/0000-0002-6882-0051"
+  - family-names: Purucker
+    given-names: Lennart
+    orcid: "https://orcid.org/0009-0001-1181-0549"
+  - family-names: Segel
+    given-names: Sarah
+    orcid: "https://orcid.org/0009-0005-2966-266X"
+  - family-names: Lindauer
+    given-names: Marius
+    orcid: "https://orcid.org/0000-0002-9675-3175"
+  - family-names: Hutter
+    given-names: Frank
+    orcid: "https://orcid.org/0000-0002-2037-3694"
+  - family-names: Eggensperger
+    given-names: Katharina
+    orcid: "https://orcid.org/0000-0002-0309-401X"
+  date-published: 2024-08-14
+  doi: 10.21105/joss.06367
+  issn: 2475-9066
+  issue: 100
+  journal: Journal of Open Source Software
+  publisher:
+    name: Open Journals
+  start: 6367
+  title: "AMLTK: A Modular AutoML Toolkit in Python"
+  type: article
+  url: "https://joss.theoj.org/papers/10.21105/joss.06367"
+  volume: 9
+title: "AMLTK: A Modular AutoML Toolkit in Python"
