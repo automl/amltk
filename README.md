@@ -3,6 +3,7 @@
 [![image](https://img.shields.io/pypi/pyversions/amltk.svg)](https://pypi.python.org/pypi/amltk)
 [![Actions](https://github.com/automl/amltk/actions/workflows/test.yml/badge.svg)](https://github.com/automl/amltk/actions)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.06367/status.svg)](https://doi.org/10.21105/joss.06367)
 
 # AutoML Toolkit
 A framework for building an AutoML System. The toolkit is designed to be modular and extensible, allowing you to
