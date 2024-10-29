@@ -103,15 +103,16 @@ from optuna.distributions import (
 )
 
 from amltk._functional import prefix_keys
+from amltk.pipeline.components import Choice
 
 if TYPE_CHECKING:
     from typing import TypeAlias
 
     from amltk.pipeline import Node
 
-    OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
-
 PAIR = 2
+
+OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
 
 
 def _convert_hp_to_optuna_distribution(
@@ -196,12 +197,15 @@ def parser(
 
         delim: The delimiter to use for the names of the hyperparameters.
     """
-    if conditionals:
-        raise NotImplementedError("Conditionals are not yet supported with Optuna.")
-
     space = prefix_keys(_parse_space(node), prefix=f"{node.name}{delim}")
 
-    for child in node.nodes:
+    children = node.nodes
+
+    if isinstance(node, Choice) and any(children):
+        name = f"{node.name}{delim}__choice__"
+        space[name] = CategoricalDistribution([child.name for child in children])
+
+    for child in children:
         subspace = parser(child, flat=flat, conditionals=conditionals, delim=delim)
         if not flat:
             subspace = prefix_keys(subspace, prefix=f"{node.name}{delim}")

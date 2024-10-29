@@ -292,7 +292,36 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         if n is not None:
             return (self.ask(n=None) for _ in range(n))
 
-        optuna_trial: optuna.Trial = self.study.ask(self.space)
+        if any("__choice__" in k for k in self.space):
+            optuna_trial: optuna.Trial = self.study.ask()
+            # do all __choice__ suggestions with suggest_categorical
+            workspace = self.space.copy()
+            delete_other_options = []
+            for name, distribution in workspace.items():
+                if "__choice__" in name:
+                    possible_choices = distribution.choices
+                    choice_made = optuna_trial.suggest_categorical(name, choices=possible_choices)
+                    for c in possible_choices:
+                        if c != choice_made:
+                            delete_other_options.append(f"{name}:{c}:")
+            # filter all parameters given the made choices
+            filtered_workspace = {k: v for k, v in workspace.items() if (
+                ("__choice__" not in k) and
+                (not any(c in k for c in delete_other_options))
+            )}
+            # do all remaining suggestions with the correct suggest function
+            for name, distribution in filtered_workspace.items():
+                match distribution:
+                    case optuna.distributions.CategoricalDistribution(choices=choices):
+                        optuna_trial.suggest_categorical(name, choices=choices)
+                    case optuna.distributions.IntDistribution(low=low, high=high, log=log):
+                        optuna_trial.suggest_int(name, low=low, high=high, log=log)
+                    case optuna.distributions.FloatDistribution(low=low, high=high):
+                        optuna_trial.suggest_float(name, low=low, high=high)
+                    case _:
+                        raise ValueError(f"Unknown distribution: {distribution}")
+        else:
+            optuna_trial: optuna.Trial = self.study.ask(self.space)
         config = optuna_trial.params
         trial_number = optuna_trial.number
         unique_name = f"{trial_number=}"
