@@ -91,9 +91,11 @@ from amltk._doc import doc_print; doc_print(print, flat_space)  # markdown-exec:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import optuna
 from optuna.distributions import (
     BaseDistribution,
     CategoricalChoiceType,
@@ -106,13 +108,78 @@ from amltk._functional import prefix_keys
 from amltk.pipeline.components import Choice
 
 if TYPE_CHECKING:
-    from typing import TypeAlias
-
     from amltk.pipeline import Node
 
 PAIR = 2
 
-OptunaSearchSpace: TypeAlias = dict[str, BaseDistribution]
+
+@dataclass
+class OptunaSearchSpace:
+    distributions: dict[str, BaseDistribution] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        return f"OptunaSearchSpace({self.distributions})"
+
+    def __str__(self) -> str:
+        return str(self.distributions)
+
+    @classmethod
+    def parse(cls, *args, **kwargs) -> OptunaSearchSpace:
+        return parser(*args, **kwargs)
+
+    def sample_configuration(self) -> dict[str, Any]:
+        study = optuna.create_study()
+        trial = self.get_trial(study)
+        return trial.params
+
+    def get_trial(self, study: Study) -> optuna.Trial:
+        if any("__choice__" in k for k in self.distributions):
+            optuna_trial: optuna.Trial = study.ask()
+            # do all __choice__ suggestions with suggest_categorical
+            workspace = self.distributions.copy()
+            filter_patterns = []
+            for name, distribution in workspace.items():
+                if "__choice__" in name:
+                    possible_choices = distribution.choices
+                    choice_made = optuna_trial.suggest_categorical(
+                        name,
+                        choices=possible_choices,
+                    )
+                    for c in possible_choices:
+                        if c != choice_made:
+                            # deletable options have the name of the unwanted choices
+                            filter_patterns.append(f":{c}:")
+            # filter all parameters for the unwanted choices
+            filtered_workspace = {
+                k: v
+                for k, v in workspace.items()
+                if (
+                    ("__choice__" not in k)
+                    and (
+                        not any(
+                            filter_pattern in k for filter_pattern in filter_patterns
+                        )
+                    )
+                )
+            }
+            # do all remaining suggestions with the correct suggest function
+            for name, distribution in filtered_workspace.items():
+                match distribution:
+                    case CategoricalDistribution(choices=choices):
+                        optuna_trial.suggest_categorical(name, choices=choices)
+                    case IntDistribution(
+                        low=low,
+                        high=high,
+                        log=log,
+                    ):
+                        optuna_trial.suggest_int(name, low=low, high=high, log=log)
+                    case FloatDistribution(low=low, high=high):
+                        optuna_trial.suggest_float(name, low=low, high=high)
+                    case _:
+                        raise ValueError(f"Unknown distribution: {distribution}")
+        else:
+            optuna_trial: optuna.Trial = study.ask(self.distributions)
+        return optuna_trial
 
 
 def _convert_hp_to_optuna_distribution(
@@ -150,7 +217,7 @@ def _convert_hp_to_optuna_distribution(
     raise ValueError(f"Could not parse {name} as a valid Optuna distribution.\n{hp=}")
 
 
-def _parse_space(node: Node) -> OptunaSearchSpace:
+def _parse_space(node: Node) -> dict[str, BaseDistribution]:
     match node.space:
         case None:
             space = {}
@@ -206,7 +273,9 @@ def parser(
         space[name] = CategoricalDistribution([child.name for child in children])
 
     for child in children:
-        subspace = parser(child, flat=flat, conditionals=conditionals, delim=delim)
+        subspace = parser(
+            child, flat=flat, conditionals=conditionals, delim=delim
+        ).distributions
         if not flat:
             subspace = prefix_keys(subspace, prefix=f"{node.name}{delim}")
 
@@ -218,4 +287,4 @@ def parser(
                 )
             space[name] = hp
 
-    return space
+    return OptunaSearchSpace(distributions=space)

@@ -94,7 +94,7 @@ def opt_optuna(metric: Metric, tmp_path: Path) -> OptunaOptimizer:
 
 @case
 @parametrize("metric", [*metrics, metrics])  # Single obj and multi
-def opt_optuna_choice(metric: Metric, tmp_path: Path) -> OptunaOptimizer:
+def opt_optuna_choice_hierarchical(metric: Metric, tmp_path: Path) -> OptunaOptimizer:
     try:
         from amltk.optimization.optimizers.optuna import OptunaOptimizer
     except ImportError:
@@ -102,7 +102,7 @@ def opt_optuna_choice(metric: Metric, tmp_path: Path) -> OptunaOptimizer:
 
     c1 = Component(_A, name="hi1", space={"a": [1, 2, 3]})
     c2 = Component(_B, name="hi2", space={"b": [4, 5, 6]})
-    pipeline = Choice([c1, c2], name="hi")
+    pipeline = Choice(c1, c2, name="hi")
     return OptunaOptimizer.create(
         space=pipeline,
         metrics=metric,
@@ -173,3 +173,19 @@ def test_optuna_choice_output(optimizer: Optimizer):
     trial = optimizer.ask()
     keys = list(trial.config.keys())
     assert any("__choice__" in k for k in keys), trial.config
+
+
+@parametrize_with_cases("optimizer", cases=".", prefix="opt_optuna_choice")
+def test_optuna_choice_no_params_left(optimizer: Optimizer):
+    trial = optimizer.ask()
+    keys_without_choices = [
+        k for k in list(trial.config.keys()) if "__choice__" not in k
+    ]
+    for k, v in trial.config.items():
+        if "__choice__" in k:
+            name_without_choice = k.removesuffix("__choice__")
+            params_for_choice = [
+                k for k in keys_without_choices if k.startswith(name_without_choice)
+            ]
+            # Check that only params for the chosen choice are left
+            assert all(v in k for k in params_for_choice), params_for_choice

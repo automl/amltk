@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 from pytest_cases import case, parametrize_with_cases
+from src.amltk.pipeline.components import Split
 
 from amltk.pipeline import Component, Fixed, Node
 from amltk.pipeline.components import Choice
@@ -91,7 +92,6 @@ def case_single_step_two_hp_different_types() -> Params:
     return Params(item, expected)  # type: ignore
 
 
-# TODO: Testing for with and without conditions does not really make sense here
 @case
 def case_choice() -> Params:
     item = Choice(
@@ -102,28 +102,6 @@ def case_choice() -> Params:
     )
 
     expected = {}
-
-    # Not flat and with conditions
-    space = OptunaSearchSpace(
-        {
-            "choice1:a:hp": CategoricalDistribution([1, 2, 3]),
-            "choice1:b:hp2": IntDistribution(1, 10),
-            "choice1:hp3": IntDistribution(1, 10),
-            "choice1:__choice__": CategoricalDistribution(["a", "b"]),
-        },
-    )
-    expected[(NOT_FLAT, CONDITIONED)] = space
-
-    # Flat and with conditions
-    space = OptunaSearchSpace(
-        {
-            "a:hp": CategoricalDistribution([1, 2, 3]),
-            "b:hp2": IntDistribution(1, 10),
-            "choice1:hp3": IntDistribution(1, 10),
-            "choice1:__choice__": CategoricalDistribution(["a", "b"]),
-        },
-    )
-    expected[(FLAT, CONDITIONED)] = space
 
     # Not Flat and without conditions
     space = OptunaSearchSpace(
@@ -147,6 +125,51 @@ def case_choice() -> Params:
     )
     expected[(FLAT, NOT_CONDITIONED)] = space
     return Params(item, expected)  # type: ignore
+
+
+@case
+def case_nested_choices_with_split_and_choice() -> Params:
+    item = Choice(
+        Split(
+            Choice(
+                Component(object, name="a", space={"hp": [1, 2, 3]}),
+                Component(object, name="b", space={"hp2": (1, 10)}),
+                name="choice3",
+            ),
+            Component(object, name="c", space={"hp3": (1, 10)}),
+            name="split2",
+        ),
+        Component(object, name="d", space={"hp4": (1, 10)}),
+        name="choice1",
+    )
+    expected = {}
+
+    # Not flat and without conditions
+    space = OptunaSearchSpace(
+        {
+            "choice1:split2:choice3:a:hp": CategoricalDistribution([1, 2, 3]),
+            "choice1:split2:choice3:b:hp2": IntDistribution(1, 10),
+            "choice1:split2:c:hp3": IntDistribution(1, 10),
+            "choice1:d:hp4": IntDistribution(1, 10),
+            "choice1:__choice__": CategoricalDistribution(["d", "split2"]),
+            "choice1:split2:choice3:__choice__": CategoricalDistribution(["a", "b"]),
+        },
+    )
+    expected[(NOT_FLAT, NOT_CONDITIONED)] = space
+
+    # Flat and without conditions
+    space = OptunaSearchSpace(
+        {
+            "a:hp": CategoricalDistribution([1, 2, 3]),
+            "b:hp2": IntDistribution(1, 10),
+            "c:hp3": IntDistribution(1, 10),
+            "d:hp4": IntDistribution(1, 10),
+            "choice1:__choice__": CategoricalDistribution(["d", "split2"]),
+            "choice3:__choice__": CategoricalDistribution(["a", "b"]),
+        },
+    )
+    expected[(FLAT, NOT_CONDITIONED)] = space
+    return Params(item, expected)
 
 
 @parametrize_with_cases("test_case", cases=".")
