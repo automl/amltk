@@ -5,10 +5,9 @@ from dataclasses import dataclass
 
 import pytest
 from pytest_cases import case, parametrize_with_cases
-from src.amltk.pipeline.components import Split
 
 from amltk.pipeline import Component, Fixed, Node
-from amltk.pipeline.components import Choice
+from amltk.pipeline.components import Choice, Split
 
 try:
     from optuna.distributions import CategoricalDistribution, IntDistribution
