@@ -102,6 +102,7 @@ optimizer.bucket.rmdir()  # markdown-exec: hide
     Sorry!
 
 """  # noqa: E501
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
@@ -291,8 +292,7 @@ class OptunaOptimizer(Optimizer[OptunaTrial]):
         """
         if n is not None:
             return (self.ask(n=None) for _ in range(n))
-
-        optuna_trial: optuna.Trial = self.study.ask(self.space)
+        optuna_trial = self.space.get_trial(self.study)
         config = optuna_trial.params
         trial_number = optuna_trial.number
         unique_name = f"{trial_number=}"
